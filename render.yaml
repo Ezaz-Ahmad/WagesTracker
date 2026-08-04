@@ -16,10 +16,14 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: DB_PATH
-        value: /var/data/wage-tracker.sqlite
+        value: ./data/wage-tracker.sqlite # NOTE: ephemeral on the free plan (no disk) — wiped on every restart/redeploy. See README.
       - key: ALLOWED_ORIGINS
         sync: false # set to your deployed frontend URL(s), comma-separated, after the frontend is deployed
-    disk:
-      name: wage-tracker-data
-      mountPath: /var/data
-      sizeGB: 1
+    # Free plan doesn't support persistent disks, so there's no `disk:` block here — the SQLite file
+    # lives on the service's local (ephemeral) filesystem. To keep data across restarts/redeploys,
+    # upgrade this service to at least the Starter plan and add:
+    #   disk:
+    #     name: wage-tracker-data
+    #     mountPath: /var/data
+    #     sizeGB: 1
+    # ...and point DB_PATH at /var/data/wage-tracker.sqlite instead.

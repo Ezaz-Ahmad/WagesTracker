@@ -48,7 +48,9 @@ The backend and frontend are deployed separately: backend as a Node service (Rai
 
 ### Backend — Render
 
-`render.yaml` at the repo root is a ready-to-use Render Blueprint: it builds the backend workspace, runs it with `npm run start -w backend`, wires up a health check at `/api/health`, and mounts a **persistent disk** at `/var/data` for the SQLite file. In the Render dashboard: New → Blueprint → point at this repo. After the first deploy, set `ALLOWED_ORIGINS` to your frontend's URL (the blueprint leaves it blank on purpose since you won't have that URL yet).
+`render.yaml` at the repo root is a ready-to-use Render Blueprint: it builds the backend workspace, runs it with `npm run start -w backend`, and wires up a health check at `/api/health`. In the Render dashboard: New → Blueprint → point at this repo. After the first deploy, set `ALLOWED_ORIGINS` to your frontend's URL (the blueprint leaves it blank on purpose since you won't have that URL yet).
+
+**Free plan storage caveat:** Render's free plan doesn't support persistent disks. The SQLite file lives on the service's local filesystem, which is wiped on every restart/redeploy (Render also spins down and restarts free services after inactivity) — so accounts and shift data will periodically reset. This is fine for a demo/testing deploy. For real, durable data, upgrade the service to at least the Starter plan and add a `disk:` block (commented example is in `render.yaml`) mounted at `/var/data`, then point `DB_PATH` there.
 
 ### Backend — Railway
 
@@ -73,7 +75,7 @@ The backend and frontend are deployed separately: backend as a Node service (Rai
 - [ ] `JWT_SECRET` set to a strong, unique value (not the dev default)
 - [ ] `NODE_ENV=production` set on the backend
 - [ ] `ALLOWED_ORIGINS` set to your real frontend URL(s)
-- [ ] `DB_PATH` points at a persistent volume/disk, not the ephemeral local filesystem
+- [ ] `DB_PATH` points at a persistent volume/disk, not the ephemeral local filesystem (not the case on Render's free plan — see the Render section above)
 - [ ] `VITE_API_URL` set on the frontend build to the backend's URL
 - [ ] Backend `/api/health` returns `{"ok": true}` after deploy
 - [ ] Rate limiting is on by default (300 req/15min general, 20 req/15min on `/api/auth/*`) — adjust in `backend/src/index.ts` if it's too strict/loose for your traffic
