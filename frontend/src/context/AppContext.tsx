@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import * as api from "../lib/api";
+import { ApiError } from "../lib/api";
 import { addDays, isoDate, startOfWeek } from "../lib/date";
 import type { Shift, User } from "../lib/types";
 
@@ -13,6 +14,8 @@ interface AppContextValue {
   user: User | null;
   authError: string | null;
   authBusy: boolean;
+  actionError: string | null;
+  clearActionError: () => void;
   login: (email: string, password: string) => Promise<void>;
   signup: (input: api.SignupInput) => Promise<void>;
   logout: () => void;
@@ -22,8 +25,8 @@ interface AppContextValue {
   today: Date;
   shifts: Shift[];
   shiftsLoading: boolean;
-  createShift: (input: api.ShiftInput) => Promise<Shift>;
-  updateShift: (id: string, patch: Partial<api.ShiftInput>) => Promise<Shift>;
+  createShift: (input: api.ShiftInput) => Promise<Shift | undefined>;
+  updateShift: (id: string, patch: Partial<api.ShiftInput>) => Promise<Shift | undefined>;
   removeShift: (id: string) => Promise<void>;
 }
 
@@ -34,6 +37,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [shiftsLoading, setShiftsLoading] = useState(false);
   const [today, setToday] = useState(() => new Date());
@@ -55,8 +59,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setUser(user);
         setStatus("loggedIn");
       })
-      .catch(() => {
-        api.clearToken();
+      .catch((e) => {
+        // Only drop the session on an actual auth failure. A network blip or a
+        // momentarily-unreachable backend shouldn't force the user to log back in.
+        if (e instanceof ApiError && e.status === 401) {
+          api.clearToken();
+        }
         setStatus("loggedOut");
       });
   }, []);
@@ -118,27 +126,73 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setStatus("loggedOut");
   }, []);
 
-  const updateSettings = useCallback(async (patch: api.MePatch) => {
-    const { user } = await api.patchMe(patch);
-    setUser(user);
-  }, []);
+  // Shared handling for authenticated actions (settings/shifts): an expired or invalid
+  // token logs the user out with a clear reason instead of failing silently; any other
+  // failure (validation, network) surfaces as a dismissible message instead of an
+  // unhandled promise rejection.
+  const handleActionError = useCallback(
+    (e: unknown, fallback: string) => {
+      if (e instanceof ApiError && e.status === 401) {
+        logout();
+        setActionError("Your session expired. Please log in again.");
+        return;
+      }
+      setActionError(e instanceof Error ? e.message : fallback);
+    },
+    [logout]
+  );
 
-  const createShift = useCallback(async (input: api.ShiftInput) => {
-    const { shift } = await api.createShift(input);
-    setShifts((prev) => [...prev, shift]);
-    return shift;
-  }, []);
+  const updateSettings = useCallback(
+    async (patch: api.MePatch) => {
+      try {
+        const { user } = await api.patchMe(patch);
+        setUser(user);
+      } catch (e) {
+        handleActionError(e, "Couldn't save settings");
+      }
+    },
+    [handleActionError]
+  );
 
-  const updateShift = useCallback(async (id: string, patch: Partial<api.ShiftInput>) => {
-    const { shift } = await api.patchShift(id, patch);
-    setShifts((prev) => prev.map((s) => (s.id === id ? shift : s)));
-    return shift;
-  }, []);
+  const createShift = useCallback(
+    async (input: api.ShiftInput) => {
+      try {
+        const { shift } = await api.createShift(input);
+        setShifts((prev) => [...prev, shift]);
+        return shift;
+      } catch (e) {
+        handleActionError(e, "Couldn't save shift");
+        return undefined;
+      }
+    },
+    [handleActionError]
+  );
 
-  const removeShift = useCallback(async (id: string) => {
-    await api.deleteShift(id);
-    setShifts((prev) => prev.filter((s) => s.id !== id));
-  }, []);
+  const updateShift = useCallback(
+    async (id: string, patch: Partial<api.ShiftInput>) => {
+      try {
+        const { shift } = await api.patchShift(id, patch);
+        setShifts((prev) => prev.map((s) => (s.id === id ? shift : s)));
+        return shift;
+      } catch (e) {
+        handleActionError(e, "Couldn't update shift");
+        return undefined;
+      }
+    },
+    [handleActionError]
+  );
+
+  const removeShift = useCallback(
+    async (id: string) => {
+      try {
+        await api.deleteShift(id);
+        setShifts((prev) => prev.filter((s) => s.id !== id));
+      } catch (e) {
+        handleActionError(e, "Couldn't remove shift");
+      }
+    },
+    [handleActionError]
+  );
 
   const value = useMemo<AppContextValue>(
     () => ({
@@ -146,6 +200,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       user,
       authError,
       authBusy,
+      actionError,
+      clearActionError: () => setActionError(null),
       login,
       signup,
       logout,
@@ -158,7 +214,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
       updateShift,
       removeShift,
     }),
-    [status, user, authError, authBusy, login, signup, logout, updateSettings, today, shifts, shiftsLoading, createShift, updateShift, removeShift]
+    [
+      status,
+      user,
+      authError,
+      authBusy,
+      actionError,
+      login,
+      signup,
+      logout,
+      updateSettings,
+      today,
+      shifts,
+      shiftsLoading,
+      createShift,
+      updateShift,
+      removeShift,
+    ]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

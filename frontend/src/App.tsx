@@ -10,7 +10,7 @@ import { SettingsScreen } from "./screens/SettingsScreen";
 import type { Screen } from "./lib/types";
 
 function AuthedApp() {
-  const { today } = useApp();
+  const { today, actionError, clearActionError } = useApp();
   const [screen, setScreen] = useState<Screen>("home");
 
   const todayLabel = today.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
@@ -22,6 +22,12 @@ function AuthedApp() {
           <span className="nav-brand">Wage Tracker</span>
           <span className="app-nav-date">{todayLabel}</span>
         </div>
+
+        {actionError && (
+          <div className="form-error" role="alert" style={{ margin: "0 var(--space-4)" }} onClick={clearActionError}>
+            {actionError}
+          </div>
+        )}
 
         <div className="app-main">
           {screen === "home" && <HomeScreen />}

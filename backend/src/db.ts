@@ -8,6 +8,7 @@ fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 export const db = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
+db.pragma("busy_timeout = 5000");
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (

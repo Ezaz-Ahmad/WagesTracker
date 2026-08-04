@@ -1,7 +1,15 @@
 import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
+const DEV_FALLBACK_SECRET = "dev-secret-change-me";
+
+if (process.env.NODE_ENV === "production" && (!process.env.JWT_SECRET || process.env.JWT_SECRET === DEV_FALLBACK_SECRET)) {
+  throw new Error(
+    "JWT_SECRET must be set to a strong, unique value in production. Refusing to start with the default/dev secret."
+  );
+}
+
+const JWT_SECRET = process.env.JWT_SECRET || DEV_FALLBACK_SECRET;
 const TOKEN_TTL = "30d";
 
 export interface AuthedRequest extends Request {

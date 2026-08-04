@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: wage-tracker-api
+    runtime: node
+    plan: free
+    rootDir: .
+    buildCommand: npm install && npm run build -w backend
+    startCommand: npm run start -w backend
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DB_PATH
+        value: /var/data/wage-tracker.sqlite
+      - key: ALLOWED_ORIGINS
+        sync: false # set to your deployed frontend URL(s), comma-separated, after the frontend is deployed
+    disk:
+      name: wage-tracker-data
+      mountPath: /var/data
+      sizeGB: 1

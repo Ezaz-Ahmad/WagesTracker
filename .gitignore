@@ -4,6 +4,5 @@ build/
 *.log
 .env
 .env.local
-backend/data/*.sqlite
-backend/data/*.sqlite-journal
+backend/data/
 .DS_Store
