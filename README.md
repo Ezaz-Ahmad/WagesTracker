@@ -6,7 +6,9 @@ A full-stack app for tracking work shifts, hourly earnings, and weekly goals —
 - App: https://wages-tracker-frontend.vercel.app
 - API: https://wage-tracker-api.onrender.com (health check: `/api/health`)
 
-> Note: the backend runs on Render's free plan with no persistent disk, so the SQLite database resets whenever the service restarts or spins down from inactivity (~15 min idle). Fine for a demo; see [Deploying](#deploying) for how to make it durable.
+Backend is hosted on **Render**, frontend on **Vercel**. That's the actual deployment — see [Deploying](#deploying) below.
+
+> Note: the backend runs on Render's free plan with no persistent disk, so the SQLite database resets whenever the service restarts or spins down from inactivity (~15 min idle). Fine for a demo; see the Render section below for how to make it durable.
 
 ## Tech stack
 
@@ -27,6 +29,8 @@ A full-stack app for tracking work shifts, hourly earnings, and weekly goals —
 - API calls go through a small `fetch` wrapper (`lib/api.ts`) that targets `VITE_API_URL` in production or the Vite dev proxy locally, and centralizes auth-error handling (expired/invalid token → auto logout)
 
 **Data**: SQLite, one file, no separate database server. Schema/migrations live in `backend/src/db.ts`.
+
+**Hosting**: Render (backend, Node web service) + Vercel (frontend, static Vite build).
 
 **Repo layout**: npm workspaces monorepo (`backend`, `frontend` as separate workspaces sharing one `package.json`/lockfile at the root).
 
@@ -70,33 +74,33 @@ Useful scripts (run from the root):
 
 ## Deploying
 
-The backend and frontend are deployed separately: backend as a Node service (Render or Railway), frontend as a static site (Vercel or Netlify). The live deploy above uses **Render + Vercel**.
+This is what's actually running in production: **backend on Render, frontend on Vercel.**
 
 ### Backend — Render
 
-`render.yaml` at the repo root is a ready-to-use Render Blueprint: it builds the backend workspace, runs it with `npm run start -w backend`, and wires up a health check at `/api/health`. In the Render dashboard: New → Blueprint → point at this repo. After the first deploy, set `ALLOWED_ORIGINS` to your frontend's URL (the blueprint leaves it blank on purpose since you won't have that URL yet).
+`render.yaml` at the repo root is a ready-to-use Render Blueprint: New → Blueprint in the Render dashboard, point it at this repo, it auto-detects `render.yaml`. It builds the backend workspace, runs it with `npm run start -w backend`, and wires up a health check at `/api/health`.
 
-The build command is `npm install --include=dev && npm run build -w backend` — the `--include=dev` is required because Render sets `NODE_ENV=production` before installing, which npm otherwise treats as "skip devDependencies," and `typescript`/`@types/*` (needed to compile) live there.
+Two things it's already configured to handle:
+- **Build command** is `npm install --include=dev && npm run build -w backend` — the `--include=dev` is required because Render sets `NODE_ENV=production` before installing, which npm otherwise treats as "skip devDependencies," and `typescript`/`@types/*` (needed to compile) live there. Without this, the build fails with a wall of "cannot find declaration file" errors.
+- **`ALLOWED_ORIGINS`** is left blank in the blueprint (marked `sync: false`) since you won't have a frontend URL yet on first deploy — Render will prompt you for a value when you deploy the blueprint. Put in a harmless placeholder (e.g. `http://localhost:5173`), then come back and set it to the real Vercel URL once the frontend is deployed (Environment tab on the service → edit `ALLOWED_ORIGINS` → save, which triggers an automatic redeploy).
 
-**Free plan storage caveat:** Render's free plan doesn't support persistent disks. The SQLite file lives on the service's local filesystem, which is wiped on every restart/redeploy (Render also spins down and restarts free services after inactivity) — so accounts and shift data will periodically reset. This is fine for a demo/testing deploy. For real, durable data, upgrade the service to at least the Starter plan and add a `disk:` block (commented example is in `render.yaml`) mounted at `/var/data`, then point `DB_PATH` there.
-
-### Backend — Railway
-
-`railway.json` at the repo root configures the build/start commands. In the Railway dashboard, add a volume mounted at a path of your choice and set `DB_PATH` to a file inside it (e.g. `/data/wage-tracker.sqlite`), plus `JWT_SECRET`, `NODE_ENV=production`, and `ALLOWED_ORIGINS`.
+**Free plan storage caveat:** Render's free plan doesn't support persistent disks. The SQLite file lives on the service's local filesystem, which is wiped on every restart/redeploy (Render also spins down and restarts free services after inactivity) — so accounts and shift data will periodically reset. This is fine for a demo/testing deploy, and it's the current state of the live deploy above. For real, durable data, upgrade the service to at least the Starter plan and add a `disk:` block (commented example is in `render.yaml`) mounted at `/var/data`, then point `DB_PATH` there.
 
 ### Frontend — Vercel
 
-`frontend/vercel.json` sets the build command and output directory. In the Vercel project import, set **Root Directory** to `frontend` (this is a monorepo — if you don't set this, Vercel may try to detect the `backend` Express app as a second deployable "service," which you don't want; it doesn't work correctly as a Vercel serverless function). Add the env var `VITE_API_URL` pointing at your deployed backend.
+Import this repo into Vercel. In the import settings, set **Root Directory** to `frontend` — this is important, it's a monorepo, and without it Vercel will try to auto-detect the `backend` Express app as a *second* deployable "service" in the same project. Don't deploy that: Vercel runs it as serverless functions, which breaks the SQLite file (no persistent disk, no shared filesystem between invocations) and the graceful-shutdown/`server.listen()` code in `backend/src/index.ts`. The backend only runs correctly on Render.
 
-### Frontend — Netlify
-
-`frontend/netlify.toml` sets the build command, publish directory, and SPA redirect. In the Netlify site settings, set **Base directory** to `frontend`. Add the env var `VITE_API_URL` pointing at your deployed backend.
+Once Root Directory is set to `frontend`, `frontend/vercel.json` supplies the build command and output directory automatically. Add one environment variable before deploying: `VITE_API_URL` = your Render backend URL (e.g. `https://wage-tracker-api.onrender.com`).
 
 ### Order of operations
 
-1. Deploy the backend first (Render or Railway) with `ALLOWED_ORIGINS` left as a harmless placeholder (e.g. `http://localhost:5173`) since you won't have the frontend URL yet.
-2. Deploy the frontend (Vercel or Netlify) with `VITE_API_URL` set to the backend's URL.
-3. Go back to the backend and set `ALLOWED_ORIGINS` to the real frontend URL, then save (triggers an automatic redeploy).
+1. Deploy the backend to Render first, with `ALLOWED_ORIGINS` set to a placeholder.
+2. Deploy the frontend to Vercel, with `VITE_API_URL` set to the Render URL from step 1.
+3. Go back to Render and set `ALLOWED_ORIGINS` to the real Vercel URL from step 2, then save (auto-redeploys).
+
+### Other hosts (not currently used)
+
+The repo also has `railway.json` (Railway, as a backend alternative to Render) and `frontend/netlify.toml` (Netlify, as a frontend alternative to Vercel), in case you ever want to switch. They aren't part of the live deployment and nothing above depends on them — safe to ignore, or delete if they're just noise.
 
 ## Production checklist
 
