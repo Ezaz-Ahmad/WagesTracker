@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="_ds/modernist-11f3d925-9bfb-4e70-8d68-73d315fd82a2/styles.css">
+  <style>
+    body{margin:0}
+    input[type="time"]::-webkit-calendar-picker-indicator{filter:none;opacity:0.6}
+    a{color:var(--color-accent-700)}
+    a:hover{color:var(--color-accent)}
+    .print-report{display:none}
+    @media print{
+      body{background:#fff}
+      .app-shell{display:none !important}
+      .print-report{display:block !important}
+      @page{margin:10mm;size:letter}
+      .print-report{transform-origin:top left;}
+      .print-report .table th, .print-report .table td{padding:5px 8px;font-size:12px;}
+      .print-report h1, .print-report h2, .print-report h3{margin:0;}
+    }
+  </style>
+</helmet>
+<div class="print-report">
+  <div style="font-family:var(--font-body);color:var(--color-text);max-width:800px;margin:0 auto;">
+
+    <div style="display:flex;justify-content:space-between;align-items:center;background:var(--color-accent);color:var(--color-bg);padding:10px 24px;">
+      <div style="font-family:var(--font-heading);font-weight:800;font-size:18px;letter-spacing:-0.01em;">Wage Tracker</div>
+      <div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.9;">Weekly Wage Report</div>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:20px;padding:12px 24px;border-bottom:2px solid var(--color-divider);">
+      <div style="display:flex;align-items:center;gap:16px;">
+        <div style="width:44px;height:44px;flex:none;border-radius:50%;background:var(--color-neutral-800);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--font-heading);font-weight:800;font-size:15px;">{{ employeeInitials }}</div>
+        <div>
+          <div style="font-family:var(--font-heading);font-weight:800;font-size:18px;line-height:1.15;">{{ employeeName }}</div>
+          <div style="font-size:12px;opacity:0.6;margin-top:2px;">{{ workLocationName }} · {{ workAddress }}</div>
+        </div>
+      </div>
+      <div style="text-align:right;flex:none;">
+        <span class="tag tag-outline" style="font-size:11px;">{{ currentWeekRange }}</span>
+        <div style="font-size:11px;opacity:0.5;margin-top:8px;">Generated {{ generatedOnLabel }}</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--color-divider);margin-bottom:0;">
+      <div style="background:var(--color-bg);padding:10px 20px;">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;opacity:0.55;margin-bottom:3px;">Total hours</div>
+        <div style="font-weight:800;font-family:var(--font-heading);font-size:18px;">{{ currentHoursLabel }}</div>
+      </div>
+      <div style="background:var(--color-bg);padding:10px 20px;">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;opacity:0.55;margin-bottom:3px;">Total earnings</div>
+        <div style="font-weight:800;font-family:var(--font-heading);font-size:18px;color:var(--color-accent-700);">{{ currentMoneyLabel }}</div>
+      </div>
+      <div style="background:var(--color-bg);padding:10px 20px;">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;opacity:0.55;margin-bottom:3px;">Hourly rate</div>
+        <div style="font-weight:800;font-family:var(--font-heading);font-size:18px;">{{ currencySymbol }}{{ rate }}</div>
+      </div>
+      <div style="background:var(--color-bg);padding:10px 20px;">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;opacity:0.55;margin-bottom:3px;">Days worked</div>
+        <div style="font-weight:800;font-family:var(--font-heading);font-size:18px;">{{ daysLoggedLabel }}</div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;gap:20px;padding:8px 24px 10px;border-bottom:2px solid var(--color-divider);font-size:11px;">
+      <div><span style="opacity:0.55;">Avg. hours/day</span> <strong>{{ avgHoursPerDayLabel }}</strong></div>
+      <div><span style="opacity:0.55;">Avg. per shift</span> <strong>{{ avgEarningsPerDayLabel }}</strong></div>
+      <div><span style="opacity:0.55;">Worked at</span> <strong>{{ locationsCountLabel }}</strong></div>
+    </div>
+
+    <div style="padding:12px 24px 6px;">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;opacity:0.55;margin-bottom:8px;">Hours &amp; earnings by day</div>
+      <div style="display:flex;align-items:flex-end;gap:14px;height:80px;padding:0 4px;margin-bottom:6px;border-bottom:2px solid var(--color-divider);background:var(--color-neutral-100);padding-top:10px;">
+        <sc-for list="{{ currentDaysComputed }}" as="d" hint-placeholder-count="7">
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:6px;">
+            <div style="font-size:10px;font-weight:700;color:var(--color-accent-700);">{{ d.dayMoneyLabel }}</div>
+            <div style="width:100%;max-width:34px;height:{{ d.barStyle }};background:{{ d.barColor }};"></div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;gap:14px;padding:0 4px;margin-bottom:12px;background:var(--color-neutral-100);padding-bottom:6px;">
+        <sc-for list="{{ currentDaysComputed }}" as="d" hint-placeholder-count="7">
+          <div style="flex:1;text-align:center;">
+            <div style="font-size:12px;font-weight:800;font-family:var(--font-heading);">{{ d.day }}</div>
+            <div style="font-size:10px;opacity:0.55;">{{ d.date }}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <table class="table">
+        <thead><tr><th>Day</th><th>Date</th><th>Location</th><th>Sign in</th><th>Sign out</th><th>Hours</th><th>Earnings</th></tr></thead>
+        <tbody>
+          <sc-for list="{{ shiftRows }}" as="r" hint-placeholder-count="7">
+            <tr style="background:{{ r.rowBg }};">
+              <td>{{ r.day }}</td><td>{{ r.date }}</td><td>{{ r.location }}</td><td>{{ r.signIn }}</td><td>{{ r.signOut }}</td><td>{{ r.hoursLabel }}</td><td>{{ r.moneyLabel }}</td>
+            </tr>
+          </sc-for>
+        </tbody>
+      </table>
+
+      <sc-if value="{{ multiLocYes }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;gap:24px;margin:12px 0;padding:10px 14px;background:var(--color-neutral-100);">
+          <sc-for list="{{ locationBreakdown }}" as="lb" hint-placeholder-count="2">
+            <div style="font-size:12px;"><strong style="font-family:var(--font-heading);">{{ lb.location }}</strong> — {{ lb.hoursLabel }} · {{ lb.moneyLabel }}</div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <div class="hr"></div>
+      <div style="display:flex;justify-content:space-between;font-size:20px;font-weight:800;font-family:var(--font-heading);margin-bottom:10px;">
+        <span>Total</span><span style="color:var(--color-accent-700);">{{ currentHoursLabel }} · {{ currentMoneyLabel }}</span>
+      </div>
+
+      <div style="font-size:10px;opacity:0.45;padding-bottom:20px;">Generated by Wage Tracker · {{ generatedOnLabel }}</div>
+    </div>
+  </div>
+</div>
+<sc-if value="{{ isLoggedOut }}" hint-placeholder-val="{{ false }}">
+<div style="min-height:100vh;background:var(--color-neutral-300);display:flex;align-items:center;justify-content:center;padding:var(--space-4) 0;">
+  <div style="width:100%;max-width:380px;padding:var(--space-4);">
+    <div class="card elev-md">
+      <h6 style="color:var(--color-accent);margin-bottom:var(--space-1);">Wage Tracker</h6>
+
+      <sc-if value="{{ isAuthLogin }}" hint-placeholder-val="{{ true }}">
+        <h3 style="margin:0 0 var(--space-3);">Log in</h3>
+        <div class="field" style="margin-bottom:var(--space-3);">
+          <label>Email</label>
+          <input class="input" type="email" placeholder="you@example.com" value="{{ loginEmail }}" onchange="{{ handleLoginEmail }}">
+        </div>
+        <div class="field" style="margin-bottom:var(--space-3);">
+          <label>Password</label>
+          <input class="input" type="password" placeholder="••••••••" value="{{ loginPassword }}" onchange="{{ handleLoginPassword }}">
+        </div>
+        <button class="btn btn-primary btn-block" onclick="{{ handleLogin }}" style="justify-content:center;">Log in</button>
+        <div style="font-size:12px;margin-top:var(--space-3);text-align:center;">
+          New here? <a href="#" onclick="{{ goSignup }}">Create an account</a>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isAuthSignup }}" hint-placeholder-val="{{ false }}">
+        <h3 style="margin:0 0 var(--space-3);">Create your account</h3>
+        <div class="field" style="margin-bottom:var(--space-3);">
+          <label>Full name</label>
+          <input class="input" type="text" placeholder="Alex Rivera" value="{{ employeeName }}" onchange="{{ handleNameChange }}">
+        </div>
+        <div class="field" style="margin-bottom:var(--space-3);">
+          <label>Email</label>
+          <input class="input" type="email" placeholder="you@example.com" value="{{ loginEmail }}" onchange="{{ handleLoginEmail }}">
+        </div>
+        <div class="field" style="margin-bottom:var(--space-3);">
+          <label>Password</label>
+          <input class="input" type="password" placeholder="••••••••" value="{{ loginPassword }}" onchange="{{ handleLoginPassword }}">
+        </div>
+        <div class="field" style="margin-bottom:var(--space-3);">
+          <label>Work location name</label>
+          <input class="input" type="text" placeholder="Downtown Store" value="{{ workLocationName }}" onchange="{{ handleWorkLocationChange }}">
+        </div>
+        <div class="field" style="margin-bottom:var(--space-3);">
+          <label>Work address</label>
+          <input class="input" type="text" placeholder="123 Main St, Springfield" value="{{ workAddress }}" onchange="{{ handleWorkAddressChange }}">
+        </div>
+        <div class="field" style="margin-bottom:var(--space-3);">
+          <label>Do you work multiple locations?</label>
+          <div class="seg">
+            <label class="seg-opt"><input type="radio" name="multiloc" value="no" checked="{{ multiLocNo }}" onchange="{{ handleMultiLocationsChange }}"> No</label>
+            <label class="seg-opt"><input type="radio" name="multiloc" value="yes" checked="{{ multiLocYes }}" onchange="{{ handleMultiLocationsChange }}"> Yes</label>
+          </div>
+        </div>
+        <sc-if value="{{ multiLocYes }}" hint-placeholder-val="{{ false }}">
+          <div class="field" style="margin-bottom:var(--space-3);">
+            <label>Other locations</label>
+            <input class="input" type="text" placeholder="e.g. Uptown Branch, Airport Kiosk" value="{{ otherLocations }}" onchange="{{ handleOtherLocationsChange }}">
+          </div>
+        </sc-if>
+        <button class="btn btn-primary btn-block" onclick="{{ handleSignup }}" style="justify-content:center;">Create account</button>
+        <div style="font-size:12px;margin-top:var(--space-3);text-align:center;">
+          Already have an account? <a href="#" onclick="{{ goLogin }}">Log in</a>
+        </div>
+      </sc-if>
+
+      <div style="font-size:11px;opacity:0.5;margin-top:var(--space-2);text-align:center;">Demo prototype — any details work.</div>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isLoggedIn }}" hint-placeholder-val="{{ false }}">
+<div class="app-shell" style="min-height:100vh;background:var(--color-neutral-300);display:flex;justify-content:center;">
+  <div style="width:100%;max-width:460px;min-height:100vh;background:var(--color-bg);display:flex;flex-direction:column;box-shadow:var(--shadow-lg);position:relative;">
+
+    <div class="nav" style="flex:none;">
+      <span class="nav-brand">Wage Tracker</span>
+      <span style="font-size:12px;color:var(--color-text);opacity:0.6;">{{ todayLabel }}</span>
+    </div>
+
+    <div style="flex:1;overflow-y:auto;padding:var(--space-4);padding-bottom:var(--space-8);">
+
+      <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+        <h6 style="color:var(--color-accent);margin-bottom:var(--space-1);">This week</h6>
+        <div class="card elev-sm" style="margin-bottom:var(--space-4);">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;">
+            <div style="font-family:var(--font-heading);font-weight:800;font-size:38px;line-height:1;">{{ currentMoneyLabel }}</div>
+            <div style="font-size:12px;color:{{ trendColor }};font-weight:600;">{{ trendLabel }}</div>
+          </div>
+          <div class="card-meta" style="margin-top:2px;">{{ currentHoursLabel }} logged · goal {{ goalHoursLabel }}</div>
+          <div class="hr" style="margin:var(--space-3) 0;"></div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;opacity:0.6;margin-bottom:6px;">
+            <span>Hours toward goal</span><span>{{ progressPctLabel }}</span>
+          </div>
+          <div style="height:8px;background:var(--color-neutral-200);">
+            <div style="height:100%;background:var(--color-accent);width:{{ progressPctStyle }};"></div>
+          </div>
+        </div>
+
+        <div class="card elev-sm" style="margin-bottom:var(--space-4);">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);">
+            <div>
+              <div class="card-title" style="font-size:16px;">{{ todayHeadline }}</div>
+              <div class="card-body" style="margin:2px 0 0;">{{ todaySubline }}</div>
+            </div>
+            <button class="btn" onclick="{{ todayCtaAction }}" style="flex:none;width:76px;height:76px;border-radius:50%;padding:0;text-align:center;justify-content:center;font-size:11px;line-height:1.15;white-space:normal;background:{{ todayBtnColor }};color:#fff;">{{ todayCta }}</button>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);">
+          <div class="card" style="background:var(--color-neutral-100);">
+            <div class="card-kicker">Days logged</div>
+            <div class="card-title" style="font-size:18px;">{{ daysLoggedLabel }}</div>
+          </div>
+          <div class="card" style="background:var(--color-neutral-100);">
+            <div class="card-kicker">Weeks on goal</div>
+            <div class="card-title" style="font-size:22px;">{{ metGoalLabel }}</div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isEntry }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-3);">
+          <h6 style="color:var(--color-accent);margin-bottom:var(--space-1);">This week's hours</h6>
+          <button class="btn btn-ghost" onclick="{{ handleDownloadPdf }}" style="flex:none;">Download PDF</button>
+        </div>
+        <div style="font-size:12px;opacity:0.6;margin-bottom:var(--space-3);">Tap a time to set sign-in and sign-out for each day, or use the clock button for today.</div>
+
+        <div class="card" style="background:var(--color-accent-100);margin-bottom:var(--space-3);display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);">
+          <div>
+            <div class="card-body" style="margin:0 0 2px;opacity:1;color:var(--color-accent-800);font-weight:600;">{{ todaySubline }}</div>
+            <sc-if value="{{ shiftActive }}" hint-placeholder-val="{{ false }}">
+              <div style="font-family:var(--font-heading);font-weight:800;font-size:26px;font-variant-numeric:tabular-nums;color:var(--color-accent-800);">{{ elapsedLabel }}</div>
+            </sc-if>
+          </div>
+          <button class="btn" onclick="{{ todayCtaAction }}" style="flex:none;width:76px;height:76px;border-radius:50%;padding:0;text-align:center;justify-content:center;font-size:11px;line-height:1.15;white-space:normal;background:{{ todayBtnColor }};color:#fff;">{{ todayCta }}</button>
+        </div>
+
+        <sc-for list="{{ currentDaysComputed }}" as="d" hint-placeholder-count="7">
+          <div style="padding:var(--space-3) 0;border-bottom:1px solid var(--color-divider);">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:var(--space-2);">
+              <div>
+                <span style="font-weight:800;font-family:var(--font-heading);font-size:14px;">{{ d.day }}</span>
+                <span style="font-size:11px;opacity:0.55;margin-left:6px;">{{ d.date }}</span>
+              </div>
+              <div style="font-size:13px;font-weight:600;color:{{ d.hoursColor }};">{{ d.hoursLabel }}</div>
+            </div>
+
+            <sc-for list="{{ d.shifts }}" as="sh" hint-placeholder-count="1">
+              <div style="display:flex;align-items:center;gap:var(--space-2);margin-bottom:var(--space-2);">
+                <input class="input" type="text" placeholder="Location" data-datekey="{{ d.dateKey }}" data-shiftindex="{{ sh.shiftIndex }}" value="{{ sh.location }}" onchange="{{ handleLocationChange }}" style="flex:1.3;">
+                <input class="input" type="time" data-datekey="{{ d.dateKey }}" data-shiftindex="{{ sh.shiftIndex }}" data-field="signIn" value="{{ sh.signIn }}" onchange="{{ handleTimeChange }}" style="flex:1;">
+                <input class="input" type="time" data-datekey="{{ d.dateKey }}" data-shiftindex="{{ sh.shiftIndex }}" data-field="signOut" value="{{ sh.signOut }}" onchange="{{ handleTimeChange }}" style="flex:1;">
+                <div style="width:42px;flex:none;text-align:right;font-size:12px;opacity:0.7;">{{ sh.hoursLabel }}</div>
+                <sc-if value="{{ sh.canRemove }}" hint-placeholder-val="{{ false }}">
+                  <button class="btn btn-icon btn-ghost" data-datekey="{{ d.dateKey }}" data-shiftindex="{{ sh.shiftIndex }}" onclick="{{ handleRemoveShift }}" style="flex:none;font-size:16px;">×</button>
+                </sc-if>
+              </div>
+            </sc-for>
+            <button class="btn btn-ghost" data-datekey="{{ d.dateKey }}" onclick="{{ handleAddShift }}" style="font-size:12px;">+ Add another shift</button>
+          </div>
+        </sc-for>
+
+        <div class="card elev-sm" style="margin-top:var(--space-4);">
+          <div style="display:flex;justify-content:space-between;font-size:14px;">
+            <span>Total this week</span>
+            <span style="font-weight:800;">{{ currentHoursLabel }} · {{ currentMoneyLabel }}</span>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isReport }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-3);">
+          <h6 style="color:var(--color-accent);margin-bottom:var(--space-1);">Progress report</h6>
+          <button class="btn btn-ghost" onclick="{{ handleDownloadPdf }}" style="flex:none;">Download this week (PDF)</button>
+        </div>
+        <div style="font-size:12px;opacity:0.6;margin-bottom:var(--space-3);">Last 7 weeks plus this week in progress.</div>
+
+        <div class="seg" style="margin-bottom:var(--space-4);">
+          <label class="seg-opt"><input type="radio" name="metric" value="earnings" checked="{{ metricIsEarnings }}" onchange="{{ handleMetricChange }}"> Earnings</label>
+          <label class="seg-opt"><input type="radio" name="metric" value="hours" checked="{{ metricIsHours }}" onchange="{{ handleMetricChange }}"> Hours</label>
+        </div>
+
+        <svg viewBox="0 0 320 150" width="100%" height="150" preserveAspectRatio="none" style="overflow:visible;display:block;">
+          <line x1="0" y1="118" x2="320" y2="118" stroke="var(--color-divider)" stroke-width="1"></line>
+          <path d="{{ chartAreaPath }}" fill="var(--color-accent-100)" stroke="none"></path>
+          <polyline points="{{ chartLinePoints }}" fill="none" stroke="var(--color-accent)" stroke-width="2.5"></polyline>
+          <sc-for list="{{ chartPoints }}" as="p" hint-placeholder-count="8">
+            <circle cx="{{ p.x }}" cy="{{ p.y }}" r="4.5" fill="{{ p.dotColor }}" stroke="{{ p.dotStroke }}" stroke-width="2"></circle>
+            <text x="{{ p.x }}" y="{{ p.labelY }}" font-size="10" text-anchor="middle" fill="var(--color-text)" opacity="0.7">{{ p.valueLabel }}</text>
+          </sc-for>
+        </svg>
+        <div style="display:flex;gap:0;padding:0 var(--space-1);margin-top:4px;">
+          <sc-for list="{{ chartPoints }}" as="p" hint-placeholder-count="8">
+            <div style="flex:1;text-align:center;font-size:10px;opacity:0.6;">{{ p.short }}</div>
+          </sc-for>
+        </div>
+
+        <div class="hr"></div>
+
+        <div style="display:flex;flex-direction:column;gap:var(--space-3);">
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;opacity:0.6;margin-bottom:6px;">
+              <span>Hours vs. goal</span><span>{{ progressPctLabel }}</span>
+            </div>
+            <div style="height:8px;background:var(--color-neutral-200);">
+              <div style="height:100%;background:var(--color-accent);width:{{ progressPctStyle }};"></div>
+            </div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;opacity:0.6;margin-bottom:6px;">
+              <span>Earnings vs. goal</span><span>{{ earningsProgressPctLabel }}</span>
+            </div>
+            <div style="height:8px;background:var(--color-neutral-200);">
+              <div style="height:100%;background:var(--color-accent);width:{{ earningsProgressPctStyle }};"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="background:var(--color-neutral-100);margin-top:var(--space-4);">
+          <div class="card-kicker">Consistency</div>
+          <div class="card-title" style="font-size:20px;">{{ metGoalSentence }}</div>
+          <p class="card-body">met your {{ goalEarningsLabel }} weekly goal, over the last 7 completed weeks.</p>
+        </div>
+
+        <div class="hr" style="margin-top:var(--space-6);"></div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-3);margin-bottom:var(--space-1);">
+          <h6 style="color:var(--color-accent);margin:0;">Compare periods</h6>
+        </div>
+        <div style="font-size:12px;opacity:0.6;margin-bottom:var(--space-3);">See how you're doing week over week, month over month, or year over year.</div>
+        <div class="seg" style="margin-bottom:var(--space-4);">
+          <label class="seg-opt"><input type="radio" name="period" value="week" checked="{{ periodIsWeek }}" onchange="{{ handlePeriodChange }}"> Weeks</label>
+          <label class="seg-opt"><input type="radio" name="period" value="month" checked="{{ periodIsMonth }}" onchange="{{ handlePeriodChange }}"> Months</label>
+          <label class="seg-opt"><input type="radio" name="period" value="year" checked="{{ periodIsYear }}" onchange="{{ handlePeriodChange }}"> Years</label>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:8px;height:150px;padding:0 var(--space-1);">
+          <sc-for list="{{ periodBars }}" as="b" hint-placeholder-count="7">
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:6px;">
+              <div style="font-size:10px;opacity:0.6;">{{ b.valueLabel }}</div>
+              <div style="width:100%;height:{{ b.barStyle }};background:{{ b.barColor }};"></div>
+              <div style="font-size:10px;opacity:0.6;">{{ b.short }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isHistory }}" hint-placeholder-val="{{ false }}">
+        <h6 style="color:var(--color-accent);margin-bottom:var(--space-1);">History</h6>
+        <div style="font-size:12px;opacity:0.6;margin-bottom:var(--space-3);">Completed weeks, most recent first.</div>
+        <table class="table">
+          <thead>
+            <tr><th>Week</th><th>Hours</th><th>Earnings</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            <sc-for list="{{ historyRecent }}" as="w" hint-placeholder-count="7">
+              <tr>
+                <td>{{ w.label }}</td>
+                <td>{{ w.hoursLabel }}</td>
+                <td>{{ w.earningsLabel }}</td>
+                <td><span class="tag {{ w.tagClass }}">{{ w.tagLabel }}</span></td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </sc-if>
+
+      <sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+        <h6 style="color:var(--color-accent);margin-bottom:var(--space-1);">Settings</h6>
+        <div style="font-size:12px;opacity:0.6;margin-bottom:var(--space-4);">Your rate, weekly goals and preferences.</div>
+
+        <div class="field" style="margin-bottom:var(--space-3);">
+          <label>Your name</label>
+          <input class="input" type="text" value="{{ employeeName }}" onchange="{{ handleNameChange }}">
+        </div>
+        <div class="field" style="margin-bottom:var(--space-3);">
+          <label>Week starts on</label>
+          <div class="seg">
+            <label class="seg-opt"><input type="radio" name="weekstart" value="Monday" checked="{{ weekStartsMonday }}" onchange="{{ handleWeekStartChange }}"> Monday</label>
+            <label class="seg-opt"><input type="radio" name="weekstart" value="Sunday" checked="{{ weekStartsSunday }}" onchange="{{ handleWeekStartChange }}"> Sunday</label>
+          </div>
+        </div>
+
+        <div class="hr"></div>
+        <h6 style="color:var(--color-accent);margin-bottom:var(--space-1);">Work details</h6>
+
+        <div class="field" style="margin-bottom:var(--space-3);">
+          <label>Work location name</label>
+          <input class="input" type="text" value="{{ workLocationName }}" onchange="{{ handleWorkLocationChange }}">
+        </div>
+        <div class="field" style="margin-bottom:var(--space-3);">
+          <label>Work address</label>
+          <input class="input" type="text" value="{{ workAddress }}" onchange="{{ handleWorkAddressChange }}">
+        </div>
+        <div class="field" style="margin-bottom:var(--space-3);">
+          <label>Do you work multiple locations?</label>
+          <div class="seg">
+            <label class="seg-opt"><input type="radio" name="multiloc-s" value="no" checked="{{ multiLocNo }}" onchange="{{ handleMultiLocationsChange }}"> No</label>
+            <label class="seg-opt"><input type="radio" name="multiloc-s" value="yes" checked="{{ multiLocYes }}" onchange="{{ handleMultiLocationsChange }}"> Yes</label>
+          </div>
+        </div>
+        <sc-if value="{{ multiLocYes }}" hint-placeholder-val="{{ false }}">
+          <div class="field" style="margin-bottom:var(--space-3);">
+            <label>Other locations</label>
+            <input class="input" type="text" value="{{ otherLocations }}" onchange="{{ handleOtherLocationsChange }}">
+          </div>
+        </sc-if>
+
+        <div class="hr"></div>
+        <div class="field" style="margin-bottom:var(--space-3);">
+          <label>Hourly rate ({{ currencySymbol }})</label>
+          <input class="input" type="number" step="0.25" min="0" value="{{ rate }}" onchange="{{ handleRateChange }}">
+        </div>
+        <div class="field" style="margin-bottom:var(--space-3);">
+          <label>Weekly hours goal</label>
+          <input class="input" type="number" step="0.5" min="0" value="{{ goalHours }}" onchange="{{ handleGoalHoursChange }}">
+        </div>
+        <div class="field" style="margin-bottom:var(--space-2);">
+          <label>Weekly earnings goal ({{ currencySymbol }})</label>
+          <input class="input" type="number" step="1" min="0" value="{{ goalEarnings }}" onchange="{{ handleGoalEarningsChange }}">
+        </div>
+        <button class="btn btn-ghost" onclick="{{ handleAutoGoal }}" style="margin-bottom:var(--space-4);">Set goal = rate × hour goal</button>
+
+        <div class="hr"></div>
+        <button class="btn btn-primary btn-block" onclick="{{ handleSaveSettings }}">{{ saveLabel }}</button>
+        <button class="btn btn-secondary btn-block" onclick="{{ handleLogout }}">Log out</button>
+        <div style="font-size:11px;opacity:0.5;margin-top:var(--space-3);">Time entries and reports are kept for 3 years and automatically deleted after that.</div>
+      </sc-if>
+
+    </div>
+
+    <div style="flex:none;display:flex;border-top:2px solid var(--color-divider);background:var(--color-bg);">
+      <button onclick="{{ goHome }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0 10px;background:none;border:none;cursor:pointer;color:{{ homeColor }};">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11L12 4l8 7"></path><path d="M6 10v9h12v-9"></path><path d="M10 19v-5h4v5"></path></svg>
+        <span style="font-size:10px;">Home</span>
+      </button>
+      <button onclick="{{ goEntry }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0 10px;background:none;border:none;cursor:pointer;color:{{ entryColor }};">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"></circle><path d="M12 8v4l3 2"></path></svg>
+        <span style="font-size:10px;">Entry</span>
+      </button>
+      <button onclick="{{ goReport }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0 10px;background:none;border:none;cursor:pointer;color:{{ reportColor }};">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19h18"></path><path d="M6 19v-7"></path><path d="M12 19V6"></path><path d="M18 19v-10"></path></svg>
+        <span style="font-size:10px;">Report</span>
+      </button>
+      <button onclick="{{ goHistory }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0 10px;background:none;border:none;cursor:pointer;color:{{ historyColor }};">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16"></path><path d="M4 12h16"></path><path d="M4 18h10"></path></svg>
+        <span style="font-size:10px;">History</span>
+      </button>
+      <button onclick="{{ goSettings }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0 10px;background:none;border:none;cursor:pointer;color:{{ settingsColor }};">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9"></path><circle cx="17" cy="6" r="2"></circle><path d="M20 12H9"></path><circle cx="6" cy="12" r="2"></circle><path d="M4 18h9"></path><circle cx="17" cy="18" r="2"></circle></svg>
+        <span style="font-size:10px;">Settings</span>
+      </button>
+    </div>
+
+  </div>
+</div>
+</sc-if>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:460,&quot;height&quot;:860},&quot;defaultScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;home&quot;,&quot;options&quot;:[&quot;home&quot;,&quot;entry&quot;,&quot;report&quot;,&quot;history&quot;,&quot;settings&quot;],&quot;tsType&quot;:&quot;string&quot;},&quot;currencySymbol&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;$&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;hourlyRateDefault&quot;:{&quot;editor&quot;:&quot;float&quot;,&quot;default&quot;:18.5,&quot;tsType&quot;:&quot;number&quot;,&quot;min&quot;:0,&quot;max&quot;:200,&quot;step&quot;:0.25},&quot;weeklyHourGoalDefault&quot;:{&quot;editor&quot;:&quot;float&quot;,&quot;default&quot;:35,&quot;tsType&quot;:&quot;number&quot;,&quot;min&quot;:0,&quot;max&quot;:80,&quot;step&quot;:0.5},&quot;employeeNameDefault&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Alex Rivera&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;weekStartOnDefault&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;Monday&quot;,&quot;options&quot;:[&quot;Monday&quot;,&quot;Sunday&quot;],&quot;tsType&quot;:&quot;string&quot;}}">
+function computeHours(signIn, signOut) {
+  if (!signIn || !signOut) return 0;
+  var a = signIn.split(':'); var b = signOut.split(':');
+  var start = parseInt(a[0], 10) + parseInt(a[1], 10) / 60;
+  var end = parseInt(b[0], 10) + parseInt(b[1], 10) / 60;
+  var diff = end - start;
+  if (diff < 0) diff += 24;
+  return Math.round(diff * 100) / 100;
+}
+function fmt2(n) { return (Math.round(n * 100) / 100).toFixed(2); }
+function pad2(n) { return String(n).padStart(2, '0'); }
+function formatElapsed(ms) {
+  var totalSec = Math.max(0, Math.floor(ms / 1000));
+  var h = Math.floor(totalSec / 3600), m = Math.floor((totalSec % 3600) / 60), sec = totalSec % 60;
+  return pad2(h) + ':' + pad2(m) + ':' + pad2(sec);
+}
+var TODAY = new Date(2026, 7, 3); // Aug 3, 2026 (Monday)
+var RETENTION_YEARS = 3;
+var STORAGE_KEY = 'wageTrackerData_v1';
+function cutoffDate() { return new Date(TODAY.getFullYear() - RETENTION_YEARS, TODAY.getMonth(), TODAY.getDate()); }
+function buildBars(items, metric, currency) {
+  var maxVal = Math.max.apply(null, items.map((w) => metric === 'earnings' ? w.earnings : w.hours)) || 1;
+  return items.map((w) => {
+    var val = metric === 'earnings' ? w.earnings : w.hours;
+    var pct = Math.max(4, Math.round((val / maxVal) * 100));
+    return {
+      short: w.short,
+      valueLabel: metric === 'earnings' ? (currency + Math.round(val)) : (val + 'h'),
+      barStyle: pct + '%',
+      barColor: w.inProgress ? 'var(--color-accent-300)' : 'var(--color-accent)'
+    };
+  });
+}
+function buildWeekDays(startsOn) {
+  var day = TODAY.getDay();
+  var startIdx = startsOn === 'Sunday' ? 0 : 1;
+  var diff = (day - startIdx + 7) % 7;
+  var start = new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() - diff);
+  var days = [];
+  for (var i = 0; i < 7; i++) {
+    var d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+    days.push({
+      dateKey: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      dayAbbr: d.toLocaleDateString('en-US', { weekday: 'short' }),
+      isToday: d.getFullYear() === TODAY.getFullYear() && d.getMonth() === TODAY.getMonth() && d.getDate() === TODAY.getDate()
+    });
+  }
+  return days;
+}
+function getShifts(signData, dateKey, defaultLocation) {
+  var entry = signData[dateKey];
+  if (entry && entry.shifts && entry.shifts.length) return entry.shifts;
+  return [{ signIn: '', signOut: '', location: defaultLocation || '' }];
+}
+
+class Component extends DCLogic {
+  state = {
+    screen: this.props.defaultScreen || 'home',
+    reportMetric: 'earnings',
+    rate: this.props.hourlyRateDefault ?? 18.5,
+    goalHours: this.props.weeklyHourGoalDefault ?? 35,
+    goalEarnings: 647.5,
+    saveFlash: false,
+    isLoggedIn: false,
+    authMode: 'login',
+    loginEmail: '',
+    loginPassword: '',
+    workLocationName: 'Downtown Store',
+    workAddress: '123 Main St, Springfield',
+    multipleLocations: false,
+    otherLocations: '',
+    activeShiftStart: null,
+    periodMode: 'week',
+    employeeName: this.props.employeeNameDefault || 'Alex Rivera',
+    weekStartsOn: this.props.weekStartOnDefault || 'Monday',
+    signData: {
+      'Aug 3': { shifts: [{ signIn: '09:00', signOut: '17:30', location: 'Downtown Store' }] }
+    },
+    history: [
+      { label: 'Jun 15 – 21', short: 'Jun 15', hours: 34.5, earnings: 638.25 },
+      { label: 'Jun 22 – 28', short: 'Jun 22', hours: 31, earnings: 573.5 },
+      { label: 'Jun 29 – Jul 5', short: 'Jun 29', hours: 35, earnings: 647.5 },
+      { label: 'Jul 6 – 12', short: 'Jul 6', hours: 29.5, earnings: 545.75 },
+      { label: 'Jul 13 – 19', short: 'Jul 13', hours: 38, earnings: 703 },
+      { label: 'Jul 20 – 26', short: 'Jul 20', hours: 33, earnings: 610.5 },
+      { label: 'Jul 27 – Aug 2', short: 'Jul 27', hours: 36.5, earnings: 675.25 }
+    ]
+  };
+
+  goHome = () => this.setState({ screen: 'home' });
+  goEntry = () => this.setState({ screen: 'entry' });
+  goReport = () => this.setState({ screen: 'report' });
+  goHistory = () => this.setState({ screen: 'history' });
+  goSettings = () => this.setState({ screen: 'settings' });
+
+  handleTimeChange = (e) => {
+    var dateKey = e.target.dataset.datekey;
+    var shiftIndex = parseInt(e.target.dataset.shiftindex, 10) || 0;
+    var field = e.target.dataset.field;
+    var value = e.target.value;
+    this.setState((s) => {
+      var signData = Object.assign({}, s.signData);
+      var shifts = getShifts(s.signData, dateKey, s.workLocationName).slice().map((sh) => Object.assign({}, sh));
+      shifts[shiftIndex] = Object.assign({}, shifts[shiftIndex], {});
+      shifts[shiftIndex][field] = value;
+      signData[dateKey] = { shifts: shifts };
+      return { signData: signData };
+    });
+  };
+  handleLocationChange = (e) => {
+    var dateKey = e.target.dataset.datekey;
+    var shiftIndex = parseInt(e.target.dataset.shiftindex, 10) || 0;
+    var value = e.target.value;
+    this.setState((s) => {
+      var signData = Object.assign({}, s.signData);
+      var shifts = getShifts(s.signData, dateKey, s.workLocationName).slice().map((sh) => Object.assign({}, sh));
+      shifts[shiftIndex] = Object.assign({}, shifts[shiftIndex], { location: value });
+      signData[dateKey] = { shifts: shifts };
+      return { signData: signData };
+    });
+  };
+  handleAddShift = (e) => {
+    var dateKey = e.currentTarget.dataset.datekey;
+    this.setState((s) => {
+      var signData = Object.assign({}, s.signData);
+      var shifts = getShifts(s.signData, dateKey, s.workLocationName).slice();
+      shifts.push({ signIn: '', signOut: '', location: s.workLocationName });
+      signData[dateKey] = { shifts: shifts };
+      return { signData: signData };
+    });
+  };
+  handleRemoveShift = (e) => {
+    var dateKey = e.currentTarget.dataset.datekey;
+    var shiftIndex = parseInt(e.currentTarget.dataset.shiftindex, 10) || 0;
+    this.setState((s) => {
+      var signData = Object.assign({}, s.signData);
+      var shifts = getShifts(s.signData, dateKey, s.workLocationName).slice();
+      shifts.splice(shiftIndex, 1);
+      signData[dateKey] = { shifts: shifts.length ? shifts : [{ signIn: '', signOut: '', location: s.workLocationName }] };
+      return { signData: signData };
+    });
+  };
+  handleNameChange = (e) => this.setState({ employeeName: e.target.value });
+  handleWeekStartChange = (e) => this.setState({ weekStartsOn: e.target.value });
+  handleLoginEmail = (e) => this.setState({ loginEmail: e.target.value });
+  handleLoginPassword = (e) => this.setState({ loginPassword: e.target.value });
+  handleLogin = () => this.setState({ isLoggedIn: true });
+  handleLogout = () => this.setState({ isLoggedIn: false, authMode: 'login', screen: 'home' });
+  goSignup = (e) => { if (e && e.preventDefault) e.preventDefault(); this.setState({ authMode: 'signup' }); };
+  goLogin = (e) => { if (e && e.preventDefault) e.preventDefault(); this.setState({ authMode: 'login' }); };
+  handleSignup = () => this.setState({ isLoggedIn: true });
+  handleWorkLocationChange = (e) => this.setState({ workLocationName: e.target.value });
+  handleWorkAddressChange = (e) => this.setState({ workAddress: e.target.value });
+  handleMultiLocationsChange = (e) => this.setState({ multipleLocations: e.target.value === 'yes' });
+  handleOtherLocationsChange = (e) => this.setState({ otherLocations: e.target.value });
+  componentDidMount() {
+    this._timer = setInterval(() => { if (this.state.activeShiftStart) this.forceUpdate(); }, 1000);
+    try {
+      var raw = window.localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        var saved = JSON.parse(raw);
+        var cutoff = cutoffDate();
+        var signData = {};
+        Object.keys(saved.signData || {}).forEach((k) => {
+          var d = new Date(k + ', ' + TODAY.getFullYear());
+          if (isNaN(d.getTime()) || d >= cutoff) signData[k] = saved.signData[k];
+        });
+        var history = (saved.history || this.state.history).filter(() => true); // sample history kept as-is (all within retention window)
+        this.setState({
+          signData: Object.keys(signData).length ? signData : this.state.signData,
+          history: history,
+          employeeName: saved.employeeName ?? this.state.employeeName,
+          rate: saved.rate ?? this.state.rate,
+          goalHours: saved.goalHours ?? this.state.goalHours,
+          goalEarnings: saved.goalEarnings ?? this.state.goalEarnings,
+          workLocationName: saved.workLocationName ?? this.state.workLocationName,
+          workAddress: saved.workAddress ?? this.state.workAddress,
+          multipleLocations: saved.multipleLocations ?? this.state.multipleLocations,
+          otherLocations: saved.otherLocations ?? this.state.otherLocations,
+          weekStartsOn: saved.weekStartsOn ?? this.state.weekStartsOn
+        });
+      }
+    } catch (e) {}
+  }
+  componentWillUnmount() {
+    clearInterval(this._timer);
+  }
+  componentDidUpdate() {
+    try {
+      var s = this.state;
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        signData: s.signData, history: s.history, employeeName: s.employeeName, rate: s.rate,
+        goalHours: s.goalHours, goalEarnings: s.goalEarnings, workLocationName: s.workLocationName,
+        workAddress: s.workAddress, multipleLocations: s.multipleLocations, otherLocations: s.otherLocations,
+        weekStartsOn: s.weekStartsOn, savedAt: Date.now()
+      }));
+    } catch (e) {}
+  }
+  handlePeriodChange = (e) => this.setState({ periodMode: e.target.value });
+  handleStartShift = () => {
+    var todayKey = TODAY.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    var now = new Date();
+    var nowTime = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
+    this.setState((s) => {
+      var signData = Object.assign({}, s.signData);
+      var existing = (s.signData[todayKey] && s.signData[todayKey].shifts) ? s.signData[todayKey].shifts.slice() : [];
+      var last = existing[existing.length - 1];
+      if (last && !last.signOut) { last.signIn = last.signIn || nowTime; }
+      else { existing.push({ signIn: nowTime, signOut: '', location: s.workLocationName }); }
+      signData[todayKey] = { shifts: existing };
+      return { signData: signData, activeShiftStart: now.getTime() };
+    });
+  };
+  handleEndShift = () => {
+    var todayKey = TODAY.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    var now = new Date();
+    var nowTime = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
+    this.setState((s) => {
+      var signData = Object.assign({}, s.signData);
+      var existing = (s.signData[todayKey] && s.signData[todayKey].shifts) ? s.signData[todayKey].shifts.slice().map((sh) => Object.assign({}, sh)) : [{ signIn: nowTime, signOut: '', location: s.workLocationName }];
+      existing[existing.length - 1].signOut = nowTime;
+      signData[todayKey] = { shifts: existing };
+      return { signData: signData, activeShiftStart: null };
+    });
+  };
+
+  handleMetricChange = (e) => this.setState({ reportMetric: e.target.value });
+  handleRateChange = (e) => this.setState({ rate: parseFloat(e.target.value) || 0 });
+  handleGoalHoursChange = (e) => this.setState({ goalHours: parseFloat(e.target.value) || 0 });
+  handleGoalEarningsChange = (e) => this.setState({ goalEarnings: parseFloat(e.target.value) || 0 });
+  handleAutoGoal = () => this.setState((s) => ({ goalEarnings: Math.round(s.rate * s.goalHours * 100) / 100 }));
+  handleSaveSettings = () => {
+    this.setState({ saveFlash: true });
+    setTimeout(() => this.setState({ saveFlash: false }), 1500);
+  };
+  handleDownloadPdf = () => window.print();
+
+  renderVals() {
+    var s = this.state;
+    var currency = this.props.currencySymbol || '$';
+    var accent = 'var(--color-accent)';
+    var accent700 = 'var(--color-accent-700)';
+    var muted = 'var(--color-text)';
+
+    var weekDays = buildWeekDays(s.weekStartsOn);
+    var dayTotalHours = function (wd) {
+      return getShifts(s.signData, wd.dateKey, s.workLocationName).reduce((a, sh) => a + computeHours(sh.signIn, sh.signOut), 0);
+    };
+    var maxDayHours = Math.max.apply(null, weekDays.map(dayTotalHours)) || 8;
+    var currentDaysComputed = weekDays.map((wd, wi) => {
+      var rawShifts = getShifts(s.signData, wd.dateKey, s.workLocationName);
+      var shifts = rawShifts.map((sh, si) => {
+        var sh2 = computeHours(sh.signIn, sh.signOut);
+        return {
+          shiftIndex: si, signIn: sh.signIn, signOut: sh.signOut, location: sh.location || '',
+          hours: sh2, hoursLabel: sh2 > 0 ? (sh2 + 'h') : '—', canRemove: rawShifts.length > 1
+        };
+      });
+      var h = Math.round(shifts.reduce((a, sh) => a + sh.hours, 0) * 100) / 100;
+      var barPct = Math.max(4, Math.round((h / maxDayHours) * 100));
+      var lastShift = shifts[shifts.length - 1];
+      return {
+        dateKey: wd.dateKey, day: wd.dayAbbr, date: wd.dateKey,
+        signIn: lastShift.signIn, signOut: lastShift.signOut, shifts: shifts,
+        isToday: wd.isToday,
+        hours: h,
+        hoursLabel: h > 0 ? (h + 'h') : '—',
+        dayMoneyLabel: h > 0 ? (currency + fmt2(h * s.rate)) : '—',
+        barStyle: (h > 0 ? barPct : 2) + '%',
+        barColor: wd.isToday ? accent : 'var(--color-accent-400)',
+        hoursColor: h > 0 ? muted : 'color-mix(in srgb, ' + muted + ' 45%, transparent)',
+        rowBg: wi % 2 === 1 ? 'var(--color-neutral-100)' : 'transparent'
+      };
+    });
+    var totalHours = Math.round(currentDaysComputed.reduce((a, d) => a + d.hours, 0) * 100) / 100;
+    var totalEarnings = Math.round(totalHours * s.rate * 100) / 100;
+    var progressPct = s.goalHours > 0 ? Math.min(100, Math.round((totalHours / s.goalHours) * 100)) : 0;
+    var earningsProgressPct = s.goalEarnings > 0 ? Math.min(100, Math.round((totalEarnings / s.goalEarnings) * 100)) : 0;
+    var daysLogged = currentDaysComputed.filter((d) => d.hours > 0).length;
+
+    var shiftRows = [];
+    var locMap = {};
+    currentDaysComputed.forEach((d, di) => {
+      d.shifts.forEach((sh) => {
+        if (!sh.signIn && !sh.signOut) return;
+        var loc = sh.location || s.workLocationName || 'Unspecified';
+        shiftRows.push({
+          day: d.day, date: d.date, location: loc, signIn: sh.signIn || '—', signOut: sh.signOut || '—',
+          hoursLabel: sh.hoursLabel, moneyLabel: sh.hours > 0 ? (currency + fmt2(sh.hours * s.rate)) : '—',
+          rowBg: shiftRows.length % 2 === 1 ? 'var(--color-neutral-100)' : 'transparent'
+        });
+        if (sh.hours > 0) {
+          if (!locMap[loc]) locMap[loc] = { hours: 0, earnings: 0 };
+          locMap[loc].hours += sh.hours; locMap[loc].earnings += sh.hours * s.rate;
+        }
+      });
+    });
+    var locationBreakdown = Object.keys(locMap).map((loc) => ({
+      location: loc, hoursLabel: (Math.round(locMap[loc].hours * 100) / 100) + 'h', moneyLabel: currency + fmt2(locMap[loc].earnings)
+    }));
+
+    var today = currentDaysComputed.filter((d) => d.isToday)[0] || currentDaysComputed[0];
+    var todayLastShift = today.shifts[today.shifts.length - 1];
+    var todayLogged = computeHours(todayLastShift.signIn, todayLastShift.signOut) > 0;
+
+    var lastWeek = s.history[s.history.length - 1];
+    var prevWeek = s.history[s.history.length - 2];
+    var trendPct = prevWeek && prevWeek.earnings > 0 ? Math.round(((lastWeek.earnings - prevWeek.earnings) / prevWeek.earnings) * 100) : 0;
+    var trendUp = trendPct >= 0;
+
+    var metGoalCount = s.history.filter((w) => w.earnings >= s.goalEarnings).length;
+
+    var chartSource = s.history.concat([{ label: 'This week', short: 'Now', hours: totalHours, earnings: totalEarnings, inProgress: true }]);
+    var maxVal = Math.max.apply(null, chartSource.map((w) => s.reportMetric === 'earnings' ? w.earnings : w.hours)) || 1;
+    var chartW = 320, chartH = 118, chartN = chartSource.length;
+    var chartPoints = chartSource.map((w, i) => {
+      var val = s.reportMetric === 'earnings' ? w.earnings : w.hours;
+      var x = chartN > 1 ? Math.round(i * (chartW / (chartN - 1))) : chartW / 2;
+      var y = Math.round(chartH - Math.max(6, (val / maxVal) * (chartH - 16)));
+      return {
+        x: x, y: y, labelY: Math.max(10, y - 10), short: w.short,
+        valueLabel: s.reportMetric === 'earnings' ? (currency + Math.round(val)) : (val + 'h'),
+        dotColor: w.inProgress ? 'var(--color-bg)' : accent,
+        dotStroke: accent
+      };
+    });
+    var chartLinePoints = chartPoints.map((p) => p.x + ',' + p.y).join(' ');
+    var chartAreaPath = chartPoints.length
+      ? 'M' + chartPoints[0].x + ',' + chartH + ' ' + chartPoints.map((p) => 'L' + p.x + ',' + p.y).join(' ') + ' L' + chartPoints[chartPoints.length - 1].x + ',' + chartH + ' Z'
+      : '';
+
+    var monthNames = { Jun: 'June', Jul: 'July', Aug: 'August', Sep: 'September', Oct: 'October', Nov: 'November', Dec: 'December', Jan: 'January', Feb: 'February', Mar: 'March', Apr: 'April', May: 'May' };
+    var monthMap = {};
+    s.history.forEach((w) => {
+      var key = w.short.slice(0, 3);
+      if (!monthMap[key]) monthMap[key] = { hours: 0, earnings: 0 };
+      monthMap[key].hours += w.hours; monthMap[key].earnings += w.earnings;
+    });
+    var curMonthKey = weekDays[0].dateKey.slice(0, 3);
+    if (!monthMap[curMonthKey]) monthMap[curMonthKey] = { hours: 0, earnings: 0 };
+    monthMap[curMonthKey].hours += totalHours; monthMap[curMonthKey].earnings += totalEarnings;
+    var monthOrderSeen = [];
+    s.history.concat([{ short: weekDays[0].dateKey }]).forEach((w) => {
+      var k = w.short.slice(0, 3);
+      if (monthOrderSeen.indexOf(k) === -1) monthOrderSeen.push(k);
+    });
+    var monthlyItems = monthOrderSeen.map((k) => ({
+      short: monthNames[k] || k,
+      hours: Math.round(monthMap[k].hours * 100) / 100,
+      earnings: Math.round(monthMap[k].earnings * 100) / 100,
+      inProgress: k === curMonthKey
+    }));
+    var ytdHours = 0, ytdEarnings = 0;
+    Object.keys(monthMap).forEach((k) => { ytdHours += monthMap[k].hours; ytdEarnings += monthMap[k].earnings; });
+    var yearlyItems = [
+      { short: String(TODAY.getFullYear() - 1), hours: 1780, earnings: 8420, inProgress: false },
+      { short: TODAY.getFullYear() + ' (YTD)', hours: Math.round(ytdHours * 100) / 100, earnings: Math.round(ytdEarnings * 100) / 100, inProgress: true }
+    ];
+    var periodBars = s.periodMode === 'month' ? buildBars(monthlyItems, s.reportMetric, currency)
+      : s.periodMode === 'year' ? buildBars(yearlyItems, s.reportMetric, currency)
+      : buildBars(chartSource, s.reportMetric, currency);
+
+    var historyRecent = s.history.slice().reverse().map((w) => {
+      var met = w.earnings >= s.goalEarnings;
+      return {
+        label: w.label,
+        hoursLabel: w.hours + 'h',
+        earningsLabel: currency + fmt2(w.earnings),
+        tagClass: met ? 'tag-accent' : 'tag-neutral',
+        tagLabel: met ? 'Met goal' : 'Under goal'
+      };
+    });
+
+    return {
+      todayLabel: TODAY.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+      generatedOnLabel: TODAY.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      currentWeekRange: weekDays[0].dateKey + ' – ' + weekDays[6].dateKey + ', ' + TODAY.getFullYear(),
+      employeeName: s.employeeName,
+      employeeInitials: (s.employeeName || '').trim().split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase() || '—',
+      handleNameChange: this.handleNameChange,
+      weekStartsOn: s.weekStartsOn,
+      weekStartsMonday: s.weekStartsOn === 'Monday',
+      weekStartsSunday: s.weekStartsOn === 'Sunday',
+      handleWeekStartChange: this.handleWeekStartChange,
+      handleDownloadPdf: this.handleDownloadPdf,
+      currencySymbol: currency,
+      isHome: s.screen === 'home',
+      isEntry: s.screen === 'entry',
+      isReport: s.screen === 'report',
+      isHistory: s.screen === 'history',
+      isSettings: s.screen === 'settings',
+
+      currentDaysComputed: currentDaysComputed,
+      currentHoursLabel: totalHours + 'h',
+      currentMoneyLabel: currency + fmt2(totalEarnings),
+      goalHoursLabel: s.goalHours + 'h',
+      goalEarningsLabel: currency + fmt2(s.goalEarnings),
+      progressPctLabel: progressPct + '%',
+      progressPctStyle: progressPct + '%',
+      earningsProgressPctLabel: earningsProgressPct + '%',
+      earningsProgressPctStyle: earningsProgressPct + '%',
+      daysLoggedLabel: daysLogged + ' / 7',
+      shiftRows: shiftRows,
+      locationBreakdown: locationBreakdown,
+      locationsCountLabel: (locationBreakdown.length || 1) + (locationBreakdown.length === 1 ? ' location' : ' locations'),
+      avgHoursPerDayLabel: daysLogged > 0 ? (Math.round((totalHours / daysLogged) * 10) / 10 + 'h') : '—',
+      avgEarningsPerDayLabel: daysLogged > 0 ? (currency + fmt2(totalEarnings / daysLogged)) : '—',
+      metGoalLabel: metGoalCount + ' / ' + s.history.length,
+      metGoalSentence: metGoalCount + ' of ' + s.history.length + ' weeks',
+
+      trendLabel: (trendUp ? '▲ ' : '▼ ') + Math.abs(trendPct) + '% vs prior week',
+      trendColor: trendUp ? accent700 : muted,
+
+      shiftActive: !!s.activeShiftStart,
+      elapsedLabel: formatElapsed(Date.now() - (s.activeShiftStart || Date.now())),
+      todayHeadline: s.activeShiftStart ? 'Shift in progress' : (today.hours > 0 ? 'Today logged' : 'Today not logged yet'),
+      todaySubline: s.activeShiftStart
+        ? 'Started at ' + todayLastShift.signIn + ' — tap to end shift.'
+        : (today.hours > 0
+          ? (today.hours + 'h · ' + currency + fmt2(today.hours * s.rate))
+          : 'Tap to start your shift.'),
+      todayCta: s.activeShiftStart ? 'Sign out' : 'Sign in',
+      todayCtaAction: s.activeShiftStart ? this.handleEndShift : this.handleStartShift,
+      todayBtnColor: s.activeShiftStart ? 'var(--color-accent)' : 'oklch(52% 0.13 150)',
+
+      isLoggedIn: s.isLoggedIn,
+      isLoggedOut: !s.isLoggedIn,
+      isAuthLogin: s.authMode === 'login',
+      isAuthSignup: s.authMode === 'signup',
+      goSignup: this.goSignup,
+      goLogin: this.goLogin,
+      handleSignup: this.handleSignup,
+      loginEmail: s.loginEmail,
+      loginPassword: s.loginPassword,
+      handleLoginEmail: this.handleLoginEmail,
+      handleLoginPassword: this.handleLoginPassword,
+      handleLogin: this.handleLogin,
+      handleLogout: this.handleLogout,
+      workLocationName: s.workLocationName,
+      workAddress: s.workAddress,
+      multiLocYes: s.multipleLocations,
+      multiLocNo: !s.multipleLocations,
+      otherLocations: s.otherLocations,
+      handleWorkLocationChange: this.handleWorkLocationChange,
+      handleWorkAddressChange: this.handleWorkAddressChange,
+      handleMultiLocationsChange: this.handleMultiLocationsChange,
+      handleOtherLocationsChange: this.handleOtherLocationsChange,
+
+      goHome: this.goHome, goEntry: this.goEntry, goReport: this.goReport, goHistory: this.goHistory, goSettings: this.goSettings,
+      handleTimeChange: this.handleTimeChange,
+      handleLocationChange: this.handleLocationChange,
+      handleAddShift: this.handleAddShift,
+      handleRemoveShift: this.handleRemoveShift,
+      homeColor: s.screen === 'home' ? accent : 'color-mix(in srgb, ' + muted + ' 45%, transparent)',
+      entryColor: s.screen === 'entry' ? accent : 'color-mix(in srgb, ' + muted + ' 45%, transparent)',
+      reportColor: s.screen === 'report' ? accent : 'color-mix(in srgb, ' + muted + ' 45%, transparent)',
+      historyColor: s.screen === 'history' ? accent : 'color-mix(in srgb, ' + muted + ' 45%, transparent)',
+      settingsColor: s.screen === 'settings' ? accent : 'color-mix(in srgb, ' + muted + ' 45%, transparent)',
+
+      metricIsEarnings: s.reportMetric === 'earnings',
+      metricIsHours: s.reportMetric === 'hours',
+      handleMetricChange: this.handleMetricChange,
+      chartPoints: chartPoints,
+      chartLinePoints: chartLinePoints,
+      chartAreaPath: chartAreaPath,
+      periodBars: periodBars,
+      periodIsWeek: s.periodMode === 'week',
+      periodIsMonth: s.periodMode === 'month',
+      periodIsYear: s.periodMode === 'year',
+      handlePeriodChange: this.handlePeriodChange,
+
+      historyRecent: historyRecent,
+
+      rate: s.rate, goalHours: s.goalHours, goalEarnings: s.goalEarnings,
+      handleRateChange: this.handleRateChange,
+      handleGoalHoursChange: this.handleGoalHoursChange,
+      handleGoalEarningsChange: this.handleGoalEarningsChange,
+      handleAutoGoal: this.handleAutoGoal,
+      handleSaveSettings: this.handleSaveSettings,
+      saveLabel: s.saveFlash ? 'Saved ✓' : 'Save settings'
+    };
+  }
+}
+</script>
+</body>
+</html>
