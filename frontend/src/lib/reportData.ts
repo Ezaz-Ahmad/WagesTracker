@@ -30,8 +30,6 @@ export interface WeekReportData {
   otherEarningAmountLabel: string;
   otherEarningReason: string;
   daysLogged: number;
-  avgHoursPerDayLabel: string;
-  avgEarningsPerDayLabel: string;
   locationsCountLabel: string;
   days: DayComputed[];
   shiftRows: ShiftRow[];
@@ -85,8 +83,6 @@ export function buildWeekReportData(
     otherEarningAmountLabel: otherEarningAmount > 0 ? currency + fmt2(otherEarningAmount) : "—",
     otherEarningReason: weekExtra?.reason ?? "",
     daysLogged,
-    avgHoursPerDayLabel: daysLogged > 0 ? `${Math.round((totalHours / daysLogged) * 10) / 10}h` : "—",
-    avgEarningsPerDayLabel: daysLogged > 0 ? currency + fmt2(totalEarnings / daysLogged) : "—",
     locationsCountLabel: `${locationBreakdown.length || 1} ${locationBreakdown.length === 1 ? "location" : "locations"}`,
     days,
     shiftRows,

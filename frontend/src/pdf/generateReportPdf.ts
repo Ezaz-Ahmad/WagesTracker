@@ -1,3 +1,4 @@
+import type { DayComputed } from "../lib/aggregate";
 import type { WeekReportData } from "../lib/reportData";
 import { fmt2 } from "../lib/date";
 
@@ -12,6 +13,13 @@ const DARK_AVATAR = "#444141";
 
 function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n - 1) + "…" : s;
+}
+
+/** The location(s) worked that day — fuel cost is logged per day, not per
+ * shift, so a day with more than one shift/location joins them together. */
+function dayLocations(d: DayComputed): string {
+  const locs = Array.from(new Set(d.shifts.map((s) => s.location).filter(Boolean)));
+  return locs.length ? locs.join(", ") : "—";
 }
 
 /** Small drawn "cat" silhouette standing in for the GitHub mark — three
@@ -113,9 +121,7 @@ export async function generateReportPdf(data: WeekReportData): Promise<void> {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.setTextColor(MUTED);
-  doc.text(`Avg. hours/day  ${data.avgHoursPerDayLabel}`, marginX, y);
-  doc.text(`Avg. per shift  ${data.avgEarningsPerDayLabel}`, marginX + contentW / 3, y);
-  doc.text(`Worked at  ${data.locationsCountLabel}`, marginX + (contentW / 3) * 2, y);
+  doc.text(`Worked at  ${data.locationsCountLabel}`, marginX, y);
 
   y += 4;
   doc.setDrawColor(DIVIDER);
@@ -230,9 +236,10 @@ export async function generateReportPdf(data: WeekReportData): Promise<void> {
     y += 4;
 
     const fuelCols = [
-      { key: "day", label: "Day", w: 0.16 },
-      { key: "date", label: "Date", w: 0.24 },
-      { key: "fuel", label: "Fuel cost", w: 0.6 },
+      { key: "day", label: "Day", w: 0.11 },
+      { key: "date", label: "Date", w: 0.18 },
+      { key: "location", label: "Location", w: 0.44 },
+      { key: "fuel", label: "Fuel cost", w: 0.27 },
     ] as const;
     const fuelColX: number[] = [];
     let fcx0 = marginX;
@@ -260,9 +267,10 @@ export async function generateReportPdf(data: WeekReportData): Promise<void> {
       doc.setTextColor(TEXT);
       doc.text(d.dayAbbr, fuelColX[0], y);
       doc.text(d.dateLabel, fuelColX[1], y);
+      doc.text(truncate(dayLocations(d), 30), fuelColX[2], y);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(ACCENT_DARK);
-      doc.text(d.fuelCostLabel, fuelColX[2], y);
+      doc.text(d.fuelCostLabel, fuelColX[3], y);
       doc.setFont("helvetica", "normal");
       y += 5.2;
     });
@@ -387,6 +395,11 @@ export async function generateReportPdf(data: WeekReportData): Promise<void> {
   const pfLabelW = doc.getTextWidth("Portfolio");
   doc.link(pfStart - 0.6, creditY - 3, cx - pfStart + pfLabelW + 1.2, 4, { url: "https://ezazahmad.com" });
 
-  const filename = `wage-report-${data.weekRangeLabel.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.pdf`;
+  const namePart = (data.employeeName || "employee")
+    .replace(/[^a-z0-9]+/gi, "-")
+    .toLowerCase()
+    .replace(/^-+|-+$/g, "");
+  const rangePart = data.weekRangeLabel.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+  const filename = `${namePart}-wages-report-${rangePart}.pdf`;
   doc.save(filename);
 }
