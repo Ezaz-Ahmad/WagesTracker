@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { CURRENCY, useApp } from "../context/AppContext";
-import { buildWeekDaysComputed, buildWeeklyHistory, groupByDate, weekTotals } from "../lib/aggregate";
-import { buildWeekDays, fmt2, formatTime12 } from "../lib/date";
+import { buildWeekDaysComputed, buildWeeklyHistory, groupByDate, groupExpensesByDate, weekExtraFor, weekTotals } from "../lib/aggregate";
+import { buildWeekDays, fmt2, formatTime12, isoDate } from "../lib/date";
 import { useTodayShift } from "../lib/useTodayShift";
 import { useCountUp } from "../lib/useCountUp";
 import { useLiveElapsedHours } from "../lib/useLiveElapsedHours";
 import { ElapsedTimer, ShiftButton } from "../components/ShiftButton";
 
 export function HomeScreen() {
-  const { today, user, shifts, shiftsLoaded } = useApp();
+  const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras } = useApp();
   const { active, last, start, end } = useTodayShift();
   const [busy, setBusy] = useState(false);
 
@@ -23,9 +23,13 @@ export function HomeScreen() {
   const createdAt = user?.createdAt ?? today.toISOString();
 
   const weekDays = buildWeekDays(today, weekStartsOn);
+  const weekStartISO = isoDate(weekDays[0]);
   const shiftsByDate = groupByDate(shifts);
-  const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, CURRENCY, rate);
-  const { hours: savedHours, earnings: savedEarnings, daysLogged } = weekTotals(days, rate);
+  const expensesByDate = groupExpensesByDate(dayExpenses);
+  const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, CURRENCY, rate, expensesByDate);
+  const { hours: savedHours, earnings: weekEarnings, daysLogged } = weekTotals(days, rate);
+  const otherAmount = weekExtraFor(weekStartISO, weekExtras)?.amount ?? 0;
+  const savedEarnings = weekEarnings + otherAmount;
 
   // While a shift is open (signed in, not yet signed out) its hours aren't in
   // `shifts` yet — add the live elapsed time on top so the week's totals visibly
@@ -36,7 +40,7 @@ export function HomeScreen() {
   const totalHours = savedHours + liveHours;
   const totalEarnings = savedEarnings + liveHours * rate;
 
-  const history = buildWeeklyHistory(shifts, today, weekStartsOn, rate, 7, new Date(createdAt));
+  const history = buildWeeklyHistory(shifts, today, weekStartsOn, rate, 7, new Date(createdAt), dayExpenses, weekExtras);
   const lastWeek = history[history.length - 1];
   const prevWeek = history[history.length - 2];
   const trendPct = prevWeek && prevWeek.earnings > 0 ? Math.round(((lastWeek.earnings - prevWeek.earnings) / prevWeek.earnings) * 100) : 0;
@@ -80,11 +84,12 @@ export function HomeScreen() {
     }
   }
 
-  const headline = active ? "Shift in progress" : todayDay.hours > 0 ? "Today logged" : "Today not logged yet";
+  const todayHasExtra = todayDay.hours > 0 || todayDay.fuelCost > 0;
+  const headline = active ? "Shift in progress" : todayHasExtra ? "Today logged" : "Today not logged yet";
   const subline = active
     ? `Started at ${formatTime12(last?.signIn)} — tap to end shift.`
-    : todayDay.hours > 0
-      ? `${fmt2(todayDay.hours)}h · ${CURRENCY}${fmt2(todayDay.hours * user.rate)}`
+    : todayHasExtra
+      ? `${fmt2(todayDay.hours)}h · ${CURRENCY}${fmt2(todayDay.hours * user.rate + todayDay.fuelCost)}`
       : "Tap to start your shift.";
 
   return (

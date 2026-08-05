@@ -3,7 +3,7 @@ import { buildWeeklyHistory } from "../lib/aggregate";
 import { fmt2 } from "../lib/date";
 
 export function HistoryScreen() {
-  const { today, user, shifts, shiftsLoaded } = useApp();
+  const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras } = useApp();
   if (!user) return null;
   if (!shiftsLoaded) {
     return (
@@ -14,7 +14,7 @@ export function HistoryScreen() {
     );
   }
 
-  const history = buildWeeklyHistory(shifts, today, user.weekStartsOn, user.rate, 20, new Date(user.createdAt));
+  const history = buildWeeklyHistory(shifts, today, user.weekStartsOn, user.rate, 20, new Date(user.createdAt), dayExpenses, weekExtras);
   const rows = history
     .slice()
     .reverse()

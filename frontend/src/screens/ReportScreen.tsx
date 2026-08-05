@@ -9,9 +9,11 @@ import {
   buildWeeklyHistory,
   buildYearlyItems,
   groupByDate,
+  groupExpensesByDate,
+  weekExtraFor,
   weekTotals,
 } from "../lib/aggregate";
-import { buildWeekDays } from "../lib/date";
+import { buildWeekDays, isoDate } from "../lib/date";
 import { buildWeekReportData } from "../lib/reportData";
 import { generateReportPdf } from "../pdf/generateReportPdf";
 import { useCountUp } from "../lib/useCountUp";
@@ -20,7 +22,7 @@ type Metric = "earnings" | "hours";
 type Period = "week" | "month" | "year";
 
 export function ReportScreen() {
-  const { today, user, shifts, shiftsLoaded } = useApp();
+  const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras } = useApp();
   const [metric, setMetric] = useState<Metric>("earnings");
   const [period, setPeriod] = useState<Period>("week");
 
@@ -33,11 +35,14 @@ export function ReportScreen() {
   const createdAt = user?.createdAt ?? today.toISOString();
 
   const weekDays = buildWeekDays(today, weekStartsOn);
+  const weekStartISO = isoDate(weekDays[0]);
   const shiftsByDate = groupByDate(shifts);
-  const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, CURRENCY, rate);
-  const { hours: totalHours, earnings: totalEarnings } = weekTotals(days, rate);
+  const expensesByDate = groupExpensesByDate(dayExpenses);
+  const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, CURRENCY, rate, expensesByDate);
+  const { hours: totalHours, earnings: weekEarnings } = weekTotals(days, rate);
+  const totalEarnings = weekEarnings + (weekExtraFor(weekStartISO, weekExtras)?.amount ?? 0);
 
-  const history = buildWeeklyHistory(shifts, today, weekStartsOn, rate, 7, new Date(createdAt));
+  const history = buildWeeklyHistory(shifts, today, weekStartsOn, rate, 7, new Date(createdAt), dayExpenses, weekExtras);
   const chartSource = buildChartSource(history, totalHours, totalEarnings);
   const chart = buildChart(chartSource, metric, CURRENCY);
 
@@ -50,9 +55,9 @@ export function ReportScreen() {
 
   const periodItems =
     period === "month"
-      ? buildMonthlyItems(shifts, today, rate, 6)
+      ? buildMonthlyItems(shifts, today, rate, 6, dayExpenses, weekExtras)
       : period === "year"
-        ? buildYearlyItems(shifts, today, rate, 2)
+        ? buildYearlyItems(shifts, today, rate, 2, dayExpenses, weekExtras)
         : chartSource;
   const periodBars = buildBars(periodItems, metric, CURRENCY);
 
@@ -67,7 +72,7 @@ export function ReportScreen() {
   }
 
   function handleDownloadPdf() {
-    void generateReportPdf(buildWeekReportData(user!, shifts, today, CURRENCY));
+    void generateReportPdf(buildWeekReportData(user!, shifts, today, CURRENCY, dayExpenses, weekExtras));
   }
 
   return (

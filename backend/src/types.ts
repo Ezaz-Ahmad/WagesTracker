@@ -75,6 +75,51 @@ export function toPublicShift(row: ShiftRow): PublicShift {
   };
 }
 
+export interface DayExpenseRow {
+  id: string;
+  user_id: string;
+  date: string;
+  fuel_cost: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PublicDayExpense {
+  date: string;
+  fuelCost: number;
+}
+
+export function toPublicDayExpense(row: DayExpenseRow): PublicDayExpense {
+  return {
+    date: row.date,
+    fuelCost: row.fuel_cost,
+  };
+}
+
+export interface WeekExtraRow {
+  id: string;
+  user_id: string;
+  week_start: string;
+  amount: number;
+  reason: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PublicWeekExtra {
+  weekStart: string;
+  amount: number;
+  reason: string;
+}
+
+export function toPublicWeekExtra(row: WeekExtraRow): PublicWeekExtra {
+  return {
+    weekStart: row.week_start,
+    amount: row.amount,
+    reason: row.reason,
+  };
+}
+
 export interface AdminUserSummary extends PublicUser {
   shiftCount: number;
 }

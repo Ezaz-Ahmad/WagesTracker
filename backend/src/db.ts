@@ -54,7 +54,37 @@ await db.executeMultiple(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_shifts_user_date ON shifts(user_id, date);
+
+  CREATE TABLE IF NOT EXISTS day_expenses (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    date TEXT NOT NULL,
+    fuel_cost REAL NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(user_id, date)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_day_expenses_user_date ON day_expenses(user_id, date);
+
+  CREATE TABLE IF NOT EXISTS week_extras (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    week_start TEXT NOT NULL,
+    amount REAL NOT NULL DEFAULT 0,
+    reason TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(user_id, week_start)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_week_extras_user_week ON week_extras(user_id, week_start);
 `);
+
+// An earlier iteration of day_expenses briefly had an `other_earning` column
+// (per-day) before that concept moved to the week-level `week_extras` table
+// above. Nothing reads or writes it anymore; left in place rather than
+// attempting a DROP COLUMN migration, which is riskier than an unused column.
 
 export const RETENTION_YEARS = 5;
 
@@ -63,4 +93,6 @@ export async function pruneExpiredShifts(): Promise<void> {
   cutoff.setFullYear(cutoff.getFullYear() - RETENTION_YEARS);
   const cutoffKey = cutoff.toISOString().slice(0, 10);
   await db.execute({ sql: "DELETE FROM shifts WHERE date < ?", args: [cutoffKey] });
+  await db.execute({ sql: "DELETE FROM day_expenses WHERE date < ?", args: [cutoffKey] });
+  await db.execute({ sql: "DELETE FROM week_extras WHERE week_start < ?", args: [cutoffKey] });
 }

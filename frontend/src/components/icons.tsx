@@ -91,6 +91,32 @@ export function EyeOffIcon({ size = 18 }: IconProps) {
   );
 }
 
+/** Fuel pump — used on the per-day fuel cost toggle in the entry screen. */
+export function FuelIcon({ size = 15 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <path d="M4 21V6a2 2 0 012-2h6a2 2 0 012 2v15" />
+      <path d="M3 21h12" />
+      <path d="M14 10h2a2 2 0 012 2v3.5a1.5 1.5 0 003 0V9l-3-3" />
+      <path d="M6 6h6" />
+    </svg>
+  );
+}
+
+/** Coin with a plus — used on the per-day "other earnings" toggle (tips,
+ * bonuses, reimbursements — anything besides hours × rate and fuel). */
+export function ExtraEarningIcon({ size = 15 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <circle cx="10.5" cy="13.5" r="7.5" />
+      <path d="M8 13.5h5" />
+      <path d="M10.5 11v5" />
+      <path d="M17 4v4" />
+      <path d="M15 6h4" />
+    </svg>
+  );
+}
+
 /** GitHub brand mark — filled silhouette, used only next to the credit link. */
 export function GithubIcon({ size = 14 }: IconProps) {
   return (

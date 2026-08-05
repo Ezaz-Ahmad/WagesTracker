@@ -6,8 +6,10 @@ import rateLimit from "express-rate-limit";
 import { db, pruneExpiredShifts } from "./db.js";
 import { adminRouter } from "./routes/admin.js";
 import { authRouter } from "./routes/auth.js";
+import { dayExpensesRouter } from "./routes/dayExpenses.js";
 import { meRouter } from "./routes/me.js";
 import { shiftsRouter } from "./routes/shifts.js";
+import { weekExtrasRouter } from "./routes/weekExtras.js";
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -71,6 +73,8 @@ app.get("/api/health", (_req, res) => res.json({ ok: true }));
 app.use("/api/auth", authLimiter, authRouter);
 app.use("/api/me", meRouter);
 app.use("/api/shifts", shiftsRouter);
+app.use("/api/day-expenses", dayExpensesRouter);
+app.use("/api/week-extras", weekExtrasRouter);
 app.use("/api/admin", adminRouter);
 
 app.use((_req, res) => {

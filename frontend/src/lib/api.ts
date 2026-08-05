@@ -1,4 +1,4 @@
-import type { Shift, User, WeekStart } from "./types";
+import type { DayExpense, Shift, User, WeekExtra, WeekStart } from "./types";
 
 // In local dev this is left unset and Vite's dev-server proxy forwards "/api" to the backend
 // (see vite.config.ts). In production, set VITE_API_URL to the deployed backend's origin
@@ -135,4 +135,27 @@ export function patchShift(id: string, patch: Partial<ShiftInput>): Promise<{ sh
 
 export function deleteShift(id: string): Promise<void> {
   return request(`/shifts/${id}`, { method: "DELETE" });
+}
+
+export function listDayExpenses(from: string, to: string): Promise<{ expenses: DayExpense[] }> {
+  return request(`/day-expenses?from=${from}&to=${to}`);
+}
+
+/** Upserts (or clears, with `null`) the fuel cost for a single calendar day. */
+export function setDayExpense(date: string, fuelCost: number | null): Promise<{ expense: DayExpense | null }> {
+  return request(`/day-expenses/${date}`, { method: "PUT", body: JSON.stringify({ fuelCost }) });
+}
+
+export function listWeekExtras(from: string, to: string): Promise<{ extras: WeekExtra[] }> {
+  return request(`/week-extras?from=${from}&to=${to}`);
+}
+
+/** Upserts (or clears, with `amount: null`) the single "other earnings" entry
+ * for a week, identified by that week's start date. A reason is required
+ * whenever an amount is set. */
+export function setWeekExtra(
+  weekStart: string,
+  patch: { amount: number | null; reason: string }
+): Promise<{ extra: WeekExtra | null }> {
+  return request(`/week-extras/${weekStart}`, { method: "PUT", body: JSON.stringify(patch) });
 }

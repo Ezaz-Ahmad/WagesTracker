@@ -93,8 +93,10 @@ export async function generateReportPdf(data: WeekReportData): Promise<void> {
     { label: "TOTAL EARNINGS", value: `${data.currency}${data.totalEarnings.toFixed(2)}`, color: ACCENT_DARK },
     { label: "HOURLY RATE", value: `${data.currency}${data.rate}`, color: TEXT },
     { label: "DAYS WORKED", value: `${data.daysLogged} / 7`, color: TEXT },
+    ...(data.totalFuelCost > 0 ? [{ label: "FUEL COST", value: data.totalFuelCostLabel, color: ACCENT_DARK }] : []),
+    ...(data.otherEarningAmount > 0 ? [{ label: "OTHER EARNINGS", value: data.otherEarningAmountLabel, color: ACCENT_DARK }] : []),
   ];
-  const tileW = contentW / 4;
+  const tileW = contentW / tiles.length;
   tiles.forEach((t, i) => {
     const x = marginX + i * tileW;
     doc.setFont("helvetica", "normal");
@@ -143,6 +145,7 @@ export async function generateReportPdf(data: WeekReportData): Promise<void> {
     doc.rect(cx - dayW * 0.18, barBase - barH, dayW * 0.36, barH, "F");
   });
   y += chartH + 5;
+  const anyFuel = data.days.some((d) => d.fuelCost > 0);
   data.days.forEach((d, i) => {
     const cx = marginX + i * dayW + dayW / 2;
     doc.setFont("helvetica", "bold");
@@ -153,9 +156,15 @@ export async function generateReportPdf(data: WeekReportData): Promise<void> {
     doc.setFontSize(6.5);
     doc.setTextColor(MUTED);
     doc.text(d.dateLabel, cx, y + 3, { align: "center" });
+    if (d.fuelCost > 0) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(6);
+      doc.setTextColor(ACCENT_DARK);
+      doc.text(`Fuel ${d.fuelCostLabel}`, cx, y + 6.5, { align: "center" });
+    }
   });
 
-  y += 8;
+  y += anyFuel ? 12 : 8;
   const cols = [
     { key: "day", label: "Day", w: 0.11 },
     { key: "date", label: "Date", w: 0.14 },
@@ -206,6 +215,90 @@ export async function generateReportPdf(data: WeekReportData): Promise<void> {
     y += 5.2;
   }
 
+  // — dedicated fuel cost section: a small day-by-day breakdown of fuel
+  // reimbursements, so they're not just buried inside the day totals above.
+  const fuelDays = data.days.filter((d) => d.fuelCost > 0);
+  if (fuelDays.length) {
+    y += 2;
+    doc.setDrawColor(DIVIDER);
+    doc.line(marginX, y, pageW - marginX, y);
+    y += 6;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(MUTED);
+    doc.text("FUEL COST BY DAY", marginX, y);
+    y += 4;
+
+    const fuelCols = [
+      { key: "day", label: "Day", w: 0.16 },
+      { key: "date", label: "Date", w: 0.24 },
+      { key: "fuel", label: "Fuel cost", w: 0.6 },
+    ] as const;
+    const fuelColX: number[] = [];
+    let fcx0 = marginX;
+    fuelCols.forEach((c) => {
+      fuelColX.push(fcx0);
+      fcx0 += contentW * c.w;
+    });
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6.5);
+    doc.setTextColor(MUTED);
+    fuelCols.forEach((c, i) => doc.text(c.label.toUpperCase(), fuelColX[i], y));
+    y += 2;
+    doc.setDrawColor(DIVIDER);
+    doc.line(marginX, y, pageW - marginX, y);
+    y += 4;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    fuelDays.forEach((d, i) => {
+      if (i % 2 === 1) {
+        doc.setFillColor(NEUTRAL_LIGHT);
+        doc.rect(marginX, y - 3.2, contentW, 5.2, "F");
+      }
+      doc.setTextColor(TEXT);
+      doc.text(d.dayAbbr, fuelColX[0], y);
+      doc.text(d.dateLabel, fuelColX[1], y);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(ACCENT_DARK);
+      doc.text(d.fuelCostLabel, fuelColX[2], y);
+      doc.setFont("helvetica", "normal");
+      y += 5.2;
+    });
+  }
+
+  // — other earnings: a single week-level amount (tip, bonus, reimbursement),
+  // always shown with the reason the user gave for it.
+  if (data.otherEarningAmount > 0) {
+    y += 2;
+    doc.setDrawColor(DIVIDER);
+    doc.line(marginX, y, pageW - marginX, y);
+    y += 6;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(MUTED);
+    doc.text("OTHER EARNINGS", marginX, y);
+    y += 5;
+
+    doc.setFillColor(NEUTRAL_LIGHT);
+    const reasonLines = doc.splitTextToSize(data.otherEarningReason || "No reason given.", contentW - 30);
+    const boxH = Math.max(9, 4 + reasonLines.length * 4);
+    doc.rect(marginX, y - 4.5, contentW, boxH, "F");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(ACCENT_DARK);
+    doc.text(data.otherEarningAmountLabel, marginX + 4, y);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(TEXT);
+    doc.text(reasonLines, marginX + 28, y - 1);
+
+    y += boxH + 2;
+  }
+
   if (data.multiLocation && data.locationBreakdown.length) {
     y += 2;
     doc.setDrawColor(DIVIDER);
@@ -240,6 +333,17 @@ export async function generateReportPdf(data: WeekReportData): Promise<void> {
   doc.text("Total", marginX, y);
   doc.setTextColor(ACCENT_DARK);
   doc.text(`${fmt2(data.totalHours)}h · ${data.currency}${data.totalEarnings.toFixed(2)}`, pageW - marginX, y, { align: "right" });
+  if (data.totalFuelCost > 0 || data.otherEarningAmount > 0) {
+    y += 4.2;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(MUTED);
+    const parts = [
+      data.totalFuelCost > 0 ? `${data.totalFuelCostLabel} fuel cost` : null,
+      data.otherEarningAmount > 0 ? `${data.otherEarningAmountLabel} other earnings` : null,
+    ].filter(Boolean);
+    doc.text(`Includes ${parts.join(" + ")}`, pageW - marginX, y, { align: "right" });
+  }
 
   // — footer: a subtle highlighted band carrying the report attribution and,
   // below it, a small credit row with drawn GitHub/globe marks that link out.

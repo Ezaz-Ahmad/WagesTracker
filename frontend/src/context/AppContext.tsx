@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
 import { addDays, isoDate, startOfWeek } from "../lib/date";
-import type { Shift, User } from "../lib/types";
+import type { DayExpense, Shift, User, WeekExtra } from "../lib/types";
 
 export const RETENTION_YEARS = 5;
 export const CURRENCY = "$";
@@ -30,6 +30,12 @@ interface AppContextValue {
   createShift: (input: api.ShiftInput) => Promise<Shift | undefined>;
   updateShift: (id: string, patch: Partial<api.ShiftInput>) => Promise<Shift | undefined>;
   removeShift: (id: string) => Promise<void>;
+
+  dayExpenses: DayExpense[];
+  setFuelCost: (date: string, fuelCost: number | null) => Promise<void>;
+
+  weekExtras: WeekExtra[];
+  setWeekExtra: (weekStart: string, amount: number | null, reason: string) => Promise<boolean>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -41,6 +47,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [authBusy, setAuthBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [shifts, setShifts] = useState<Shift[]>([]);
+  const [dayExpenses, setDayExpenses] = useState<DayExpense[]>([]);
+  const [weekExtras, setWeekExtras] = useState<WeekExtra[]>([]);
   const [shiftsLoading, setShiftsLoading] = useState(false);
   // Sticky — true after the first successful/attempted load and never reset, so
   // screens can show a one-time loading state instead of flashing $0 totals
@@ -80,8 +88,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const cutoff = new Date(anchor.getFullYear() - RETENTION_YEARS, anchor.getMonth(), anchor.getDate());
       const weekEnd = addDays(startOfWeek(anchor, u.weekStartsOn), 6);
-      const { shifts } = await api.listShifts(isoDate(cutoff), isoDate(weekEnd));
+      const [{ shifts }, { expenses }, { extras }] = await Promise.all([
+        api.listShifts(isoDate(cutoff), isoDate(weekEnd)),
+        api.listDayExpenses(isoDate(cutoff), isoDate(weekEnd)),
+        api.listWeekExtras(isoDate(cutoff), isoDate(weekEnd)),
+      ]);
       setShifts(shifts);
+      setDayExpenses(expenses);
+      setWeekExtras(extras);
     } finally {
       setShiftsLoading(false);
       setShiftsLoaded(true);
@@ -132,6 +146,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     api.clearToken();
     setUser(null);
     setShifts([]);
+    setDayExpenses([]);
+    setWeekExtras([]);
     setShiftsLoaded(false);
     setStatus("loggedOut");
   }, []);
@@ -144,6 +160,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     api.clearRememberedEmail();
     setUser(null);
     setShifts([]);
+    setDayExpenses([]);
+    setWeekExtras([]);
     setShiftsLoaded(false);
     setStatus("loggedOut");
   }, []);
@@ -216,6 +234,52 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [handleActionError]
   );
 
+  // Optimistic — the amount box is meant to feel instant like everything else on
+  // this screen. Rolls back to the previous value if the request fails.
+  const setFuelCost = useCallback(
+    async (date: string, fuelCost: number | null) => {
+      const prev = dayExpenses;
+      setDayExpenses((cur) => {
+        const rest = cur.filter((e) => e.date !== date);
+        return fuelCost && fuelCost > 0 ? [...rest, { date, fuelCost }] : rest;
+      });
+      try {
+        await api.setDayExpense(date, fuelCost);
+      } catch (e) {
+        setDayExpenses(prev);
+        handleActionError(e, "Couldn't save fuel cost");
+      }
+    },
+    [dayExpenses, handleActionError]
+  );
+
+  // Same optimistic pattern as fuel cost, but keyed by week start rather than
+  // day, and it can fail validation (missing reason) — returns whether the
+  // save actually went through so the form can surface that inline instead of
+  // just going through the generic action-error banner.
+  const setWeekExtra = useCallback(
+    async (weekStart: string, amount: number | null, reason: string): Promise<boolean> => {
+      const prev = weekExtras;
+      setWeekExtras((cur) => {
+        const rest = cur.filter((w) => w.weekStart !== weekStart);
+        return amount && amount > 0 ? [...rest, { weekStart, amount, reason }] : rest;
+      });
+      try {
+        await api.setWeekExtra(weekStart, { amount, reason });
+        return true;
+      } catch (e) {
+        setWeekExtras(prev);
+        if (e instanceof ApiError && e.status === 400) {
+          setActionError(e.message);
+        } else {
+          handleActionError(e, "Couldn't save other earnings");
+        }
+        return false;
+      }
+    },
+    [weekExtras, handleActionError]
+  );
+
   const value = useMemo<AppContextValue>(
     () => ({
       status,
@@ -237,6 +301,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       createShift,
       updateShift,
       removeShift,
+      dayExpenses,
+      setFuelCost,
+      weekExtras,
+      setWeekExtra,
     }),
     [
       status,
@@ -256,6 +324,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       createShift,
       updateShift,
       removeShift,
+      dayExpenses,
+      setFuelCost,
+      weekExtras,
+      setWeekExtra,
     ]
   );
 

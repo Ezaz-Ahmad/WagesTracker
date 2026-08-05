@@ -1,5 +1,5 @@
 import { addDays, computeHours, dayAbbr, fmt2, formatTime12, isoDate, shortLabel, startOfWeek } from "./date";
-import type { Shift, WeekStart } from "./types";
+import type { DayExpense, Shift, WeekExtra, WeekStart } from "./types";
 
 export interface ShiftComputed {
   id: string | null;
@@ -21,6 +21,8 @@ export interface DayComputed {
   hours: number;
   hoursLabel: string;
   moneyLabel: string;
+  fuelCost: number;
+  fuelCostLabel: string;
 }
 
 export interface WeekSummary {
@@ -60,12 +62,21 @@ export function groupByDate(shifts: Shift[]): Map<string, Shift[]> {
   return map;
 }
 
+/** One fuel-cost entry per day, so a straight date→amount lookup (unlike
+ * shifts, which can have several per day). */
+export function groupExpensesByDate(expenses: DayExpense[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const e of expenses) map.set(e.date, e.fuelCost);
+  return map;
+}
+
 export function buildDayComputed(
   date: Date,
   shiftsForDate: Shift[],
   isToday: boolean,
   currency: string,
-  rate: number
+  rate: number,
+  fuelCost: number = 0
 ): DayComputed {
   const raw = shiftsForDate.length
     ? shiftsForDate
@@ -87,6 +98,9 @@ export function buildDayComputed(
   // don't get rounded away before they're added up — only the display label
   // (fmt2, 2dp) rounds for humans.
   const hours = Math.round(shifts.reduce((a, s) => a + s.hours, 0) * 1_000_000) / 1_000_000;
+  // Fuel cost is a flat reimbursement added straight onto that day's earnings,
+  // on top of hours × rate — not a deduction.
+  const dayEarnings = Math.round((hours * rate + fuelCost) * 100) / 100;
   return {
     dateISO: isoDate(date),
     dayAbbr: dayAbbr(date),
@@ -95,7 +109,9 @@ export function buildDayComputed(
     shifts,
     hours,
     hoursLabel: hours > 0 ? `${fmt2(hours)}h` : "—",
-    moneyLabel: hours > 0 ? currency + fmt2(hours * rate) : "—",
+    moneyLabel: hours > 0 || fuelCost > 0 ? currency + fmt2(dayEarnings) : "—",
+    fuelCost,
+    fuelCostLabel: fuelCost > 0 ? currency + fmt2(fuelCost) : "—",
   };
 }
 
@@ -104,18 +120,34 @@ export function buildWeekDaysComputed(
   shiftsByDate: Map<string, Shift[]>,
   today: Date,
   currency: string,
-  rate: number
+  rate: number,
+  expensesByDate: Map<string, number> = new Map()
 ): DayComputed[] {
   return weekDays.map((d) => {
     const key = isoDate(d);
     const isToday = key === isoDate(today);
-    return buildDayComputed(d, shiftsByDate.get(key) ?? [], isToday, currency, rate);
+    return buildDayComputed(d, shiftsByDate.get(key) ?? [], isToday, currency, rate, expensesByDate.get(key) ?? 0);
   });
 }
 
-export function weekTotals(days: DayComputed[], rate: number): { hours: number; earnings: number; daysLogged: number } {
+export function weekTotals(
+  days: DayComputed[],
+  rate: number
+): { hours: number; earnings: number; daysLogged: number; fuelCost: number } {
   const hours = Math.round(days.reduce((a, d) => a + d.hours, 0) * 1_000_000) / 1_000_000;
-  return { hours, earnings: Math.round(hours * rate * 100) / 100, daysLogged: days.filter((d) => d.hours > 0).length };
+  const fuelCost = Math.round(days.reduce((a, d) => a + d.fuelCost, 0) * 100) / 100;
+  return {
+    hours,
+    earnings: Math.round((hours * rate + fuelCost) * 100) / 100,
+    daysLogged: days.filter((d) => d.hours > 0).length,
+    fuelCost,
+  };
+}
+
+/** Finds the single "other earnings" entry for the week that starts on
+ * `weekStartISO`, if the user has added one. */
+export function weekExtraFor(weekStartISO: string, weekExtras: WeekExtra[]): WeekExtra | undefined {
+  return weekExtras.find((w) => w.weekStart === weekStartISO);
 }
 
 export function buildShiftRows(days: DayComputed[], currency: string, rate: number): ShiftRow[] {
@@ -163,6 +195,22 @@ function sumHours(shifts: Shift[]): number {
   return Math.round(shifts.reduce((a, s) => a + computeHours(s.signIn, s.signOut), 0) * 1_000_000) / 1_000_000;
 }
 
+function expensesInRange(expenses: DayExpense[], startISO: string, endISO: string): DayExpense[] {
+  return expenses.filter((e) => e.date >= startISO && e.date <= endISO);
+}
+
+function sumFuelCost(expenses: DayExpense[]): number {
+  return Math.round(expenses.reduce((a, e) => a + e.fuelCost, 0) * 100) / 100;
+}
+
+function weekExtrasInRange(weekExtras: WeekExtra[], startISO: string, endISO: string): WeekExtra[] {
+  return weekExtras.filter((w) => w.weekStart >= startISO && w.weekStart <= endISO);
+}
+
+function sumWeekExtras(weekExtras: WeekExtra[]): number {
+  return Math.round(weekExtras.reduce((a, w) => a + w.amount, 0) * 100) / 100;
+}
+
 /**
  * Completed weeks strictly before the week containing `today`, oldest first.
  * When `signupDate` is given, weeks that ended before the account existed are
@@ -175,7 +223,9 @@ export function buildWeeklyHistory(
   weekStartsOn: WeekStart,
   rate: number,
   count: number,
-  signupDate?: Date
+  signupDate?: Date,
+  allExpenses: DayExpense[] = [],
+  allWeekExtras: WeekExtra[] = []
 ): WeekSummary[] {
   const currentWeekStart = startOfWeek(today, weekStartsOn);
   const weeks: WeekSummary[] = [];
@@ -184,12 +234,14 @@ export function buildWeeklyHistory(
     const end = addDays(start, 6);
     if (signupDate && end < signupDate) continue;
     const hours = sumHours(shiftsInRange(allShifts, isoDate(start), isoDate(end)));
+    const fuelCost = sumFuelCost(expensesInRange(allExpenses, isoDate(start), isoDate(end)));
+    const extra = weekExtraFor(isoDate(start), allWeekExtras)?.amount ?? 0;
     weeks.push({
       startISO: isoDate(start),
       label: `${shortLabel(start)} – ${end.getMonth() === start.getMonth() ? end.getDate() : shortLabel(end)}`,
       short: shortLabel(start),
       hours,
-      earnings: Math.round(hours * rate * 100) / 100,
+      earnings: Math.round((hours * rate + fuelCost + extra) * 100) / 100,
     });
   }
   return weeks;
@@ -265,38 +317,56 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-export function buildMonthlyItems(allShifts: Shift[], today: Date, rate: number, count: number): WeekSummary[] {
+export function buildMonthlyItems(
+  allShifts: Shift[],
+  today: Date,
+  rate: number,
+  count: number,
+  allExpenses: DayExpense[] = [],
+  allWeekExtras: WeekExtra[] = []
+): WeekSummary[] {
   const items: WeekSummary[] = [];
   for (let i = count - 1; i >= 0; i--) {
     const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
     const start = isoDate(new Date(d.getFullYear(), d.getMonth(), 1));
     const end = isoDate(new Date(d.getFullYear(), d.getMonth() + 1, 0));
     const hours = sumHours(shiftsInRange(allShifts, start, end));
+    const fuelCost = sumFuelCost(expensesInRange(allExpenses, start, end));
+    const extras = sumWeekExtras(weekExtrasInRange(allWeekExtras, start, end));
     items.push({
       startISO: start,
       label: MONTH_NAMES[d.getMonth()],
       short: MONTH_NAMES[d.getMonth()].slice(0, 3),
       hours,
-      earnings: Math.round(hours * rate * 100) / 100,
+      earnings: Math.round((hours * rate + fuelCost + extras) * 100) / 100,
       inProgress: i === 0,
     });
   }
   return items;
 }
 
-export function buildYearlyItems(allShifts: Shift[], today: Date, rate: number, count: number): WeekSummary[] {
+export function buildYearlyItems(
+  allShifts: Shift[],
+  today: Date,
+  rate: number,
+  count: number,
+  allExpenses: DayExpense[] = [],
+  allWeekExtras: WeekExtra[] = []
+): WeekSummary[] {
   const items: WeekSummary[] = [];
   for (let i = count - 1; i >= 0; i--) {
     const year = today.getFullYear() - i;
     const start = `${year}-01-01`;
     const end = `${year}-12-31`;
     const hours = sumHours(shiftsInRange(allShifts, start, end));
+    const fuelCost = sumFuelCost(expensesInRange(allExpenses, start, end));
+    const extras = sumWeekExtras(weekExtrasInRange(allWeekExtras, start, end));
     items.push({
       startISO: start,
       label: i === 0 ? `${year} (YTD)` : String(year),
       short: i === 0 ? `${year} (YTD)` : String(year),
       hours,
-      earnings: Math.round(hours * rate * 100) / 100,
+      earnings: Math.round((hours * rate + fuelCost + extras) * 100) / 100,
       inProgress: i === 0,
     });
   }
