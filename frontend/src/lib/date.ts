@@ -48,11 +48,13 @@ function timeToSeconds(t: string): number {
 }
 
 /**
- * Elapsed hours between two "HH:MM" or "HH:MM:SS" clock times, rounded to the
- * nearest minute (standard 30-second threshold). A shift that's clocked at all
- * — even a handful of seconds, e.g. signed in and out inside the same minute —
- * still counts as a minimum of one minute rather than rounding down to zero;
- * nobody should work unpaid because the clock happened to round against them.
+ * Exact elapsed hours between two "HH:MM" or "HH:MM:SS" clock times — no
+ * rounding up to a minute and no minimum. A worker is paid for precisely the
+ * time worked: 1 second in is 1 second's worth of pay, no more, no less, so
+ * it's fair to both the worker and whoever's paying. Rounded to six decimal
+ * places purely to avoid floating-point noise (that's sub-millisecond
+ * precision, far finer than a cent at any real wage) — callers that display
+ * this should format it (see `fmt2`), not print it raw.
  */
 export function computeHours(signIn: string | null, signOut: string | null): number {
   if (!signIn || !signOut) return 0;
@@ -60,9 +62,7 @@ export function computeHours(signIn: string | null, signOut: string | null): num
   if (diffSec < 0) diffSec += 24 * 3600;
   if (diffSec <= 0) return 0;
 
-  let minutes = Math.round(diffSec / 60);
-  if (minutes === 0) minutes = 1;
-  return Math.round((minutes / 60) * 100) / 100;
+  return Math.round((diffSec / 3600) * 1_000_000) / 1_000_000;
 }
 
 export function fmt2(n: number): string {

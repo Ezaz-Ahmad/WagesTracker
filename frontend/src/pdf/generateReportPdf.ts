@@ -1,4 +1,5 @@
 import type { WeekReportData } from "../lib/reportData";
+import { fmt2 } from "../lib/date";
 
 const ACCENT = "#ec3013";
 const ACCENT_DARK = "#ae1800";
@@ -88,7 +89,7 @@ export async function generateReportPdf(data: WeekReportData): Promise<void> {
 
   y += 9;
   const tiles = [
-    { label: "TOTAL HOURS", value: `${data.totalHours}h`, color: TEXT },
+    { label: "TOTAL HOURS", value: `${fmt2(data.totalHours)}h`, color: TEXT },
     { label: "TOTAL EARNINGS", value: `${data.currency}${data.totalEarnings.toFixed(2)}`, color: ACCENT_DARK },
     { label: "HOURLY RATE", value: `${data.currency}${data.rate}`, color: TEXT },
     { label: "DAYS WORKED", value: `${data.daysLogged} / 7`, color: TEXT },
@@ -238,7 +239,7 @@ export async function generateReportPdf(data: WeekReportData): Promise<void> {
   doc.setTextColor(TEXT);
   doc.text("Total", marginX, y);
   doc.setTextColor(ACCENT_DARK);
-  doc.text(`${data.totalHours}h · ${data.currency}${data.totalEarnings.toFixed(2)}`, pageW - marginX, y, { align: "right" });
+  doc.text(`${fmt2(data.totalHours)}h · ${data.currency}${data.totalEarnings.toFixed(2)}`, pageW - marginX, y, { align: "right" });
 
   // — footer: a subtle highlighted band carrying the report attribution and,
   // below it, a small credit row with drawn GitHub/globe marks that link out.

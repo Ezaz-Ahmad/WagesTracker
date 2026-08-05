@@ -22,7 +22,7 @@ export function HistoryScreen() {
       const met = w.earnings >= user.goalEarnings;
       return {
         label: w.label,
-        hoursLabel: `${w.hours}h`,
+        hoursLabel: `${fmt2(w.hours)}h`,
         earningsLabel: CURRENCY + fmt2(w.earnings),
         tagClass: met ? "tag-accent" : "tag-neutral",
         tagLabel: met ? "Met goal" : "Under goal",

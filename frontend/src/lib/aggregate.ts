@@ -79,11 +79,14 @@ export function buildDayComputed(
       signIn: sh.signIn,
       signOut: sh.signOut,
       hours,
-      hoursLabel: hours > 0 ? `${hours}h` : "—",
+      hoursLabel: hours > 0 ? `${fmt2(hours)}h` : "—",
       canRemove: raw.length > 1,
     };
   });
-  const hours = Math.round(shifts.reduce((a, s) => a + s.hours, 0) * 100) / 100;
+  // Keep high precision through the sum (see computeHours) so short shifts
+  // don't get rounded away before they're added up — only the display label
+  // (fmt2, 2dp) rounds for humans.
+  const hours = Math.round(shifts.reduce((a, s) => a + s.hours, 0) * 1_000_000) / 1_000_000;
   return {
     dateISO: isoDate(date),
     dayAbbr: dayAbbr(date),
@@ -91,7 +94,7 @@ export function buildDayComputed(
     isToday,
     shifts,
     hours,
-    hoursLabel: hours > 0 ? `${hours}h` : "—",
+    hoursLabel: hours > 0 ? `${fmt2(hours)}h` : "—",
     moneyLabel: hours > 0 ? currency + fmt2(hours * rate) : "—",
   };
 }
@@ -111,7 +114,7 @@ export function buildWeekDaysComputed(
 }
 
 export function weekTotals(days: DayComputed[], rate: number): { hours: number; earnings: number; daysLogged: number } {
-  const hours = Math.round(days.reduce((a, d) => a + d.hours, 0) * 100) / 100;
+  const hours = Math.round(days.reduce((a, d) => a + d.hours, 0) * 1_000_000) / 1_000_000;
   return { hours, earnings: Math.round(hours * rate * 100) / 100, daysLogged: days.filter((d) => d.hours > 0).length };
 }
 
@@ -146,8 +149,8 @@ export function buildLocationBreakdown(rows: ShiftRow[]): LocationBreakdown[] {
   }
   return Array.from(map.entries()).map(([location, v]) => ({
     location,
-    hours: Math.round(v.hours * 100) / 100,
-    hoursLabel: `${Math.round(v.hours * 100) / 100}h`,
+    hours: Math.round(v.hours * 1_000_000) / 1_000_000,
+    hoursLabel: `${fmt2(v.hours)}h`,
     moneyLabel: `$${v.earnings.toFixed(2)}`,
   }));
 }
@@ -157,7 +160,7 @@ function shiftsInRange(shifts: Shift[], startISO: string, endISO: string): Shift
 }
 
 function sumHours(shifts: Shift[]): number {
-  return Math.round(shifts.reduce((a, s) => a + computeHours(s.signIn, s.signOut), 0) * 100) / 100;
+  return Math.round(shifts.reduce((a, s) => a + computeHours(s.signIn, s.signOut), 0) * 1_000_000) / 1_000_000;
 }
 
 /**
@@ -224,7 +227,7 @@ export function buildChart(chartSource: WeekSummary[], metric: "earnings" | "hou
       y,
       labelY: Math.max(10, y - 10),
       short: w.short,
-      valueLabel: metric === "earnings" ? currency + Math.round(val) : `${val}h`,
+      valueLabel: metric === "earnings" ? currency + Math.round(val) : `${Math.round(val * 10) / 10}h`,
       dotColor: w.inProgress ? "var(--color-bg)" : "var(--color-accent)",
       dotStroke: "var(--color-accent)",
     };
@@ -250,7 +253,7 @@ export function buildBars(items: WeekSummary[], metric: "earnings" | "hours", cu
     const pct = Math.max(4, Math.round((val / maxVal) * 100));
     return {
       short: w.short,
-      valueLabel: metric === "earnings" ? currency + Math.round(val) : `${val}h`,
+      valueLabel: metric === "earnings" ? currency + Math.round(val) : `${Math.round(val * 10) / 10}h`,
       barStyle: `${pct}%`,
       barColor: w.inProgress ? "var(--color-accent-300)" : "var(--color-accent)",
     };

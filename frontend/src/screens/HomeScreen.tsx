@@ -84,7 +84,7 @@ export function HomeScreen() {
   const subline = active
     ? `Started at ${formatTime12(last?.signIn)} — tap to end shift.`
     : todayDay.hours > 0
-      ? `${todayDay.hours}h · ${CURRENCY}${fmt2(todayDay.hours * user.rate)}`
+      ? `${fmt2(todayDay.hours)}h · ${CURRENCY}${fmt2(todayDay.hours * user.rate)}`
       : "Tap to start your shift.";
 
   return (
