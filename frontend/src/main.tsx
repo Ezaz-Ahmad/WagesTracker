@@ -6,6 +6,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import "./styles/tokens.css";
 import "./styles/app.css";
 import "./styles/animations.css";
+import "./styles/landing.css";
 import "./admin/admin.css";
 
 // No router: the admin panel is a fully separate tree, gated by its own login, reached only

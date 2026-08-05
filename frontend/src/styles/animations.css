@@ -159,6 +159,25 @@
 }
 .form-error { animation: shake-in var(--dur-slow) var(--ease-standard) both; }
 
+/* — button shine sweep — */
+.btn-primary { position: relative; overflow: hidden; }
+.btn-primary::after {
+  content: "";
+  position: absolute; top: 0; left: -60%; width: 40%; height: 100%;
+  background: linear-gradient(115deg, transparent, color-mix(in srgb, #fff 35%, transparent), transparent);
+  transform: skewX(-20deg);
+  transition: left var(--dur-slower) var(--ease-standard);
+  pointer-events: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover::after { left: 130%; }
+}
+
+/* — input focus glow — */
+.input:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+
 /* — auth — */
 .auth-card { animation: rise-in var(--dur-slow) var(--ease-out) both; }
 

@@ -1,7 +1,45 @@
 import { useState } from "react";
 import { useApp } from "../context/AppContext";
+import { useCountUp } from "../lib/useCountUp";
+import { fmt2 } from "../lib/date";
+import { EntryIcon, ReportIcon, TargetIcon } from "../components/icons";
 
 type Mode = "login" | "signup";
+
+const FEATURES = [
+  {
+    icon: EntryIcon,
+    title: "Clock in & out",
+    body: "One tap to start or end a shift, with a live running timer.",
+  },
+  {
+    icon: TargetIcon,
+    title: "Set weekly goals",
+    body: "Track hours and earnings against the goals you set.",
+  },
+  {
+    icon: ReportIcon,
+    title: "Export PDF reports",
+    body: "Professional weekly reports, ready to download and share.",
+  },
+];
+
+function LandingPreviewCard() {
+  const amount = useCountUp(647.5, 1400);
+  const progress = useCountUp(82, 1400);
+
+  return (
+    <div className="landing-preview-card anim-rise" style={{ ["--i" as string]: 10 }} aria-hidden="true">
+      <div className="landing-preview-kicker">This week</div>
+      <div className="landing-preview-amount count-value">${fmt2(amount)}</div>
+      <div className="landing-preview-trend">▲ 12% vs last week</div>
+      <div className="progress-track landing-preview-track">
+        <div className="progress-fill" style={{ width: `${progress}%` }} />
+      </div>
+      <div className="landing-preview-caption count-value">{Math.round(progress)}% toward your weekly goal</div>
+    </div>
+  );
+}
 
 export function AuthScreen() {
   const { login, signup, authError, authBusy, clearAuthError } = useApp();
@@ -31,136 +69,178 @@ export function AuthScreen() {
   }
 
   return (
-    <div className="auth-wrap">
-      <div className="auth-card">
-        <div className="card elev-md">
-          <h6 className="section-title">Wage Tracker</h6>
-
-          {authError && <div className="form-error">{authError}</div>}
-
-          {mode === "login" ? (
-            <form key="login" className="anim-rise" onSubmit={handleLogin}>
-              <h3 style={{ margin: "0 0 var(--space-3)" }}>Log in</h3>
-              <div className="field field-spaced">
-                <label>Email</label>
-                <input
-                  className="input"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="field field-spaced">
-                <label>Password</label>
-                <input
-                  className="input"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <button className="btn btn-primary btn-block" type="submit" disabled={authBusy} style={{ justifyContent: "center" }}>
-                {authBusy ? "Logging in…" : "Log in"}
-              </button>
-              <div className="auth-footnote">
-                New here?{" "}
-                <a href="#" onClick={(e) => { e.preventDefault(); switchMode("signup"); }}>
-                  Create an account
-                </a>
-              </div>
-            </form>
-          ) : (
-            <form key="signup" className="anim-rise" onSubmit={handleSignup}>
-              <h3 style={{ margin: "0 0 var(--space-3)" }}>Create your account</h3>
-              <div className="field field-spaced">
-                <label>Full name</label>
-                <input className="input" type="text" placeholder="Alex Rivera" value={name} onChange={(e) => setName(e.target.value)} required />
-              </div>
-              <div className="field field-spaced">
-                <label>Email</label>
-                <input className="input" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
-              </div>
-              <div className="field field-spaced">
-                <label>Password</label>
-                <input
-                  className="input"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  minLength={6}
-                  required
-                />
-              </div>
-              <div className="field field-spaced">
-                <label>Work location name</label>
-                <input
-                  className="input"
-                  type="text"
-                  placeholder="Downtown Store"
-                  value={workLocationName}
-                  onChange={(e) => setWorkLocationName(e.target.value)}
-                />
-              </div>
-              <div className="field field-spaced">
-                <label>Work address</label>
-                <input
-                  className="input"
-                  type="text"
-                  placeholder="123 Main St, Springfield"
-                  value={workAddress}
-                  onChange={(e) => setWorkAddress(e.target.value)}
-                />
-              </div>
-              <div className="field field-spaced">
-                <label>Do you work multiple locations?</label>
-                <div className="seg">
-                  <label className="seg-opt">
-                    <input type="radio" name="multiloc" checked={!multipleLocations} onChange={() => setMultipleLocations(false)} /> No
-                  </label>
-                  <label className="seg-opt">
-                    <input type="radio" name="multiloc" checked={multipleLocations} onChange={() => setMultipleLocations(true)} /> Yes
-                  </label>
+    <div className="landing-shell">
+      <div className="landing-hero">
+        <div className="landing-shapes" aria-hidden="true">
+          <span className="landing-shape landing-shape-1" />
+          <span className="landing-shape landing-shape-2" />
+          <span className="landing-shape landing-shape-3" />
+        </div>
+        <div className="landing-hero-content">
+          <div className="landing-kicker anim-rise" style={{ ["--i" as string]: 0 }}>
+            Wage Tracker
+          </div>
+          <h1 className="landing-headline anim-rise" style={{ ["--i" as string]: 2 }}>
+            Track your hours.
+            <br />
+            Know your worth.
+          </h1>
+          <p className="landing-subtext anim-rise" style={{ ["--i" as string]: 4 }}>
+            Clock in, log shifts, and watch your weekly earnings add up — with goal tracking and PDF reports built
+            in.
+          </p>
+          <div className="landing-features">
+            {FEATURES.map((f, i) => (
+              <div className="landing-feature anim-rise" style={{ ["--i" as string]: 6 + i }} key={f.title}>
+                <span className="landing-feature-icon">
+                  <f.icon size={18} />
+                </span>
+                <div>
+                  <div className="landing-feature-title">{f.title}</div>
+                  <div className="landing-feature-body">{f.body}</div>
                 </div>
               </div>
-              {multipleLocations && (
+            ))}
+          </div>
+          <LandingPreviewCard />
+        </div>
+      </div>
+
+      <div className="landing-auth-pane">
+        <div className="auth-card">
+          <div className="card elev-md">
+            <h6 className="section-title">Wage Tracker</h6>
+
+            <div className="seg landing-mode-toggle">
+              <label className="seg-opt">
+                <input type="radio" name="authmode" checked={mode === "login"} onChange={() => switchMode("login")} />
+                Log in
+              </label>
+              <label className="seg-opt">
+                <input
+                  type="radio"
+                  name="authmode"
+                  checked={mode === "signup"}
+                  onChange={() => switchMode("signup")}
+                />
+                Create account
+              </label>
+            </div>
+
+            {authError && <div className="form-error">{authError}</div>}
+
+            {mode === "login" ? (
+              <form key="login" className="anim-rise" onSubmit={handleLogin}>
+                <h3 style={{ margin: "0 0 var(--space-3)" }}>Log in</h3>
                 <div className="field field-spaced">
-                  <label>Other locations</label>
+                  <label>Email</label>
+                  <input
+                    className="input"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="field field-spaced">
+                  <label>Password</label>
+                  <input
+                    className="input"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                <button className="btn btn-primary btn-block" type="submit" disabled={authBusy} style={{ justifyContent: "center" }}>
+                  {authBusy ? "Logging in…" : "Log in"}
+                </button>
+              </form>
+            ) : (
+              <form key="signup" className="anim-rise" onSubmit={handleSignup}>
+                <h3 style={{ margin: "0 0 var(--space-3)" }}>Create your account</h3>
+                <div className="field field-spaced">
+                  <label>Full name</label>
+                  <input className="input" type="text" placeholder="Alex Rivera" value={name} onChange={(e) => setName(e.target.value)} required />
+                </div>
+                <div className="field field-spaced">
+                  <label>Email</label>
+                  <input className="input" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                </div>
+                <div className="field field-spaced">
+                  <label>Password</label>
+                  <input
+                    className="input"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    minLength={6}
+                    required
+                  />
+                </div>
+                <div className="field field-spaced">
+                  <label>Work location name</label>
                   <input
                     className="input"
                     type="text"
-                    placeholder="e.g. Uptown Branch, Airport Kiosk"
-                    value={otherLocations}
-                    onChange={(e) => setOtherLocations(e.target.value)}
+                    placeholder="Downtown Store"
+                    value={workLocationName}
+                    onChange={(e) => setWorkLocationName(e.target.value)}
                   />
                 </div>
-              )}
-              <button className="btn btn-primary btn-block" type="submit" disabled={authBusy} style={{ justifyContent: "center" }}>
-                {authBusy ? "Creating account…" : "Create account"}
-              </button>
-              <div className="auth-footnote">
-                Already have an account?{" "}
-                <a href="#" onClick={(e) => { e.preventDefault(); switchMode("login"); }}>
-                  Log in
-                </a>
-              </div>
-            </form>
-          )}
+                <div className="field field-spaced">
+                  <label>Work address</label>
+                  <input
+                    className="input"
+                    type="text"
+                    placeholder="123 Main St, Springfield"
+                    value={workAddress}
+                    onChange={(e) => setWorkAddress(e.target.value)}
+                  />
+                </div>
+                <div className="field field-spaced">
+                  <label>Do you work multiple locations?</label>
+                  <div className="seg">
+                    <label className="seg-opt">
+                      <input type="radio" name="multiloc" checked={!multipleLocations} onChange={() => setMultipleLocations(false)} /> No
+                    </label>
+                    <label className="seg-opt">
+                      <input type="radio" name="multiloc" checked={multipleLocations} onChange={() => setMultipleLocations(true)} /> Yes
+                    </label>
+                  </div>
+                </div>
+                {multipleLocations && (
+                  <div className="field field-spaced">
+                    <label>Other locations</label>
+                    <input
+                      className="input"
+                      type="text"
+                      placeholder="e.g. Uptown Branch, Airport Kiosk"
+                      value={otherLocations}
+                      onChange={(e) => setOtherLocations(e.target.value)}
+                    />
+                  </div>
+                )}
+                <button className="btn btn-primary btn-block" type="submit" disabled={authBusy} style={{ justifyContent: "center" }}>
+                  {authBusy ? "Creating account…" : "Create account"}
+                </button>
+              </form>
+            )}
 
-          <div className="auth-demo-note">Your data is private to your account.</div>
-          <div className="app-credit">
-            Built by Ezaz Ahmad ·{" "}
-            <a href="https://github.com/Ezaz-Ahmad" target="_blank" rel="noopener noreferrer">
-              github.com/Ezaz-Ahmad
-            </a>{" "}
-            ·{" "}
-            <a href="https://ezazahmad.com" target="_blank" rel="noopener noreferrer">
-              ezazahmad.com
-            </a>
+            <div className="auth-demo-note">Your data is private to your account.</div>
+            <div className="app-credit">
+              Built by Ezaz Ahmad ·{" "}
+              <a href="https://github.com/Ezaz-Ahmad" target="_blank" rel="noopener noreferrer">
+                github.com/Ezaz-Ahmad
+              </a>{" "}
+              ·{" "}
+              <a href="https://ezazahmad.com" target="_blank" rel="noopener noreferrer">
+                ezazahmad.com
+              </a>
+            </div>
           </div>
         </div>
       </div>
