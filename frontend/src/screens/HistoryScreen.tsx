@@ -6,7 +6,7 @@ export function HistoryScreen() {
   const { today, user, shifts } = useApp();
   if (!user) return null;
 
-  const history = buildWeeklyHistory(shifts, today, user.weekStartsOn, user.rate, 20);
+  const history = buildWeeklyHistory(shifts, today, user.weekStartsOn, user.rate, 20, new Date(user.createdAt));
   const rows = history
     .slice()
     .reverse()
@@ -25,28 +25,36 @@ export function HistoryScreen() {
     <>
       <h6 className="section-title">History</h6>
       <div className="section-hint">Completed weeks, most recent first.</div>
-      <table className="table">
-        <thead>
-          <tr>
-            <th>Week</th>
-            <th>Hours</th>
-            <th>Earnings</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((w, i) => (
-            <tr key={i} style={{ ["--i" as string]: i }}>
-              <td>{w.label}</td>
-              <td>{w.hoursLabel}</td>
-              <td>{w.earningsLabel}</td>
-              <td>
-                <span className={`tag ${w.tagClass}`}>{w.tagLabel}</span>
-              </td>
+      {rows.length === 0 ? (
+        <div className="card anim-rise">
+          <p className="card-body" style={{ margin: 0 }}>
+            No completed weeks yet — your first full week will show up here once it ends.
+          </p>
+        </div>
+      ) : (
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Week</th>
+              <th>Hours</th>
+              <th>Earnings</th>
+              <th>Status</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((w, i) => (
+              <tr key={i} style={{ ["--i" as string]: i }}>
+                <td>{w.label}</td>
+                <td>{w.hoursLabel}</td>
+                <td>{w.earningsLabel}</td>
+                <td>
+                  <span className={`tag ${w.tagClass}`}>{w.tagLabel}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </>
   );
 }

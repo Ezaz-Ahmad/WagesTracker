@@ -2,7 +2,7 @@ import { useState } from "react";
 import { CURRENCY, useApp } from "../context/AppContext";
 
 export function SettingsScreen() {
-  const { user, updateSettings, logout } = useApp();
+  const { user, updateSettings, logout, deleteAccount } = useApp();
   const [name, setName] = useState(user?.name ?? "");
   const [weekStartsOn, setWeekStartsOn] = useState<"Monday" | "Sunday">(user?.weekStartsOn ?? "Monday");
   const [workLocationName, setWorkLocationName] = useState(user?.workLocationName ?? "");
@@ -15,10 +15,34 @@ export function SettingsScreen() {
   const [saving, setSaving] = useState(false);
   const [saveFlash, setSaveFlash] = useState(false);
 
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   if (!user) return null;
 
   function handleAutoGoal() {
     setGoalEarnings(Math.round(rate * goalHours * 100) / 100);
+  }
+
+  function closeDeleteDialog() {
+    if (deleting) return;
+    setShowDeleteDialog(false);
+    setDeletePassword("");
+    setDeleteError(null);
+  }
+
+  async function handleDeleteAccount() {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteAccount(deletePassword);
+      // On success the app flips to the logged-out state and this screen unmounts.
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : "Couldn't delete account");
+      setDeleting(false);
+    }
   }
 
   async function handleSave() {
@@ -143,7 +167,48 @@ export function SettingsScreen() {
       <button className="btn btn-secondary btn-block" onClick={logout}>
         Log out
       </button>
-      <div className="settings-note">Time entries and reports are kept for 3 years and automatically deleted after that.</div>
+      <div className="settings-note">Time entries and reports are kept for 5 years and automatically deleted after that.</div>
+
+      <div className="hr" />
+      <h6 className="section-title">Danger zone</h6>
+      <div className="section-hint">Permanently delete your account and every shift you've logged. This can't be undone.</div>
+      <button className="btn btn-danger btn-block" onClick={() => setShowDeleteDialog(true)}>
+        Delete account
+      </button>
+
+      {showDeleteDialog && (
+        <div className="dialog-backdrop" onClick={closeDeleteDialog}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="dialog-title">Delete your account?</div>
+            <p className="dialog-body">
+              This permanently deletes your account, settings, and all logged shifts. There's no way to undo this.
+              Enter your password to confirm.
+            </p>
+            {deleteError && <div className="form-error">{deleteError}</div>}
+            <div className="field">
+              <label>Password</label>
+              <input
+                className="input"
+                type="password"
+                autoFocus
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && deletePassword && !deleting) void handleDeleteAccount();
+                }}
+              />
+            </div>
+            <div className="dialog-actions">
+              <button className="btn btn-secondary" onClick={closeDeleteDialog} disabled={deleting}>
+                Cancel
+              </button>
+              <button className="btn btn-danger" onClick={handleDeleteAccount} disabled={deleting || !deletePassword}>
+                {deleting ? "Deleting…" : "Delete account"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

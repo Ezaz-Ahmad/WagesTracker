@@ -31,7 +31,7 @@ export function ReportScreen() {
   const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, CURRENCY, user.rate);
   const { hours: totalHours, earnings: totalEarnings } = weekTotals(days, user.rate);
 
-  const history = buildWeeklyHistory(shifts, today, user.weekStartsOn, user.rate, 7);
+  const history = buildWeeklyHistory(shifts, today, user.weekStartsOn, user.rate, 7, new Date(user.createdAt));
   const chartSource = buildChartSource(history, totalHours, totalEarnings);
   const chart = buildChart(chartSource, metric, CURRENCY);
 

@@ -41,7 +41,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_shifts_user_date ON shifts(user_id, date);
 `);
 
-export const RETENTION_YEARS = 3;
+export const RETENTION_YEARS = 5;
 
 export function pruneExpiredShifts(): void {
   const cutoff = new Date();

@@ -86,6 +86,10 @@ export function patchMe(patch: MePatch): Promise<{ user: User }> {
   return request("/me", { method: "PATCH", body: JSON.stringify(patch) });
 }
 
+export function deleteAccount(password: string): Promise<void> {
+  return request("/me", { method: "DELETE", body: JSON.stringify({ password }) });
+}
+
 export function listShifts(from: string, to: string): Promise<{ shifts: Shift[] }> {
   return request(`/shifts?from=${from}&to=${to}`);
 }

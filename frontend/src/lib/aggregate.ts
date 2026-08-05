@@ -160,19 +160,26 @@ function sumHours(shifts: Shift[]): number {
   return Math.round(shifts.reduce((a, s) => a + computeHours(s.signIn, s.signOut), 0) * 100) / 100;
 }
 
-/** Completed weeks strictly before the week containing `today`, oldest first. */
+/**
+ * Completed weeks strictly before the week containing `today`, oldest first.
+ * When `signupDate` is given, weeks that ended before the account existed are
+ * skipped entirely — history should start the week the user actually signed up,
+ * not stretch back to an arbitrary fixed count of empty weeks.
+ */
 export function buildWeeklyHistory(
   allShifts: Shift[],
   today: Date,
   weekStartsOn: WeekStart,
   rate: number,
-  count: number
+  count: number,
+  signupDate?: Date
 ): WeekSummary[] {
   const currentWeekStart = startOfWeek(today, weekStartsOn);
   const weeks: WeekSummary[] = [];
   for (let i = count; i >= 1; i--) {
     const start = addDays(currentWeekStart, -7 * i);
     const end = addDays(start, 6);
+    if (signupDate && end < signupDate) continue;
     const hours = sumHours(shiftsInRange(allShifts, isoDate(start), isoDate(end)));
     weeks.push({
       startISO: isoDate(start),

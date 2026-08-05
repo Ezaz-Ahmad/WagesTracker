@@ -12,6 +12,7 @@ export interface User {
   rate: number;
   goalHours: number;
   goalEarnings: number;
+  createdAt: string;
 }
 
 export interface Shift {

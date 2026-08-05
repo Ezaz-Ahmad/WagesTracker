@@ -4,7 +4,7 @@ import { ApiError } from "../lib/api";
 import { addDays, isoDate, startOfWeek } from "../lib/date";
 import type { Shift, User } from "../lib/types";
 
-export const RETENTION_YEARS = 3;
+export const RETENTION_YEARS = 5;
 export const CURRENCY = "$";
 
 type Status = "loading" | "loggedOut" | "loggedIn";
@@ -21,6 +21,7 @@ interface AppContextValue {
   logout: () => void;
   clearAuthError: () => void;
   updateSettings: (patch: api.MePatch) => Promise<void>;
+  deleteAccount: (password: string) => Promise<void>;
 
   today: Date;
   shifts: Shift[];
@@ -126,6 +127,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setStatus("loggedOut");
   }, []);
 
+  // Left to throw on failure (e.g. wrong password) so the confirmation dialog can show the
+  // error inline instead of routing it through the top-level action-error banner.
+  const deleteAccount = useCallback(async (password: string) => {
+    await api.deleteAccount(password);
+    api.clearToken();
+    setUser(null);
+    setShifts([]);
+    setStatus("loggedOut");
+  }, []);
+
   // Shared handling for authenticated actions (settings/shifts): an expired or invalid
   // token logs the user out with a clear reason instead of failing silently; any other
   // failure (validation, network) surfaces as a dismissible message instead of an
@@ -207,6 +218,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       logout,
       clearAuthError: () => setAuthError(null),
       updateSettings,
+      deleteAccount,
       today,
       shifts,
       shiftsLoading,
@@ -224,6 +236,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       signup,
       logout,
       updateSettings,
+      deleteAccount,
       today,
       shifts,
       shiftsLoading,

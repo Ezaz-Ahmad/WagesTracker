@@ -18,7 +18,7 @@ export function HomeScreen() {
   const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, CURRENCY, user.rate);
   const { hours: totalHours, earnings: totalEarnings, daysLogged } = weekTotals(days, user.rate);
 
-  const history = buildWeeklyHistory(shifts, today, user.weekStartsOn, user.rate, 7);
+  const history = buildWeeklyHistory(shifts, today, user.weekStartsOn, user.rate, 7, new Date(user.createdAt));
   const lastWeek = history[history.length - 1];
   const prevWeek = history[history.length - 2];
   const trendPct = prevWeek && prevWeek.earnings > 0 ? Math.round(((lastWeek.earnings - prevWeek.earnings) / prevWeek.earnings) * 100) : 0;

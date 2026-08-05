@@ -1,3 +1,4 @@
+import bcrypt from "bcryptjs";
 import { Router } from "express";
 import { z } from "zod";
 import { db } from "../db.js";
@@ -66,4 +67,32 @@ meRouter.patch("/", (req: AuthedRequest, res) => {
   db.prepare(`UPDATE users SET ${setClauses.join(", ")} WHERE id = @id`).run(params);
   const row = db.prepare("SELECT * FROM users WHERE id = ?").get(req.userId) as UserRow;
   res.json({ user: toPublicUser(row) });
+});
+
+const deleteSchema = z.object({
+  password: z.string().min(1, "Password is required"),
+});
+
+// Permanently deletes the account and every row that references it. Shifts cascade via the
+// `ON DELETE CASCADE` foreign key (foreign_keys pragma is on in db.ts), so nothing is orphaned
+// and nothing needs to be deleted manually here.
+meRouter.delete("/", (req: AuthedRequest, res) => {
+  const parsed = deleteSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message || "Invalid input" });
+    return;
+  }
+
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(req.userId) as UserRow | undefined;
+  if (!row) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  if (!bcrypt.compareSync(parsed.data.password, row.password_hash)) {
+    res.status(401).json({ error: "Incorrect password" });
+    return;
+  }
+
+  db.prepare("DELETE FROM users WHERE id = ?").run(req.userId);
+  res.status(204).end();
 });

@@ -26,6 +26,7 @@ export interface PublicUser {
   rate: number;
   goalHours: number;
   goalEarnings: number;
+  createdAt: string;
 }
 
 export interface ShiftRow {
@@ -60,6 +61,7 @@ export function toPublicUser(row: UserRow): PublicUser {
     rate: row.rate,
     goalHours: row.goal_hours,
     goalEarnings: row.goal_earnings,
+    createdAt: row.created_at,
   };
 }
 
