@@ -152,6 +152,16 @@ export function AuthScreen() {
           )}
 
           <div className="auth-demo-note">Your data is private to your account.</div>
+          <div className="app-credit">
+            Built by Ezaz Ahmad ·{" "}
+            <a href="https://github.com/Ezaz-Ahmad" target="_blank" rel="noopener noreferrer">
+              github.com/Ezaz-Ahmad
+            </a>{" "}
+            ·{" "}
+            <a href="https://ezazahmad.com" target="_blank" rel="noopener noreferrer">
+              ezazahmad.com
+            </a>
+          </div>
         </div>
       </div>
     </div>

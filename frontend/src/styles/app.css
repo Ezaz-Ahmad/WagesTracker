@@ -13,6 +13,11 @@ button { font-family: inherit; }
 .auth-card { width: 100%; max-width: 380px; padding: var(--space-4); }
 .auth-footnote { font-size: 12px; margin-top: var(--space-3); text-align: center; }
 .auth-demo-note { font-size: 11px; opacity: 0.5; margin-top: var(--space-2); text-align: center; }
+
+/* — credit — */
+.app-credit { font-size: 11px; opacity: 0.55; margin-top: var(--space-2); text-align: center; }
+.app-credit a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.app-credit a:hover { color: var(--color-accent); opacity: 1; }
 .form-error {
   font-size: 12px; color: var(--color-accent-700); background: var(--color-accent-100);
   padding: var(--space-2) var(--space-3); margin-bottom: var(--space-3);

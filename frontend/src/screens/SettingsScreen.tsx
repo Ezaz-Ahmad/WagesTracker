@@ -168,6 +168,16 @@ export function SettingsScreen() {
         Log out
       </button>
       <div className="settings-note">Time entries and reports are kept for 5 years and automatically deleted after that.</div>
+      <div className="app-credit">
+        Built by Ezaz Ahmad ·{" "}
+        <a href="https://github.com/Ezaz-Ahmad" target="_blank" rel="noopener noreferrer">
+          github.com/Ezaz-Ahmad
+        </a>{" "}
+        ·{" "}
+        <a href="https://ezazahmad.com" target="_blank" rel="noopener noreferrer">
+          ezazahmad.com
+        </a>
+      </div>
 
       <div className="hr" />
       <h6 className="section-title">Danger zone</h6>
