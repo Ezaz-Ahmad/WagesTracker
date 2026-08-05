@@ -6,24 +6,45 @@ import { buildWeekReportData } from "../lib/reportData";
 import { generateReportPdf } from "../pdf/generateReportPdf";
 import { useTodayShift } from "../lib/useTodayShift";
 import { useCountUp } from "../lib/useCountUp";
+import { useLiveElapsedHours } from "../lib/useLiveElapsedHours";
 import { ElapsedTimer, ShiftButton } from "../components/ShiftButton";
 
 type Row = ShiftComputed & { tempId?: string };
 
 export function EntryScreen() {
-  const { today, user, shifts, createShift, updateShift, removeShift } = useApp();
+  const { today, user, shifts, shiftsLoaded, createShift, updateShift, removeShift } = useApp();
   const { active, last, start, end } = useTodayShift();
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<Record<string, string[]>>({});
 
   if (!user) return null;
+  // Same reasoning as Home: don't render totals off the empty initial `shifts`
+  // array, or they'll flicker from $0 to the real total the instant it loads.
+  if (!shiftsLoaded) {
+    return (
+      <div className="screen-narrow screen-transition">
+        <h6 className="section-title">This week's hours</h6>
+        <div className="section-hint">Loading your week…</div>
+      </div>
+    );
+  }
 
   const weekDays = buildWeekDays(today, user.weekStartsOn);
   const shiftsByDate = groupByDate(shifts);
   const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, CURRENCY, user.rate);
-  const { hours: totalHours, earnings: totalEarnings } = weekTotals(days, user.rate);
+  const { hours: savedHours, earnings: savedEarnings } = weekTotals(days, user.rate);
   const todayDay = days.find((d) => d.isToday)!;
-  const totalEarningsAnim = useCountUp(totalEarnings);
+
+  // Same live-total treatment as the Home screen: the open shift's elapsed
+  // time counts toward this week's total immediately, on top of what's saved.
+  const liveHours = useLiveElapsedHours(active, last?.signIn ?? null);
+  const totalHours = savedHours + liveHours;
+  const totalEarnings = savedEarnings + liveHours * user.rate;
+  // Show the exact live value every tick instead of easing toward it while a
+  // shift is active — an ongoing eased chase toward a moving target reads as
+  // "stuck," not live.
+  const totalEarningsSmoothed = useCountUp(totalEarnings, 650);
+  const totalEarningsAnim = active ? totalEarnings : totalEarningsSmoothed;
 
   function rowsFor(day: DayComputed): Row[] {
     const rows: Row[] = day.shifts.map((s) => ({ ...s }));
@@ -179,7 +200,7 @@ export function EntryScreen() {
         <div className="week-total-row">
           <span>Total this week</span>
           <span className="count-value" style={{ fontWeight: 800 }}>
-            {totalHours}h · {CURRENCY}{fmt2(totalEarningsAnim)}
+            {fmt2(totalHours)}h · {CURRENCY}{fmt2(totalEarningsAnim)}
           </span>
         </div>
       </div>

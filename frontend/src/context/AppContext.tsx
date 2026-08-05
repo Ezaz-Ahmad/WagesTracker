@@ -26,6 +26,7 @@ interface AppContextValue {
   today: Date;
   shifts: Shift[];
   shiftsLoading: boolean;
+  shiftsLoaded: boolean;
   createShift: (input: api.ShiftInput) => Promise<Shift | undefined>;
   updateShift: (id: string, patch: Partial<api.ShiftInput>) => Promise<Shift | undefined>;
   removeShift: (id: string) => Promise<void>;
@@ -41,6 +42,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [shiftsLoading, setShiftsLoading] = useState(false);
+  // Sticky — true after the first successful/attempted load and never reset, so
+  // screens can show a one-time loading state instead of flashing $0 totals
+  // before the real numbers arrive, without re-showing it on background refetches.
+  const [shiftsLoaded, setShiftsLoaded] = useState(false);
   const [today, setToday] = useState(() => new Date());
 
   useEffect(() => {
@@ -79,6 +84,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setShifts(shifts);
     } finally {
       setShiftsLoading(false);
+      setShiftsLoaded(true);
     }
   }, []);
 
@@ -126,6 +132,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     api.clearToken();
     setUser(null);
     setShifts([]);
+    setShiftsLoaded(false);
     setStatus("loggedOut");
   }, []);
 
@@ -137,6 +144,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     api.clearRememberedEmail();
     setUser(null);
     setShifts([]);
+    setShiftsLoaded(false);
     setStatus("loggedOut");
   }, []);
 
@@ -225,6 +233,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       today,
       shifts,
       shiftsLoading,
+      shiftsLoaded,
       createShift,
       updateShift,
       removeShift,
@@ -243,6 +252,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       today,
       shifts,
       shiftsLoading,
+      shiftsLoaded,
       createShift,
       updateShift,
       removeShift,

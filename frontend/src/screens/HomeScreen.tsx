@@ -4,19 +4,40 @@ import { buildWeekDaysComputed, buildWeeklyHistory, groupByDate, weekTotals } fr
 import { buildWeekDays, fmt2, formatTime12 } from "../lib/date";
 import { useTodayShift } from "../lib/useTodayShift";
 import { useCountUp } from "../lib/useCountUp";
+import { useLiveElapsedHours } from "../lib/useLiveElapsedHours";
 import { ElapsedTimer, ShiftButton } from "../components/ShiftButton";
 
 export function HomeScreen() {
-  const { today, user, shifts } = useApp();
+  const { today, user, shifts, shiftsLoaded } = useApp();
   const { active, last, start, end } = useTodayShift();
   const [busy, setBusy] = useState(false);
 
   if (!user) return null;
+  // Wait for the first shifts fetch before showing any totals — otherwise this
+  // briefly renders $0 from the empty initial `shifts` array and then jumps to
+  // the real number the instant the fetch resolves, which reads as a flicker.
+  if (!shiftsLoaded) {
+    return (
+      <div className="screen-wide screen-transition">
+        <h6 className="section-title">This week</h6>
+        <div className="section-hint">Loading your week…</div>
+      </div>
+    );
+  }
 
   const weekDays = buildWeekDays(today, user.weekStartsOn);
   const shiftsByDate = groupByDate(shifts);
   const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, CURRENCY, user.rate);
-  const { hours: totalHours, earnings: totalEarnings, daysLogged } = weekTotals(days, user.rate);
+  const { hours: savedHours, earnings: savedEarnings, daysLogged } = weekTotals(days, user.rate);
+
+  // While a shift is open (signed in, not yet signed out) its hours aren't in
+  // `shifts` yet — add the live elapsed time on top so the week's totals visibly
+  // climb in real time instead of jumping only once the shift is signed out.
+  // Resets with the week itself since `days`/`weekDays` are already scoped to
+  // the user's weekStartsOn setting.
+  const liveHours = useLiveElapsedHours(active, last?.signIn ?? null);
+  const totalHours = savedHours + liveHours;
+  const totalEarnings = savedEarnings + liveHours * user.rate;
 
   const history = buildWeeklyHistory(shifts, today, user.weekStartsOn, user.rate, 7, new Date(user.createdAt));
   const lastWeek = history[history.length - 1];
@@ -28,8 +49,14 @@ export function HomeScreen() {
   const progressPct = user.goalHours > 0 ? Math.min(100, Math.round((totalHours / user.goalHours) * 100)) : 0;
   const todayDay = days.find((d) => d.isToday)!;
 
-  const earningsAnim = useCountUp(totalEarnings);
-  const progressPctAnim = Math.round(useCountUp(progressPct, 550));
+  // While a shift is active, show the exact live number every tick rather than
+  // easing toward it — the eased animation is great for one-off jumps (like a
+  // settled total after signing out) but reads as "stuck"/not-live when it's
+  // chasing a target that moves every second.
+  const earningsSmoothed = useCountUp(totalEarnings, 650);
+  const earningsAnim = active ? totalEarnings : earningsSmoothed;
+  const progressPctSmoothed = Math.round(useCountUp(progressPct, 550));
+  const progressPctAnim = active ? progressPct : progressPctSmoothed;
   const daysLoggedAnim = Math.round(useCountUp(daysLogged, 450));
   const metGoalAnim = Math.round(useCountUp(metGoalCount, 450));
 
@@ -63,7 +90,7 @@ export function HomeScreen() {
             </div>
           </div>
           <div className="card-meta" style={{ marginTop: 2 }}>
-            {totalHours}h logged · goal {user.goalHours}h
+            {fmt2(totalHours)}h logged · goal {user.goalHours}h
           </div>
           <div className="hr" style={{ margin: "var(--space-3) 0" }} />
           <div className="progress-label-row">

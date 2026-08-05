@@ -20,11 +20,19 @@ type Metric = "earnings" | "hours";
 type Period = "week" | "month" | "year";
 
 export function ReportScreen() {
-  const { today, user, shifts } = useApp();
+  const { today, user, shifts, shiftsLoaded } = useApp();
   const [metric, setMetric] = useState<Metric>("earnings");
   const [period, setPeriod] = useState<Period>("week");
 
   if (!user) return null;
+  if (!shiftsLoaded) {
+    return (
+      <div className="screen-wide screen-transition">
+        <h6 className="section-title">Progress report</h6>
+        <div className="section-hint">Loading your data…</div>
+      </div>
+    );
+  }
 
   const weekDays = buildWeekDays(today, user.weekStartsOn);
   const shiftsByDate = groupByDate(shifts);

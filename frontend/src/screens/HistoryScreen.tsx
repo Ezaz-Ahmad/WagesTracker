@@ -3,8 +3,16 @@ import { buildWeeklyHistory } from "../lib/aggregate";
 import { fmt2 } from "../lib/date";
 
 export function HistoryScreen() {
-  const { today, user, shifts } = useApp();
+  const { today, user, shifts, shiftsLoaded } = useApp();
   if (!user) return null;
+  if (!shiftsLoaded) {
+    return (
+      <div className="screen-narrow screen-transition">
+        <h6 className="section-title">History</h6>
+        <div className="section-hint">Loading your history…</div>
+      </div>
+    );
+  }
 
   const history = buildWeeklyHistory(shifts, today, user.weekStartsOn, user.rate, 20, new Date(user.createdAt));
   const rows = history
