@@ -1,5 +1,5 @@
 import { useApp } from "../context/AppContext";
-import { isoDate, nowHHMM } from "./date";
+import { isoDate, nowHHMMSS } from "./date";
 
 export function useTodayShift() {
   const { today, shifts, user, createShift, updateShift } = useApp();
@@ -9,12 +9,12 @@ export function useTodayShift() {
   const active = !!(last && last.signIn && !last.signOut);
 
   const start = async () => {
-    await createShift({ date: todayISO, location: user?.workLocationName || "", signIn: nowHHMM(), signOut: null });
+    await createShift({ date: todayISO, location: user?.workLocationName || "", signIn: nowHHMMSS(), signOut: null });
   };
 
   const end = async () => {
     if (last && !last.signOut) {
-      await updateShift(last.id, { signOut: nowHHMM() });
+      await updateShift(last.id, { signOut: nowHHMMSS() });
     }
   };
 

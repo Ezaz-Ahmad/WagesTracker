@@ -41,15 +41,28 @@ export function buildWeekDays(anchor: Date, weekStartsOn: WeekStart): Date[] {
   return Array.from({ length: 7 }, (_, i) => addDays(start, i));
 }
 
+/** Parses "HH:MM" or "HH:MM:SS" into seconds since midnight. */
+function timeToSeconds(t: string): number {
+  const [h, m, s = 0] = t.split(":").map(Number);
+  return h * 3600 + m * 60 + s;
+}
+
+/**
+ * Elapsed hours between two "HH:MM" or "HH:MM:SS" clock times, rounded to the
+ * nearest minute (standard 30-second threshold). A shift that's clocked at all
+ * — even a handful of seconds, e.g. signed in and out inside the same minute —
+ * still counts as a minimum of one minute rather than rounding down to zero;
+ * nobody should work unpaid because the clock happened to round against them.
+ */
 export function computeHours(signIn: string | null, signOut: string | null): number {
   if (!signIn || !signOut) return 0;
-  const [sh, sm] = signIn.split(":").map(Number);
-  const [eh, em] = signOut.split(":").map(Number);
-  const start = sh + sm / 60;
-  const end = eh + em / 60;
-  let diff = end - start;
-  if (diff < 0) diff += 24;
-  return Math.round(diff * 100) / 100;
+  let diffSec = timeToSeconds(signOut) - timeToSeconds(signIn);
+  if (diffSec < 0) diffSec += 24 * 3600;
+  if (diffSec <= 0) return 0;
+
+  let minutes = Math.round(diffSec / 60);
+  if (minutes === 0) minutes = 1;
+  return Math.round((minutes / 60) * 100) / 100;
 }
 
 export function fmt2(n: number): string {
@@ -77,6 +90,14 @@ export function formatElapsed(ms: number): string {
 export function nowHHMM(): string {
   const now = new Date();
   return `${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+}
+
+/** Same as `nowHHMM` but with seconds — used by the sign-in/sign-out buttons
+ * so `computeHours` can tell how far into a minute a shift actually started
+ * or ended, instead of losing that precision at the moment it's captured. */
+export function nowHHMMSS(): string {
+  const now = new Date();
+  return `${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`;
 }
 
 export function weekRangeLabel(start: Date, end: Date): string {

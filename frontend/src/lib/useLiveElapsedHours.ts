@@ -16,8 +16,8 @@ export function useLiveElapsedHours(active: boolean, signInHHMM: string | null):
   }, [active]);
 
   if (!active || !signInHHMM) return 0;
-  const [h, m] = signInHHMM.split(":").map(Number);
+  const [h, m, s = 0] = signInHHMM.split(":").map(Number);
   const start = new Date();
-  start.setHours(h, m, 0, 0);
+  start.setHours(h, m, s, 0);
   return Math.max(0, (Date.now() - start.getTime()) / 3_600_000);
 }

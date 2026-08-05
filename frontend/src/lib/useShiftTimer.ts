@@ -11,8 +11,8 @@ export function useShiftTimer(active: boolean, signInHHMM: string | null): strin
   }, [active]);
 
   if (!active || !signInHHMM) return "00:00:00";
-  const [h, m] = signInHHMM.split(":").map(Number);
+  const [h, m, s = 0] = signInHHMM.split(":").map(Number);
   const start = new Date();
-  start.setHours(h, m, 0, 0);
+  start.setHours(h, m, s, 0);
   return formatElapsed(Date.now() - start.getTime());
 }

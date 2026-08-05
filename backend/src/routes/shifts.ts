@@ -11,7 +11,9 @@ export const shiftsRouter = Router();
 shiftsRouter.use(requireAuth);
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+// Accepts "HH:MM" (manual entry) and "HH:MM:SS" (the sign-in/out buttons capture
+// seconds so short shifts can be rounded fairly instead of truncated to zero).
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
 
 shiftsRouter.get(
   "/",
