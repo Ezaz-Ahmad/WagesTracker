@@ -1,0 +1,56 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   Admin panel — a wider, desktop-oriented layout built on the same tokens and
+   component classes (.card, .table, .dialog, .btn) as the rest of the app, so
+   it looks consistent without needing its own design language.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.admin-shell {
+  min-height: 100vh;
+  background: var(--color-neutral-300);
+}
+.admin-nav {
+  background: var(--color-bg);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.admin-frame {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4) var(--space-8);
+}
+.admin-stat-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-bottom: var(--space-6);
+}
+.admin-toolbar {
+  margin-bottom: var(--space-3);
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.admin-search {
+  max-width: 280px;
+}
+.admin-table-wrap {
+  overflow-x: auto;
+  background: var(--color-surface);
+}
+.admin-table {
+  min-width: 720px;
+}
+.admin-row-actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+.admin-detail-dialog {
+  width: min(560px, 100%);
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.admin-detail-shifts {
+  margin-top: var(--space-2);
+  max-height: 280px;
+  overflow-y: auto;
+}

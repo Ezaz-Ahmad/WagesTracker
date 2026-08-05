@@ -25,6 +25,8 @@ services:
         sync: false # token for the database above, from `turso db tokens create <db-name>`
       - key: ALLOWED_ORIGINS
         sync: false # set to your deployed frontend URL(s), comma-separated, after the frontend is deployed
+      - key: ADMIN_PASSWORD
+        sync: false # a strong password of your choosing — gates the admin panel at <frontend-url>/admin
     # No `disk:` block needed: the database lives on Turso (see TURSO_DATABASE_URL above), not on this
     # service's local filesystem, so the free plan's lack of persistent disk no longer matters — data
     # survives restarts and redeploys either way.

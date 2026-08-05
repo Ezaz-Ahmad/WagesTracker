@@ -95,12 +95,29 @@ Useful scripts (run from the root):
 | `TURSO_DATABASE_URL` | **yes, in production** | hosted libSQL/Turso database URL, e.g. `libsql://your-db-your-org.turso.io`. When set, this replaces the local SQLite file so data survives restarts/redeploys. Leave unset locally |
 | `TURSO_AUTH_TOKEN` | **yes, in production** (if `TURSO_DATABASE_URL` is set) | auth token for the database above, from `turso db tokens create <db-name>` |
 | `ALLOWED_ORIGINS` | **yes, in production** | comma-separated list of browser origins allowed to call the API, e.g. `https://your-app.vercel.app` |
+| `ADMIN_PASSWORD` | no, but the admin panel is disabled without it | a single shared secret (unrelated to any user account) gating the admin panel at `<frontend-url>/admin`. See [Admin panel](#admin-panel) |
 
 ### Frontend (`frontend/.env`, copy from `frontend/.env.example`)
 
 | Variable | Required | Notes |
 | --- | --- | --- |
 | `VITE_API_URL` | **yes, in production** | the deployed backend's origin, e.g. `https://wage-tracker-api.onrender.com`. Leave unset locally — the Vite dev proxy handles it |
+
+## Admin panel
+
+A separate, standalone view at `/admin` (e.g. `https://wages-tracker-frontend.vercel.app/admin`) for seeing everything stored in the database and deleting a user if needed — password-hidden info like `password_hash` is never sent to it, but every other field is.
+
+It's built to be fully isolated from regular user accounts, not a "role" on top of one:
+
+- Gated by a single shared `ADMIN_PASSWORD` (backend env var) — not tied to any user's email/password.
+- Its session token is a distinct JWT carrying a `role: "admin"` claim, expires in 12 hours (vs. 30 days for regular users), and is checked by its own `requireAdmin` middleware — a regular user's token is rejected with a 403 even if someone tried to reuse it here.
+- The frontend stores the admin token under its own `localStorage` key and never shares state with the regular `AppContext`/user session — logging into `/admin` doesn't log you into the app and vice versa.
+- Not linked from anywhere in the regular app UI; reaching it means knowing the URL and the password.
+- Its login endpoint (`POST /api/admin/login`) has its own tight rate limit (10 attempts/15min) separate from the general API limiter, since a shared admin password is a higher-value brute-force target than any one user's password.
+
+What it shows: every user (name, email, work info, rate, goals, join date, shift count), a searchable table, and a "View" drill-down per user with their full shift history. Deleting a user requires typing their email into the confirmation dialog first — deletion is immediate and permanent (same explicit shift-then-user delete as the self-service "Delete account" flow in Settings, not a soft delete).
+
+**Setup:** set `ADMIN_PASSWORD` in `backend/.env` (local) or on the Render service (production) — see the Backend config table above. Leave it unset to disable the panel entirely (the login endpoint always returns 401 without it).
 
 ## Deploying
 

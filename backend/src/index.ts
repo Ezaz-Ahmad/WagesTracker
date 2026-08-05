@@ -4,6 +4,7 @@ import express from "express";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { db, pruneExpiredShifts } from "./db.js";
+import { adminRouter } from "./routes/admin.js";
 import { authRouter } from "./routes/auth.js";
 import { meRouter } from "./routes/me.js";
 import { shiftsRouter } from "./routes/shifts.js";
@@ -20,6 +21,9 @@ if (isProd && allowedOrigins.length === 0) {
   console.warn(
     "[warn] ALLOWED_ORIGINS is not set. No browser origins will be allowed to call this API in production."
   );
+}
+if (!process.env.ADMIN_PASSWORD) {
+  console.warn("[warn] ADMIN_PASSWORD is not set. The admin panel (/admin) will be inaccessible until it is.");
 }
 
 const app = express();
@@ -67,6 +71,7 @@ app.get("/api/health", (_req, res) => res.json({ ok: true }));
 app.use("/api/auth", authLimiter, authRouter);
 app.use("/api/me", meRouter);
 app.use("/api/shifts", shiftsRouter);
+app.use("/api/admin", adminRouter);
 
 app.use((_req, res) => {
   res.status(404).json({ error: "Not found" });

@@ -74,3 +74,14 @@ export function toPublicShift(row: ShiftRow): PublicShift {
     signOut: row.sign_out,
   };
 }
+
+export interface AdminUserSummary extends PublicUser {
+  shiftCount: number;
+}
+
+export function toAdminUserSummary(row: UserRow & { shift_count: unknown }): AdminUserSummary {
+  return {
+    ...toPublicUser(row),
+    shiftCount: Number(row.shift_count ?? 0),
+  };
+}
