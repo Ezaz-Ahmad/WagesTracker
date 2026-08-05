@@ -31,6 +31,7 @@ await db.executeMultiple(`
     name TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
+    address TEXT NOT NULL DEFAULT '',
     work_location_name TEXT NOT NULL DEFAULT '',
     work_address TEXT NOT NULL DEFAULT '',
     multiple_locations INTEGER NOT NULL DEFAULT 0,
@@ -85,6 +86,15 @@ await db.executeMultiple(`
 // (per-day) before that concept moved to the week-level `week_extras` table
 // above. Nothing reads or writes it anymore; left in place rather than
 // attempting a DROP COLUMN migration, which is riskier than an unused column.
+
+// Migration for databases created before `users.address` existed (the table
+// definition above only applies to brand-new databases via CREATE TABLE IF
+// NOT EXISTS). Fails harmlessly with "duplicate column" if already migrated.
+try {
+  await db.execute("ALTER TABLE users ADD COLUMN address TEXT NOT NULL DEFAULT ''");
+} catch {
+  // already migrated
+}
 
 export const RETENTION_YEARS = 5;
 

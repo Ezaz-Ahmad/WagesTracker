@@ -7,6 +7,15 @@ import type { DayExpense, Shift, User, WeekExtra } from "../lib/types";
 export const RETENTION_YEARS = 5;
 export const CURRENCY = "$";
 
+// After this long with no mouse/keyboard/touch activity, the session is
+// cleared automatically — a security measure, independent of "remember me"
+// (which controls whether a session survives a browser restart, not how long
+// an unattended one stays open). This only clears the local session: an
+// open shift keeps accruing time from its stored sign-in timestamp on the
+// server regardless of whether the app is logged in, so nothing is lost —
+// signing back in picks the running total back up exactly where it left off.
+const IDLE_LOGOUT_MS = 10 * 60 * 1000;
+
 type Status = "loading" | "loggedOut" | "loggedIn";
 
 interface AppContextValue {
@@ -151,6 +160,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setShiftsLoaded(false);
     setStatus("loggedOut");
   }, []);
+
+  // Idle auto-logout: resets on any real interaction while logged in, and
+  // signs out (with an explanatory message on the login screen) if none
+  // arrives within IDLE_LOGOUT_MS. A closed tab/browser has the same effect
+  // for non-"remember me" sessions already, since those live in
+  // sessionStorage and are gone the moment the tab closes.
+  useEffect(() => {
+    if (status !== "loggedIn") return;
+
+    let timer: ReturnType<typeof setTimeout>;
+    const handleIdle = () => {
+      logout();
+      setAuthError("You were logged out after 10 minutes of inactivity. Any shift in progress kept counting — log back in to see it.");
+    };
+    const resetTimer = () => {
+      clearTimeout(timer);
+      timer = setTimeout(handleIdle, IDLE_LOGOUT_MS);
+    };
+
+    const activityEvents = ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "wheel"] as const;
+    activityEvents.forEach((evt) => window.addEventListener(evt, resetTimer, { passive: true }));
+    resetTimer();
+
+    return () => {
+      clearTimeout(timer);
+      activityEvents.forEach((evt) => window.removeEventListener(evt, resetTimer));
+    };
+  }, [status, logout]);
 
   // Left to throw on failure (e.g. wrong password) so the confirmation dialog can show the
   // error inline instead of routing it through the top-level action-error banner.

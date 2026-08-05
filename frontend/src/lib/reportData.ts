@@ -18,6 +18,7 @@ export interface WeekReportData {
   generatedOnLabel: string;
   employeeName: string;
   employeeInitials: string;
+  employeeAddress: string;
   workLocationName: string;
   workAddress: string;
   currency: string;
@@ -71,6 +72,7 @@ export function buildWeekReportData(
     generatedOnLabel: today.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
     employeeName: user.name,
     employeeInitials: initials,
+    employeeAddress: user.address,
     workLocationName: user.workLocationName,
     workAddress: user.workAddress,
     currency,

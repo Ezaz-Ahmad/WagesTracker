@@ -4,6 +4,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  address: string;
   workLocationName: string;
   workAddress: string;
   multipleLocations: boolean;

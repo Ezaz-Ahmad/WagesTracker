@@ -279,7 +279,7 @@ export function buildChart(chartSource: WeekSummary[], metric: "earnings" | "hou
       y,
       labelY: Math.max(10, y - 10),
       short: w.short,
-      valueLabel: metric === "earnings" ? currency + Math.round(val) : `${Math.round(val * 10) / 10}h`,
+      valueLabel: metric === "earnings" ? currency + fmt2(val) : `${Math.round(val * 10) / 10}h`,
       dotColor: w.inProgress ? "var(--color-bg)" : "var(--color-accent)",
       dotStroke: "var(--color-accent)",
     };
@@ -305,7 +305,7 @@ export function buildBars(items: WeekSummary[], metric: "earnings" | "hours", cu
     const pct = Math.max(4, Math.round((val / maxVal) * 100));
     return {
       short: w.short,
-      valueLabel: metric === "earnings" ? currency + Math.round(val) : `${Math.round(val * 10) / 10}h`,
+      valueLabel: metric === "earnings" ? currency + fmt2(val) : `${Math.round(val * 10) / 10}h`,
       barStyle: `${pct}%`,
       barColor: w.inProgress ? "var(--color-accent-300)" : "var(--color-accent)",
     };

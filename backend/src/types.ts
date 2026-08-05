@@ -3,6 +3,7 @@ export interface UserRow {
   name: string;
   email: string;
   password_hash: string;
+  address: string;
   work_location_name: string;
   work_address: string;
   multiple_locations: number;
@@ -18,6 +19,7 @@ export interface PublicUser {
   id: string;
   name: string;
   email: string;
+  address: string;
   workLocationName: string;
   workAddress: string;
   multipleLocations: boolean;
@@ -53,6 +55,7 @@ export function toPublicUser(row: UserRow): PublicUser {
     id: row.id,
     name: row.name,
     email: row.email,
+    address: row.address,
     workLocationName: row.work_location_name,
     workAddress: row.work_address,
     multipleLocations: !!row.multiple_locations,

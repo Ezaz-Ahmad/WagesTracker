@@ -96,6 +96,7 @@ export function fetchMe(): Promise<{ user: User }> {
 
 export interface MePatch {
   name?: string;
+  address?: string;
   workLocationName?: string;
   workAddress?: string;
   multipleLocations?: boolean;

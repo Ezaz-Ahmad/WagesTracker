@@ -25,6 +25,7 @@ meRouter.get(
 
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
+  address: z.string().trim().max(300).optional(),
   workLocationName: z.string().trim().max(200).optional(),
   workAddress: z.string().trim().max(300).optional(),
   multipleLocations: z.boolean().optional(),
@@ -37,6 +38,7 @@ const patchSchema = z.object({
 
 const FIELD_TO_COLUMN: Record<string, string> = {
   name: "name",
+  address: "address",
   workLocationName: "work_location_name",
   workAddress: "work_address",
   multipleLocations: "multiple_locations",

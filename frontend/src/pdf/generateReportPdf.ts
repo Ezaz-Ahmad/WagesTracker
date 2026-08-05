@@ -75,8 +75,9 @@ export async function generateReportPdf(data: WeekReportData): Promise<void> {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(MUTED);
-  const locLine = [data.workLocationName, data.workAddress].filter(Boolean).join(" · ") || "—";
-  doc.text(locLine, marginX + 13, y + 2.5);
+  // The employee's own address, not the work location — that's covered
+  // separately by the "Worked at" stat and the shift table's location column.
+  doc.text(data.employeeAddress || "—", marginX + 13, y + 2.5);
 
   doc.setDrawColor(ACCENT);
   doc.setTextColor(ACCENT);

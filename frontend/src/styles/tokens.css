@@ -143,6 +143,10 @@ figcaption {
   display: block; font-size: 12px; margin-bottom: 5px;
   color: color-mix(in srgb, var(--color-text) 70%, transparent);
 }
+.field-hint {
+  font-size: 11px; margin-top: 4px;
+  color: color-mix(in srgb, var(--color-text) 50%, transparent);
+}
 .input {
   width: 100%; min-height: 36px; padding: 6px 10px; font: inherit;
   font-size: 14px; color: var(--color-text); caret-color: var(--color-accent);

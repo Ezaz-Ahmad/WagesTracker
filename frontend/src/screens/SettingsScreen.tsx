@@ -6,6 +6,7 @@ import { AppCredit } from "../components/AppCredit";
 export function SettingsScreen() {
   const { user, updateSettings, logout, deleteAccount } = useApp();
   const [name, setName] = useState(user?.name ?? "");
+  const [address, setAddress] = useState(user?.address ?? "");
   const [weekStartsOn, setWeekStartsOn] = useState<"Monday" | "Sunday">(user?.weekStartsOn ?? "Monday");
   const [workLocationName, setWorkLocationName] = useState(user?.workLocationName ?? "");
   const [workAddress, setWorkAddress] = useState(user?.workAddress ?? "");
@@ -52,6 +53,7 @@ export function SettingsScreen() {
     try {
       await updateSettings({
         name,
+        address,
         weekStartsOn,
         workLocationName,
         workAddress,
@@ -78,6 +80,17 @@ export function SettingsScreen() {
       <div className="field field-spaced">
         <label>Your name</label>
         <input className="input" type="text" value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
+      <div className="field field-spaced">
+        <label>Your address</label>
+        <input
+          className="input"
+          type="text"
+          placeholder="123 Main St, Springfield"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+        />
+        <div className="field-hint">Shown on your PDF reports, under your name — not the work location below.</div>
       </div>
       <div className="field field-spaced">
         <label>Week starts on</label>
