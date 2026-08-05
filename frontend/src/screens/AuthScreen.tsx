@@ -52,6 +52,7 @@ export function AuthScreen() {
   const [email, setEmail] = useState(() => getRememberedEmail() ?? "");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [address, setAddress] = useState("");
   const [workLocationName, setWorkLocationName] = useState("");
   const [workAddress, setWorkAddress] = useState("");
   const [multipleLocations, setMultipleLocations] = useState(false);
@@ -70,7 +71,7 @@ export function AuthScreen() {
 
   function handleSignup(e: React.FormEvent) {
     e.preventDefault();
-    void signup({ name, email, password, workLocationName, workAddress, multipleLocations, otherLocations });
+    void signup({ name, email, password, address, workLocationName, workAddress, multipleLocations, otherLocations });
   }
 
   return (
@@ -189,6 +190,17 @@ export function AuthScreen() {
                     minLength={6}
                     required
                   />
+                </div>
+                <div className="field field-spaced">
+                  <label>Your address</label>
+                  <input
+                    className="input"
+                    type="text"
+                    placeholder="123 Main St, Springfield"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                  />
+                  <div className="field-hint">Shown on your PDF reports, under your name.</div>
                 </div>
                 <div className="field field-spaced">
                   <label>Work location name</label>

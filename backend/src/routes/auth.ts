@@ -13,6 +13,7 @@ const signupSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),
   email: z.string().trim().toLowerCase().email("Enter a valid email"),
   password: z.string().min(6, "Password must be at least 6 characters").max(200),
+  address: z.string().trim().max(300).optional().default(""),
   workLocationName: z.string().trim().max(200).optional().default(""),
   workAddress: z.string().trim().max(300).optional().default(""),
   multipleLocations: z.boolean().optional().default(false),
@@ -27,7 +28,8 @@ authRouter.post(
       res.status(400).json({ error: parsed.error.issues[0]?.message || "Invalid input" });
       return;
     }
-    const { name, email, password, workLocationName, workAddress, multipleLocations, otherLocations } = parsed.data;
+    const { name, email, password, address, workLocationName, workAddress, multipleLocations, otherLocations } =
+      parsed.data;
 
     const existing = await db.execute({ sql: "SELECT id FROM users WHERE email = ?", args: [email] });
     if (existing.rows.length > 0) {
@@ -42,13 +44,14 @@ authRouter.post(
     const goalEarnings = Math.round(rate * goalHours * 100) / 100;
 
     await db.execute({
-      sql: `INSERT INTO users (id, name, email, password_hash, work_location_name, work_address, multiple_locations, other_locations, week_starts_on, rate, goal_hours, goal_earnings, created_at)
-            VALUES (@id, @name, @email, @passwordHash, @workLocationName, @workAddress, @multipleLocations, @otherLocations, 'Monday', @rate, @goalHours, @goalEarnings, @createdAt)`,
+      sql: `INSERT INTO users (id, name, email, password_hash, address, work_location_name, work_address, multiple_locations, other_locations, week_starts_on, rate, goal_hours, goal_earnings, created_at)
+            VALUES (@id, @name, @email, @passwordHash, @address, @workLocationName, @workAddress, @multipleLocations, @otherLocations, 'Monday', @rate, @goalHours, @goalEarnings, @createdAt)`,
       args: {
         id,
         name,
         email,
         passwordHash,
+        address,
         workLocationName,
         workAddress,
         multipleLocations: multipleLocations ? 1 : 0,

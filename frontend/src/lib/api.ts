@@ -76,6 +76,7 @@ export interface SignupInput {
   name: string;
   email: string;
   password: string;
+  address: string;
   workLocationName: string;
   workAddress: string;
   multipleLocations: boolean;

@@ -2,7 +2,7 @@ import type { Screen } from "../lib/types";
 import { EntryIcon, HistoryIcon, HomeIcon, ReportIcon, SettingsIcon } from "./icons";
 import { Logo } from "./Logo";
 
-const TABS: { screen: Screen; label: string; Icon: typeof HomeIcon }[] = [
+export const TABS: { screen: Screen; label: string; Icon: typeof HomeIcon }[] = [
   { screen: "home", label: "Home", Icon: HomeIcon },
   { screen: "entry", label: "Entry", Icon: EntryIcon },
   { screen: "report", label: "Report", Icon: ReportIcon },
