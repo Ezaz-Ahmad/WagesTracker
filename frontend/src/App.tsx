@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppProvider, useApp } from "./context/AppContext";
 import { BottomNav, TABS } from "./components/BottomNav";
 import { ConfirmProvider } from "./components/ConfirmProvider";
@@ -28,6 +28,16 @@ function AuthedApp() {
     }),
     [dragX, dragging]
   );
+
+  // Pins the actual browser page in place for as long as the authed shell is
+  // showing, so a pull-down at the top of a screen can never rubber-band the
+  // whole page (the "floaty" feel) — only .app-main (the content pane) is
+  // allowed to scroll. Scoped to just this component (not global CSS) so the
+  // sign-in/sign-up page, which relies on normal page scroll, is unaffected.
+  useEffect(() => {
+    document.body.classList.add("is-app-locked");
+    return () => document.body.classList.remove("is-app-locked");
+  }, []);
 
   return (
     <div className="app-shell">
