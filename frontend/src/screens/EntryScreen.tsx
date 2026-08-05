@@ -17,10 +17,32 @@ export function EntryScreen() {
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<Record<string, string[]>>({});
 
+  // Hooks below must run every render regardless of loading state, so the
+  // bail-out has to come after all of them — see HomeScreen for the same fix.
+  const rate = user?.rate ?? 0;
+  const weekStartsOn = user?.weekStartsOn ?? "Monday";
+
+  const weekDays = buildWeekDays(today, weekStartsOn);
+  const shiftsByDate = groupByDate(shifts);
+  const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, CURRENCY, rate);
+  const { hours: savedHours, earnings: savedEarnings } = weekTotals(days, rate);
+  const todayDay = days.find((d) => d.isToday);
+
+  // Same live-total treatment as the Home screen: the open shift's elapsed
+  // time counts toward this week's total immediately, on top of what's saved.
+  const liveHours = useLiveElapsedHours(active, last?.signIn ?? null);
+  const totalHours = savedHours + liveHours;
+  const totalEarnings = savedEarnings + liveHours * rate;
+  // Show the exact live value every tick instead of easing toward it while a
+  // shift is active — an ongoing eased chase toward a moving target reads as
+  // "stuck," not live.
+  const totalEarningsSmoothed = useCountUp(totalEarnings, 650);
+  const totalEarningsAnim = active ? totalEarnings : totalEarningsSmoothed;
+
   if (!user) return null;
   // Same reasoning as Home: don't render totals off the empty initial `shifts`
   // array, or they'll flicker from $0 to the real total the instant it loads.
-  if (!shiftsLoaded) {
+  if (!shiftsLoaded || !todayDay) {
     return (
       <div className="screen-narrow screen-transition">
         <h6 className="section-title">This week's hours</h6>
@@ -28,23 +50,6 @@ export function EntryScreen() {
       </div>
     );
   }
-
-  const weekDays = buildWeekDays(today, user.weekStartsOn);
-  const shiftsByDate = groupByDate(shifts);
-  const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, CURRENCY, user.rate);
-  const { hours: savedHours, earnings: savedEarnings } = weekTotals(days, user.rate);
-  const todayDay = days.find((d) => d.isToday)!;
-
-  // Same live-total treatment as the Home screen: the open shift's elapsed
-  // time counts toward this week's total immediately, on top of what's saved.
-  const liveHours = useLiveElapsedHours(active, last?.signIn ?? null);
-  const totalHours = savedHours + liveHours;
-  const totalEarnings = savedEarnings + liveHours * user.rate;
-  // Show the exact live value every tick instead of easing toward it while a
-  // shift is active — an ongoing eased chase toward a moving target reads as
-  // "stuck," not live.
-  const totalEarningsSmoothed = useCountUp(totalEarnings, 650);
-  const totalEarningsAnim = active ? totalEarnings : totalEarningsSmoothed;
 
   function rowsFor(day: DayComputed): Row[] {
     const rows: Row[] = day.shifts.map((s) => ({ ...s }));

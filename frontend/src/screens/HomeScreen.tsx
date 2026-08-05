@@ -12,23 +12,20 @@ export function HomeScreen() {
   const { active, last, start, end } = useTodayShift();
   const [busy, setBusy] = useState(false);
 
-  if (!user) return null;
-  // Wait for the first shifts fetch before showing any totals — otherwise this
-  // briefly renders $0 from the empty initial `shifts` array and then jumps to
-  // the real number the instant the fetch resolves, which reads as a flicker.
-  if (!shiftsLoaded) {
-    return (
-      <div className="screen-wide screen-transition">
-        <h6 className="section-title">This week</h6>
-        <div className="section-hint">Loading your week…</div>
-      </div>
-    );
-  }
+  // Every hook below must run on every render regardless of loading state —
+  // React requires the same hooks in the same order every time, so the
+  // "not ready yet" bail-out has to come AFTER all of them, using safe
+  // fallbacks for anything that reads `user` before it's confirmed non-null.
+  const rate = user?.rate ?? 0;
+  const weekStartsOn = user?.weekStartsOn ?? "Monday";
+  const goalHours = user?.goalHours ?? 0;
+  const goalEarnings = user?.goalEarnings ?? 0;
+  const createdAt = user?.createdAt ?? today.toISOString();
 
-  const weekDays = buildWeekDays(today, user.weekStartsOn);
+  const weekDays = buildWeekDays(today, weekStartsOn);
   const shiftsByDate = groupByDate(shifts);
-  const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, CURRENCY, user.rate);
-  const { hours: savedHours, earnings: savedEarnings, daysLogged } = weekTotals(days, user.rate);
+  const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, CURRENCY, rate);
+  const { hours: savedHours, earnings: savedEarnings, daysLogged } = weekTotals(days, rate);
 
   // While a shift is open (signed in, not yet signed out) its hours aren't in
   // `shifts` yet — add the live elapsed time on top so the week's totals visibly
@@ -37,17 +34,17 @@ export function HomeScreen() {
   // the user's weekStartsOn setting.
   const liveHours = useLiveElapsedHours(active, last?.signIn ?? null);
   const totalHours = savedHours + liveHours;
-  const totalEarnings = savedEarnings + liveHours * user.rate;
+  const totalEarnings = savedEarnings + liveHours * rate;
 
-  const history = buildWeeklyHistory(shifts, today, user.weekStartsOn, user.rate, 7, new Date(user.createdAt));
+  const history = buildWeeklyHistory(shifts, today, weekStartsOn, rate, 7, new Date(createdAt));
   const lastWeek = history[history.length - 1];
   const prevWeek = history[history.length - 2];
   const trendPct = prevWeek && prevWeek.earnings > 0 ? Math.round(((lastWeek.earnings - prevWeek.earnings) / prevWeek.earnings) * 100) : 0;
   const trendUp = trendPct >= 0;
-  const metGoalCount = history.filter((w) => w.earnings >= user.goalEarnings).length;
+  const metGoalCount = history.filter((w) => w.earnings >= goalEarnings).length;
 
-  const progressPct = user.goalHours > 0 ? Math.min(100, Math.round((totalHours / user.goalHours) * 100)) : 0;
-  const todayDay = days.find((d) => d.isToday)!;
+  const progressPct = goalHours > 0 ? Math.min(100, Math.round((totalHours / goalHours) * 100)) : 0;
+  const todayDay = days.find((d) => d.isToday);
 
   // While a shift is active, show the exact live number every tick rather than
   // easing toward it — the eased animation is great for one-off jumps (like a
@@ -59,6 +56,19 @@ export function HomeScreen() {
   const progressPctAnim = active ? progressPct : progressPctSmoothed;
   const daysLoggedAnim = Math.round(useCountUp(daysLogged, 450));
   const metGoalAnim = Math.round(useCountUp(metGoalCount, 450));
+
+  if (!user) return null;
+  // Wait for the first shifts fetch before showing any totals — otherwise this
+  // briefly renders $0 from the empty initial `shifts` array and then jumps to
+  // the real number the instant the fetch resolves, which reads as a flicker.
+  if (!shiftsLoaded || !todayDay) {
+    return (
+      <div className="screen-wide screen-transition">
+        <h6 className="section-title">This week</h6>
+        <div className="section-hint">Loading your week…</div>
+      </div>
+    );
+  }
 
   async function handlePress() {
     setBusy(true);

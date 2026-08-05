@@ -24,6 +24,38 @@ export function ReportScreen() {
   const [metric, setMetric] = useState<Metric>("earnings");
   const [period, setPeriod] = useState<Period>("week");
 
+  // Hooks below must run every render regardless of loading state, so the
+  // bail-out has to come after all of them — see HomeScreen for the same fix.
+  const rate = user?.rate ?? 0;
+  const weekStartsOn = user?.weekStartsOn ?? "Monday";
+  const goalHours = user?.goalHours ?? 0;
+  const goalEarnings = user?.goalEarnings ?? 0;
+  const createdAt = user?.createdAt ?? today.toISOString();
+
+  const weekDays = buildWeekDays(today, weekStartsOn);
+  const shiftsByDate = groupByDate(shifts);
+  const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, CURRENCY, rate);
+  const { hours: totalHours, earnings: totalEarnings } = weekTotals(days, rate);
+
+  const history = buildWeeklyHistory(shifts, today, weekStartsOn, rate, 7, new Date(createdAt));
+  const chartSource = buildChartSource(history, totalHours, totalEarnings);
+  const chart = buildChart(chartSource, metric, CURRENCY);
+
+  const progressPct = goalHours > 0 ? Math.min(100, Math.round((totalHours / goalHours) * 100)) : 0;
+  const earningsProgressPct = goalEarnings > 0 ? Math.min(100, Math.round((totalEarnings / goalEarnings) * 100)) : 0;
+  const metGoalCount = history.filter((w) => w.earnings >= goalEarnings).length;
+  const metGoalAnim = Math.round(useCountUp(metGoalCount, 450));
+  const progressPctAnim = Math.round(useCountUp(progressPct, 550));
+  const earningsProgressPctAnim = Math.round(useCountUp(earningsProgressPct, 550));
+
+  const periodItems =
+    period === "month"
+      ? buildMonthlyItems(shifts, today, rate, 6)
+      : period === "year"
+        ? buildYearlyItems(shifts, today, rate, 2)
+        : chartSource;
+  const periodBars = buildBars(periodItems, metric, CURRENCY);
+
   if (!user) return null;
   if (!shiftsLoaded) {
     return (
@@ -33,30 +65,6 @@ export function ReportScreen() {
       </div>
     );
   }
-
-  const weekDays = buildWeekDays(today, user.weekStartsOn);
-  const shiftsByDate = groupByDate(shifts);
-  const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, CURRENCY, user.rate);
-  const { hours: totalHours, earnings: totalEarnings } = weekTotals(days, user.rate);
-
-  const history = buildWeeklyHistory(shifts, today, user.weekStartsOn, user.rate, 7, new Date(user.createdAt));
-  const chartSource = buildChartSource(history, totalHours, totalEarnings);
-  const chart = buildChart(chartSource, metric, CURRENCY);
-
-  const progressPct = user.goalHours > 0 ? Math.min(100, Math.round((totalHours / user.goalHours) * 100)) : 0;
-  const earningsProgressPct = user.goalEarnings > 0 ? Math.min(100, Math.round((totalEarnings / user.goalEarnings) * 100)) : 0;
-  const metGoalCount = history.filter((w) => w.earnings >= user.goalEarnings).length;
-  const metGoalAnim = Math.round(useCountUp(metGoalCount, 450));
-  const progressPctAnim = Math.round(useCountUp(progressPct, 550));
-  const earningsProgressPctAnim = Math.round(useCountUp(earningsProgressPct, 550));
-
-  const periodItems =
-    period === "month"
-      ? buildMonthlyItems(shifts, today, user.rate, 6)
-      : period === "year"
-        ? buildYearlyItems(shifts, today, user.rate, 2)
-        : chartSource;
-  const periodBars = buildBars(periodItems, metric, CURRENCY);
 
   function handleDownloadPdf() {
     void generateReportPdf(buildWeekReportData(user!, shifts, today, CURRENCY));
