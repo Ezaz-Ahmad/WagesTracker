@@ -13,24 +13,17 @@ Backend is hosted on **Render**, frontend on **Vercel**, database on **Turso**. 
 Three hosted pieces, talking over plain HTTPS — no shared filesystem, no server-to-server trust beyond a bearer token:
 
 ```mermaid
-flowchart LR
+flowchart TD
     subgraph Client["Browser"]
+        direction TB
         Browser["React SPA"]
         PDF["PDF export (jsPDF)<br/>runs entirely client-side"]
         Browser -.-> PDF
     end
 
-    subgraph Vercel["Vercel — static hosting"]
-        Frontend["frontend/<br/>Vite build (React 18)"]
-    end
-
-    subgraph Render["Render — Node web service"]
-        API["backend/<br/>Express API<br/>JWT auth · zod validation"]
-    end
-
-    subgraph Turso["Turso — hosted libSQL"]
-        DB[("users + shifts<br/>SQLite-compatible")]
-    end
+    Frontend["Vercel — static hosting<br/>frontend/ · Vite build (React 18)"]
+    API["Render — Node web service<br/>backend/ · Express API<br/>JWT auth · zod validation"]
+    DB[("Turso — hosted libSQL<br/>users + shifts · SQLite-compatible")]
 
     Browser -- "loads static assets" --> Frontend
     Browser -- "fetch /api/*<br/>Authorization: Bearer JWT" --> API
