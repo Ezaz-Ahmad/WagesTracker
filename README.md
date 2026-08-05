@@ -1,10 +1,11 @@
 # Wage Tracker
 
-A full-stack app for tracking work shifts, hourly earnings, and weekly goals — clock in/out, log shifts per day, see weekly/monthly/yearly earnings trends, and export a PDF report.
+A full-stack app for tracking work shifts, hourly earnings, and weekly goals — clock in/out and watch this week's earnings climb live, log shifts per day, see weekly/monthly/yearly earnings trends, and export a PDF report. Mobile-first, with a persistent sidebar dashboard layout on tablet/desktop.
 
 **Live:**
 - App: https://wages-tracker-frontend.vercel.app
 - API: https://wage-tracker-api.onrender.com (health check: `/api/health`)
+- Admin panel: https://wages-tracker-frontend.vercel.app/admin (password-gated — see [Admin panel](#admin-panel))
 
 Backend is hosted on **Render**, frontend on **Vercel**, database on **Turso**. That's the actual deployment — see [Deploying](#deploying) below.
 
@@ -53,7 +54,8 @@ flowchart TD
 - React 18 + TypeScript, built with [Vite](https://vitejs.dev/) 8
 - No router or state library — a single `AppContext` (React context + hooks) holds auth/session state and shift data; screens are switched by local state in `App.tsx`
 - [jspdf](https://github.com/parallax/jsPDF) (+ `html2canvas`, pulled in transitively) to export weekly reports as PDF, including a 12-hour-clock shift table and a clickable credit footer
-- Plain CSS (`styles/tokens.css`, `styles/app.css`, `styles/animations.css`) — no CSS framework, no animation library. The motion system (screen transitions, staggered card entrances, count-up numbers, chart/progress-bar animations) is hand-rolled CSS plus a small `useCountUp` hook, and is fully disabled under `prefers-reduced-motion`
+- Plain CSS (`styles/tokens.css`, `styles/app.css`, `styles/animations.css`, `styles/shell.css`, `styles/landing.css`) — no CSS framework, no animation library. The motion system (screen transitions, staggered card entrances, count-up numbers, chart/progress-bar animations) is hand-rolled CSS plus a small `useCountUp` hook, and is fully disabled under `prefers-reduced-motion`. `shell.css` turns the same bottom-tab-nav component into a persistent sidebar at tablet/desktop widths via CSS Grid — no separate desktop component, no router
+- While a shift is active, this week's hours/earnings tick upward in real time (`useLiveElapsedHours`) on top of what's already saved, instead of only updating once you sign out
 - API calls go through a small `fetch` wrapper (`lib/api.ts`) that targets `VITE_API_URL` in production or the Vite dev proxy locally, and centralizes auth-error handling (expired/invalid token → auto logout)
 - `src/admin/` — a self-contained admin panel (own login, own API client, own token) reached at `/admin`; see [Admin panel](#admin-panel)
 
