@@ -3,6 +3,8 @@ import { useApp } from "../context/AppContext";
 import { useCountUp } from "../lib/useCountUp";
 import { fmt2 } from "../lib/date";
 import { EntryIcon, ReportIcon, TargetIcon } from "../components/icons";
+import { PasswordInput } from "../components/PasswordInput";
+import { AppCredit } from "../components/AppCredit";
 
 type Mode = "login" | "signup";
 
@@ -52,6 +54,7 @@ export function AuthScreen() {
   const [workAddress, setWorkAddress] = useState("");
   const [multipleLocations, setMultipleLocations] = useState(false);
   const [otherLocations, setOtherLocations] = useState("");
+  const [remember, setRemember] = useState(true);
 
   function switchMode(next: Mode) {
     clearAuthError();
@@ -60,7 +63,7 @@ export function AuthScreen() {
 
   function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    void login(email, password);
+    void login(email, password, remember);
   }
 
   function handleSignup(e: React.FormEvent) {
@@ -145,15 +148,18 @@ export function AuthScreen() {
                 </div>
                 <div className="field field-spaced">
                   <label>Password</label>
-                  <input
-                    className="input"
-                    type="password"
+                  <PasswordInput
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                   />
                 </div>
+                <label className="checkbox" style={{ marginBottom: "var(--space-3)" }}>
+                  <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+                  <span className="box" />
+                  Remember me on this device
+                </label>
                 <button className="btn btn-primary btn-block" type="submit" disabled={authBusy} style={{ justifyContent: "center" }}>
                   {authBusy ? "Logging in…" : "Log in"}
                 </button>
@@ -171,9 +177,7 @@ export function AuthScreen() {
                 </div>
                 <div className="field field-spaced">
                   <label>Password</label>
-                  <input
-                    className="input"
-                    type="password"
+                  <PasswordInput
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -231,16 +235,7 @@ export function AuthScreen() {
             )}
 
             <div className="auth-demo-note">Your data is private to your account.</div>
-            <div className="app-credit">
-              Built by Ezaz Ahmad ·{" "}
-              <a href="https://github.com/Ezaz-Ahmad" target="_blank" rel="noopener noreferrer">
-                github.com/Ezaz-Ahmad
-              </a>{" "}
-              ·{" "}
-              <a href="https://ezazahmad.com" target="_blank" rel="noopener noreferrer">
-                ezazahmad.com
-              </a>
-            </div>
+            <AppCredit />
           </div>
         </div>
       </div>

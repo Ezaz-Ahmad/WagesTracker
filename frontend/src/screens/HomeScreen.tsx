@@ -51,37 +51,39 @@ export function HomeScreen() {
       : "Tap to start your shift.";
 
   return (
-    <>
+    <div className="screen-wide">
       <h6 className="section-title">This week</h6>
-      <div className="card elev-sm anim-rise" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 0 }}>
-        <div className="week-card-top">
-          <div className="week-amount count-value">{CURRENCY}{fmt2(earningsAnim)}</div>
-          <div className="week-trend" style={{ color: trendUp ? "var(--color-accent-700)" : "var(--color-text)" }}>
-            {trendUp ? "▲ " : "▼ "}
-            {Math.abs(trendPct)}% vs prior week
+      <div className="home-top-grid">
+        <div className="card elev-sm anim-rise" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 0 }}>
+          <div className="week-card-top">
+            <div className="week-amount count-value">{CURRENCY}{fmt2(earningsAnim)}</div>
+            <div className="week-trend" style={{ color: trendUp ? "var(--color-accent-700)" : "var(--color-text)" }}>
+              {trendUp ? "▲ " : "▼ "}
+              {Math.abs(trendPct)}% vs prior week
+            </div>
+          </div>
+          <div className="card-meta" style={{ marginTop: 2 }}>
+            {totalHours}h logged · goal {user.goalHours}h
+          </div>
+          <div className="hr" style={{ margin: "var(--space-3) 0" }} />
+          <div className="progress-label-row">
+            <span>Hours toward goal</span>
+            <span className="count-value">{progressPctAnim}%</span>
+          </div>
+          <div className="progress-track">
+            <div className="progress-fill" style={{ width: `${progressPct}%` }} />
           </div>
         </div>
-        <div className="card-meta" style={{ marginTop: 2 }}>
-          {totalHours}h logged · goal {user.goalHours}h
-        </div>
-        <div className="hr" style={{ margin: "var(--space-3) 0" }} />
-        <div className="progress-label-row">
-          <span>Hours toward goal</span>
-          <span className="count-value">{progressPctAnim}%</span>
-        </div>
-        <div className="progress-track">
-          <div className="progress-fill" style={{ width: `${progressPct}%` }} />
-        </div>
-      </div>
 
-      <div className="card elev-sm anim-rise" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 1 }}>
-        <div className="today-card-row">
-          <div>
-            <div className="card-title today-headline">{headline}</div>
-            <p className="card-body today-subline">{subline}</p>
-            <ElapsedTimer active={active} signIn={last?.signIn ?? null} />
+        <div className="card elev-sm anim-rise" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 1 }}>
+          <div className="today-card-row">
+            <div>
+              <div className="card-title today-headline">{headline}</div>
+              <p className="card-body today-subline">{subline}</p>
+              <ElapsedTimer active={active} signIn={last?.signIn ?? null} />
+            </div>
+            <ShiftButton active={active} onStart={handlePress} onEnd={handlePress} busy={busy} />
           </div>
-          <ShiftButton active={active} onStart={handlePress} onEnd={handlePress} busy={busy} />
         </div>
       </div>
 
@@ -95,6 +97,6 @@ export function HomeScreen() {
           <div className="card-title stat-tile-value-lg count-value">{metGoalAnim} / {history.length}</div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

@@ -16,7 +16,7 @@ interface AppContextValue {
   authBusy: boolean;
   actionError: string | null;
   clearActionError: () => void;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, remember?: boolean) => Promise<void>;
   signup: (input: api.SignupInput) => Promise<void>;
   logout: () => void;
   clearAuthError: () => void;
@@ -90,12 +90,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, user?.id, user?.weekStartsOn, reloadShifts]);
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string, remember: boolean = true) => {
     setAuthBusy(true);
     setAuthError(null);
     try {
       const { token, user } = await api.login(email, password);
-      api.setToken(token);
+      api.setToken(token, remember);
       setUser(user);
       setStatus("loggedIn");
     } catch (e) {
@@ -110,7 +110,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAuthError(null);
     try {
       const { token, user } = await api.signup(input);
-      api.setToken(token);
+      api.setToken(token, true);
       setUser(user);
       setStatus("loggedIn");
     } catch (e) {

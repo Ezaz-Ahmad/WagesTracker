@@ -10,7 +10,7 @@ import { SettingsScreen } from "./screens/SettingsScreen";
 import type { Screen } from "./lib/types";
 
 function AuthedApp() {
-  const { today, actionError, clearActionError } = useApp();
+  const { today, user, actionError, clearActionError } = useApp();
   const [screen, setScreen] = useState<Screen>("home");
 
   const todayLabel = today.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
@@ -20,6 +20,7 @@ function AuthedApp() {
       <div className="app-frame">
         <div className="nav app-nav">
           <span className="nav-brand">Wage Tracker</span>
+          <span className="app-nav-greeting">Welcome back{user ? `, ${user.name.split(" ")[0]}` : ""}</span>
           <span className="app-nav-date">{todayLabel}</span>
         </div>
 

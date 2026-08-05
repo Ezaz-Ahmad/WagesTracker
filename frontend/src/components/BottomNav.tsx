@@ -19,6 +19,7 @@ export function BottomNav({ screen, onNavigate }: { screen: Screen; onNavigate: 
   return (
     <nav className="app-bottomnav" style={navStyle}>
       <span className="app-bottomnav-indicator" aria-hidden="true" />
+      <div className="app-sidebar-brand">Wage Tracker</div>
       {TABS.map(({ screen: s, label, Icon }) => (
         <button
           key={s}

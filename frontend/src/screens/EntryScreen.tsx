@@ -97,7 +97,7 @@ export function EntryScreen() {
   }
 
   return (
-    <>
+    <div className="screen-narrow">
       <div className="row-baseline">
         <h6 className="section-title">This week's hours</h6>
         <button className="btn btn-ghost" onClick={handleDownloadPdf} style={{ flex: "none" }}>
@@ -183,6 +183,6 @@ export function EntryScreen() {
           </span>
         </div>
       </div>
-    </>
+    </div>
   );
 }

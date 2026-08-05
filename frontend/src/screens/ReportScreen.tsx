@@ -55,7 +55,7 @@ export function ReportScreen() {
   }
 
   return (
-    <>
+    <div className="screen-wide">
       <div className="row-baseline">
         <h6 className="section-title">Progress report</h6>
         <button className="btn btn-ghost" onClick={handleDownloadPdf} style={{ flex: "none" }}>
@@ -162,6 +162,6 @@ export function ReportScreen() {
           </div>
         ))}
       </div>
-    </>
+    </div>
   );
 }

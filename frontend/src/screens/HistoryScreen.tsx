@@ -22,7 +22,7 @@ export function HistoryScreen() {
     });
 
   return (
-    <>
+    <div className="screen-narrow">
       <h6 className="section-title">History</h6>
       <div className="section-hint">Completed weeks, most recent first.</div>
       {rows.length === 0 ? (
@@ -55,6 +55,6 @@ export function HistoryScreen() {
           </tbody>
         </table>
       )}
-    </>
+    </div>
   );
 }

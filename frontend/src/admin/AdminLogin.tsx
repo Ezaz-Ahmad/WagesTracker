@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AdminApiError, adminLogin } from "./adminApi";
+import { PasswordInput } from "../components/PasswordInput";
 
 export function AdminLogin({ onLoggedIn }: { onLoggedIn: (token: string) => void }) {
   const [password, setPassword] = useState("");
@@ -30,9 +31,7 @@ export function AdminLogin({ onLoggedIn }: { onLoggedIn: (token: string) => void
             {error && <div className="form-error">{error}</div>}
             <div className="field field-spaced">
               <label>Admin password</label>
-              <input
-                className="input"
-                type="password"
+              <PasswordInput
                 placeholder="••••••••"
                 autoFocus
                 value={password}

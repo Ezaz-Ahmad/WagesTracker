@@ -8,13 +8,22 @@ const API_ORIGIN = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
 const TOKEN_KEY = "wageTracker.token";
 
 export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY);
 }
-export function setToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token);
+/** `remember=true` (the default) persists across browser restarts; `false` keeps
+ * the session only until the tab/browser closes — the "Remember me" checkbox. */
+export function setToken(token: string, remember: boolean = true): void {
+  if (remember) {
+    localStorage.setItem(TOKEN_KEY, token);
+    sessionStorage.removeItem(TOKEN_KEY);
+  } else {
+    sessionStorage.setItem(TOKEN_KEY, token);
+    localStorage.removeItem(TOKEN_KEY);
+  }
 }
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
 }
 
 export class ApiError extends Error {

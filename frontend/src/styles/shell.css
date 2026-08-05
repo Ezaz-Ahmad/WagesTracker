@@ -1,0 +1,109 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   Responsive app shell — the phone-card layout (.app-shell/.app-frame/
+   .app-bottomnav) is the baseline and stays completely untouched below the
+   tablet breakpoint. Wider viewports get the SAME component tree restyled:
+   tablet widens the card and lets a couple of grids go two-column; laptop+
+   turns the bottom tab bar into a persistent sidebar via CSS Grid areas, so
+   no navigation logic changes — only layout. Admin panel is untouched
+   (selectors below are scoped to .app-nav / .app-bottomnav specifically).
+   ══════════════════════════════════════════════════════════════════════ */
+
+.app-nav-greeting {
+  display: none;
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 18px;
+  margin-right: auto;
+}
+
+.app-sidebar-brand {
+  display: none;
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 18px;
+  padding: var(--space-2) var(--space-3) var(--space-4);
+}
+
+/* — tablet: wider card, bottom nav stays (still a touch device) — */
+@media (min-width: 720px) {
+  .app-frame { max-width: 640px; }
+  .home-top-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: var(--space-4);
+    align-items: stretch;
+  }
+  .goal-rows { flex-direction: row; }
+  .goal-rows > div { flex: 1; }
+  .chart-svg { height: 190px; }
+  .period-bars { height: 190px; }
+}
+
+/* — laptop / desktop: persistent sidebar shell — */
+@media (min-width: 1080px) {
+  .app-shell { background: var(--color-bg); }
+
+  .app-frame {
+    max-width: 1400px;
+    height: 100vh;
+    overflow: hidden;
+    box-shadow: none;
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      "sidebar topbar"
+      "sidebar main";
+  }
+
+  .app-nav {
+    grid-area: topbar;
+    padding: var(--space-4) var(--space-6);
+  }
+  .app-nav .nav-brand { display: none; }
+  .app-nav .app-nav-greeting { display: inline; }
+
+  .app-main {
+    grid-area: main;
+    min-height: 0;
+    overflow-y: auto;
+    padding: var(--space-6) var(--space-6) var(--space-8);
+  }
+
+  .app-bottomnav {
+    grid-area: sidebar;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    border-top: none;
+    border-right: 2px solid var(--color-divider);
+    padding: var(--space-3);
+    gap: 2px;
+    overflow-y: auto;
+  }
+  .app-sidebar-brand { display: block; }
+  .app-bottomnav-indicator { display: none; }
+  .app-bottomnav-btn {
+    flex: none;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: var(--space-3);
+    padding: 10px var(--space-3);
+    color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  }
+  .app-bottomnav-btn.is-active {
+    background: var(--color-accent-100);
+    color: var(--color-accent-700);
+  }
+  .app-bottomnav-btn.is-active svg { transform: none; }
+  .app-bottomnav-label { font-size: 13px; }
+
+  /* screens opt into a width via wrapper class; forms stay a readable
+     column, dashboards/reports use the extra room. */
+  .screen-wide { max-width: 1040px; margin: 0 auto; }
+  .screen-narrow { max-width: 640px; margin: 0 auto; }
+
+  .home-top-grid { grid-template-columns: 1.3fr 1fr; }
+  .chart-svg { height: 220px; }
+  .period-bars { height: 200px; }
+}

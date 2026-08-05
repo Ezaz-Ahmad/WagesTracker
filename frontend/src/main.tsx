@@ -6,6 +6,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import "./styles/tokens.css";
 import "./styles/app.css";
 import "./styles/animations.css";
+import "./styles/shell.css";
 import "./styles/landing.css";
 import "./admin/admin.css";
 

@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { CURRENCY, useApp } from "../context/AppContext";
+import { PasswordInput } from "../components/PasswordInput";
+import { AppCredit } from "../components/AppCredit";
 
 export function SettingsScreen() {
   const { user, updateSettings, logout, deleteAccount } = useApp();
@@ -67,7 +69,7 @@ export function SettingsScreen() {
   }
 
   return (
-    <>
+    <div className="screen-narrow">
       <h6 className="section-title">Settings</h6>
       <div className="section-hint" style={{ marginBottom: "var(--space-4)" }}>
         Your rate, weekly goals and preferences.
@@ -168,16 +170,7 @@ export function SettingsScreen() {
         Log out
       </button>
       <div className="settings-note">Time entries and reports are kept for 5 years and automatically deleted after that.</div>
-      <div className="app-credit">
-        Built by Ezaz Ahmad ·{" "}
-        <a href="https://github.com/Ezaz-Ahmad" target="_blank" rel="noopener noreferrer">
-          github.com/Ezaz-Ahmad
-        </a>{" "}
-        ·{" "}
-        <a href="https://ezazahmad.com" target="_blank" rel="noopener noreferrer">
-          ezazahmad.com
-        </a>
-      </div>
+      <AppCredit />
 
       <div className="hr" />
       <h6 className="section-title">Danger zone</h6>
@@ -197,9 +190,7 @@ export function SettingsScreen() {
             {deleteError && <div className="form-error">{deleteError}</div>}
             <div className="field">
               <label>Password</label>
-              <input
-                className="input"
-                type="password"
+              <PasswordInput
                 autoFocus
                 value={deletePassword}
                 onChange={(e) => setDeletePassword(e.target.value)}
@@ -219,6 +210,6 @@ export function SettingsScreen() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
