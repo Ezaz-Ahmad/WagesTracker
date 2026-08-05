@@ -140,7 +140,7 @@ export function EntryScreen() {
           </div>
 
           {rowsFor(day).map((row) => (
-            <div className="shift-row" key={`${day.dateISO}-${row.shiftIndex}`}>
+            <div className="shift-row" key={`${day.dateISO}-${row.id ?? row.tempId ?? "placeholder"}`}>
               <input
                 className="input shift-location"
                 type="text"
