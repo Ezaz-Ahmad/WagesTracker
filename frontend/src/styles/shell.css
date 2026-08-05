@@ -81,7 +81,7 @@
     gap: 2px;
     overflow-y: auto;
   }
-  .app-sidebar-brand { display: block; }
+  .app-sidebar-brand { display: flex; align-items: center; gap: 9px; }
   .app-bottomnav-indicator { display: none; }
   .app-bottomnav-btn {
     flex: none;

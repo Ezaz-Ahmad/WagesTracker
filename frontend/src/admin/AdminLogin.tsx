@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AdminApiError, adminLogin } from "./adminApi";
 import { PasswordInput } from "../components/PasswordInput";
+import { Logo } from "../components/Logo";
 
 export function AdminLogin({ onLoggedIn }: { onLoggedIn: (token: string) => void }) {
   const [password, setPassword] = useState("");
@@ -25,7 +26,10 @@ export function AdminLogin({ onLoggedIn }: { onLoggedIn: (token: string) => void
     <div className="auth-wrap">
       <div className="auth-card">
         <div className="card elev-md">
-          <h6 className="section-title">Wage Tracker — Admin</h6>
+          <h6 className="section-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Logo size={20} />
+            Wage Tracker — Admin
+          </h6>
           <form onSubmit={handleSubmit} className="anim-rise">
             <h3 style={{ margin: "0 0 var(--space-3)" }}>Admin login</h3>
             {error && <div className="form-error">{error}</div>}

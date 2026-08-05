@@ -1,5 +1,6 @@
 import type { Screen } from "../lib/types";
 import { EntryIcon, HistoryIcon, HomeIcon, ReportIcon, SettingsIcon } from "./icons";
+import { Logo } from "./Logo";
 
 const TABS: { screen: Screen; label: string; Icon: typeof HomeIcon }[] = [
   { screen: "home", label: "Home", Icon: HomeIcon },
@@ -19,7 +20,10 @@ export function BottomNav({ screen, onNavigate }: { screen: Screen; onNavigate: 
   return (
     <nav className="app-bottomnav" style={navStyle}>
       <span className="app-bottomnav-indicator" aria-hidden="true" />
-      <div className="app-sidebar-brand">Wage Tracker</div>
+      <div className="app-sidebar-brand">
+        <Logo size={22} />
+        Wage Tracker
+      </div>
       {TABS.map(({ screen: s, label, Icon }) => (
         <button
           key={s}

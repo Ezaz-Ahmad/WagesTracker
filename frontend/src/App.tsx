@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AppProvider, useApp } from "./context/AppContext";
 import { BottomNav } from "./components/BottomNav";
+import { Logo } from "./components/Logo";
 import { AuthScreen } from "./screens/AuthScreen";
 import { HomeScreen } from "./screens/HomeScreen";
 import { EntryScreen } from "./screens/EntryScreen";
@@ -19,7 +20,10 @@ function AuthedApp() {
     <div className="app-shell">
       <div className="app-frame">
         <div className="nav app-nav">
-          <span className="nav-brand">Wage Tracker</span>
+          <span className="nav-brand">
+            <Logo size={22} />
+            Wage Tracker
+          </span>
           <span className="app-nav-greeting">Welcome back{user ? `, ${user.name.split(" ")[0]}` : ""}</span>
           <span className="app-nav-date">{todayLabel}</span>
         </div>

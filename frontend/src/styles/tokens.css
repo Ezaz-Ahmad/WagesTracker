@@ -236,6 +236,7 @@ textarea.input { min-height: 90px; resize: vertical; }
   border-bottom: 2px solid var(--color-divider);
 }
 .nav-brand {
+  display: inline-flex; align-items: center; gap: 9px;
   font-family: var(--font-heading); font-weight: var(--font-heading-weight);
   font-size: 18px; margin-right: auto;
 }

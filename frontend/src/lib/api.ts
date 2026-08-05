@@ -26,6 +26,21 @@ export function clearToken(): void {
   sessionStorage.removeItem(TOKEN_KEY);
 }
 
+const REMEMBERED_EMAIL_KEY = "wageTracker.rememberedEmail";
+
+/** The email from the last "Remember me" login — survives logging out and
+ * token expiry (until the browser's storage is cleared), so the login form
+ * can pre-fill it instead of starting blank every time. */
+export function getRememberedEmail(): string | null {
+  return localStorage.getItem(REMEMBERED_EMAIL_KEY);
+}
+export function setRememberedEmail(email: string): void {
+  localStorage.setItem(REMEMBERED_EMAIL_KEY, email);
+}
+export function clearRememberedEmail(): void {
+  localStorage.removeItem(REMEMBERED_EMAIL_KEY);
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {

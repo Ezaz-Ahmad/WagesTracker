@@ -96,6 +96,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const { token, user } = await api.login(email, password);
       api.setToken(token, remember);
+      if (remember) api.setRememberedEmail(email);
+      else api.clearRememberedEmail();
       setUser(user);
       setStatus("loggedIn");
     } catch (e) {
@@ -132,6 +134,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const deleteAccount = useCallback(async (password: string) => {
     await api.deleteAccount(password);
     api.clearToken();
+    api.clearRememberedEmail();
     setUser(null);
     setShifts([]);
     setStatus("loggedOut");

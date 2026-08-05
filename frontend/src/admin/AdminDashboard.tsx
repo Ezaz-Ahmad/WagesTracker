@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Shift, User } from "../lib/types";
 import { AdminApiError, deleteUser, fetchAllUsers, fetchUserDetail, type AdminUserSummary } from "./adminApi";
+import { Logo } from "../components/Logo";
 
 const CURRENCY = "$";
 
@@ -97,7 +98,10 @@ export function AdminDashboard({
   return (
     <div className="admin-shell">
       <div className="nav admin-nav">
-        <span className="nav-brand">Wage Tracker — Admin</span>
+        <span className="nav-brand">
+          <Logo size={20} />
+          Wage Tracker — Admin
+        </span>
         <button className="btn btn-secondary" onClick={onLogout}>
           Log out
         </button>

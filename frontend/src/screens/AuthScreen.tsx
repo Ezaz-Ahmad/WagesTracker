@@ -2,9 +2,11 @@ import { useState } from "react";
 import { useApp } from "../context/AppContext";
 import { useCountUp } from "../lib/useCountUp";
 import { fmt2 } from "../lib/date";
+import { getRememberedEmail } from "../lib/api";
 import { EntryIcon, ReportIcon, TargetIcon } from "../components/icons";
 import { PasswordInput } from "../components/PasswordInput";
 import { AppCredit } from "../components/AppCredit";
+import { Logo } from "../components/Logo";
 
 type Mode = "login" | "signup";
 
@@ -47,7 +49,7 @@ export function AuthScreen() {
   const { login, signup, authError, authBusy, clearAuthError } = useApp();
   const [mode, setMode] = useState<Mode>("login");
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => getRememberedEmail() ?? "");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [workLocationName, setWorkLocationName] = useState("");
@@ -112,7 +114,10 @@ export function AuthScreen() {
       <div className="landing-auth-pane">
         <div className="auth-card">
           <div className="card elev-md">
-            <h6 className="section-title">Wage Tracker</h6>
+            <h6 className="section-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Logo size={20} />
+              Wage Tracker
+            </h6>
 
             <div className="seg landing-mode-toggle">
               <label className="seg-opt">
