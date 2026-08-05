@@ -36,7 +36,7 @@ export function HistoryScreen() {
         </thead>
         <tbody>
           {rows.map((w, i) => (
-            <tr key={i}>
+            <tr key={i} style={{ ["--i" as string]: i }}>
               <td>{w.label}</td>
               <td>{w.hoursLabel}</td>
               <td>{w.earningsLabel}</td>

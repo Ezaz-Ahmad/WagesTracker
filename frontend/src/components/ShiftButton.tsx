@@ -17,7 +17,7 @@ export function ShiftButton({
   return (
     <button
       type="button"
-      className="btn cta-circle"
+      className={`btn cta-circle${active ? " is-active" : ""}`}
       disabled={busy}
       onClick={active ? onEnd : onStart}
       style={{ background: active ? ACTIVE_COLOR : INACTIVE_COLOR }}

@@ -39,7 +39,7 @@ export function AuthScreen() {
           {authError && <div className="form-error">{authError}</div>}
 
           {mode === "login" ? (
-            <form onSubmit={handleLogin}>
+            <form key="login" className="anim-rise" onSubmit={handleLogin}>
               <h3 style={{ margin: "0 0 var(--space-3)" }}>Log in</h3>
               <div className="field field-spaced">
                 <label>Email</label>
@@ -74,7 +74,7 @@ export function AuthScreen() {
               </div>
             </form>
           ) : (
-            <form onSubmit={handleSignup}>
+            <form key="signup" className="anim-rise" onSubmit={handleSignup}>
               <h3 style={{ margin: "0 0 var(--space-3)" }}>Create your account</h3>
               <div className="field field-spaced">
                 <label>Full name</label>

@@ -3,6 +3,7 @@ import { CURRENCY, useApp } from "../context/AppContext";
 import { buildWeekDaysComputed, buildWeeklyHistory, groupByDate, weekTotals } from "../lib/aggregate";
 import { buildWeekDays, fmt2 } from "../lib/date";
 import { useTodayShift } from "../lib/useTodayShift";
+import { useCountUp } from "../lib/useCountUp";
 import { ElapsedTimer, ShiftButton } from "../components/ShiftButton";
 
 export function HomeScreen() {
@@ -27,6 +28,11 @@ export function HomeScreen() {
   const progressPct = user.goalHours > 0 ? Math.min(100, Math.round((totalHours / user.goalHours) * 100)) : 0;
   const todayDay = days.find((d) => d.isToday)!;
 
+  const earningsAnim = useCountUp(totalEarnings);
+  const progressPctAnim = Math.round(useCountUp(progressPct, 550));
+  const daysLoggedAnim = Math.round(useCountUp(daysLogged, 450));
+  const metGoalAnim = Math.round(useCountUp(metGoalCount, 450));
+
   async function handlePress() {
     setBusy(true);
     try {
@@ -47,9 +53,9 @@ export function HomeScreen() {
   return (
     <>
       <h6 className="section-title">This week</h6>
-      <div className="card elev-sm" style={{ marginBottom: "var(--space-4)" }}>
+      <div className="card elev-sm anim-rise" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 0 }}>
         <div className="week-card-top">
-          <div className="week-amount">{CURRENCY}{fmt2(totalEarnings)}</div>
+          <div className="week-amount count-value">{CURRENCY}{fmt2(earningsAnim)}</div>
           <div className="week-trend" style={{ color: trendUp ? "var(--color-accent-700)" : "var(--color-text)" }}>
             {trendUp ? "▲ " : "▼ "}
             {Math.abs(trendPct)}% vs prior week
@@ -61,14 +67,14 @@ export function HomeScreen() {
         <div className="hr" style={{ margin: "var(--space-3) 0" }} />
         <div className="progress-label-row">
           <span>Hours toward goal</span>
-          <span>{progressPct}%</span>
+          <span className="count-value">{progressPctAnim}%</span>
         </div>
         <div className="progress-track">
           <div className="progress-fill" style={{ width: `${progressPct}%` }} />
         </div>
       </div>
 
-      <div className="card elev-sm" style={{ marginBottom: "var(--space-4)" }}>
+      <div className="card elev-sm anim-rise" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 1 }}>
         <div className="today-card-row">
           <div>
             <div className="card-title today-headline">{headline}</div>
@@ -80,13 +86,13 @@ export function HomeScreen() {
       </div>
 
       <div className="stat-grid">
-        <div className="card stat-tile">
+        <div className="card stat-tile anim-rise" style={{ ["--i" as string]: 2 }}>
           <div className="card-kicker">Days logged</div>
-          <div className="card-title stat-tile-value">{daysLogged} / 7</div>
+          <div className="card-title stat-tile-value count-value">{daysLoggedAnim} / 7</div>
         </div>
-        <div className="card stat-tile">
+        <div className="card stat-tile anim-rise" style={{ ["--i" as string]: 3 }}>
           <div className="card-kicker">Weeks on goal</div>
-          <div className="card-title stat-tile-value-lg">{metGoalCount} / {history.length}</div>
+          <div className="card-title stat-tile-value-lg count-value">{metGoalAnim} / {history.length}</div>
         </div>
       </div>
     </>

@@ -1,0 +1,184 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   Motion system — durations, easing, and reusable animations layered on
+   top of tokens.css / app.css. Every effect here is subtle and purposeful:
+   it confirms an action, orients you after navigation, or draws the eye to
+   a number that just changed. Nothing loops forever except the two "live"
+   indicators (active shift pulse, elapsed timer breathe).
+   Fully disabled under prefers-reduced-motion at the bottom of this file.
+   ══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast: 140ms;
+  --dur-base: 260ms;
+  --dur-slow: 420ms;
+  --dur-slower: 620ms;
+}
+
+/* — global interactive feel — */
+.btn,
+.app-bottomnav-btn,
+.input,
+.seg-opt,
+.card,
+.cta-circle {
+  transition:
+    background-color var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-base) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard);
+}
+.btn:active:not(:disabled) { transform: scale(0.96); }
+.cta-circle:active:not(:disabled) { transform: scale(0.93); }
+.app-bottomnav-btn:active { transform: scale(0.9); }
+
+@media (hover: hover) and (pointer: fine) {
+  .elev-sm:hover,
+  .elev-md:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
+}
+
+/* — screen transitions — */
+@keyframes screen-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.screen-transition { animation: screen-in var(--dur-slow) var(--ease-out) both; }
+
+/* — staggered entrance, index passed via inline `--i` — */
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.anim-rise {
+  animation: rise-in var(--dur-slow) var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 55ms);
+}
+
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+.anim-pop {
+  animation: pop-in var(--dur-base) var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+
+/* — bottom nav — */
+.app-bottomnav { position: relative; }
+.app-bottomnav-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: calc(100% / var(--nav-count, 5));
+  background: var(--color-accent);
+  transform: translateX(calc(100% * var(--nav-index, 0)));
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+.app-bottomnav-btn svg { transition: transform var(--dur-base) var(--ease-out); }
+.app-bottomnav-btn.is-active svg { transform: translateY(-2px) scale(1.12); }
+
+/* — shift CTA — */
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 45%, transparent); }
+  100% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--color-accent) 0%, transparent); }
+}
+.cta-circle.is-active { animation: pulse-ring 1.8s var(--ease-standard) infinite; }
+
+@keyframes timer-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.72; }
+}
+.elapsed-timer { animation: timer-breathe 2.2s var(--ease-standard) infinite; }
+
+/* — progress bars — */
+.progress-fill {
+  transition: width var(--dur-slower) var(--ease-out);
+  transform-origin: left;
+  animation: fill-grow var(--dur-slower) var(--ease-out) both;
+}
+@keyframes fill-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* — period bars — */
+.period-bar-fill {
+  transition: height var(--dur-slower) var(--ease-out);
+  transform-origin: bottom;
+  animation: bar-grow var(--dur-slower) var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+@keyframes bar-grow {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+
+/* — report chart — */
+.chart-line-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw-line 900ms var(--ease-out) 120ms both;
+}
+@keyframes draw-line {
+  to { stroke-dashoffset: 0; }
+}
+.chart-area-fade { animation: fade-in var(--dur-slower) var(--ease-standard) 200ms both; }
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.chart-point {
+  animation: pop-in var(--dur-base) var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 70ms + 420ms);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.chart-x-label {
+  animation: fade-in var(--dur-base) var(--ease-standard) both;
+  animation-delay: calc(var(--i, 0) * 70ms + 520ms);
+}
+
+/* — table rows — */
+.table tbody tr {
+  animation: rise-in var(--dur-base) var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 35ms);
+}
+
+/* — form error / toast — */
+@keyframes shake-in {
+  0% { opacity: 0; transform: translateY(-6px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+.form-error { animation: shake-in var(--dur-slow) var(--ease-standard) both; }
+
+/* — auth — */
+.auth-card { animation: rise-in var(--dur-slow) var(--ease-out) both; }
+
+/* — settings save flash — */
+@keyframes save-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.03); }
+  100% { transform: scale(1); }
+}
+.btn-save-flash { animation: save-pop var(--dur-base) var(--ease-out); }
+
+/* — animated numerals — */
+.count-value { font-variant-numeric: tabular-nums; }
+
+/* — accessibility: honor reduced-motion — */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

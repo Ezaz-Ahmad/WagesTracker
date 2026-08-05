@@ -14,6 +14,7 @@ import {
 import { buildWeekDays } from "../lib/date";
 import { buildWeekReportData } from "../lib/reportData";
 import { generateReportPdf } from "../pdf/generateReportPdf";
+import { useCountUp } from "../lib/useCountUp";
 
 type Metric = "earnings" | "hours";
 type Period = "week" | "month" | "year";
@@ -37,6 +38,9 @@ export function ReportScreen() {
   const progressPct = user.goalHours > 0 ? Math.min(100, Math.round((totalHours / user.goalHours) * 100)) : 0;
   const earningsProgressPct = user.goalEarnings > 0 ? Math.min(100, Math.round((totalEarnings / user.goalEarnings) * 100)) : 0;
   const metGoalCount = history.filter((w) => w.earnings >= user.goalEarnings).length;
+  const metGoalAnim = Math.round(useCountUp(metGoalCount, 450));
+  const progressPctAnim = Math.round(useCountUp(progressPct, 550));
+  const earningsProgressPctAnim = Math.round(useCountUp(earningsProgressPct, 550));
 
   const periodItems =
     period === "month"
@@ -71,10 +75,17 @@ export function ReportScreen() {
 
       <svg viewBox="0 0 320 150" width="100%" height="150" preserveAspectRatio="none" className="chart-svg">
         <line x1="0" y1="118" x2="320" y2="118" stroke="var(--color-divider)" strokeWidth="1" />
-        <path d={chart.areaPath} fill="var(--color-accent-100)" stroke="none" />
-        <polyline points={chart.linePoints} fill="none" stroke="var(--color-accent)" strokeWidth="2.5" />
+        <path d={chart.areaPath} fill="var(--color-accent-100)" stroke="none" className="chart-area-fade" />
+        <polyline
+          points={chart.linePoints}
+          fill="none"
+          stroke="var(--color-accent)"
+          strokeWidth="2.5"
+          pathLength={1}
+          className="chart-line-draw"
+        />
         {chart.points.map((p, i) => (
-          <g key={i}>
+          <g key={i} className="chart-point" style={{ ["--i" as string]: i }}>
             <circle cx={p.x} cy={p.y} r="4.5" fill={p.dotColor} stroke={p.dotStroke} strokeWidth="2" />
             <text x={p.x} y={p.labelY} fontSize="10" textAnchor="middle" fill="var(--color-text)" opacity="0.7">
               {p.valueLabel}
@@ -84,7 +95,7 @@ export function ReportScreen() {
       </svg>
       <div className="chart-x-labels">
         {chart.points.map((p, i) => (
-          <div className="chart-x-label" key={i}>
+          <div className="chart-x-label" key={i} style={{ ["--i" as string]: i }}>
             {p.short}
           </div>
         ))}
@@ -96,7 +107,7 @@ export function ReportScreen() {
         <div>
           <div className="progress-label-row">
             <span>Hours vs. goal</span>
-            <span>{progressPct}%</span>
+            <span className="count-value">{progressPctAnim}%</span>
           </div>
           <div className="progress-track">
             <div className="progress-fill" style={{ width: `${progressPct}%` }} />
@@ -105,7 +116,7 @@ export function ReportScreen() {
         <div>
           <div className="progress-label-row">
             <span>Earnings vs. goal</span>
-            <span>{earningsProgressPct}%</span>
+            <span className="count-value">{earningsProgressPctAnim}%</span>
           </div>
           <div className="progress-track">
             <div className="progress-fill" style={{ width: `${earningsProgressPct}%` }} />
@@ -113,10 +124,10 @@ export function ReportScreen() {
         </div>
       </div>
 
-      <div className="card consistency-card">
+      <div className="card consistency-card anim-rise">
         <div className="card-kicker">Consistency</div>
-        <div className="card-title consistency-value">
-          {metGoalCount} of {history.length} weeks
+        <div className="card-title consistency-value count-value">
+          {metGoalAnim} of {history.length} weeks
         </div>
         <p className="card-body">
           met your {CURRENCY}
@@ -144,7 +155,7 @@ export function ReportScreen() {
       </div>
       <div className="period-bars">
         {periodBars.map((b, i) => (
-          <div className="period-bar-col" key={i}>
+          <div className="period-bar-col" key={i} style={{ ["--i" as string]: i }}>
             <div className="period-bar-label">{b.valueLabel}</div>
             <div className="period-bar-fill" style={{ height: b.barStyle, background: b.barColor }} />
             <div className="period-bar-label">{b.short}</div>

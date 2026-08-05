@@ -133,7 +133,11 @@ export function SettingsScreen() {
       </button>
 
       <div className="hr" />
-      <button className="btn btn-primary btn-block" onClick={handleSave} disabled={saving}>
+      <button
+        className={`btn btn-primary btn-block${saveFlash ? " btn-save-flash" : ""}`}
+        onClick={handleSave}
+        disabled={saving}
+      >
         {saveFlash ? "Saved ✓" : saving ? "Saving…" : "Save settings"}
       </button>
       <button className="btn btn-secondary btn-block" onClick={logout}>

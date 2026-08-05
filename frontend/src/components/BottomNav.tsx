@@ -10,8 +10,15 @@ const TABS: { screen: Screen; label: string; Icon: typeof HomeIcon }[] = [
 ];
 
 export function BottomNav({ screen, onNavigate }: { screen: Screen; onNavigate: (s: Screen) => void }) {
+  const activeIndex = Math.max(0, TABS.findIndex((t) => t.screen === screen));
+  const navStyle = {
+    "--nav-index": activeIndex,
+    "--nav-count": TABS.length,
+  } as React.CSSProperties;
+
   return (
-    <nav className="app-bottomnav">
+    <nav className="app-bottomnav" style={navStyle}>
+      <span className="app-bottomnav-indicator" aria-hidden="true" />
       {TABS.map(({ screen: s, label, Icon }) => (
         <button
           key={s}

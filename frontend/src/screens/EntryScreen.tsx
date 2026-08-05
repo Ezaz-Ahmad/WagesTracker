@@ -5,6 +5,7 @@ import { buildWeekDays, fmt2 } from "../lib/date";
 import { buildWeekReportData } from "../lib/reportData";
 import { generateReportPdf } from "../pdf/generateReportPdf";
 import { useTodayShift } from "../lib/useTodayShift";
+import { useCountUp } from "../lib/useCountUp";
 import { ElapsedTimer, ShiftButton } from "../components/ShiftButton";
 
 type Row = ShiftComputed & { tempId?: string };
@@ -22,6 +23,7 @@ export function EntryScreen() {
   const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, CURRENCY, user.rate);
   const { hours: totalHours, earnings: totalEarnings } = weekTotals(days, user.rate);
   const todayDay = days.find((d) => d.isToday)!;
+  const totalEarningsAnim = useCountUp(totalEarnings);
 
   function rowsFor(day: DayComputed): Row[] {
     const rows: Row[] = day.shifts.map((s) => ({ ...s }));
@@ -97,7 +99,7 @@ export function EntryScreen() {
       </div>
       <div className="section-hint">Tap a time to set sign-in and sign-out for each day, or use the clock button for today.</div>
 
-      <div className="card entry-today-card">
+      <div className="card entry-today-card anim-rise">
         <div>
           <p className="card-body entry-today-sub">
             {active
@@ -111,8 +113,8 @@ export function EntryScreen() {
         <ShiftButton active={active} onStart={handleShiftPress} onEnd={handleShiftPress} busy={busy} />
       </div>
 
-      {days.map((day) => (
-        <div key={day.dateISO} className="day-row">
+      {days.map((day, i) => (
+        <div key={day.dateISO} className="day-row anim-rise" style={{ ["--i" as string]: Math.min(i, 4) }}>
           <div className="day-row-head">
             <div>
               <span className="day-name">{day.dayAbbr}</span>
@@ -156,11 +158,11 @@ export function EntryScreen() {
         </div>
       ))}
 
-      <div className="card elev-sm week-total-card">
+      <div className="card elev-sm week-total-card anim-rise">
         <div className="week-total-row">
           <span>Total this week</span>
-          <span style={{ fontWeight: 800 }}>
-            {totalHours}h · {CURRENCY}{fmt2(totalEarnings)}
+          <span className="count-value" style={{ fontWeight: 800 }}>
+            {totalHours}h · {CURRENCY}{fmt2(totalEarningsAnim)}
           </span>
         </div>
       </div>

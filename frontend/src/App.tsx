@@ -30,11 +30,13 @@ function AuthedApp() {
         )}
 
         <div className="app-main">
-          {screen === "home" && <HomeScreen />}
-          {screen === "entry" && <EntryScreen />}
-          {screen === "report" && <ReportScreen />}
-          {screen === "history" && <HistoryScreen />}
-          {screen === "settings" && <SettingsScreen />}
+          <div key={screen} className="screen-transition">
+            {screen === "home" && <HomeScreen />}
+            {screen === "entry" && <EntryScreen />}
+            {screen === "report" && <ReportScreen />}
+            {screen === "history" && <HistoryScreen />}
+            {screen === "settings" && <SettingsScreen />}
+          </div>
         </div>
 
         <BottomNav screen={screen} onNavigate={setScreen} />
