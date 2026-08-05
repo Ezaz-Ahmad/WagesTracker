@@ -8,6 +8,43 @@ A full-stack app for tracking work shifts, hourly earnings, and weekly goals —
 
 Backend is hosted on **Render**, frontend on **Vercel**, database on **Turso**. That's the actual deployment — see [Deploying](#deploying) below.
 
+## Architecture
+
+Three hosted pieces, talking over plain HTTPS — no shared filesystem, no server-to-server trust beyond a bearer token:
+
+```mermaid
+flowchart LR
+    subgraph Client["Browser"]
+        Browser["React SPA"]
+        PDF["PDF export (jsPDF)<br/>runs entirely client-side"]
+        Browser -.-> PDF
+    end
+
+    subgraph Vercel["Vercel — static hosting"]
+        Frontend["frontend/<br/>Vite build (React 18)"]
+    end
+
+    subgraph Render["Render — Node web service"]
+        API["backend/<br/>Express API<br/>JWT auth · zod validation"]
+    end
+
+    subgraph Turso["Turso — hosted libSQL"]
+        DB[("users + shifts<br/>SQLite-compatible")]
+    end
+
+    Browser -- "loads static assets" --> Frontend
+    Browser -- "fetch /api/*<br/>Authorization: Bearer JWT" --> API
+    API -- "@libsql/client" --> DB
+```
+
+**Request flow:** the browser loads the compiled React app as static files from Vercel; from then on it talks directly to the Render API for everything else (`lib/api.ts` is the one place all of those `fetch` calls go through). Auth is a 30-day JWT returned on login/signup and sent back as `Authorization: Bearer <token>` on every subsequent request; `requireAuth` middleware on the backend verifies it and attaches `userId` before any route handler runs. The API is the only thing that talks to the database — the browser never touches Turso directly.
+
+**Frontend structure:** no router, no external state library. `AppContext` (React context) is the single source of truth for the logged-in user, session token, and loaded shifts; `App.tsx` switches between screens (`Home`, `Entry`, `Report`, `History`, `Settings`) with local component state rather than URL-based routing. PDF reports are generated entirely in the browser with `jsPDF` — the backend is never involved in that step.
+
+**Backend structure:** three route groups (`routes/auth.ts`, `routes/me.ts`, `routes/shifts.ts`) sit behind Express, all async and going through `@libsql/client`. `db.ts` is the only place that knows whether it's talking to a local SQLite file (dev) or a hosted Turso database (production, when `TURSO_DATABASE_URL` is set) — everything above it is unaware of the difference.
+
+**Local dev** collapses the diagram above to two processes on one machine: Vite's dev server proxies `/api/*` to the Express server on `:4000`, and the backend falls back to a local SQLite file instead of Turso. See [Local development](#local-development).
+
 ## Tech stack
 
 **Backend** (`backend/`)
