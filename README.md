@@ -34,7 +34,7 @@ flowchart TD
 
 **Frontend structure:** no router, no external state library. `AppContext` (React context) is the single source of truth for the logged-in user, session token, and loaded shifts; `App.tsx` switches between screens (`Home`, `Entry`, `Report`, `History`, `Settings`) with local component state rather than URL-based routing. PDF reports are generated entirely in the browser with `jsPDF` — the backend is never involved in that step.
 
-**Backend structure:** three route groups (`routes/auth.ts`, `routes/me.ts`, `routes/shifts.ts`) sit behind Express, all async and going through `@libsql/client`. `db.ts` is the only place that knows whether it's talking to a local SQLite file (dev) or a hosted Turso database (production, when `TURSO_DATABASE_URL` is set) — everything above it is unaware of the difference.
+**Backend structure:** four route groups (`routes/auth.ts`, `routes/me.ts`, `routes/shifts.ts`, `routes/admin.ts`) sit behind Express, all async and going through `@libsql/client`. `db.ts` is the only place that knows whether it's talking to a local SQLite file (dev) or a hosted Turso database (production, when `TURSO_DATABASE_URL` is set) — everything above it is unaware of the difference. Admin routes sit behind a separate `requireAdmin` middleware and token type from regular user auth, not layered on top of it — see [Admin panel](#admin-panel).
 
 **Local dev** collapses the diagram above to two processes on one machine: Vite's dev server proxies `/api/*` to the Express server on `:4000`, and the backend falls back to a local SQLite file instead of Turso. See [Local development](#local-development).
 
@@ -52,15 +52,16 @@ flowchart TD
 **Frontend** (`frontend/`)
 - React 18 + TypeScript, built with [Vite](https://vitejs.dev/) 8
 - No router or state library — a single `AppContext` (React context + hooks) holds auth/session state and shift data; screens are switched by local state in `App.tsx`
-- [jspdf](https://github.com/parallax/jsPDF) (+ `html2canvas`, pulled in transitively) to export weekly reports as PDF
-- Plain CSS (`styles/tokens.css`, `styles/app.css`) — no CSS framework
+- [jspdf](https://github.com/parallax/jsPDF) (+ `html2canvas`, pulled in transitively) to export weekly reports as PDF, including a 12-hour-clock shift table and a clickable credit footer
+- Plain CSS (`styles/tokens.css`, `styles/app.css`, `styles/animations.css`) — no CSS framework, no animation library. The motion system (screen transitions, staggered card entrances, count-up numbers, chart/progress-bar animations) is hand-rolled CSS plus a small `useCountUp` hook, and is fully disabled under `prefers-reduced-motion`
 - API calls go through a small `fetch` wrapper (`lib/api.ts`) that targets `VITE_API_URL` in production or the Vite dev proxy locally, and centralizes auth-error handling (expired/invalid token → auto logout)
+- `src/admin/` — a self-contained admin panel (own login, own API client, own token) reached at `/admin`; see [Admin panel](#admin-panel)
 
-**Data**: SQLite (via libSQL/Turso in production, a local file in dev) — no separate database server to run. Schema/migrations live in `backend/src/db.ts`.
+**Data**: SQLite (via libSQL/Turso in production, a local file in dev) — no separate database server to run. Schema/migrations live in `backend/src/db.ts`. Shifts older than 5 years are pruned automatically by a daily job; a user can permanently delete their own account and every shift from Settings, or an admin can do the same for any account from the [admin panel](#admin-panel).
 
 **Hosting**: Render (backend, Node web service) + Vercel (frontend, static Vite build) + Turso (database).
 
-**Repo layout**: npm workspaces monorepo (`backend`, `frontend` as separate workspaces sharing one `package.json`/lockfile at the root).
+**Repo layout**: npm workspaces monorepo (`backend`, `frontend` as separate workspaces sharing one `package.json`/lockfile at the root). `frontend/src/admin/` is a self-contained module for the admin panel — its own login screen, API client, and stylesheet, isolated from the rest of the frontend.
 
 `project/` and `chats/` are the original Claude Design handoff files (HTML/CSS prototypes + the design conversation transcript) — reference material only, not part of the running app.
 
@@ -81,6 +82,8 @@ Useful scripts (run from the root):
 - `npm run dev` — backend + frontend, both in watch mode
 - `npm run build` — production build of both
 - `npm run typecheck` — type-check both
+
+To try the admin panel locally, add `ADMIN_PASSWORD=something` to `backend/.env` and visit `http://localhost:5173/admin`.
 
 ## Configuration
 
@@ -170,4 +173,5 @@ The repo also has `railway.json` (Railway, as a backend alternative to Render) a
 - [x] `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` set on the backend — data lives on Turso, independent of Render's ephemeral filesystem
 - [x] `VITE_API_URL` set on the frontend build to the backend's URL
 - [x] Backend `/api/health` returns `{"ok": true}`
-- [x] Rate limiting is on by default (300 req/15min general, 20 req/15min on `/api/auth/*`) — adjust in `backend/src/index.ts` if it's too strict/loose for your traffic
+- [x] Rate limiting is on by default (300 req/15min general, 20 req/15min on `/api/auth/*`, 10 req/15min on `/api/admin/login`) — adjust in `backend/src/index.ts`/`backend/src/routes/admin.ts` if it's too strict/loose for your traffic
+- [ ] `ADMIN_PASSWORD` set on the backend — optional; the admin panel (`/admin`) stays disabled (login always 401s) without it
