@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { CURRENCY, useApp } from "../context/AppContext";
 import { buildWeekDaysComputed, buildWeeklyHistory, groupByDate, weekTotals } from "../lib/aggregate";
-import { buildWeekDays, fmt2 } from "../lib/date";
+import { buildWeekDays, fmt2, formatTime12 } from "../lib/date";
 import { useTodayShift } from "../lib/useTodayShift";
 import { useCountUp } from "../lib/useCountUp";
 import { ElapsedTimer, ShiftButton } from "../components/ShiftButton";
@@ -45,7 +45,7 @@ export function HomeScreen() {
 
   const headline = active ? "Shift in progress" : todayDay.hours > 0 ? "Today logged" : "Today not logged yet";
   const subline = active
-    ? `Started at ${last?.signIn} — tap to end shift.`
+    ? `Started at ${formatTime12(last?.signIn)} — tap to end shift.`
     : todayDay.hours > 0
       ? `${todayDay.hours}h · ${CURRENCY}${fmt2(todayDay.hours * user.rate)}`
       : "Tap to start your shift.";

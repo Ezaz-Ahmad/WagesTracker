@@ -1,4 +1,4 @@
-import { addDays, computeHours, dayAbbr, fmt2, isoDate, shortLabel, startOfWeek } from "./date";
+import { addDays, computeHours, dayAbbr, fmt2, formatTime12, isoDate, shortLabel, startOfWeek } from "./date";
 import type { Shift, WeekStart } from "./types";
 
 export interface ShiftComputed {
@@ -124,8 +124,8 @@ export function buildShiftRows(days: DayComputed[], currency: string, rate: numb
         day: d.dayAbbr,
         date: d.dateLabel,
         location: sh.location || "Unspecified",
-        signIn: sh.signIn || "—",
-        signOut: sh.signOut || "—",
+        signIn: formatTime12(sh.signIn),
+        signOut: formatTime12(sh.signOut),
         hours: sh.hours,
         hoursLabel: sh.hoursLabel,
         moneyLabel: sh.hours > 0 ? currency + fmt2(sh.hours * rate) : "—",

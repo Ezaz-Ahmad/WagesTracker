@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { CURRENCY, useApp } from "../context/AppContext";
 import { buildWeekDaysComputed, groupByDate, weekTotals, type DayComputed, type ShiftComputed } from "../lib/aggregate";
-import { buildWeekDays, fmt2 } from "../lib/date";
+import { buildWeekDays, fmt2, formatTime12 } from "../lib/date";
 import { buildWeekReportData } from "../lib/reportData";
 import { generateReportPdf } from "../pdf/generateReportPdf";
 import { useTodayShift } from "../lib/useTodayShift";
@@ -75,6 +75,13 @@ export function EntryScreen() {
     }
   }
 
+  async function handleClearDay(day: DayComputed) {
+    if (!window.confirm(`Clear all shifts for ${day.dayAbbr}, ${day.dateLabel}?`)) return;
+    const ids = day.shifts.map((s) => s.id).filter((id): id is string => !!id);
+    await Promise.all(ids.map((id) => removeShift(id)));
+    setPending((prev) => ({ ...prev, [day.dateISO]: [] }));
+  }
+
   async function handleShiftPress() {
     setBusy(true);
     try {
@@ -103,7 +110,7 @@ export function EntryScreen() {
         <div>
           <p className="card-body entry-today-sub">
             {active
-              ? `Started at ${last?.signIn} — tap to end shift.`
+              ? `Started at ${formatTime12(last?.signIn)} — tap to end shift.`
               : todayDay.hours > 0
                 ? `${todayDay.hours}h · ${CURRENCY}${fmt2(todayDay.hours * user.rate)}`
                 : "Tap to start your shift."}
@@ -113,14 +120,23 @@ export function EntryScreen() {
         <ShiftButton active={active} onStart={handleShiftPress} onEnd={handleShiftPress} busy={busy} />
       </div>
 
-      {days.map((day, i) => (
+      {days.map((day, i) => {
+        const dayHasContent = day.shifts.length > 0 || (pending[day.dateISO]?.length ?? 0) > 0;
+        return (
         <div key={day.dateISO} className="day-row anim-rise" style={{ ["--i" as string]: Math.min(i, 4) }}>
           <div className="day-row-head">
             <div>
               <span className="day-name">{day.dayAbbr}</span>
               <span className="day-date">{day.dateLabel}</span>
             </div>
-            <div className={`day-hours${day.hours > 0 ? "" : " is-empty"}`}>{day.hoursLabel}</div>
+            <div className="day-row-actions">
+              <div className={`day-hours${day.hours > 0 ? "" : " is-empty"}`}>{day.hoursLabel}</div>
+              {dayHasContent && (
+                <button type="button" className="btn btn-ghost day-clear-btn" onClick={() => handleClearDay(day)}>
+                  Clear
+                </button>
+              )}
+            </div>
           </div>
 
           {rowsFor(day).map((row) => (
@@ -156,7 +172,8 @@ export function EntryScreen() {
             + Add another shift
           </button>
         </div>
-      ))}
+        );
+      })}
 
       <div className="card elev-sm week-total-card anim-rise">
         <div className="week-total-row">

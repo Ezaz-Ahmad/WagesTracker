@@ -56,6 +56,16 @@ export function fmt2(n: number): string {
   return (Math.round(n * 100) / 100).toFixed(2);
 }
 
+/** Formats a "HH:MM" 24-hour string as a 12-hour clock string, e.g. "14:05" -> "2:05 PM". */
+export function formatTime12(hhmm: string | null | undefined): string {
+  if (!hhmm) return "—";
+  const [h, m] = hhmm.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return hhmm;
+  const period = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${pad2(m)} ${period}`;
+}
+
 export function formatElapsed(ms: number): string {
   const totalSec = Math.max(0, Math.floor(ms / 1000));
   const h = Math.floor(totalSec / 3600);
