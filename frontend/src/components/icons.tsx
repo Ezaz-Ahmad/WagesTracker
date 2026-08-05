@@ -117,6 +117,29 @@ export function ExtraEarningIcon({ size = 15 }: IconProps) {
   );
 }
 
+/** Neutral "action" badge for the confirm dialog — used for non-destructive
+ * confirmations (save, log in, switch tab, etc.). */
+export function CheckCircleIcon({ size = 20 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M8 12.5l2.5 2.5L16 9.5" />
+    </svg>
+  );
+}
+
+/** Warning badge for the confirm dialog — used for destructive confirmations
+ * (delete, remove, clear, log out). */
+export function AlertTriangleIcon({ size = 20 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <path d="M12 3.5l9.5 16.5H2.5L12 3.5z" />
+      <path d="M12 10v4" />
+      <circle cx="12" cy="17" r="0.6" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 /** GitHub brand mark — filled silhouette, used only next to the credit link. */
 export function GithubIcon({ size = 14 }: IconProps) {
   return (

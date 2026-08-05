@@ -179,7 +179,12 @@ export function SettingsScreen() {
       >
         {saveFlash ? "Saved ✓" : saving ? "Saving…" : "Save settings"}
       </button>
-      <button className="btn btn-secondary btn-block" onClick={logout}>
+      <button
+        className="btn btn-secondary btn-block"
+        onClick={logout}
+        data-confirm="Log out of Wage Tracker? Any shift in progress keeps counting in the background."
+        data-confirm-tone="danger"
+      >
         Log out
       </button>
       <div className="settings-note">Time entries and reports are kept for 5 years and automatically deleted after that.</div>
@@ -216,7 +221,13 @@ export function SettingsScreen() {
               <button className="btn btn-secondary" onClick={closeDeleteDialog} disabled={deleting}>
                 Cancel
               </button>
-              <button className="btn btn-danger" onClick={handleDeleteAccount} disabled={deleting || !deletePassword}>
+              <button
+                className="btn btn-danger"
+                onClick={handleDeleteAccount}
+                disabled={deleting || !deletePassword}
+                data-confirm="Final check: permanently delete your account and every shift you've logged? There's no way to undo this."
+                data-confirm-tone="danger"
+              >
                 {deleting ? "Deleting…" : "Delete account"}
               </button>
             </div>

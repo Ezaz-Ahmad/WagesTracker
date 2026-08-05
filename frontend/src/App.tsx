@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { AppProvider, useApp } from "./context/AppContext";
 import { BottomNav, TABS } from "./components/BottomNav";
+import { ConfirmProvider } from "./components/ConfirmProvider";
 import { Logo } from "./components/Logo";
 import { AuthScreen } from "./screens/AuthScreen";
 import { HomeScreen } from "./screens/HomeScreen";
@@ -73,7 +74,9 @@ function Root() {
 export default function App() {
   return (
     <AppProvider>
-      <Root />
+      <ConfirmProvider>
+        <Root />
+      </ConfirmProvider>
     </AppProvider>
   );
 }

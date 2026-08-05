@@ -142,7 +142,8 @@ export function EntryScreen() {
   }
 
   async function handleClearDay(day: DayComputed) {
-    if (!window.confirm(`Clear all shifts for ${day.dayAbbr}, ${day.dateLabel}?`)) return;
+    // Confirmation now happens up front via the button's data-confirm popup
+    // (see ConfirmProvider) instead of the browser's native confirm().
     const ids = day.shifts.map((s) => s.id).filter((id): id is string => !!id);
     await Promise.all(ids.map((id) => removeShift(id)));
     setPending((prev) => ({ ...prev, [day.dateISO]: [] }));
@@ -249,7 +250,13 @@ export function EntryScreen() {
             <div className="day-row-actions">
               <div className={`day-hours${day.hours > 0 ? "" : " is-empty"}`}>{day.hoursLabel}</div>
               {dayHasContent && (
-                <button type="button" className="btn btn-ghost day-clear-btn" onClick={() => handleClearDay(day)}>
+                <button
+                  type="button"
+                  className="btn btn-ghost day-clear-btn"
+                  onClick={() => handleClearDay(day)}
+                  data-confirm={`Clear all shifts for ${day.dayAbbr}, ${day.dateLabel}? This can't be undone.`}
+                  data-confirm-tone="danger"
+                >
                   Clear
                 </button>
               )}
@@ -279,7 +286,13 @@ export function EntryScreen() {
               />
               <div className="shift-hours">{row.hoursLabel}</div>
               {row.canRemove && (
-                <button className="btn btn-icon btn-ghost shift-remove" onClick={() => handleRemoveShift(day, row)}>
+                <button
+                  className="btn btn-icon btn-ghost shift-remove"
+                  onClick={() => handleRemoveShift(day, row)}
+                  aria-label="Remove shift"
+                  data-confirm="Remove this shift entry? This can't be undone."
+                  data-confirm-tone="danger"
+                >
                   ×
                 </button>
               )}
