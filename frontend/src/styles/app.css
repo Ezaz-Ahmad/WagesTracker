@@ -69,11 +69,13 @@ button { font-family: inherit; }
    only .app-main scrolls internally. That's what keeps the top bar and bottom
    nav rock-solid in place on mobile instead of drifting/"floating" as the
    browser's address bar shows and hides. `100dvh` (dynamic viewport height)
-   tracks the *visible* viewport on mobile browsers; the plain `100vh` line
-   above it is a fallback for browsers without `dvh` support and is simply
-   overridden by the second declaration where it's supported. */
+   tracks the *visible* viewport on mobile browsers and is the fallback here;
+   `var(--app-vh)` — an exact px value kept in sync by useViewportHeight —
+   is preferred where available since `dvh` alone can go stale on iOS Safari
+   once the body above is position-locked (see app.css's body.is-app-locked
+   and the hook's own comment for the full story). */
 .app-shell {
-  height: 100vh; height: 100dvh;
+  height: 100vh; height: 100dvh; height: var(--app-vh, 100dvh);
   overflow: hidden;
   background: var(--color-neutral-300);
   display: flex; justify-content: center;

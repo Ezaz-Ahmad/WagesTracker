@@ -187,7 +187,17 @@
 
 /* — confirm popup — */
 .confirm-backdrop { animation: fade-in var(--dur-fast) var(--ease-standard) both; }
-.confirm-modal { animation: pop-in var(--dur-base) var(--ease-out) both; }
+.confirm-modal { animation: confirm-pop-in var(--dur-slow) var(--ease-out) both; }
+@keyframes confirm-pop-in {
+  0% { opacity: 0; transform: scale(0.88) translateY(8px); }
+  60% { opacity: 1; }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.confirm-modal-icon { animation: pop-in var(--dur-base) var(--ease-out) 60ms both; }
+.confirm-action-btn {
+  transition: background-color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+}
+.confirm-action-btn:active { transform: scale(0.96); }
 
 /* — settings save flash — */
 @keyframes save-pop {

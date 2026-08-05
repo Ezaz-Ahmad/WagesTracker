@@ -102,17 +102,17 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="confirm-modal-icon" aria-hidden="true">
-              {pending.tone === "danger" ? <AlertTriangleIcon size={22} /> : <CheckCircleIcon size={22} />}
+              {pending.tone === "danger" ? <AlertTriangleIcon size={26} /> : <CheckCircleIcon size={26} />}
             </div>
             <p className="confirm-modal-message">{pending.message}</p>
             <div className="confirm-modal-actions">
-              <button type="button" className="btn btn-secondary" onClick={() => pending.resolve(false)}>
+              <button type="button" className="confirm-action-btn confirm-action-cancel" onClick={() => pending.resolve(false)}>
                 Cancel
               </button>
               <button
                 type="button"
                 ref={confirmBtnRef}
-                className={`btn ${pending.tone === "danger" ? "btn-danger" : "btn-primary"}`}
+                className="confirm-action-btn confirm-action-confirm"
                 onClick={() => pending.resolve(true)}
               >
                 {pending.tone === "danger" ? "Yes, continue" : "Confirm"}
