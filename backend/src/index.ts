@@ -81,8 +81,10 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
   res.status(500).json({ error: "Internal server error" });
 });
 
-pruneExpiredShifts();
-setInterval(pruneExpiredShifts, 24 * 60 * 60 * 1000).unref();
+await pruneExpiredShifts();
+setInterval(() => {
+  void pruneExpiredShifts().catch((e) => console.error("[prune] failed:", e));
+}, 24 * 60 * 60 * 1000).unref();
 
 const PORT = Number(process.env.PORT) || 4000;
 const server = app.listen(PORT, () => {

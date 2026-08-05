@@ -6,15 +6,13 @@ A full-stack app for tracking work shifts, hourly earnings, and weekly goals —
 - App: https://wages-tracker-frontend.vercel.app
 - API: https://wage-tracker-api.onrender.com (health check: `/api/health`)
 
-Backend is hosted on **Render**, frontend on **Vercel**. That's the actual deployment — see [Deploying](#deploying) below.
-
-> Note: the backend runs on Render's free plan with no persistent disk, so the SQLite database resets whenever the service restarts or spins down from inactivity (~15 min idle). Fine for a demo; see the Render section below for how to make it durable.
+Backend is hosted on **Render**, frontend on **Vercel**, database on **Turso**. That's the actual deployment — see [Deploying](#deploying) below.
 
 ## Tech stack
 
 **Backend** (`backend/`)
 - [Express](https://expressjs.com/) 4 + TypeScript, running on Node ≥20 (`type: module`, ESM throughout)
-- [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) — synchronous SQLite driver, WAL mode
+- [@libsql/client](https://github.com/tursodatabase/libsql-client-ts) — talks to a local SQLite file in dev, or a hosted [Turso](https://turso.tech) (libSQL) database in production, over the same client API
 - Auth: [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) (30-day JWTs) + [bcryptjs](https://github.com/dcodeIO/bcrypt.js) for password hashing
 - [zod](https://zod.dev/) for request validation
 - Hardening: [helmet](https://helmetjs.github.io/) (security headers), [express-rate-limit](https://github.com/express-rate-limit/express-rate-limit) (300 req/15min general, 20 req/15min on `/api/auth/*`), a CORS allowlist driven by `ALLOWED_ORIGINS`, and a startup check that refuses to boot in production without a real `JWT_SECRET`
@@ -28,9 +26,9 @@ Backend is hosted on **Render**, frontend on **Vercel**. That's the actual deplo
 - Plain CSS (`styles/tokens.css`, `styles/app.css`) — no CSS framework
 - API calls go through a small `fetch` wrapper (`lib/api.ts`) that targets `VITE_API_URL` in production or the Vite dev proxy locally, and centralizes auth-error handling (expired/invalid token → auto logout)
 
-**Data**: SQLite, one file, no separate database server. Schema/migrations live in `backend/src/db.ts`.
+**Data**: SQLite (via libSQL/Turso in production, a local file in dev) — no separate database server to run. Schema/migrations live in `backend/src/db.ts`.
 
-**Hosting**: Render (backend, Node web service) + Vercel (frontend, static Vite build).
+**Hosting**: Render (backend, Node web service) + Vercel (frontend, static Vite build) + Turso (database).
 
 **Repo layout**: npm workspaces monorepo (`backend`, `frontend` as separate workspaces sharing one `package.json`/lockfile at the root).
 
@@ -63,7 +61,9 @@ Useful scripts (run from the root):
 | `PORT` | no | defaults to `4000` |
 | `NODE_ENV` | recommended | set to `production` in production — enables the JWT secret check |
 | `JWT_SECRET` | **yes, in production** | the app refuses to start in production with the default/dev secret. Generate one with `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` |
-| `DB_PATH` | no | path to the SQLite file, defaults to `./data/wage-tracker.sqlite`. In production, point this at a **persistent volume/disk** — most PaaS filesystems are ephemeral and you'll lose data on redeploy otherwise |
+| `DB_PATH` | no | path to a local SQLite file, defaults to `./data/wage-tracker.sqlite`. Only used when `TURSO_DATABASE_URL` is unset — fine for local dev, but most PaaS filesystems are ephemeral, so don't rely on this in production |
+| `TURSO_DATABASE_URL` | **yes, in production** | hosted libSQL/Turso database URL, e.g. `libsql://your-db-your-org.turso.io`. When set, this replaces the local SQLite file so data survives restarts/redeploys. Leave unset locally |
+| `TURSO_AUTH_TOKEN` | **yes, in production** (if `TURSO_DATABASE_URL` is set) | auth token for the database above, from `turso db tokens create <db-name>` |
 | `ALLOWED_ORIGINS` | **yes, in production** | comma-separated list of browser origins allowed to call the API, e.g. `https://your-app.vercel.app` |
 
 ### Frontend (`frontend/.env`, copy from `frontend/.env.example`)
@@ -74,7 +74,19 @@ Useful scripts (run from the root):
 
 ## Deploying
 
-This is what's actually running in production: **backend on Render, frontend on Vercel.**
+This is what's actually running in production: **backend on Render, frontend on Vercel, database on Turso.**
+
+### Database — Turso
+
+The backend needs a hosted database before it can hold durable data (see the storage caveat under Render below for why). [Turso](https://turso.tech) is a hosted libSQL — i.e. SQLite-compatible — database with a free tier; the schema in `backend/src/db.ts` is plain SQLite, so nothing about it needs to change to use it.
+
+1. Install the CLI and sign up: `curl -sSfL https://get.tur.so/install.sh | bash`, then `turso auth signup` (or `turso auth login` if you already have an account).
+2. Create a database: `turso db create wage-tracker`.
+3. Get the connection URL: `turso db show wage-tracker --url` → this is `TURSO_DATABASE_URL`.
+4. Create a token: `turso db tokens create wage-tracker` → this is `TURSO_AUTH_TOKEN`.
+5. Set both as environment variables on the Render service (below).
+
+Local dev doesn't need any of this — with `TURSO_DATABASE_URL` unset, the backend falls back to a local SQLite file (`DB_PATH`) automatically.
 
 ### Backend — Render
 
@@ -84,7 +96,7 @@ Two things it's already configured to handle:
 - **Build command** is `npm install --include=dev && npm run build -w backend` — the `--include=dev` is required because Render sets `NODE_ENV=production` before installing, which npm otherwise treats as "skip devDependencies," and `typescript`/`@types/*` (needed to compile) live there. Without this, the build fails with a wall of "cannot find declaration file" errors.
 - **`ALLOWED_ORIGINS`** is left blank in the blueprint (marked `sync: false`) since you won't have a frontend URL yet on first deploy — Render will prompt you for a value when you deploy the blueprint. Put in a harmless placeholder (e.g. `http://localhost:5173`), then come back and set it to the real Vercel URL once the frontend is deployed (Environment tab on the service → edit `ALLOWED_ORIGINS` → save, which triggers an automatic redeploy).
 
-**Free plan storage caveat:** Render's free plan doesn't support persistent disks. The SQLite file lives on the service's local filesystem, which is wiped on every restart/redeploy (Render also spins down and restarts free services after inactivity) — so accounts and shift data will periodically reset. This is fine for a demo/testing deploy, and it's the current state of the live deploy above. For real, durable data, upgrade the service to at least the Starter plan and add a `disk:` block (commented example is in `render.yaml`) mounted at `/var/data`, then point `DB_PATH` there.
+Set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` on the service (Environment tab) using the values from the Turso setup above. Render's free plan has no persistent disk, but that no longer matters here — the database lives on Turso, not on this service's local filesystem, so restarts/redeploys/spin-downs don't touch your data.
 
 ### Frontend — Vercel
 
@@ -94,9 +106,10 @@ Once Root Directory is set to `frontend`, `frontend/vercel.json` supplies the bu
 
 ### Order of operations
 
-1. Deploy the backend to Render first, with `ALLOWED_ORIGINS` set to a placeholder.
-2. Deploy the frontend to Vercel, with `VITE_API_URL` set to the Render URL from step 1.
-3. Go back to Render and set `ALLOWED_ORIGINS` to the real Vercel URL from step 2, then save (auto-redeploys).
+1. Create the Turso database and grab its URL + token (see above).
+2. Deploy the backend to Render, with `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` set and `ALLOWED_ORIGINS` set to a placeholder.
+3. Deploy the frontend to Vercel, with `VITE_API_URL` set to the Render URL from step 2.
+4. Go back to Render and set `ALLOWED_ORIGINS` to the real Vercel URL from step 3, then save (auto-redeploys).
 
 ### Other hosts (not currently used)
 
@@ -107,7 +120,7 @@ The repo also has `railway.json` (Railway, as a backend alternative to Render) a
 - [x] `JWT_SECRET` set to a strong, unique value (not the dev default) — auto-generated by the Render blueprint
 - [x] `NODE_ENV=production` set on the backend
 - [x] `ALLOWED_ORIGINS` set to the real frontend URL
-- [ ] `DB_PATH` points at a persistent volume/disk — **not currently true**, since the live deploy is on Render's free plan (see storage caveat above)
+- [x] `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` set on the backend — data lives on Turso, independent of Render's ephemeral filesystem
 - [x] `VITE_API_URL` set on the frontend build to the backend's URL
 - [x] Backend `/api/health` returns `{"ok": true}`
 - [x] Rate limiting is on by default (300 req/15min general, 20 req/15min on `/api/auth/*`) — adjust in `backend/src/index.ts` if it's too strict/loose for your traffic

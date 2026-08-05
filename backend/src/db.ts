@@ -1,16 +1,31 @@
-import Database from "better-sqlite3";
+import { createClient, type Client } from "@libsql/client";
 import fs from "node:fs";
 import path from "node:path";
 
+// Local/dev default: a plain SQLite file on disk, same as before.
+//
+// In production, set TURSO_DATABASE_URL (+ TURSO_AUTH_TOKEN) to a hosted libSQL/Turso
+// database instead. This matters because most PaaS filesystems (Render's free plan
+// included) are ephemeral — a local file gets wiped on every restart/redeploy. Turso is
+// SQLite-compatible (same schema, same SQL below), just accessed over the network, so
+// data survives deploys. See README for setup.
 const DB_PATH = process.env.DB_PATH || "./data/wage-tracker.sqlite";
-fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+const TURSO_URL = process.env.TURSO_DATABASE_URL;
+const TURSO_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN;
 
-export const db = new Database(DB_PATH);
-db.pragma("journal_mode = WAL");
-db.pragma("foreign_keys = ON");
-db.pragma("busy_timeout = 5000");
+if (!TURSO_URL) {
+  fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+}
 
-db.exec(`
+export const db: Client = createClient(
+  TURSO_URL ? { url: TURSO_URL, authToken: TURSO_AUTH_TOKEN } : { url: `file:${DB_PATH}` }
+);
+
+// Top-level await: any module that imports `db` from here waits for the schema to exist
+// before it runs, so route handlers never race the initial CREATE TABLE calls.
+await db.executeMultiple(`
+  PRAGMA foreign_keys = ON;
+
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -43,9 +58,9 @@ db.exec(`
 
 export const RETENTION_YEARS = 5;
 
-export function pruneExpiredShifts(): void {
+export async function pruneExpiredShifts(): Promise<void> {
   const cutoff = new Date();
   cutoff.setFullYear(cutoff.getFullYear() - RETENTION_YEARS);
   const cutoffKey = cutoff.toISOString().slice(0, 10);
-  db.prepare("DELETE FROM shifts WHERE date < ?").run(cutoffKey);
+  await db.execute({ sql: "DELETE FROM shifts WHERE date < ?", args: [cutoffKey] });
 }
