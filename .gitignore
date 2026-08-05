@@ -6,3 +6,4 @@ build/
 .env.local
 backend/data/
 .DS_Store
+*.tsbuildinfo
