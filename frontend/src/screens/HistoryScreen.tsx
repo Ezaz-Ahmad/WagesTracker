@@ -2,6 +2,7 @@ import { CURRENCY, useApp } from "../context/AppContext";
 import { buildWeeklyHistory } from "../lib/aggregate";
 import { fmt2 } from "../lib/date";
 import { Skeleton } from "../components/Skeleton";
+import { Amount } from "../components/Amount";
 
 export function HistoryScreen() {
   const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras } = useApp();
@@ -57,7 +58,9 @@ export function HistoryScreen() {
               <tr key={i} style={{ ["--i" as string]: i }}>
                 <td>{w.label}</td>
                 <td>{w.hoursLabel}</td>
-                <td>{w.earningsLabel}</td>
+                <td>
+                  <Amount>{w.earningsLabel}</Amount>
+                </td>
                 <td>
                   <span className={`tag ${w.tagClass}`}>{w.tagLabel}</span>
                 </td>

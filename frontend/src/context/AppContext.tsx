@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
 import { addDays, isoDate, startOfWeek } from "../lib/date";
@@ -15,6 +15,12 @@ export const CURRENCY = "$";
 // server regardless of whether the app is logged in, so nothing is lost —
 // signing back in picks the running total back up exactly where it left off.
 const IDLE_LOGOUT_MS = 10 * 60 * 1000;
+
+// How long a manual "reveal" of the earnings-privacy toggle lasts before it
+// auto-hides again — a flat window from the moment of reveal, not an idle
+// timer, so it hides itself right on schedule even while the app is in
+// active use (see revealEarnings below).
+const EARNINGS_REVEAL_MS = 20 * 60 * 1000;
 
 // On mobile, submitting the login/signup form happens while the on-screen
 // keyboard is still open. If we flip straight to the authed shell at that
@@ -79,6 +85,10 @@ interface AppContextValue {
   setWeekExtra: (weekStart: string, amount: number | null, reason: string) => Promise<boolean>;
 
   refresh: () => Promise<void>;
+
+  earningsHidden: boolean;
+  revealEarnings: () => void;
+  hideEarningsNow: () => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -98,6 +108,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // before the real numbers arrive, without re-showing it on background refetches.
   const [shiftsLoaded, setShiftsLoaded] = useState(false);
   const [today, setToday] = useState(() => new Date());
+
+  // Earnings-privacy toggle: dollar figures across the app render blurred
+  // until explicitly revealed, and always start hidden again on a fresh
+  // login — see the eye button in the top nav. Starting `true` by default
+  // covers both a brand-new session *and* a token-based auto-login without
+  // any extra logic; `logout`/`login`/`signup` reset it explicitly too, so
+  // it's also correct if a logout happens without a full page reload.
+  const [earningsHidden, setEarningsHidden] = useState(true);
+  const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearRevealTimer = useCallback(() => {
+    if (revealTimerRef.current) {
+      clearTimeout(revealTimerRef.current);
+      revealTimerRef.current = null;
+    }
+  }, []);
+
+  const revealEarnings = useCallback(() => {
+    setEarningsHidden(false);
+    clearRevealTimer();
+    revealTimerRef.current = setTimeout(() => {
+      setEarningsHidden(true);
+      revealTimerRef.current = null;
+    }, EARNINGS_REVEAL_MS);
+  }, [clearRevealTimer]);
+
+  const hideEarningsNow = useCallback(() => {
+    setEarningsHidden(true);
+    clearRevealTimer();
+  }, [clearRevealTimer]);
+
+  useEffect(() => clearRevealTimer, [clearRevealTimer]);
 
   useEffect(() => {
     const timer = setInterval(() => setToday(new Date()), 60_000);
@@ -162,6 +204,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (remember) api.setRememberedEmail(email);
       else api.clearRememberedEmail();
       setUser(user);
+      hideEarningsNow();
       await settleKeyboardBeforeAuth();
       setStatus("loggedIn");
     } catch (e) {
@@ -169,7 +212,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } finally {
       setAuthBusy(false);
     }
-  }, []);
+  }, [hideEarningsNow]);
 
   const signup = useCallback(async (input: api.SignupInput) => {
     setAuthBusy(true);
@@ -178,6 +221,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const { token, user } = await api.signup(input);
       api.setToken(token, true);
       setUser(user);
+      hideEarningsNow();
       await settleKeyboardBeforeAuth();
       setStatus("loggedIn");
     } catch (e) {
@@ -185,7 +229,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } finally {
       setAuthBusy(false);
     }
-  }, []);
+  }, [hideEarningsNow]);
 
   const logout = useCallback(() => {
     api.clearToken();
@@ -195,7 +239,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setWeekExtras([]);
     setShiftsLoaded(false);
     setStatus("loggedOut");
-  }, []);
+    hideEarningsNow();
+  }, [hideEarningsNow]);
 
   // Pulled by the Home screen's pull-to-refresh gesture. Re-fetches both the
   // user profile (in case rate/goals changed from another device or the
@@ -257,7 +302,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setWeekExtras([]);
     setShiftsLoaded(false);
     setStatus("loggedOut");
-  }, []);
+    hideEarningsNow();
+  }, [hideEarningsNow]);
 
   // Shared handling for authenticated actions (settings/shifts): an expired or invalid
   // token logs the user out with a clear reason instead of failing silently; any other
@@ -399,6 +445,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       weekExtras,
       setWeekExtra,
       refresh,
+      earningsHidden,
+      revealEarnings,
+      hideEarningsNow,
     }),
     [
       status,
@@ -423,6 +472,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       weekExtras,
       setWeekExtra,
       refresh,
+      earningsHidden,
+      revealEarnings,
+      hideEarningsNow,
     ]
   );
 

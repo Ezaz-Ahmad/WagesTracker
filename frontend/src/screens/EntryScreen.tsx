@@ -18,6 +18,7 @@ import { useLiveElapsedHours } from "../lib/useLiveElapsedHours";
 import { ElapsedTimer, ShiftButton } from "../components/ShiftButton";
 import { ChevronDownIcon, ExtraEarningIcon, FuelIcon } from "../components/icons";
 import { Skeleton } from "../components/Skeleton";
+import { Amount } from "../components/Amount";
 
 type Row = ShiftComputed & { tempId?: string };
 
@@ -245,11 +246,15 @@ export function EntryScreen() {
       <div className="card entry-today-card anim-rise">
         <div>
           <p className="card-body entry-today-sub">
-            {active
-              ? `Started at ${formatTime12(last?.signIn)} — tap to end shift.`
-              : todayDay.hours > 0 || todayDay.fuelCost > 0
-                ? `${fmt2(todayDay.hours)}h · ${CURRENCY}${fmt2(todayDay.hours * user.rate + todayDay.fuelCost)}`
-                : "Tap to start your shift."}
+            {active ? (
+              `Started at ${formatTime12(last?.signIn)} — tap to end shift.`
+            ) : todayDay.hours > 0 || todayDay.fuelCost > 0 ? (
+              <>
+                {fmt2(todayDay.hours)}h · <Amount>{CURRENCY}{fmt2(todayDay.hours * user.rate + todayDay.fuelCost)}</Amount>
+              </>
+            ) : (
+              "Tap to start your shift."
+            )}
           </p>
           <ElapsedTimer active={active} signIn={last?.signIn ?? null} />
         </div>
@@ -444,7 +449,7 @@ export function EntryScreen() {
         <div className="week-total-row">
           <span>Total this week</span>
           <span className="count-value" style={{ fontWeight: 800 }}>
-            {fmt2(totalHours)}h · {CURRENCY}{fmt2(totalEarningsAnim)}
+            {fmt2(totalHours)}h · <Amount>{CURRENCY}{fmt2(totalEarningsAnim)}</Amount>
           </span>
         </div>
         {(weekFuelCost > 0 || otherAmount > 0) && (
@@ -454,7 +459,7 @@ export function EntryScreen() {
                 <span>
                   <FuelIcon size={12} /> Fuel cost
                 </span>
-                <span>{CURRENCY}{fmt2(weekFuelCost)}</span>
+                <Amount>{CURRENCY}{fmt2(weekFuelCost)}</Amount>
               </div>
             )}
             {otherAmount > 0 && (
@@ -463,7 +468,7 @@ export function EntryScreen() {
                   <ExtraEarningIcon size={12} /> Other earnings
                   {currentWeekExtra?.reason ? ` — ${currentWeekExtra.reason}` : ""}
                 </span>
-                <span>{CURRENCY}{fmt2(otherAmount)}</span>
+                <Amount>{CURRENCY}{fmt2(otherAmount)}</Amount>
               </div>
             )}
           </div>

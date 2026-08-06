@@ -17,9 +17,10 @@ import { ElapsedTimer, ShiftButton } from "../components/ShiftButton";
 import { GoalRing } from "../components/GoalRing";
 import { FlameIcon, TrophyIcon } from "../components/icons";
 import { Skeleton } from "../components/Skeleton";
+import { Amount } from "../components/Amount";
 
 export function HomeScreen() {
-  const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras } = useApp();
+  const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras, earningsHidden } = useApp();
   const { active, last, start, end } = useTodayShift();
   const [busy, setBusy] = useState(false);
 
@@ -131,7 +132,11 @@ export function HomeScreen() {
   const subline = active
     ? `Started at ${formatTime12(last?.signIn)} — tap to end shift.`
     : todayHasExtra
-      ? `${fmt2(todayDay.hours)}h · ${CURRENCY}${fmt2(todayDay.hours * user.rate + todayDay.fuelCost)}`
+      ? (
+          <>
+            {fmt2(todayDay.hours)}h · <Amount>{CURRENCY}{fmt2(todayDay.hours * user.rate + todayDay.fuelCost)}</Amount>
+          </>
+        )
       : "Tap to start your shift.";
 
   return (
@@ -140,7 +145,9 @@ export function HomeScreen() {
       <div className="home-top-grid">
         <div className="card elev-sm anim-rise" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 0 }}>
           <div className="week-card-top">
-            <div className="week-amount count-value">{CURRENCY}{fmt2(earningsAnim)}</div>
+            <div className="week-amount count-value">
+              <Amount>{CURRENCY}{fmt2(earningsAnim)}</Amount>
+            </div>
             <div className="week-trend" style={{ color: trendUp ? "var(--color-accent-700)" : "var(--color-text)" }}>
               {trendUp ? "▲ " : "▼ "}
               {Math.abs(trendPct)}% vs prior week
@@ -183,7 +190,9 @@ export function HomeScreen() {
                 key={d.dateISO}
                 className={`glance-bar-col${d.isToday ? " is-today" : ""}`}
                 style={{ ["--i" as string]: i }}
-                title={`${d.dayAbbr} ${d.dateLabel} — ${worked ? `${fmt2(d.displayHours)}h · ${d.moneyLabel}` : "No entry"}`}
+                title={`${d.dayAbbr} ${d.dateLabel} — ${
+                  worked ? `${fmt2(d.displayHours)}h${earningsHidden ? "" : ` · ${d.moneyLabel}`}` : "No entry"
+                }`}
               >
                 <div className="glance-bar-track">
                   <div className={`glance-bar-fill${worked ? " is-worked" : ""}`} style={{ height: `${pct}%` }} />
@@ -224,7 +233,7 @@ export function HomeScreen() {
             <TrophyIcon size={19} />
             <span>{bestDay ? bestDay.dayAbbr : "—"}</span>
           </div>
-          <div className="card-meta">{bestDay ? bestDay.moneyLabel : "Log a shift to see it"}</div>
+          <div className="card-meta">{bestDay ? <Amount>{bestDay.moneyLabel}</Amount> : "Log a shift to see it"}</div>
         </div>
       </div>
     </div>

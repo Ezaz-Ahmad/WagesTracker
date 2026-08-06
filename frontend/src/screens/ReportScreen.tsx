@@ -19,12 +19,13 @@ import { generateReportPdf } from "../pdf/generateReportPdf";
 import { useCountUp } from "../lib/useCountUp";
 import { Skeleton } from "../components/Skeleton";
 import { GoalRing } from "../components/GoalRing";
+import { Amount } from "../components/Amount";
 
 type Metric = "earnings" | "hours";
 type Period = "week" | "month" | "year";
 
 export function ReportScreen() {
-  const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras } = useApp();
+  const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras, earningsHidden } = useApp();
   const [metric, setMetric] = useState<Metric>("earnings");
   const [period, setPeriod] = useState<Period>("week");
 
@@ -98,7 +99,9 @@ export function ReportScreen() {
         <div className="report-hero-row">
           <div>
             <div className="card-kicker">This week's earnings</div>
-            <div className="week-amount count-value">{CURRENCY}{fmt2(totalEarnings)}</div>
+            <div className="week-amount count-value">
+              <Amount>{CURRENCY}{fmt2(totalEarnings)}</Amount>
+            </div>
           </div>
           <div className="report-hero-divider" aria-hidden="true" />
           <div>
@@ -151,7 +154,18 @@ export function ReportScreen() {
           {chart.points.map((p, i) => (
             <g key={i} className="chart-point" style={{ ["--i" as string]: i }}>
               <circle cx={p.x} cy={p.y} r="4.5" fill={p.dotColor} stroke={p.dotStroke} strokeWidth="2" />
-              <text x={p.x} y={p.labelY} fontSize="10" textAnchor="middle" fill="var(--color-text)" opacity="0.7">
+              {/* SVG <text> can't hold the <Amount> span, so the same mask
+                  class is applied directly here — only relevant in earnings
+                  mode, since hours were never considered sensitive. */}
+              <text
+                x={p.x}
+                y={p.labelY}
+                fontSize="10"
+                textAnchor="middle"
+                fill="var(--color-text)"
+                opacity="0.7"
+                className={metric === "earnings" ? `amount-mask${earningsHidden ? " is-hidden" : ""}` : undefined}
+              >
                 {p.valueLabel}
               </text>
             </g>
@@ -177,7 +191,9 @@ export function ReportScreen() {
           <div className="ring-goal-col">
             <GoalRing pct={earningsProgressPct} value={`${earningsProgressPctAnim}%`} size={88} strokeWidth={9} />
             <div className="ring-goal-label">Earnings</div>
-            <div className="card-meta">{CURRENCY}{fmt2(totalEarnings)} of {CURRENCY}{user.goalEarnings}</div>
+            <div className="card-meta">
+              <Amount>{CURRENCY}{fmt2(totalEarnings)} of {CURRENCY}{user.goalEarnings}</Amount>
+            </div>
           </div>
         </div>
         <div className="hr" style={{ margin: "var(--space-2) 0 var(--space-3)" }} />
@@ -185,7 +201,7 @@ export function ReportScreen() {
           <span className="count-value" style={{ fontFamily: "var(--font-heading)", fontWeight: 800, color: "var(--color-text)" }}>
             {metGoalAnim} of {history.length}
           </span>{" "}
-          weeks met your {CURRENCY}{user.goalEarnings} weekly goal.
+          weeks met your <Amount>{CURRENCY}{user.goalEarnings}</Amount> weekly goal.
         </p>
       </div>
 
@@ -208,7 +224,7 @@ export function ReportScreen() {
         <div className="period-bars">
           {periodBars.map((b, i) => (
             <div className="period-bar-col" key={i} style={{ ["--i" as string]: i }}>
-              <div className="period-bar-label">{b.valueLabel}</div>
+              <div className="period-bar-label">{metric === "earnings" ? <Amount>{b.valueLabel}</Amount> : b.valueLabel}</div>
               <div className="period-bar-fill" style={{ height: b.barStyle, background: b.barColor }} />
               <div className="period-bar-label">{b.short}</div>
             </div>

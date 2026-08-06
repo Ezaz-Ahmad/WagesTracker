@@ -3,7 +3,7 @@ import { AppProvider, useApp } from "./context/AppContext";
 import { BottomNav, TABS } from "./components/BottomNav";
 import { ConfirmProvider } from "./components/ConfirmProvider";
 import { Logo } from "./components/Logo";
-import { LogoutIcon, RefreshIcon } from "./components/icons";
+import { EyeIcon, EyeOffIcon, LogoutIcon, RefreshIcon } from "./components/icons";
 import { AuthScreen } from "./screens/AuthScreen";
 import { HomeScreen } from "./screens/HomeScreen";
 import { EntryScreen } from "./screens/EntryScreen";
@@ -16,7 +16,7 @@ import { reloadIfNewVersionDeployed } from "./lib/checkForUpdate";
 import type { Screen } from "./lib/types";
 
 function AuthedApp() {
-  const { today, user, actionError, clearActionError, logout, refresh } = useApp();
+  const { today, user, actionError, clearActionError, logout, refresh, earningsHidden, revealEarnings, hideEarningsNow } = useApp();
   const [screen, setScreen] = useState<Screen>("home");
 
   const todayLabel = today.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
@@ -94,6 +94,15 @@ function AuthedApp() {
             <span className="app-nav-greeting">Welcome back{user ? `, ${user.name.split(" ")[0]}` : ""}</span>
             <span className="app-nav-date">{todayLabel}</span>
           </div>
+          <button
+            type="button"
+            className={`app-nav-eye-btn${earningsHidden ? "" : " is-visible"}`}
+            onClick={() => (earningsHidden ? revealEarnings() : hideEarningsNow())}
+            aria-label={earningsHidden ? "Show earnings for 20 minutes" : "Hide earnings"}
+            aria-pressed={!earningsHidden}
+          >
+            {earningsHidden ? <EyeIcon size={16} /> : <EyeOffIcon size={16} />}
+          </button>
           <button
             type="button"
             className="app-nav-logout"

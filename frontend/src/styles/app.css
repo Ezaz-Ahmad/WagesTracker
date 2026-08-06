@@ -146,6 +146,36 @@ button { font-family: inherit; }
 .app-nav-logout:hover { border-color: var(--color-accent-700); color: var(--color-accent-700); background: var(--color-accent-100); }
 .app-nav-logout:active { transform: scale(0.95); }
 .app-nav-logout svg { flex: none; }
+
+/* — earnings-privacy eye toggle — icon-only, same footprint/feel as the
+   logout button next to it so the two read as a matched pair of nav
+   utilities. Accent-tinted while earnings are revealed so it's obvious at
+   a glance that something is currently un-masked. */
+.app-nav-eye-btn {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 34px; height: 34px; border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+  background: none; cursor: pointer; color: color-mix(in srgb, var(--color-text) 65%, transparent);
+}
+.app-nav-eye-btn:hover { border-color: var(--color-accent-700); color: var(--color-accent-700); background: var(--color-accent-100); }
+.app-nav-eye-btn:active { transform: scale(0.92); }
+.app-nav-eye-btn.is-visible { border-color: var(--color-accent); color: var(--color-accent-700); background: var(--color-accent-100); }
+.app-nav-eye-btn svg { flex: none; }
+
+/* — amount masking (see components/Amount.tsx) — a blur + slight dim reads
+   as "deliberately hidden" rather than "loading" or "broken", and both
+   properties transition together so revealing/hiding is one smooth motion
+   instead of a hard cut. */
+.amount-mask {
+  transition: filter var(--dur-slow) var(--ease-out), opacity var(--dur-slow) var(--ease-out);
+}
+.amount-mask.is-hidden {
+  filter: blur(9px);
+  opacity: 0.5;
+  user-select: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .amount-mask { transition: none; }
+}
 .app-main {
   flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
   -webkit-overflow-scrolling: touch; overscroll-behavior-y: none;
