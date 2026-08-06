@@ -12,6 +12,7 @@ import { HistoryScreen } from "./screens/HistoryScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { useSwipeNav } from "./lib/useSwipeNav";
 import { usePullToRefresh } from "./lib/usePullToRefresh";
+import { reloadIfNewVersionDeployed } from "./lib/checkForUpdate";
 import type { Screen } from "./lib/types";
 
 function AuthedApp() {
@@ -27,8 +28,14 @@ function AuthedApp() {
   // Pull-to-refresh — Home only, per the ask. Bound to the same scrollable
   // pane as the swipe-tab gesture; the two never conflict because a single
   // touch gesture locks to one axis or the other (see usePullToRefresh),
-  // never both.
-  const { pullY, pulling, refreshing } = usePullToRefresh(swipeRef, screen === "home", refresh);
+  // never both. Refreshes data every pull; also silently reloads the page
+  // if a newer build has been deployed since this tab was opened, so a pull
+  // gets you both the latest numbers *and* the latest app, not just one.
+  const handlePullRefresh = useCallback(async () => {
+    await refresh();
+    await reloadIfNewVersionDeployed();
+  }, [refresh]);
+  const { pullY, pulling, refreshing } = usePullToRefresh(swipeRef, screen === "home", handlePullRefresh);
 
   // Which way the tab just changed (bottom-nav tap or a completed swipe both
   // land here) — drives a directional slide on mount instead of a plain
