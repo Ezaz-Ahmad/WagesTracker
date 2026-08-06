@@ -72,21 +72,23 @@ button { font-family: inherit; }
    scroll pane in a way it historically isn't for the root document scroll,
    which is the more likely reason the previous body-lock existed at all.
 
-   Height uses `svh` (small viewport height), not `dvh` (dynamic viewport
-   height). `dvh` is what every round of the bottom-nav-gap bug traced back
-   to — it's a *live* value iOS keeps recomputing and repainting as the
-   toolbar/keyboard animate, and that repaint has repeatedly proven to lag
-   behind the real screen state (confirmed across the login-transition case
-   and now again on any input blur, e.g. the fuel-cost field). `svh` is
-   fixed at "smallest the viewport can be" the moment it's first painted and
-   never needs recomputing again — trading the ability to expand into extra
-   space when iOS's toolbar auto-hides for eliminating this entire class of
-   bug outright. The one cost is a small sliver of `.app-shell`'s own
-   background peeking below the frame in that toolbar-hidden case; matched
-   to the frame's background at phone widths below so it's invisible even
-   then (see the mobile override in shell.css). */
+   Height uses `dvh` (dynamic viewport height), not `svh` (small viewport
+   height) — `svh` was tried here and reverted. `svh` is fixed at "the
+   smallest the viewport can ever be" (toolbar fully expanded) the moment
+   it's first painted, which sounded like a clean fix for the repaint-lag
+   bug below, but on-device testing showed iOS spends much more time with
+   its toolbar *collapsed* than expected — so `svh` undershot the real
+   visible height most of the time, turning an occasional transient gap
+   into a constant one. `dvh` at least tracks the actual visible height;
+   its known issue is that it's a *live* value iOS keeps recomputing and
+   repainting as the toolbar/keyboard animate, and that repaint has
+   repeatedly proven to lag behind the real screen state for a brief moment
+   (confirmed across the login-transition case and on input blur, e.g. the
+   fuel-cost field) — a smaller, transient problem than a permanent gap.
+   The mobile background-color match below (see shell.css) stays regardless
+   of unit, since it softens whichever residual sliver shows up either way. */
 .app-shell {
-  height: 100vh; height: 100svh;
+  height: 100vh; height: 100dvh;
   overflow: hidden;
   background: var(--color-neutral-300);
   display: flex; justify-content: center;
