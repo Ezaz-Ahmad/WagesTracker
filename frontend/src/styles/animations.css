@@ -210,6 +210,22 @@
 /* — animated numerals — */
 .count-value { font-variant-numeric: tabular-nums; }
 
+/* — skeleton loading placeholders — */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.skeleton {
+  background: var(--color-neutral-200);
+  border-radius: var(--radius-md);
+  animation: skeleton-pulse 1.3s var(--ease-standard) infinite;
+}
+.skeleton-card { height: 138px; margin-bottom: var(--space-4); }
+.skeleton-tile { height: 66px; }
+.skeleton-row { height: 92px; margin-bottom: var(--space-3); }
+.skeleton-chart { height: 150px; margin-bottom: var(--space-4); }
+.skeleton-bars { height: 150px; }
+
 /* — accessibility: honor reduced-motion — */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

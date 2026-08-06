@@ -6,6 +6,7 @@ import { useTodayShift } from "../lib/useTodayShift";
 import { useCountUp } from "../lib/useCountUp";
 import { useLiveElapsedHours } from "../lib/useLiveElapsedHours";
 import { ElapsedTimer, ShiftButton } from "../components/ShiftButton";
+import { Skeleton } from "../components/Skeleton";
 
 export function HomeScreen() {
   const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras } = useApp();
@@ -69,7 +70,14 @@ export function HomeScreen() {
     return (
       <div className="screen-wide screen-transition">
         <h6 className="section-title">This week</h6>
-        <div className="section-hint">Loading your week…</div>
+        <div className="home-top-grid">
+          <Skeleton className="skeleton-card" />
+          <Skeleton className="skeleton-card" />
+        </div>
+        <div className="stat-grid">
+          <Skeleton className="skeleton-tile" />
+          <Skeleton className="skeleton-tile" />
+        </div>
       </div>
     );
   }

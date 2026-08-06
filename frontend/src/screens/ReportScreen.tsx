@@ -17,6 +17,7 @@ import { buildWeekDays, isoDate } from "../lib/date";
 import { buildWeekReportData } from "../lib/reportData";
 import { generateReportPdf } from "../pdf/generateReportPdf";
 import { useCountUp } from "../lib/useCountUp";
+import { Skeleton } from "../components/Skeleton";
 
 type Metric = "earnings" | "hours";
 type Period = "week" | "month" | "year";
@@ -66,7 +67,8 @@ export function ReportScreen() {
     return (
       <div className="screen-wide screen-transition">
         <h6 className="section-title">Progress report</h6>
-        <div className="section-hint">Loading your data…</div>
+        <Skeleton className="skeleton-chart" />
+        <Skeleton className="skeleton-bars" />
       </div>
     );
   }

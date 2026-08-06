@@ -1,6 +1,7 @@
 import { CURRENCY, useApp } from "../context/AppContext";
 import { buildWeeklyHistory } from "../lib/aggregate";
 import { fmt2 } from "../lib/date";
+import { Skeleton } from "../components/Skeleton";
 
 export function HistoryScreen() {
   const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras } = useApp();
@@ -9,7 +10,9 @@ export function HistoryScreen() {
     return (
       <div className="screen-narrow screen-transition">
         <h6 className="section-title">History</h6>
-        <div className="section-hint">Loading your history…</div>
+        <Skeleton className="skeleton-row" />
+        <Skeleton className="skeleton-row" />
+        <Skeleton className="skeleton-row" />
       </div>
     );
   }

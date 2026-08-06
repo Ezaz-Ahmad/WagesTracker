@@ -17,6 +17,7 @@ import { useCountUp } from "../lib/useCountUp";
 import { useLiveElapsedHours } from "../lib/useLiveElapsedHours";
 import { ElapsedTimer, ShiftButton } from "../components/ShiftButton";
 import { ExtraEarningIcon, FuelIcon } from "../components/icons";
+import { Skeleton } from "../components/Skeleton";
 
 type Row = ShiftComputed & { tempId?: string };
 
@@ -86,7 +87,10 @@ export function EntryScreen() {
     return (
       <div className="screen-narrow screen-transition">
         <h6 className="section-title">This week's hours</h6>
-        <div className="section-hint">Loading your week…</div>
+        <Skeleton className="skeleton-card" />
+        <Skeleton className="skeleton-row" />
+        <Skeleton className="skeleton-row" />
+        <Skeleton className="skeleton-row" />
       </div>
     );
   }

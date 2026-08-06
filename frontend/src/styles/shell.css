@@ -37,6 +37,13 @@
   .goal-rows > div { flex: 1; }
   .chart-svg { height: 190px; }
   .period-bars { height: 190px; }
+
+  /* Forms and single-column reads (Settings, History, Entry) stay a
+     comfortable reading width instead of stretching edge-to-edge now that
+     the card itself is wider than a phone — same treatment desktop gets,
+     just starting here instead of waiting for the sidebar breakpoint. */
+  .screen-narrow { max-width: 520px; margin: 0 auto; }
+  .table th, .table td { padding: var(--space-3) var(--space-2); }
 }
 
 /* — laptop / desktop: persistent sidebar shell — */
