@@ -16,6 +16,38 @@ export const CURRENCY = "$";
 // signing back in picks the running total back up exactly where it left off.
 const IDLE_LOGOUT_MS = 10 * 60 * 1000;
 
+// On mobile, submitting the login/signup form happens while the on-screen
+// keyboard is still open. If we flip straight to the authed shell at that
+// instant, iOS Safari paints the `100dvh` app shell against the viewport as
+// it looks *with the keyboard still closing* — leaving a gap under the
+// bottom nav until the next real scroll nudges Safari into recomputing it.
+// Blurring the field and waiting one real keyboard-close cycle (via
+// `visualViewport`'s resize event, since that's what actually fires when
+// the keyboard animates away) means the shell only ever mounts against the
+// settled viewport. Skipped entirely when no keyboard is open (desktop, or
+// a fast auto-login) so it never adds latency where there's nothing to wait
+// for.
+async function settleKeyboardBeforeAuth(): Promise<void> {
+  const active = document.activeElement as HTMLElement | null;
+  active?.blur();
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const keyboardLikelyOpen = window.innerHeight - vv.height > 80;
+  if (!keyboardLikelyOpen) return;
+  await new Promise<void>((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      vv.removeEventListener("resize", finish);
+      clearTimeout(timer);
+      resolve();
+    };
+    vv.addEventListener("resize", finish);
+    const timer = setTimeout(finish, 400);
+  });
+}
+
 type Status = "loading" | "loggedOut" | "loggedIn";
 
 interface AppContextValue {
@@ -128,6 +160,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (remember) api.setRememberedEmail(email);
       else api.clearRememberedEmail();
       setUser(user);
+      await settleKeyboardBeforeAuth();
       setStatus("loggedIn");
     } catch (e) {
       setAuthError(e instanceof Error ? e.message : "Could not log in");
@@ -143,6 +176,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const { token, user } = await api.signup(input);
       api.setToken(token, true);
       setUser(user);
+      await settleKeyboardBeforeAuth();
       setStatus("loggedIn");
     } catch (e) {
       setAuthError(e instanceof Error ? e.message : "Could not create account");
