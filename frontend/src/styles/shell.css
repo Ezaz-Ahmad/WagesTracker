@@ -24,6 +24,15 @@
   padding: var(--space-2) var(--space-3) var(--space-4);
 }
 
+/* — phone: the frame already fills the full width here (no side
+   letterboxing), so match the shell's background to the frame's. Combined
+   with `svh` in app.css, any small residual gap that can appear below the
+   bottom nav when iOS's toolbar happens to be hidden reads as the same
+   continuous background rather than a mismatched-color seam. */
+@media (max-width: 719px) {
+  .app-shell { background: var(--color-bg); }
+}
+
 /* — tablet: wider card, bottom nav stays (still a touch device) — */
 @media (min-width: 720px) {
   .app-frame { max-width: 640px; }

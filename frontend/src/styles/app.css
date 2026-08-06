@@ -70,9 +70,23 @@ button { font-family: inherit; }
    `overscroll-behavior-y: none` directly on `.app-main`, the actual
    scrolling element — that's reliably supported on iOS for an inner
    scroll pane in a way it historically isn't for the root document scroll,
-   which is the more likely reason the previous body-lock existed at all. */
+   which is the more likely reason the previous body-lock existed at all.
+
+   Height uses `svh` (small viewport height), not `dvh` (dynamic viewport
+   height). `dvh` is what every round of the bottom-nav-gap bug traced back
+   to — it's a *live* value iOS keeps recomputing and repainting as the
+   toolbar/keyboard animate, and that repaint has repeatedly proven to lag
+   behind the real screen state (confirmed across the login-transition case
+   and now again on any input blur, e.g. the fuel-cost field). `svh` is
+   fixed at "smallest the viewport can be" the moment it's first painted and
+   never needs recomputing again — trading the ability to expand into extra
+   space when iOS's toolbar auto-hides for eliminating this entire class of
+   bug outright. The one cost is a small sliver of `.app-shell`'s own
+   background peeking below the frame in that toolbar-hidden case; matched
+   to the frame's background at phone widths below so it's invisible even
+   then (see the mobile override in shell.css). */
 .app-shell {
-  height: 100vh; height: 100dvh;
+  height: 100vh; height: 100svh;
   overflow: hidden;
   background: var(--color-neutral-300);
   display: flex; justify-content: center;
