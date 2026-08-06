@@ -10,6 +10,10 @@
 :root {
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  /* "Emphasized decelerate" — a slow, considered start that settles firmly
+     with no overshoot. Reserved for expand/reveal motion (accordions, etc.)
+     where a bouncy or linear curve reads as toy-like rather than premium. */
+  --ease-emphasized: cubic-bezier(0.05, 0.7, 0.1, 1);
   --dur-fast: 140ms;
   --dur-base: 260ms;
   --dur-slow: 420ms;

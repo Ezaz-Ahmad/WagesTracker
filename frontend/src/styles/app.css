@@ -178,14 +178,19 @@ button { font-family: inherit; }
    real height. Cards (rather than a plain divided list) give each day its
    own visual weight and make the collapsed state feel like a deliberate,
    tidy summary rather than an empty gap. */
+/* Every property that visibly changes on open/close shares one duration and
+   one curve (--ease-emphasized) so the card reads as a single considered
+   motion rather than several parts moving on their own schedules — that
+   mismatch (bouncy chevron, separately-timed shadow, sliding content) was
+   what made the previous version feel cheap. Nothing overshoots; everything
+   settles once, together. */
 .day-card {
   background: var(--color-bg);
   border: 1px solid var(--color-divider);
   border-radius: 14px;
   margin-bottom: var(--space-3);
   overflow: hidden;
-  transition: border-color 320ms var(--ease-out, ease),
-    box-shadow 320ms var(--ease-out, ease);
+  transition: border-color 340ms var(--ease-emphasized), box-shadow 340ms var(--ease-emphasized);
 }
 .day-card.has-content { border-color: color-mix(in srgb, var(--color-accent) 22%, var(--color-divider)); }
 .day-card.is-open {
@@ -205,12 +210,12 @@ button { font-family: inherit; }
 .day-chevron-btn {
   flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
   background: var(--color-neutral-200);
-  transition: background-color 320ms var(--ease-out, ease), transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: background-color 340ms var(--ease-emphasized);
 }
-.day-card.is-open .day-chevron-btn { background: var(--color-accent-100); transform: scale(1.08); }
+.day-card.is-open .day-chevron-btn { background: var(--color-accent-100); }
 .day-chevron {
   color: color-mix(in srgb, var(--color-text) 50%, transparent);
-  transition: transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1), color 320ms var(--ease-out, ease);
+  transition: transform 340ms var(--ease-emphasized), color 340ms var(--ease-emphasized);
 }
 .day-card.is-open .day-chevron { transform: rotate(-180deg); color: var(--color-accent-700); }
 .day-row-head-main { flex: 1; min-width: 0; }
@@ -229,8 +234,8 @@ button { font-family: inherit; }
   font-size: 11.5px; color: color-mix(in srgb, var(--color-text) 55%, transparent);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   max-height: 15px; margin-top: 2px; opacity: 1;
-  transition: max-height 300ms var(--ease-out, ease), opacity 180ms var(--ease-out, ease),
-    margin-top 300ms var(--ease-out, ease);
+  transition: max-height 340ms var(--ease-emphasized), opacity 200ms var(--ease-emphasized),
+    margin-top 340ms var(--ease-emphasized);
 }
 .day-card.is-open .day-row-summary { max-height: 0; opacity: 0; margin-top: 0; }
 .day-hours { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -241,7 +246,7 @@ button { font-family: inherit; }
 .day-row-collapse {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows 380ms var(--ease-out, ease);
+  transition: grid-template-rows 340ms var(--ease-emphasized);
 }
 .day-card.is-open .day-row-collapse { grid-template-rows: 1fr; }
 .day-row-body {
@@ -249,21 +254,20 @@ button { font-family: inherit; }
   padding: 2px var(--space-3) var(--space-3);
   border-top: 1px solid var(--color-divider);
   margin-top: 1px;
-  /* Content fades and lifts into place as the card opens, instead of just
-     appearing once the container reaches full height — the two motions
-     together (grow + settle) are what make the reveal feel alive rather
-     than mechanical. Delayed slightly so it starts once there's room. */
+  /* Opacity-only, no slide — a translateY here fights the clip mask from
+     the grid-rows reveal (content visibly sliding up through a shrinking
+     window reads as glitchy, not smooth), so the content just settles in
+     as the space for it opens up. */
   opacity: 0;
-  transform: translateY(-8px);
-  transition: opacity 260ms var(--ease-out, ease) 60ms, transform 380ms var(--ease-out, ease) 60ms;
+  transition: opacity 220ms var(--ease-emphasized) 90ms;
 }
-.day-card.is-open .day-row-body { opacity: 1; transform: translateY(0); }
+.day-card.is-open .day-row-body { opacity: 1; }
 @media (prefers-reduced-motion: reduce) {
   .day-row-collapse { transition: none; }
   .day-chevron { transition: none; }
   .day-chevron-btn { transition: none; }
   .day-row-summary { transition: none; }
-  .day-row-body { transition: none; opacity: 1; transform: none; }
+  .day-row-body { transition: none; opacity: 1; }
 }
 .shift-row { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); }
 .shift-location { flex: 1.3; }

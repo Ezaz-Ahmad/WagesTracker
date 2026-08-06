@@ -44,12 +44,10 @@ export function EntryScreen() {
   // amount yet, or has just unchecked it (before the save round-trips).
   const [fuelOpen, setFuelOpen] = useState<Record<string, boolean>>({});
 
-  // Each day collapses into an accordion so the week reads as a short,
-  // organized list instead of seven full blocks of inputs. Undefined (not
-  // yet toggled by the user) defaults to open for any day that already has
-  // entries — so a day you've already worked stays visible — and closed for
-  // empty days; once the user taps a header it's tracked explicitly here for
-  // the rest of the session.
+  // Each day collapses into an accordion so the week always reads as a
+  // short, organized list — every day starts closed regardless of whether
+  // it already has entries. Tapping a header opens just that one day,
+  // tracked here for the rest of the session.
   const [openDays, setOpenDays] = useState<Record<string, boolean>>({});
 
   // The single "other earnings" entry for the week, edited via a small form
@@ -175,8 +173,8 @@ export function EntryScreen() {
     void generateReportPdf(buildWeekReportData(user!, shifts, today, CURRENCY, dayExpenses, weekExtras));
   }
 
-  function isDayOpen(day: DayComputed, dayHasContent: boolean): boolean {
-    return openDays[day.dateISO] ?? dayHasContent;
+  function isDayOpen(day: DayComputed): boolean {
+    return openDays[day.dateISO] ?? false;
   }
 
   function toggleDay(dateISO: string, current: boolean) {
@@ -260,7 +258,7 @@ export function EntryScreen() {
 
       {days.map((day, i) => {
         const dayHasContent = day.shifts.length > 0 || (pending[day.dateISO]?.length ?? 0) > 0;
-        const open = isDayOpen(day, dayHasContent);
+        const open = isDayOpen(day);
         // The collapsed-state summary is always about *where*, never a count
         // — hours/pay are already covered by the amount on the right, so
         // repeating "2 shifts" next to it was redundant. Multiple shifts at
