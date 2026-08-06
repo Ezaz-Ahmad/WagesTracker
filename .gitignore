@@ -8,3 +8,6 @@ build/
 backend/data/
 .DS_Store
 *.tsbuildinfo
+
+# Local-only design conversation transcript — never pushed to GitHub.
+chats/
