@@ -4,7 +4,6 @@ import { BottomNav, TABS } from "./components/BottomNav";
 import { ConfirmProvider } from "./components/ConfirmProvider";
 import { Logo } from "./components/Logo";
 import { LogoutIcon } from "./components/icons";
-import { LoginGapDebug } from "./components/LoginGapDebug";
 import { AuthScreen } from "./screens/AuthScreen";
 import { HomeScreen } from "./screens/HomeScreen";
 import { EntryScreen } from "./screens/EntryScreen";
@@ -57,7 +56,6 @@ function AuthedApp() {
 
   return (
     <div className={`app-shell${entered ? " is-entered" : ""}`}>
-      <LoginGapDebug />
       <div className="app-frame">
         <div className="nav app-nav">
           <div className="app-nav-identity">
