@@ -24,52 +24,27 @@ function AuthedApp() {
   const handleSwipeNavigate = useCallback((index: number) => setScreen(TABS[index].screen), []);
   const { ref: swipeRef, dragX, dragging } = useSwipeNav<HTMLDivElement>(activeIndex, TABS.length, handleSwipeNavigate);
 
-  // Diagnostics confirmed this shell's *layout* (shell/window/nav
-  // measurements) settles correctly within ~150ms of mount — but the user
-  // still sees a visible gap until they scroll, meaning the problem is a
-  // stale *paint*: iOS keeps showing an old composited frame of the shell
-  // even once the underlying layout is already correct, and only a real,
-  // native touch-driven scroll makes it redraw. A JS-triggered scroll
-  // updates the numbers but doesn't go through the same native gesture
-  // pipeline, so it doesn't reliably force that redraw. What does work
-  // unconditionally: pulling the shell out of the render tree and putting
-  // it straight back. That forces WebKit to rebuild and repaint it from
-  // scratch against the current (already-correct) layout, with no
-  // dependency on a native gesture. Done synchronously so nothing is ever
-  // actually missing on screen for a frame.
+  // Both a JS scroll nudge and a forced display-toggle repaint failed to
+  // fix this (confirmed on-device) and the scroll nudge actively made
+  // things worse — it seems to trigger iOS's own toolbar hide/show
+  // heuristic, which then keeps oscillating on its own for a couple of
+  // seconds instead of settling once. Fighting the browser's compositor
+  // directly isn't working, so instead of forcing an instantaneous repaint,
+  // fade the shell in over a real CSS transition. An opacity animation
+  // forces a fresh composite on every frame it runs, so whatever the state
+  // is by the time the fade finishes (layout is confirmed to settle within
+  // well under a second on its own), that's what gets painted — no scroll
+  // tricks, nothing that can destabilize the toolbar.
+  const [entered, setEntered] = useState(false);
   useEffect(() => {
-    const body = document.body;
-    const prevOverflow = body.style.overflow;
-    const prevMinHeight = body.style.minHeight;
-    body.style.overflow = "auto";
-    body.style.minHeight = "calc(100% + 4px)";
-
-    const forceRepaint = () => {
-      const shell = document.querySelector<HTMLElement>(".app-shell");
-      if (!shell) return;
-      const prevDisplay = shell.style.display;
-      shell.style.display = "none";
-      void shell.offsetHeight; // flush the removal synchronously
-      shell.style.display = prevDisplay;
-    };
-
     let raf2 = 0;
     const raf1 = requestAnimationFrame(() => {
-      window.scrollTo(0, 3);
-      raf2 = requestAnimationFrame(() => {
-        window.scrollTo(0, 0);
-        body.style.overflow = prevOverflow;
-        body.style.minHeight = prevMinHeight;
-        forceRepaint();
-      });
+      raf2 = requestAnimationFrame(() => setEntered(true));
     });
     return () => {
       cancelAnimationFrame(raf1);
       cancelAnimationFrame(raf2);
-      body.style.overflow = prevOverflow;
-      body.style.minHeight = prevMinHeight;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const trackStyle = useMemo(
@@ -81,7 +56,7 @@ function AuthedApp() {
   );
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${entered ? " is-entered" : ""}`}>
       <LoginGapDebug />
       <div className="app-frame">
         <div className="nav app-nav">

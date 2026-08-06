@@ -71,6 +71,17 @@ button { font-family: inherit; }
   overflow: hidden;
   background: var(--color-neutral-300);
   display: flex; justify-content: center;
+  /* Fades in right after mount (see App.tsx) instead of appearing instantly —
+     forces iOS to recomposite every frame of the transition, so by the time
+     it's fully visible it's guaranteed to be painted against settled layout,
+     sidestepping a stale-paint bug where the bottom nav briefly shows a gap
+     right after login that only otherwise clears on the user's first scroll. */
+  opacity: 0;
+  transition: opacity 380ms var(--ease-out, ease);
+}
+.app-shell.is-entered { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .app-shell { opacity: 1; transition: none; }
 }
 .app-frame {
   width: 100%; max-width: 460px; height: 100%; background: var(--color-bg);
