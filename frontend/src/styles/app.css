@@ -398,7 +398,12 @@ button { font-family: inherit; }
 }
 
 /* — report — */
-.chart-svg { overflow: visible; display: block; }
+/* `aspect-ratio` matches the chart's viewBox (320x150) exactly, so the SVG's
+   default uniform scaling has no width/height mismatch to stretch against —
+   the chart grows cleanly at any card width instead of needing a per-
+   breakpoint pixel height (see the tablet/desktop overrides this replaced
+   in shell.css, and the comment on the <svg> itself in ReportScreen). */
+.chart-svg { width: 100%; aspect-ratio: 320 / 150; height: auto; overflow: visible; display: block; }
 .chart-x-labels { display: flex; gap: 0; padding: 0 var(--space-1); margin-top: 4px; }
 .chart-x-label { flex: 1; text-align: center; font-size: 10px; opacity: 0.6; }
 /* Headline card at the top of the report — two big numbers side by side,

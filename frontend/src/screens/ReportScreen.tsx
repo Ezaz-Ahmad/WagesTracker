@@ -121,9 +121,25 @@ export function ReportScreen() {
           </div>
         </div>
 
-        <svg viewBox="0 0 320 150" width="100%" height="150" preserveAspectRatio="none" className="chart-svg">
-          <line x1="0" y1="118" x2="320" y2="118" stroke="var(--color-divider)" strokeWidth="1" />
-          <path d={chart.areaPath} fill="var(--color-accent-100)" stroke="none" className="chart-area-fade" />
+        {/* `width="100%"` with no fixed `height` and no `preserveAspectRatio`
+            override lets the default uniform ("meet") scaling do the work —
+            paired with the CSS `aspect-ratio` on .chart-svg matching this
+            viewBox exactly, the chart scales the same in x and y at every
+            container width. It used to force height to a flat 150px (190px
+            on tablet, 220px on desktop) while width flexed independently,
+            which stretched the dots into ellipses and the line out of
+            proportion on anything other than a ~320px-wide phone. */}
+        <svg viewBox="0 0 320 150" width="100%" className="chart-svg">
+          <defs>
+            <linearGradient id="reportAreaFade" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--color-accent-300)" stopOpacity="0.6" />
+              <stop offset="100%" stopColor="var(--color-accent-100)" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          {[30, 74, 118].map((y) => (
+            <line key={y} x1="0" y1={y} x2="320" y2={y} stroke="var(--color-divider)" strokeWidth="1" opacity={y === 118 ? 0.5 : 0.2} />
+          ))}
+          <path d={chart.areaPath} fill="url(#reportAreaFade)" stroke="none" className="chart-area-fade" />
           <polyline
             points={chart.linePoints}
             fill="none"

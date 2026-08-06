@@ -41,7 +41,6 @@
     gap: var(--space-4);
     align-items: stretch;
   }
-  .chart-svg { height: 190px; }
   .period-bars { height: 190px; }
   /* Home's 4 stat tiles (days logged, weeks on goal, streak, best day) sit
      2x2 on a phone-width card; once there's room, one row of 4 uses the
