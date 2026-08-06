@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppProvider, useApp } from "./context/AppContext";
 import { BottomNav, TABS } from "./components/BottomNav";
 import { ConfirmProvider } from "./components/ConfirmProvider";
@@ -22,6 +22,26 @@ function AuthedApp() {
   const activeIndex = Math.max(0, TABS.findIndex((t) => t.screen === screen));
   const handleSwipeNavigate = useCallback((index: number) => setScreen(TABS[index].screen), []);
   const { ref: swipeRef, dragX, dragging } = useSwipeNav<HTMLDivElement>(activeIndex, TABS.length, handleSwipeNavigate);
+
+  // iOS Safari occasionally paints this shell's `100dvh` layout against a
+  // stale viewport right at the moment the auth screen unmounts into it
+  // (the login keyboard is closing and a big chunk of the DOM is swapping
+  // out in the same frame). The result is a gap under the bottom nav that
+  // only corrects itself once the user scrolls — because a real scroll is
+  // what makes Safari recompute the dynamic viewport. Nudge the content
+  // pane by a pixel and back right after mount so that correction happens
+  // automatically instead of waiting on the user's first touch.
+  useEffect(() => {
+    const el = swipeRef.current;
+    if (!el) return;
+    el.scrollTop = 1;
+    const id = requestAnimationFrame(() => {
+      el.scrollTop = 0;
+    });
+    return () => cancelAnimationFrame(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const trackStyle = useMemo(
     () => ({
       transform: `translateX(${dragX}px)`,
