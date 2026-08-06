@@ -14,6 +14,12 @@ body.is-app-locked {
   position: fixed;
   inset: 0;
   width: 100%;
+  /* Explicit `auto` (overriding the plain `height: 100%` rule above) so the
+     `top: 0; bottom: 0;` from `inset: 0` is what determines the box's size —
+     leaving `height: 100%` in place alongside a fixed position with all four
+     inset offsets set is an over-constrained combination that some engines
+     resolve by preferring the stale percentage height over the live offsets. */
+  height: auto;
   overflow: hidden;
   overscroll-behavior: none;
 }
