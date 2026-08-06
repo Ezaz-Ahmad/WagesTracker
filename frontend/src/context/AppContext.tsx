@@ -77,6 +77,8 @@ interface AppContextValue {
 
   weekExtras: WeekExtra[];
   setWeekExtra: (weekStart: string, amount: number | null, reason: string) => Promise<boolean>;
+
+  refresh: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -194,6 +196,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setShiftsLoaded(false);
     setStatus("loggedOut");
   }, []);
+
+  // Pulled by the Home screen's pull-to-refresh gesture. Re-fetches both the
+  // user profile (in case rate/goals changed from another device or the
+  // admin panel) and shifts/expenses/extras — the same data an app reload
+  // would fetch, without the jank of an actual page reload. Silent on
+  // failure (a background refresh someone can just retry by pulling again)
+  // except for an expired session, which needs the normal logout handling.
+  const refresh = useCallback(async () => {
+    if (!user) return;
+    try {
+      const { user: freshUser } = await api.fetchMe();
+      setUser(freshUser);
+      await reloadShifts(freshUser, today);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) {
+        logout();
+        setActionError("Your session expired. Please log in again.");
+      }
+    }
+  }, [user, today, reloadShifts, logout]);
 
   // Idle auto-logout: resets on any real interaction while logged in, and
   // signs out (with an explanatory message on the login screen) if none
@@ -376,6 +398,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setFuelCost,
       weekExtras,
       setWeekExtra,
+      refresh,
     }),
     [
       status,
@@ -399,6 +422,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setFuelCost,
       weekExtras,
       setWeekExtra,
+      refresh,
     ]
   );
 

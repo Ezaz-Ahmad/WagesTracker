@@ -185,6 +185,16 @@ export function TrophyIcon({ size = 18 }: IconProps) {
   );
 }
 
+/** Circular refresh arrows — used on the Home screen's pull-to-refresh indicator. */
+export function RefreshIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <path d="M20 11A8 8 0 105.5 16.5" />
+      <path d="M20 5v6h-6" />
+    </svg>
+  );
+}
+
 /** GitHub brand mark — filled silhouette, used only next to the credit link. */
 export function GithubIcon({ size = 14 }: IconProps) {
   return (

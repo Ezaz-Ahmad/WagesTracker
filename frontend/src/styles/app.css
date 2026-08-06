@@ -109,6 +109,26 @@ button { font-family: inherit; }
   display: flex; flex-direction: column; box-shadow: var(--shadow-lg); position: relative;
   overflow: hidden;
 }
+/* — pull-to-refresh (Home only, see usePullToRefresh + App.tsx) — a small
+   circular badge parked just above .app-main's top edge; App.tsx drives its
+   position/scale/opacity directly off the live pull distance via inline
+   style, so this only needs to define what it looks like at rest. */
+.pull-refresh-indicator {
+  position: absolute; top: -44px; left: 50%; z-index: 1;
+  width: 34px; height: 34px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--color-accent-100); color: var(--color-accent-700);
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
+}
+.pull-refresh-indicator.is-refreshing svg { animation: pull-refresh-spin 800ms linear infinite; }
+@keyframes pull-refresh-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pull-refresh-indicator.is-refreshing svg { animation: none; }
+}
+
 .app-nav { flex: none; padding-top: max(var(--space-3), env(safe-area-inset-top)); }
 /* Groups brand/greeting + date into one left-aligned block so the log out
    button can own the far right — the date used to live there, but that's

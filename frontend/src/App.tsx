@@ -3,7 +3,7 @@ import { AppProvider, useApp } from "./context/AppContext";
 import { BottomNav, TABS } from "./components/BottomNav";
 import { ConfirmProvider } from "./components/ConfirmProvider";
 import { Logo } from "./components/Logo";
-import { LogoutIcon } from "./components/icons";
+import { LogoutIcon, RefreshIcon } from "./components/icons";
 import { AuthScreen } from "./screens/AuthScreen";
 import { HomeScreen } from "./screens/HomeScreen";
 import { EntryScreen } from "./screens/EntryScreen";
@@ -11,10 +11,11 @@ import { ReportScreen } from "./screens/ReportScreen";
 import { HistoryScreen } from "./screens/HistoryScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { useSwipeNav } from "./lib/useSwipeNav";
+import { usePullToRefresh } from "./lib/usePullToRefresh";
 import type { Screen } from "./lib/types";
 
 function AuthedApp() {
-  const { today, user, actionError, clearActionError, logout } = useApp();
+  const { today, user, actionError, clearActionError, logout, refresh } = useApp();
   const [screen, setScreen] = useState<Screen>("home");
 
   const todayLabel = today.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
@@ -22,6 +23,12 @@ function AuthedApp() {
   const activeIndex = Math.max(0, TABS.findIndex((t) => t.screen === screen));
   const handleSwipeNavigate = useCallback((index: number) => setScreen(TABS[index].screen), []);
   const { ref: swipeRef, dragX, dragging } = useSwipeNav<HTMLDivElement>(activeIndex, TABS.length, handleSwipeNavigate);
+
+  // Pull-to-refresh — Home only, per the ask. Bound to the same scrollable
+  // pane as the swipe-tab gesture; the two never conflict because a single
+  // touch gesture locks to one axis or the other (see usePullToRefresh),
+  // never both.
+  const { pullY, pulling, refreshing } = usePullToRefresh(swipeRef, screen === "home", refresh);
 
   // Which way the tab just changed (bottom-nav tap or a completed swipe both
   // land here) — drives a directional slide on mount instead of a plain
@@ -59,10 +66,13 @@ function AuthedApp() {
 
   const trackStyle = useMemo(
     () => ({
-      transform: `translateX(${dragX}px)`,
-      transition: dragging ? "none" : "transform 320ms cubic-bezier(0.22, 1, 0.36, 1)",
+      // Horizontal (tab swipe) and vertical (pull-to-refresh) drags share
+      // this one transform — safe to combine because a single gesture only
+      // ever drives one of the two axes at a time (see usePullToRefresh).
+      transform: `translate(${dragX}px, ${pullY}px)`,
+      transition: dragging || pulling ? "none" : "transform 320ms cubic-bezier(0.22, 1, 0.36, 1)",
     }),
-    [dragX, dragging]
+    [dragX, dragging, pullY, pulling]
   );
 
   return (
@@ -97,6 +107,18 @@ function AuthedApp() {
         )}
 
         <div className="app-main" ref={swipeRef}>
+          {screen === "home" && (
+            <div
+              className={`pull-refresh-indicator${refreshing ? " is-refreshing" : ""}`}
+              style={{
+                opacity: Math.min(1, pullY / 40),
+                transform: `translate(-50%, ${pullY}px) scale(${Math.min(1, 0.7 + pullY / 170)})`,
+              }}
+              aria-hidden="true"
+            >
+              <RefreshIcon size={18} />
+            </div>
+          )}
           <div className="swipe-track" style={trackStyle}>
             <div key={screen} className={screenTransitionClass}>
               {screen === "home" && <HomeScreen />}
