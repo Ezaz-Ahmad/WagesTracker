@@ -222,10 +222,17 @@ button { font-family: inherit; }
   background: var(--color-accent-100); color: var(--color-accent-700);
   font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
 }
+/* Stays mounted in both states (only its size/opacity change) so opening a
+   card never causes the header to snap to a new height out of sync with the
+   smooth body reveal below it — that mismatch was the "shake" on open. */
 .day-row-summary {
-  font-size: 11.5px; margin-top: 2px; color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  font-size: 11.5px; color: color-mix(in srgb, var(--color-text) 55%, transparent);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-height: 15px; margin-top: 2px; opacity: 1;
+  transition: max-height 260ms var(--ease-standard, ease), opacity 180ms var(--ease-standard, ease),
+    margin-top 260ms var(--ease-standard, ease);
 }
+.day-card.is-open .day-row-summary { max-height: 0; opacity: 0; margin-top: 0; }
 .day-hours { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .day-hours.is-empty { font-weight: 600; color: color-mix(in srgb, var(--color-text) 40%, transparent); }
 .day-row-actions { display: flex; align-items: center; gap: var(--space-2); flex: none; }
@@ -246,6 +253,7 @@ button { font-family: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .day-row-collapse { transition: none; }
   .day-chevron { transition: none; }
+  .day-row-summary { transition: none; }
 }
 .shift-row { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); }
 .shift-location { flex: 1.3; }

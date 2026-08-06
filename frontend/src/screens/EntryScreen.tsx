@@ -45,9 +45,11 @@ export function EntryScreen() {
   const [fuelOpen, setFuelOpen] = useState<Record<string, boolean>>({});
 
   // Each day collapses into an accordion so the week reads as a short,
-  // organized list instead of seven full blocks of inputs. Every day starts
-  // closed; tapping a header opens just that one day, tracked here for the
-  // rest of the session.
+  // organized list instead of seven full blocks of inputs. Undefined (not
+  // yet toggled by the user) defaults to open for any day that already has
+  // entries — so a day you've already worked stays visible — and closed for
+  // empty days; once the user taps a header it's tracked explicitly here for
+  // the rest of the session.
   const [openDays, setOpenDays] = useState<Record<string, boolean>>({});
 
   // The single "other earnings" entry for the week, edited via a small form
@@ -173,8 +175,8 @@ export function EntryScreen() {
     void generateReportPdf(buildWeekReportData(user!, shifts, today, CURRENCY, dayExpenses, weekExtras));
   }
 
-  function isDayOpen(day: DayComputed): boolean {
-    return openDays[day.dateISO] ?? false;
+  function isDayOpen(day: DayComputed, dayHasContent: boolean): boolean {
+    return openDays[day.dateISO] ?? dayHasContent;
   }
 
   function toggleDay(dateISO: string, current: boolean) {
@@ -258,17 +260,15 @@ export function EntryScreen() {
 
       {days.map((day, i) => {
         const dayHasContent = day.shifts.length > 0 || (pending[day.dateISO]?.length ?? 0) > 0;
-        const open = isDayOpen(day);
-        const shiftCount = day.shifts.length;
-        const firstLocation = day.shifts[0]?.location?.trim();
-        const summary =
-          !open && dayHasContent
-            ? shiftCount === 1
-              ? firstLocation || "1 shift"
-              : `${shiftCount} shifts${firstLocation ? ` · ${firstLocation}` : ""}`
-            : !open
-              ? "No entries"
-              : null;
+        const open = isDayOpen(day, dayHasContent);
+        // The collapsed-state summary is always about *where*, never a count
+        // — hours/pay are already covered by the amount on the right, so
+        // repeating "2 shifts" next to it was redundant. Multiple shifts at
+        // different locations list all of them; duplicates collapse to one.
+        const locations = Array.from(
+          new Set(day.shifts.map((s) => s.location.trim()).filter((loc) => loc.length > 0))
+        );
+        const summary = dayHasContent ? (locations.length ? locations.join(", ") : null) : "No entries";
         return (
         <div
           key={day.dateISO}
@@ -297,7 +297,11 @@ export function EntryScreen() {
                 <span className="day-date">{day.dateLabel}</span>
                 {day.isToday && <span className="day-today-badge">Today</span>}
               </div>
-              {summary && <div className="day-row-summary">{summary}</div>}
+              {summary && (
+                <div className="day-row-summary" aria-hidden={open}>
+                  {summary}
+                </div>
+              )}
             </div>
             <div className="day-row-actions">
               <div className={`day-hours${day.hours > 0 ? "" : " is-empty"}`}>{day.hoursLabel}</div>
