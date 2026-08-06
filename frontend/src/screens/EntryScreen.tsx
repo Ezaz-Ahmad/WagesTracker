@@ -16,7 +16,7 @@ import { useTodayShift } from "../lib/useTodayShift";
 import { useCountUp } from "../lib/useCountUp";
 import { useLiveElapsedHours } from "../lib/useLiveElapsedHours";
 import { ElapsedTimer, ShiftButton } from "../components/ShiftButton";
-import { ExtraEarningIcon, FuelIcon } from "../components/icons";
+import { ChevronDownIcon, ExtraEarningIcon, FuelIcon } from "../components/icons";
 import { Skeleton } from "../components/Skeleton";
 
 type Row = ShiftComputed & { tempId?: string };
@@ -43,6 +43,14 @@ export function EntryScreen() {
   // holds state while the user has the box open but hasn't entered/blurred an
   // amount yet, or has just unchecked it (before the save round-trips).
   const [fuelOpen, setFuelOpen] = useState<Record<string, boolean>>({});
+
+  // Each day collapses into an accordion so a week with mostly-empty days
+  // reads as a short, organized list instead of seven full blocks of empty
+  // inputs. Undefined (not yet toggled by the user) falls back to a sensible
+  // default — open for today and any day that already has entries, closed
+  // otherwise — via `isDayOpen` below; once the user taps a header it's
+  // tracked explicitly here for the rest of the session.
+  const [openDays, setOpenDays] = useState<Record<string, boolean>>({});
 
   // The single "other earnings" entry for the week, edited via a small form
   // with a Save button (not autosave-on-blur like fuel cost) because it needs
@@ -167,6 +175,14 @@ export function EntryScreen() {
     void generateReportPdf(buildWeekReportData(user!, shifts, today, CURRENCY, dayExpenses, weekExtras));
   }
 
+  function isDayOpen(day: DayComputed, dayHasContent: boolean): boolean {
+    return openDays[day.dateISO] ?? (day.isToday || dayHasContent);
+  }
+
+  function toggleDay(dateISO: string, current: boolean) {
+    setOpenDays((prev) => ({ ...prev, [dateISO]: !current }));
+  }
+
   function isFuelChecked(day: DayComputed): boolean {
     return fuelOpen[day.dateISO] ?? day.fuelCost > 0;
   }
@@ -244,12 +260,31 @@ export function EntryScreen() {
 
       {days.map((day, i) => {
         const dayHasContent = day.shifts.length > 0 || (pending[day.dateISO]?.length ?? 0) > 0;
+        const open = isDayOpen(day, dayHasContent);
         return (
-        <div key={day.dateISO} className="day-row anim-rise" style={{ ["--i" as string]: Math.min(i, 4) }}>
-          <div className="day-row-head">
-            <div>
+        <div
+          key={day.dateISO}
+          className={`day-row anim-rise${open ? " is-open" : ""}`}
+          style={{ ["--i" as string]: Math.min(i, 4) }}
+        >
+          <div
+            className="day-row-head"
+            role="button"
+            tabIndex={0}
+            aria-expanded={open}
+            onClick={() => toggleDay(day.dateISO, open)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                toggleDay(day.dateISO, open);
+              }
+            }}
+          >
+            <div className="day-row-head-left">
+              <ChevronDownIcon size={16} className="day-chevron" />
               <span className="day-name">{day.dayAbbr}</span>
               <span className="day-date">{day.dateLabel}</span>
+              {day.isToday && <span className="day-today-badge">Today</span>}
             </div>
             <div className="day-row-actions">
               <div className={`day-hours${day.hours > 0 ? "" : " is-empty"}`}>{day.hoursLabel}</div>
@@ -257,7 +292,10 @@ export function EntryScreen() {
                 <button
                   type="button"
                   className="btn btn-ghost day-clear-btn"
-                  onClick={() => handleClearDay(day)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleClearDay(day);
+                  }}
                   data-confirm={`Clear all shifts for ${day.dayAbbr}, ${day.dateLabel}? This can't be undone.`}
                   data-confirm-tone="danger"
                 >
@@ -267,75 +305,79 @@ export function EntryScreen() {
             </div>
           </div>
 
-          {rowsFor(day).map((row) => (
-            <div className="shift-row" key={`${day.dateISO}-${row.id ?? row.tempId ?? "placeholder"}`}>
-              <input
-                className="input shift-location"
-                type="text"
-                placeholder="Location"
-                defaultValue={row.location}
-                onBlur={(e) => handleFieldChange(day, row, "location", e.target.value)}
-              />
-              <input
-                className="input shift-time"
-                type="time"
-                defaultValue={row.signIn ?? ""}
-                onChange={(e) => handleFieldChange(day, row, "signIn", e.target.value)}
-              />
-              <input
-                className="input shift-time"
-                type="time"
-                defaultValue={row.signOut ?? ""}
-                onChange={(e) => handleFieldChange(day, row, "signOut", e.target.value)}
-              />
-              <div className="shift-hours">{row.hoursLabel}</div>
-              {row.canRemove && (
-                <button
-                  className="btn btn-icon btn-ghost shift-remove"
-                  onClick={() => handleRemoveShift(day, row)}
-                  aria-label="Remove shift"
-                  data-confirm="Remove this shift entry? This can't be undone."
-                  data-confirm-tone="danger"
-                >
-                  ×
-                </button>
-              )}
-            </div>
-          ))}
-          <button className="btn btn-ghost add-shift-btn" onClick={() => handleAddShift(day.dateISO)}>
-            + Add another shift
-          </button>
+          <div className="day-row-collapse">
+            <div className="day-row-body">
+              {rowsFor(day).map((row) => (
+                <div className="shift-row" key={`${day.dateISO}-${row.id ?? row.tempId ?? "placeholder"}`}>
+                  <input
+                    className="input shift-location"
+                    type="text"
+                    placeholder="Location"
+                    defaultValue={row.location}
+                    onBlur={(e) => handleFieldChange(day, row, "location", e.target.value)}
+                  />
+                  <input
+                    className="input shift-time"
+                    type="time"
+                    defaultValue={row.signIn ?? ""}
+                    onChange={(e) => handleFieldChange(day, row, "signIn", e.target.value)}
+                  />
+                  <input
+                    className="input shift-time"
+                    type="time"
+                    defaultValue={row.signOut ?? ""}
+                    onChange={(e) => handleFieldChange(day, row, "signOut", e.target.value)}
+                  />
+                  <div className="shift-hours">{row.hoursLabel}</div>
+                  {row.canRemove && (
+                    <button
+                      className="btn btn-icon btn-ghost shift-remove"
+                      onClick={() => handleRemoveShift(day, row)}
+                      aria-label="Remove shift"
+                      data-confirm="Remove this shift entry? This can't be undone."
+                      data-confirm-tone="danger"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button className="btn btn-ghost add-shift-btn" onClick={() => handleAddShift(day.dateISO)}>
+                + Add another shift
+              </button>
 
-          <div className="fuel-row">
-            <label className="checkbox fuel-toggle">
-              <input
-                type="checkbox"
-                checked={isFuelChecked(day)}
-                onChange={(e) => handleFuelToggle(day, e.target.checked)}
-              />
-              <span className="box" />
-              <FuelIcon size={14} />
-              Fuel cost
-            </label>
-            {isFuelChecked(day) && (
-              <div className="fuel-amount">
-                <span className="fuel-amount-prefix">{CURRENCY}</span>
-                <input
-                  className="fuel-amount-input"
-                  type="number"
-                  inputMode="decimal"
-                  min="0"
-                  step="0.01"
-                  placeholder="0.00"
-                  autoFocus={fuelOpen[day.dateISO] === true && day.fuelCost === 0}
-                  defaultValue={day.fuelCost > 0 ? day.fuelCost : ""}
-                  onBlur={(e) => handleFuelAmountBlur(day, e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") e.currentTarget.blur();
-                  }}
-                />
+              <div className="fuel-row">
+                <label className="checkbox fuel-toggle">
+                  <input
+                    type="checkbox"
+                    checked={isFuelChecked(day)}
+                    onChange={(e) => handleFuelToggle(day, e.target.checked)}
+                  />
+                  <span className="box" />
+                  <FuelIcon size={14} />
+                  Fuel cost
+                </label>
+                {isFuelChecked(day) && (
+                  <div className="fuel-amount">
+                    <span className="fuel-amount-prefix">{CURRENCY}</span>
+                    <input
+                      className="fuel-amount-input"
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      autoFocus={fuelOpen[day.dateISO] === true && day.fuelCost === 0}
+                      defaultValue={day.fuelCost > 0 ? day.fuelCost : ""}
+                      onBlur={(e) => handleFuelAmountBlur(day, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") e.currentTarget.blur();
+                      }}
+                    />
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </div>
         );

@@ -151,6 +151,16 @@ export function LogoutIcon({ size = 18 }: IconProps) {
   );
 }
 
+/** Simple down chevron — used for expand/collapse affordances (rotated via
+ * CSS when open, so only one icon is needed for both states). */
+export function ChevronDownIcon({ size = 16, className }: IconProps & { className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base}>
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+
 /** GitHub brand mark — filled silhouette, used only next to the credit link. */
 export function GithubIcon({ size = 14 }: IconProps) {
   return (
