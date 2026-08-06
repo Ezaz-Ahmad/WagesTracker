@@ -24,22 +24,37 @@ function AuthedApp() {
   const handleSwipeNavigate = useCallback((index: number) => setScreen(TABS[index].screen), []);
   const { ref: swipeRef, dragX, dragging } = useSwipeNav<HTMLDivElement>(activeIndex, TABS.length, handleSwipeNavigate);
 
-  // iOS Safari occasionally paints this shell's `100dvh` layout against a
-  // stale viewport right at the moment the auth screen unmounts into it
-  // (the login keyboard is closing and a big chunk of the DOM is swapping
-  // out in the same frame). The result is a gap under the bottom nav that
-  // only corrects itself once the user scrolls — because a real scroll is
-  // what makes Safari recompute the dynamic viewport. Nudge the content
-  // pane by a pixel and back right after mount so that correction happens
-  // automatically instead of waiting on the user's first touch.
+  // Diagnostics confirmed this shell's layout (shell/window/nav measurements)
+  // is already correct from the very first frame after login — it's not a
+  // measurement race. What's stale is the *paint*: iOS Safari doesn't
+  // redraw this fixed `100dvh` shell against the already-correct layout
+  // until a real, native, root-level scroll happens (exactly what manually
+  // "pushing down" does). Scrolling `.app-main` doesn't count — it's a
+  // separate `overflow:auto` CSS scroll container, not the WKWebView's root
+  // scroll view that actually owns the toolbar/compositor sync. So: make
+  // the real document momentarily scrollable by a few px, issue a genuine
+  // `window.scrollTo`, then restore — invisible, but a real root scroll.
   useEffect(() => {
-    const el = swipeRef.current;
-    if (!el) return;
-    el.scrollTop = 1;
-    const id = requestAnimationFrame(() => {
-      el.scrollTop = 0;
+    const body = document.body;
+    const prevOverflow = body.style.overflow;
+    const prevMinHeight = body.style.minHeight;
+    body.style.overflow = "auto";
+    body.style.minHeight = "calc(100% + 4px)";
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      window.scrollTo(0, 3);
+      raf2 = requestAnimationFrame(() => {
+        window.scrollTo(0, 0);
+        body.style.overflow = prevOverflow;
+        body.style.minHeight = prevMinHeight;
+      });
     });
-    return () => cancelAnimationFrame(id);
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+      body.style.overflow = prevOverflow;
+      body.style.minHeight = prevMinHeight;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
