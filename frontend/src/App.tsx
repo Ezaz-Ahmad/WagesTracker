@@ -24,22 +24,35 @@ function AuthedApp() {
   const handleSwipeNavigate = useCallback((index: number) => setScreen(TABS[index].screen), []);
   const { ref: swipeRef, dragX, dragging } = useSwipeNav<HTMLDivElement>(activeIndex, TABS.length, handleSwipeNavigate);
 
-  // Diagnostics confirmed this shell's layout (shell/window/nav measurements)
-  // is already correct from the very first frame after login — it's not a
-  // measurement race. What's stale is the *paint*: iOS Safari doesn't
-  // redraw this fixed `100dvh` shell against the already-correct layout
-  // until a real, native, root-level scroll happens (exactly what manually
-  // "pushing down" does). Scrolling `.app-main` doesn't count — it's a
-  // separate `overflow:auto` CSS scroll container, not the WKWebView's root
-  // scroll view that actually owns the toolbar/compositor sync. So: make
-  // the real document momentarily scrollable by a few px, issue a genuine
-  // `window.scrollTo`, then restore — invisible, but a real root scroll.
+  // Diagnostics confirmed this shell's *layout* (shell/window/nav
+  // measurements) settles correctly within ~150ms of mount — but the user
+  // still sees a visible gap until they scroll, meaning the problem is a
+  // stale *paint*: iOS keeps showing an old composited frame of the shell
+  // even once the underlying layout is already correct, and only a real,
+  // native touch-driven scroll makes it redraw. A JS-triggered scroll
+  // updates the numbers but doesn't go through the same native gesture
+  // pipeline, so it doesn't reliably force that redraw. What does work
+  // unconditionally: pulling the shell out of the render tree and putting
+  // it straight back. That forces WebKit to rebuild and repaint it from
+  // scratch against the current (already-correct) layout, with no
+  // dependency on a native gesture. Done synchronously so nothing is ever
+  // actually missing on screen for a frame.
   useEffect(() => {
     const body = document.body;
     const prevOverflow = body.style.overflow;
     const prevMinHeight = body.style.minHeight;
     body.style.overflow = "auto";
     body.style.minHeight = "calc(100% + 4px)";
+
+    const forceRepaint = () => {
+      const shell = document.querySelector<HTMLElement>(".app-shell");
+      if (!shell) return;
+      const prevDisplay = shell.style.display;
+      shell.style.display = "none";
+      void shell.offsetHeight; // flush the removal synchronously
+      shell.style.display = prevDisplay;
+    };
+
     let raf2 = 0;
     const raf1 = requestAnimationFrame(() => {
       window.scrollTo(0, 3);
@@ -47,6 +60,7 @@ function AuthedApp() {
         window.scrollTo(0, 0);
         body.style.overflow = prevOverflow;
         body.style.minHeight = prevMinHeight;
+        forceRepaint();
       });
     });
     return () => {
