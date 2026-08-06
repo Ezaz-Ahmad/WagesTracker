@@ -9,17 +9,20 @@ body {
    the useEffect in App.tsx. Pins the page itself so it can never scroll or
    rubber-band; the only thing that's allowed to move is .app-main's own
    content. Without this, a pull-down at the top of a short screen (e.g. Home
-   with little content) can still nudge the whole browser page down on iOS. */
+   with little content) can still nudge the whole browser page down on iOS.
+   Deliberately the plainest version of this pattern — `top`/`left` for
+   position plus `width`/`height: 100%` for size, nothing fancier. Earlier
+   attempts here reached for `inset: 0` and then a JS-measured custom
+   property to chase iOS viewport quirks; both made an already-working
+   standalone-mode gap *worse* on a real device. Percentage `height: 100%`
+   against the viewport is the oldest, most universally correct sizing there
+   is — every extra "smart" trick on top of it was the actual bug. */
 body.is-app-locked {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
   width: 100%;
-  /* Explicit `auto` (overriding the plain `height: 100%` rule above) so the
-     `top: 0; bottom: 0;` from `inset: 0` is what determines the box's size —
-     leaving `height: 100%` in place alongside a fixed position with all four
-     inset offsets set is an over-constrained combination that some engines
-     resolve by preferring the stale percentage height over the live offsets. */
-  height: auto;
+  height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
 }
@@ -71,17 +74,14 @@ button { font-family: inherit; }
 }
 
 /* — app shell — */
-/* The shell is pinned to exactly one viewport tall and never scrolls itself;
-   only .app-main scrolls internally. That's what keeps the top bar and bottom
-   nav rock-solid in place on mobile instead of drifting/"floating" as the
-   browser's address bar shows and hides. `100dvh` (dynamic viewport height)
-   tracks the *visible* viewport on mobile browsers and is the fallback here;
-   `var(--app-vh)` — an exact px value kept in sync by useViewportHeight —
-   is preferred where available since `dvh` alone can go stale on iOS Safari
-   once the body above is position-locked (see app.css's body.is-app-locked
-   and the hook's own comment for the full story). */
+/* The shell just fills its parent (body — either the plain height:100% from
+   the base rule above, pre-login, or body.is-app-locked's fixed 100% once
+   the authed shell mounts). Never scrolls itself; only .app-main scrolls
+   internally, which is what keeps the top bar and bottom nav rock-solid in
+   place instead of drifting/"floating" as the browser's address bar shows
+   and hides. */
 .app-shell {
-  height: 100vh; height: 100dvh; height: var(--app-vh, 100dvh);
+  height: 100%;
   overflow: hidden;
   background: var(--color-neutral-300);
   display: flex; justify-content: center;

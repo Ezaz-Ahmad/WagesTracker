@@ -10,7 +10,6 @@ import { ReportScreen } from "./screens/ReportScreen";
 import { HistoryScreen } from "./screens/HistoryScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { useSwipeNav } from "./lib/useSwipeNav";
-import { useViewportHeight } from "./lib/useViewportHeight";
 import type { Screen } from "./lib/types";
 
 function AuthedApp() {
@@ -39,10 +38,6 @@ function AuthedApp() {
     document.body.classList.add("is-app-locked");
     return () => document.body.classList.remove("is-app-locked");
   }, []);
-
-  // Keeps the shell's height pixel-accurate to the real viewport — see the
-  // hook for why plain `dvh` isn't enough once the body above is locked.
-  useViewportHeight();
 
   return (
     <div className="app-shell">
