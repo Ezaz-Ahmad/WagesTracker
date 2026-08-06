@@ -72,7 +72,8 @@ function drawStatCard(
   h: number,
   label: string,
   value: string,
-  valueColor: string
+  valueColor: string,
+  caption?: string
 ): void {
   doc.setFillColor(NEUTRAL_LIGHT);
   doc.roundedRect(x, y, w, h, 1.6, 1.6, "F");
@@ -91,7 +92,15 @@ function drawStatCard(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13.5);
   doc.setTextColor(valueColor);
-  doc.text(value, padX, y + 13.8);
+  // The optional caption (e.g. "Over 3 days") pushes the value up a touch so
+  // both lines fit inside the same card height without crowding the label.
+  doc.text(value, padX, y + (caption ? 12.6 : 13.8));
+  if (caption) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.3);
+    doc.setTextColor(MUTED);
+    doc.text(caption, padX, y + 16.4);
+  }
 }
 
 /** A short, evenly-spaced row of stat cards. Row 1 (core stats) is always
@@ -106,13 +115,13 @@ function drawStatRow(
   y: number,
   h: number,
   cardCount: number,
-  cards: { label: string; value: string; color: string }[]
+  cards: { label: string; value: string; color: string; caption?: string }[]
 ): void {
   const gap = 4;
   const cardW = (contentW - gap * (cardCount - 1)) / cardCount;
   cards.forEach((c, i) => {
     const x = marginX + i * (cardW + gap);
-    drawStatCard(doc, x, y, cardW, h, c.label, c.value, c.color);
+    drawStatCard(doc, x, y, cardW, h, c.label, c.value, c.color, c.caption);
   });
 }
 
@@ -243,8 +252,21 @@ export async function generateReportPdf(data: WeekReportData): Promise<void> {
   ]);
   y += cardH;
 
+  // Fuel cost is a week total, but "$42.50" alone doesn't say whether that
+  // was one big fill-up or several — the day count underneath makes it a
+  // per-trip figure at a glance instead of a mystery lump sum.
+  const fuelDayCount = data.days.filter((d) => d.fuelCost > 0).length;
   const extraCards = [
-    ...(data.totalFuelCost > 0 ? [{ label: "Fuel cost", value: data.totalFuelCostLabel, color: ACCENT_DARK }] : []),
+    ...(data.totalFuelCost > 0
+      ? [
+          {
+            label: "Fuel cost",
+            value: data.totalFuelCostLabel,
+            color: ACCENT_DARK,
+            caption: `Over ${fuelDayCount} day${fuelDayCount === 1 ? "" : "s"}`,
+          },
+        ]
+      : []),
     ...(data.otherEarningAmount > 0 ? [{ label: "Other earnings", value: data.otherEarningAmountLabel, color: ACCENT_DARK }] : []),
   ];
   if (extraCards.length) {
