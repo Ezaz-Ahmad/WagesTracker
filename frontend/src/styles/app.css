@@ -431,7 +431,11 @@ button { font-family: inherit; }
    week" amount so the two screens read as one family. */
 .report-hero-row { display: flex; align-items: stretch; gap: var(--space-4); }
 .report-hero-row > div { flex: 1; min-width: 0; }
-.report-hero-divider { width: 2px; background: var(--color-divider); flex: none; }
+/* Needs to out-specificity `.report-hero-row > div` above (which also
+   matches this element, being a div) — otherwise that rule's `flex: 1` wins
+   and stretches the divider into a big solid block instead of a thin line. */
+.report-hero-row > .report-hero-divider { width: 2px; flex: none; }
+.report-hero-divider { background: var(--color-divider); }
 .report-hero-hours { color: var(--color-accent-700); }
 /* Goals card — two GoalRings (see components/GoalRing) side by side rather
    than the old stacked linear bars; a filled ring reads faster at a glance
