@@ -1,0 +1,25 @@
+name: Keep Render backend warm
+
+# Render's free plan spins the API down after ~15 min of no traffic, causing
+# a slow cold-start on the next request (the "login takes 2-3 minutes" issue).
+# This just hits the health endpoint on a schedule so the service rarely
+# goes fully idle. Doesn't touch app code or deploys.
+#
+# Note: GitHub Actions schedules are best-effort — a "*/10" cron can slip by
+# a few minutes under GitHub's load, especially on the free tier. That's fine
+# here; it just needs to land inside Render's ~15 min idle window.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {} # lets you trigger a manual run from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /api/health
+        run: |
+          curl -fsS -m 20 https://wage-tracker-api.onrender.com/api/health \
+            && echo "Backend responded OK" \
+            || echo "Ping failed — likely a cold start in progress, or the service is down. Not failing the job for this."
