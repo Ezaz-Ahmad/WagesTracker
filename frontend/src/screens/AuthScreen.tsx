@@ -137,6 +137,8 @@ export function AuthScreen() {
               </label>
             </div>
 
+            <AppCredit />
+
             {authError && <div className="form-error">{authError}</div>}
 
             {mode === "login" ? (
@@ -253,7 +255,6 @@ export function AuthScreen() {
             )}
 
             <div className="auth-demo-note">Your data is private to your account.</div>
-            <AppCredit />
           </div>
         </div>
       </div>

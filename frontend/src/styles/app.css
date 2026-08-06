@@ -21,7 +21,7 @@ button { font-family: inherit; }
 /* — credit — */
 .app-credit {
   display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
-  gap: var(--space-2); margin-top: var(--space-3);
+  gap: var(--space-2); margin-top: var(--space-3); margin-bottom: var(--space-3);
 }
 .app-credit-name { font-size: 11px; opacity: 0.55; }
 .app-credit-links { display: inline-flex; gap: 6px; }
