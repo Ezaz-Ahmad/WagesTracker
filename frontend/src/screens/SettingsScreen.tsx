@@ -183,7 +183,7 @@ export function SettingsScreen() {
         Time entries and reports are kept for 5 years and automatically deleted after that. Log out from the button at
         the top of the app.
       </div>
-      <AppCredit />
+      <AppCredit showVersion />
 
       <div className="hr" />
       <h6 className="section-title">Danger zone</h6>

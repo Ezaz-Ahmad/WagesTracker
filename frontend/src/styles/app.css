@@ -34,6 +34,11 @@ button { font-family: inherit; }
 }
 .app-credit-link svg { display: block; flex: none; }
 .app-credit-link:hover { border-color: var(--color-accent); color: var(--color-accent); background: var(--color-accent-100); }
+.app-credit-version {
+  width: 100%; text-align: center; margin-top: 2px;
+  font-size: 10px; font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--color-text) 38%, transparent);
+}
 
 /* — password visibility toggle — */
 .password-field { position: relative; }
