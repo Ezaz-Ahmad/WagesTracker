@@ -171,26 +171,50 @@ button { font-family: inherit; }
   font-family: var(--font-heading); font-weight: 800; font-size: 26px;
   font-variant-numeric: tabular-nums; color: var(--color-accent-800);
 }
-/* Each day is a collapsible accordion — the header is always visible and
-   clickable; the body (shift rows, add-shift, fuel cost) animates open/shut
-   with a CSS grid-rows trick (0fr -> 1fr) rather than a JS height measurement,
-   so it's smooth without ever needing to know the content's real height. */
-.day-row { border-bottom: 1px solid var(--color-divider); }
+/* Each day is a collapsible accordion card — the header is always visible
+   and clickable; the body (shift rows, add-shift, fuel cost) animates
+   open/shut with a CSS grid-rows trick (0fr -> 1fr) rather than a JS height
+   measurement, so it's smooth without ever needing to know the content's
+   real height. Cards (rather than a plain divided list) give each day its
+   own visual weight and make the collapsed state feel like a deliberate,
+   tidy summary rather than an empty gap. */
+.day-card {
+  background: var(--color-bg);
+  border: 1px solid var(--color-divider);
+  border-radius: 14px;
+  margin-bottom: var(--space-3);
+  overflow: hidden;
+  transition: border-color var(--dur-base, 260ms) var(--ease-standard, ease),
+    box-shadow var(--dur-base, 260ms) var(--ease-standard, ease);
+}
+.day-card.has-content { border-color: color-mix(in srgb, var(--color-accent) 22%, var(--color-divider)); }
+.day-card.is-open {
+  border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-divider));
+  box-shadow: 0 6px 20px -10px color-mix(in srgb, var(--color-neutral-900) 22%, transparent);
+}
 .day-row-head {
-  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
-  padding: var(--space-3) 2px;
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: 13px var(--space-3);
   cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
-  border-radius: var(--radius-md);
 }
-.day-row-head:hover { background: color-mix(in srgb, var(--color-neutral-800) 4%, transparent); }
+.day-card.has-content:not(.is-open) .day-row-head { background: color-mix(in srgb, var(--color-accent) 4%, transparent); }
+@media (hover: hover) and (pointer: fine) {
+  .day-row-head:hover { background: color-mix(in srgb, var(--color-neutral-800) 5%, transparent); }
+}
 .day-row-head:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
-.day-row-head-left { display: flex; align-items: baseline; gap: 0; min-width: 0; }
-.day-chevron {
-  flex: none; margin-right: var(--space-2); align-self: center;
-  color: color-mix(in srgb, var(--color-text) 45%, transparent);
-  transition: transform var(--dur-base, 260ms) var(--ease-standard, ease);
+.day-chevron-btn {
+  flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--color-neutral-200);
+  transition: background-color var(--dur-base, 260ms) var(--ease-standard, ease);
 }
-.day-row.is-open .day-chevron { transform: rotate(-180deg); color: var(--color-accent); }
+.day-card.is-open .day-chevron-btn { background: var(--color-accent-100); }
+.day-chevron {
+  color: color-mix(in srgb, var(--color-text) 50%, transparent);
+  transition: transform var(--dur-base, 260ms) var(--ease-standard, ease), color var(--dur-base, 260ms) var(--ease-standard, ease);
+}
+.day-card.is-open .day-chevron { transform: rotate(-180deg); color: var(--color-accent-700); }
+.day-row-head-main { flex: 1; min-width: 0; }
+.day-row-head-title { display: flex; align-items: baseline; gap: 0; }
 .day-name { font-weight: 800; font-family: var(--font-heading); font-size: 14px; }
 .day-date { font-size: 11px; opacity: 0.55; margin-left: 6px; }
 .day-today-badge {
@@ -198,8 +222,12 @@ button { font-family: inherit; }
   background: var(--color-accent-100); color: var(--color-accent-700);
   font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
 }
-.day-hours { font-size: 13px; font-weight: 600; }
-.day-hours.is-empty { color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+.day-row-summary {
+  font-size: 11.5px; margin-top: 2px; color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.day-hours { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.day-hours.is-empty { font-weight: 600; color: color-mix(in srgb, var(--color-text) 40%, transparent); }
 .day-row-actions { display: flex; align-items: center; gap: var(--space-2); flex: none; }
 .day-clear-btn { font-size: 11px; padding: 2px var(--space-2); color: var(--color-accent-700); }
 
@@ -208,8 +236,13 @@ button { font-family: inherit; }
   grid-template-rows: 0fr;
   transition: grid-template-rows 320ms var(--ease-standard, ease);
 }
-.day-row.is-open .day-row-collapse { grid-template-rows: 1fr; }
-.day-row-body { overflow: hidden; min-height: 0; padding-bottom: var(--space-3); }
+.day-card.is-open .day-row-collapse { grid-template-rows: 1fr; }
+.day-row-body {
+  overflow: hidden; min-height: 0;
+  padding: 2px var(--space-3) var(--space-3);
+  border-top: 1px solid var(--color-divider);
+  margin-top: 1px;
+}
 @media (prefers-reduced-motion: reduce) {
   .day-row-collapse { transition: none; }
   .day-chevron { transition: none; }

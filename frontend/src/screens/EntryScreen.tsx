@@ -44,12 +44,10 @@ export function EntryScreen() {
   // amount yet, or has just unchecked it (before the save round-trips).
   const [fuelOpen, setFuelOpen] = useState<Record<string, boolean>>({});
 
-  // Each day collapses into an accordion so a week with mostly-empty days
-  // reads as a short, organized list instead of seven full blocks of empty
-  // inputs. Undefined (not yet toggled by the user) falls back to a sensible
-  // default — open for today and any day that already has entries, closed
-  // otherwise — via `isDayOpen` below; once the user taps a header it's
-  // tracked explicitly here for the rest of the session.
+  // Each day collapses into an accordion so the week reads as a short,
+  // organized list instead of seven full blocks of inputs. Every day starts
+  // closed; tapping a header opens just that one day, tracked here for the
+  // rest of the session.
   const [openDays, setOpenDays] = useState<Record<string, boolean>>({});
 
   // The single "other earnings" entry for the week, edited via a small form
@@ -175,8 +173,8 @@ export function EntryScreen() {
     void generateReportPdf(buildWeekReportData(user!, shifts, today, CURRENCY, dayExpenses, weekExtras));
   }
 
-  function isDayOpen(day: DayComputed, dayHasContent: boolean): boolean {
-    return openDays[day.dateISO] ?? (day.isToday || dayHasContent);
+  function isDayOpen(day: DayComputed): boolean {
+    return openDays[day.dateISO] ?? false;
   }
 
   function toggleDay(dateISO: string, current: boolean) {
@@ -260,11 +258,21 @@ export function EntryScreen() {
 
       {days.map((day, i) => {
         const dayHasContent = day.shifts.length > 0 || (pending[day.dateISO]?.length ?? 0) > 0;
-        const open = isDayOpen(day, dayHasContent);
+        const open = isDayOpen(day);
+        const shiftCount = day.shifts.length;
+        const firstLocation = day.shifts[0]?.location?.trim();
+        const summary =
+          !open && dayHasContent
+            ? shiftCount === 1
+              ? firstLocation || "1 shift"
+              : `${shiftCount} shifts${firstLocation ? ` · ${firstLocation}` : ""}`
+            : !open
+              ? "No entries"
+              : null;
         return (
         <div
           key={day.dateISO}
-          className={`day-row anim-rise${open ? " is-open" : ""}`}
+          className={`day-card anim-rise${open ? " is-open" : ""}${dayHasContent ? " has-content" : ""}`}
           style={{ ["--i" as string]: Math.min(i, 4) }}
         >
           <div
@@ -280,11 +288,16 @@ export function EntryScreen() {
               }
             }}
           >
-            <div className="day-row-head-left">
-              <ChevronDownIcon size={16} className="day-chevron" />
-              <span className="day-name">{day.dayAbbr}</span>
-              <span className="day-date">{day.dateLabel}</span>
-              {day.isToday && <span className="day-today-badge">Today</span>}
+            <span className="day-chevron-btn" aria-hidden="true">
+              <ChevronDownIcon size={15} className="day-chevron" />
+            </span>
+            <div className="day-row-head-main">
+              <div className="day-row-head-title">
+                <span className="day-name">{day.dayAbbr}</span>
+                <span className="day-date">{day.dateLabel}</span>
+                {day.isToday && <span className="day-today-badge">Today</span>}
+              </div>
+              {summary && <div className="day-row-summary">{summary}</div>}
             </div>
             <div className="day-row-actions">
               <div className={`day-hours${day.hours > 0 ? "" : " is-empty"}`}>{day.hoursLabel}</div>
