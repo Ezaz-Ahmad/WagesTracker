@@ -5,13 +5,16 @@ name: Keep Render backend warm
 # This just hits the health endpoint on a schedule so the service rarely
 # goes fully idle. Doesn't touch app code or deploys.
 #
-# Note: GitHub Actions schedules are best-effort — a "*/10" cron can slip by
+# Note: GitHub Actions schedules are best-effort — a "*/5" cron can slip by
 # a few minutes under GitHub's load, especially on the free tier. That's fine
 # here; it just needs to land inside Render's ~15 min idle window.
+#
+# 5 minutes is the fastest GitHub Actions actually supports — anything more
+# frequent (e.g. */3, */2, every minute) is silently ignored and never fires.
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch: {} # lets you trigger a manual run from the Actions tab
 
 jobs:
