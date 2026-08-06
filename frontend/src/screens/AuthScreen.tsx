@@ -6,6 +6,7 @@ import { getRememberedEmail } from "../lib/api";
 import { EntryIcon, ReportIcon, TargetIcon } from "../components/icons";
 import { PasswordInput } from "../components/PasswordInput";
 import { AppCredit } from "../components/AppCredit";
+import { BubbleLoader } from "../components/BubbleLoader";
 import { Logo } from "../components/Logo";
 
 type Mode = "login" | "signup";
@@ -167,7 +168,7 @@ export function AuthScreen() {
                   Remember me on this device
                 </label>
                 <button className="btn btn-primary btn-block" type="submit" disabled={authBusy} style={{ justifyContent: "center" }}>
-                  {authBusy ? "Logging in…" : "Log in"}
+                  {authBusy ? <BubbleLoader label="Logging in" /> : "Log in"}
                 </button>
               </form>
             ) : (
@@ -246,7 +247,7 @@ export function AuthScreen() {
                   </div>
                 )}
                 <button className="btn btn-primary btn-block" type="submit" disabled={authBusy} style={{ justifyContent: "center" }}>
-                  {authBusy ? "Creating account…" : "Create account"}
+                  {authBusy ? <BubbleLoader label="Creating your account" /> : "Create account"}
                 </button>
               </form>
             )}

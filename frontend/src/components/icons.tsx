@@ -140,6 +140,17 @@ export function AlertTriangleIcon({ size = 20 }: IconProps) {
   );
 }
 
+/** Exit door with an arrow — used on the top-nav log out button. */
+export function LogoutIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <path d="M14.5 4.5H18a2 2 0 012 2v11a2 2 0 01-2 2h-3.5" />
+      <path d="M10.5 8l-4 4 4 4" />
+      <path d="M14 12H3.5" />
+    </svg>
+  );
+}
+
 /** GitHub brand mark — filled silhouette, used only next to the credit link. */
 export function GithubIcon({ size = 14 }: IconProps) {
   return (

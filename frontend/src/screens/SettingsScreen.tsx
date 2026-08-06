@@ -4,7 +4,7 @@ import { PasswordInput } from "../components/PasswordInput";
 import { AppCredit } from "../components/AppCredit";
 
 export function SettingsScreen() {
-  const { user, updateSettings, logout, deleteAccount } = useApp();
+  const { user, updateSettings, deleteAccount } = useApp();
   const [name, setName] = useState(user?.name ?? "");
   const [address, setAddress] = useState(user?.address ?? "");
   const [weekStartsOn, setWeekStartsOn] = useState<"Monday" | "Sunday">(user?.weekStartsOn ?? "Monday");
@@ -179,15 +179,10 @@ export function SettingsScreen() {
       >
         {saveFlash ? "Saved ✓" : saving ? "Saving…" : "Save settings"}
       </button>
-      <button
-        className="btn btn-secondary btn-block"
-        onClick={logout}
-        data-confirm="Log out of Wage Tracker? Any shift in progress keeps counting in the background."
-        data-confirm-tone="danger"
-      >
-        Log out
-      </button>
-      <div className="settings-note">Time entries and reports are kept for 5 years and automatically deleted after that.</div>
+      <div className="settings-note">
+        Time entries and reports are kept for 5 years and automatically deleted after that. Log out from the button at
+        the top of the app.
+      </div>
       <AppCredit />
 
       <div className="hr" />

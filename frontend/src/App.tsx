@@ -3,6 +3,7 @@ import { AppProvider, useApp } from "./context/AppContext";
 import { BottomNav, TABS } from "./components/BottomNav";
 import { ConfirmProvider } from "./components/ConfirmProvider";
 import { Logo } from "./components/Logo";
+import { LogoutIcon } from "./components/icons";
 import { AuthScreen } from "./screens/AuthScreen";
 import { HomeScreen } from "./screens/HomeScreen";
 import { EntryScreen } from "./screens/EntryScreen";
@@ -13,7 +14,7 @@ import { useSwipeNav } from "./lib/useSwipeNav";
 import type { Screen } from "./lib/types";
 
 function AuthedApp() {
-  const { today, user, actionError, clearActionError } = useApp();
+  const { today, user, actionError, clearActionError, logout } = useApp();
   const [screen, setScreen] = useState<Screen>("home");
 
   const todayLabel = today.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
@@ -33,12 +34,25 @@ function AuthedApp() {
     <div className="app-shell">
       <div className="app-frame">
         <div className="nav app-nav">
-          <span className="nav-brand">
-            <Logo size={22} />
-            Wage Tracker
-          </span>
-          <span className="app-nav-greeting">Welcome back{user ? `, ${user.name.split(" ")[0]}` : ""}</span>
-          <span className="app-nav-date">{todayLabel}</span>
+          <div className="app-nav-identity">
+            <span className="nav-brand">
+              <Logo size={22} />
+              Wage Tracker
+            </span>
+            <span className="app-nav-greeting">Welcome back{user ? `, ${user.name.split(" ")[0]}` : ""}</span>
+            <span className="app-nav-date">{todayLabel}</span>
+          </div>
+          <button
+            type="button"
+            className="app-nav-logout"
+            onClick={logout}
+            aria-label="Log out"
+            data-confirm="Log out of Wage Tracker? Any shift in progress keeps counting in the background."
+            data-confirm-tone="danger"
+          >
+            <LogoutIcon size={16} />
+            <span className="app-nav-logout-label">Log out</span>
+          </button>
         </div>
 
         {actionError && (
