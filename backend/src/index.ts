@@ -69,6 +69,11 @@ const authLimiter = rateLimit({
 
 app.use("/api", generalLimiter);
 
+// Friendly landing response for anyone hitting the bare API URL directly
+// (e.g. clicking the link to check whether Render has spun the service back
+// up). Doesn't require the /api prefix, unlike the actual routes below.
+app.get("/", (_req, res) => res.json({ status: "API is healthy and awake" }));
+
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 app.use("/api/auth", authLimiter, authRouter);
 app.use("/api/me", meRouter);
