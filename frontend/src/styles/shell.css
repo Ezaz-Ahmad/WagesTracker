@@ -58,6 +58,7 @@
 
   .app-nav {
     grid-area: topbar;
+    position: static;
     padding: var(--space-4) var(--space-6);
   }
   .app-nav .nav-brand { display: none; }
@@ -72,6 +73,7 @@
 
   .app-bottomnav {
     grid-area: sidebar;
+    position: static;
     flex-direction: column;
     align-items: stretch;
     justify-content: flex-start;

@@ -1,30 +1,9 @@
 html, body, #root { height: 100%; }
+html, body { overscroll-behavior-y: none; }
 body {
   margin: 0; background: var(--color-neutral-300);
-  overscroll-behavior-y: contain;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
-}
-/* Applied only while the authed app shell (bottom-nav view) is mounted — see
-   the useEffect in App.tsx. Pins the page itself so it can never scroll or
-   rubber-band; the only thing that's allowed to move is .app-main's own
-   content. Without this, a pull-down at the top of a short screen (e.g. Home
-   with little content) can still nudge the whole browser page down on iOS.
-   Deliberately the plainest version of this pattern — `top`/`left` for
-   position plus `width`/`height: 100%` for size, nothing fancier. Earlier
-   attempts here reached for `inset: 0` and then a JS-measured custom
-   property to chase iOS viewport quirks; both made an already-working
-   standalone-mode gap *worse* on a real device. Percentage `height: 100%`
-   against the viewport is the oldest, most universally correct sizing there
-   is — every extra "smart" trick on top of it was the actual bug. */
-body.is-app-locked {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  overscroll-behavior: none;
 }
 a { color: var(--color-accent-700); }
 a:hover { color: var(--color-accent); }
@@ -74,37 +53,45 @@ button { font-family: inherit; }
 }
 
 /* — app shell — */
-/* The shell just fills its parent (body — either the plain height:100% from
-   the base rule above, pre-login, or body.is-app-locked's fixed 100% once
-   the authed shell mounts). Never scrolls itself; only .app-main scrolls
-   internally, which is what keeps the top bar and bottom nav rock-solid in
-   place instead of drifting/"floating" as the browser's address bar shows
-   and hides. */
+/* Deliberately the plainest layout there is: the PAGE scrolls (no inner
+   "fake scroll pane", no fixed-position body lock, no JS height
+   measurement — three earlier attempts at that all either did nothing or
+   made a real-device gap worse). The nav bar and bottom tab bar are
+   `position: sticky`, which pins them to the viewport edges as the page
+   scrolls without needing the shell to be pixel-exact-height at all — if
+   content is shorter than the screen, `min-height: 100dvh` just fills it in
+   the ordinary way. `overscroll-behavior-y: none` on html/body (above) is
+   what kills the pull-to-bounce/rubber-band "floating" feel, directly on
+   the actual scrolling element instead of trying to lock it out of
+   scrolling altogether. */
 .app-shell {
-  height: 100%;
-  overflow: hidden;
+  min-height: 100vh; min-height: 100dvh;
   background: var(--color-neutral-300);
   display: flex; justify-content: center;
 }
 .app-frame {
-  width: 100%; max-width: 460px; height: 100%; background: var(--color-bg);
+  width: 100%; max-width: 460px; min-height: 100vh; min-height: 100dvh;
+  background: var(--color-bg);
   display: flex; flex-direction: column; box-shadow: var(--shadow-lg); position: relative;
-  overflow: hidden;
 }
-.app-nav { flex: none; padding-top: max(var(--space-3), env(safe-area-inset-top)); }
+.app-nav {
+  flex: none; position: sticky; top: 0; z-index: 5;
+  background: var(--color-bg);
+  padding-top: max(var(--space-3), env(safe-area-inset-top));
+}
 .app-nav-date { font-size: 12px; color: var(--color-text); opacity: 0.6; }
 .app-main {
-  flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
-  -webkit-overflow-scrolling: touch; overscroll-behavior-y: none;
+  flex: 1; overflow-x: hidden;
   padding: var(--space-4); padding-bottom: var(--space-8);
   position: relative;
   touch-action: pan-y;
 }
-/* Swipe-between-tabs drag target — only this layer moves; the scroll
-   container (.app-main) and everything outside it (nav, bottom bar) stay
-   put, so a swipe only ever "moves the options", never the page. */
+/* Swipe-between-tabs drag target — only this layer moves; everything
+   outside it (nav, bottom bar) stays put, so a swipe only ever "moves the
+   options", never the page. */
 .swipe-track { will-change: transform; }
 .app-bottomnav {
+  position: sticky; bottom: 0; z-index: 5;
   flex: none; display: flex; border-top: 2px solid var(--color-divider); background: var(--color-bg);
   padding-bottom: env(safe-area-inset-bottom);
 }
