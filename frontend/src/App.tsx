@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppProvider, useApp } from "./context/AppContext";
 import { BottomNav, TABS } from "./components/BottomNav";
 import { ConfirmProvider } from "./components/ConfirmProvider";
@@ -22,6 +22,17 @@ function AuthedApp() {
   const activeIndex = Math.max(0, TABS.findIndex((t) => t.screen === screen));
   const handleSwipeNavigate = useCallback((index: number) => setScreen(TABS[index].screen), []);
   const { ref: swipeRef, dragX, dragging } = useSwipeNav<HTMLDivElement>(activeIndex, TABS.length, handleSwipeNavigate);
+
+  // Which way the tab just changed (bottom-nav tap or a completed swipe both
+  // land here) — drives a directional slide on mount instead of a plain
+  // fade, so tapping a tab feels like the same physical motion as swiping to
+  // it, not two different transitions depending on how you got there.
+  const prevIndexRef = useRef(activeIndex);
+  const direction = activeIndex === prevIndexRef.current ? 0 : activeIndex > prevIndexRef.current ? 1 : -1;
+  useEffect(() => {
+    prevIndexRef.current = activeIndex;
+  }, [activeIndex]);
+  const screenTransitionClass = `screen-transition${direction === 1 ? " dir-fwd" : direction === -1 ? " dir-back" : ""}`;
 
   // Both a JS scroll nudge and a forced display-toggle repaint failed to
   // fix this (confirmed on-device) and the scroll nudge actively made
@@ -87,7 +98,7 @@ function AuthedApp() {
 
         <div className="app-main" ref={swipeRef}>
           <div className="swipe-track" style={trackStyle}>
-            <div key={screen} className="screen-transition">
+            <div key={screen} className={screenTransitionClass}>
               {screen === "home" && <HomeScreen />}
               {screen === "entry" && <EntryScreen />}
               {screen === "report" && <ReportScreen />}

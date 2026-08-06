@@ -41,10 +41,12 @@
     gap: var(--space-4);
     align-items: stretch;
   }
-  .goal-rows { flex-direction: row; }
-  .goal-rows > div { flex: 1; }
   .chart-svg { height: 190px; }
   .period-bars { height: 190px; }
+  /* Home's 4 stat tiles (days logged, weeks on goal, streak, best day) sit
+     2x2 on a phone-width card; once there's room, one row of 4 uses the
+     extra width instead of leaving each tile half-empty. */
+  .stat-grid { grid-template-columns: repeat(4, 1fr); }
 
   /* Forms and single-column reads (Settings, History, Entry) stay a
      comfortable reading width instead of stretching edge-to-edge now that

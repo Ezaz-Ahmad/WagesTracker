@@ -54,6 +54,21 @@
 }
 .screen-transition { animation: screen-in var(--dur-slow) var(--ease-out) both; }
 
+/* Directional variants — applied when App.tsx knows *which way* the tab
+   changed (bottom-nav tap or a completed swipe), so the new screen slides in
+   from the side you're conceptually moving toward, matching the live-drag
+   preview during an actual swipe instead of just fading/rising in place. */
+@keyframes screen-in-fwd {
+  from { opacity: 0; transform: translateX(26px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes screen-in-back {
+  from { opacity: 0; transform: translateX(-26px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.screen-transition.dir-fwd { animation: screen-in-fwd var(--dur-slow) var(--ease-out) both; }
+.screen-transition.dir-back { animation: screen-in-back var(--dur-slow) var(--ease-out) both; }
+
 /* — staggered entrance, index passed via inline `--i` — */
 @keyframes rise-in {
   from { opacity: 0; transform: translateY(10px); }

@@ -189,9 +189,13 @@ button { font-family: inherit; }
 
 /* — week at a glance (home) — */
 .glance-card { padding: var(--space-4) var(--space-3) var(--space-3); }
-.glance-bars { display: flex; align-items: flex-end; gap: 6px; height: 84px; }
+/* `justify-content: center` + a per-column `max-width` keeps the seven bars
+   from stretching edge-to-edge into wide gaps once the card is wider than a
+   phone (tablet/desktop) — on a narrow phone the cap never kicks in, so
+   mobile is unaffected either way. */
+.glance-bars { display: flex; align-items: flex-end; justify-content: center; gap: 6px; height: 84px; }
 .glance-bar-col {
-  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  flex: 1 1 0; max-width: 64px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
   height: 100%; gap: 8px; cursor: default;
 }
 .glance-bar-track {
@@ -397,10 +401,20 @@ button { font-family: inherit; }
 .chart-svg { overflow: visible; display: block; }
 .chart-x-labels { display: flex; gap: 0; padding: 0 var(--space-1); margin-top: 4px; }
 .chart-x-label { flex: 1; text-align: center; font-size: 10px; opacity: 0.6; }
-.goal-rows { display: flex; flex-direction: column; gap: var(--space-3); }
-.consistency-card { background: var(--color-neutral-100); margin-top: var(--space-4); }
-.consistency-value { font-size: 20px; }
-.compare-hr { margin-top: var(--space-6); }
+/* Headline card at the top of the report — two big numbers side by side,
+   split by a plain divider rule, same numeral treatment as Home's "this
+   week" amount so the two screens read as one family. */
+.report-hero-row { display: flex; align-items: stretch; gap: var(--space-4); }
+.report-hero-row > div { flex: 1; min-width: 0; }
+.report-hero-divider { width: 2px; background: var(--color-divider); flex: none; }
+.report-hero-hours { color: var(--color-accent-700); }
+/* Goals card — two GoalRings (see components/GoalRing) side by side rather
+   than the old stacked linear bars; a filled ring reads faster at a glance
+   than two separate percentage rows, and doubles as the same visual
+   language used for the stat rings on Home. */
+.ring-goal-row { display: flex; justify-content: space-evenly; gap: var(--space-3); padding: var(--space-2) 0 var(--space-1); }
+.ring-goal-col { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.ring-goal-label { font-family: var(--font-heading); font-weight: 700; font-size: 13px; margin-top: 3px; }
 .period-bars { display: flex; align-items: flex-end; gap: 8px; height: 150px; padding: 0 var(--space-1); }
 .period-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 6px; }
 .period-bar-label { font-size: 10px; opacity: 0.6; }

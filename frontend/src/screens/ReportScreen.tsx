@@ -13,11 +13,12 @@ import {
   weekExtraFor,
   weekTotals,
 } from "../lib/aggregate";
-import { buildWeekDays, isoDate } from "../lib/date";
+import { buildWeekDays, fmt2, isoDate } from "../lib/date";
 import { buildWeekReportData } from "../lib/reportData";
 import { generateReportPdf } from "../pdf/generateReportPdf";
 import { useCountUp } from "../lib/useCountUp";
 import { Skeleton } from "../components/Skeleton";
+import { GoalRing } from "../components/GoalRing";
 
 type Metric = "earnings" | "hours";
 type Period = "week" | "month" | "year";
@@ -67,6 +68,7 @@ export function ReportScreen() {
     return (
       <div className="screen-wide screen-transition">
         <h6 className="section-title">Progress report</h6>
+        <Skeleton className="skeleton-card" style={{ height: 76 }} />
         <Skeleton className="skeleton-chart" />
         <Skeleton className="skeleton-bars" />
       </div>
@@ -76,6 +78,8 @@ export function ReportScreen() {
   function handleDownloadPdf() {
     void generateReportPdf(buildWeekReportData(user!, shifts, today, CURRENCY, dayExpenses, weekExtras));
   }
+
+  const metricLabel = metric === "earnings" ? "earnings" : "hours";
 
   return (
     <div className="screen-wide">
@@ -87,103 +91,113 @@ export function ReportScreen() {
       </div>
       <div className="section-hint">Last 7 weeks plus this week in progress.</div>
 
-      <div className="seg" style={{ marginBottom: "var(--space-4)" }}>
-        <label className="seg-opt">
-          <input type="radio" name="metric" checked={metric === "earnings"} onChange={() => setMetric("earnings")} /> Earnings
-        </label>
-        <label className="seg-opt">
-          <input type="radio" name="metric" checked={metric === "hours"} onChange={() => setMetric("hours")} /> Hours
-        </label>
-      </div>
-
-      <svg viewBox="0 0 320 150" width="100%" height="150" preserveAspectRatio="none" className="chart-svg">
-        <line x1="0" y1="118" x2="320" y2="118" stroke="var(--color-divider)" strokeWidth="1" />
-        <path d={chart.areaPath} fill="var(--color-accent-100)" stroke="none" className="chart-area-fade" />
-        <polyline
-          points={chart.linePoints}
-          fill="none"
-          stroke="var(--color-accent)"
-          strokeWidth="2.5"
-          pathLength={1}
-          className="chart-line-draw"
-        />
-        {chart.points.map((p, i) => (
-          <g key={i} className="chart-point" style={{ ["--i" as string]: i }}>
-            <circle cx={p.x} cy={p.y} r="4.5" fill={p.dotColor} stroke={p.dotStroke} strokeWidth="2" />
-            <text x={p.x} y={p.labelY} fontSize="10" textAnchor="middle" fill="var(--color-text)" opacity="0.7">
-              {p.valueLabel}
-            </text>
-          </g>
-        ))}
-      </svg>
-      <div className="chart-x-labels">
-        {chart.points.map((p, i) => (
-          <div className="chart-x-label" key={i} style={{ ["--i" as string]: i }}>
-            {p.short}
+      {/* Headline numbers up front, before any chart — answers "how am I
+          doing this week" in one glance instead of making that the reward
+          for reading a chart first. */}
+      <div className="card elev-sm anim-rise report-hero-card" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 0 }}>
+        <div className="report-hero-row">
+          <div>
+            <div className="card-kicker">This week's earnings</div>
+            <div className="week-amount count-value">{CURRENCY}{fmt2(totalEarnings)}</div>
           </div>
-        ))}
-      </div>
-
-      <div className="hr" />
-
-      <div className="goal-rows">
-        <div>
-          <div className="progress-label-row">
-            <span>Hours vs. goal</span>
-            <span className="count-value">{progressPctAnim}%</span>
-          </div>
-          <div className="progress-track">
-            <div className="progress-fill" style={{ width: `${progressPct}%` }} />
-          </div>
-        </div>
-        <div>
-          <div className="progress-label-row">
-            <span>Earnings vs. goal</span>
-            <span className="count-value">{earningsProgressPctAnim}%</span>
-          </div>
-          <div className="progress-track">
-            <div className="progress-fill" style={{ width: `${earningsProgressPct}%` }} />
+          <div className="report-hero-divider" aria-hidden="true" />
+          <div>
+            <div className="card-kicker">This week's hours</div>
+            <div className="week-amount count-value report-hero-hours">{fmt2(totalHours)}h</div>
           </div>
         </div>
       </div>
 
-      <div className="card consistency-card anim-rise">
-        <div className="card-kicker">Consistency</div>
-        <div className="card-title consistency-value count-value">
-          {metGoalAnim} of {history.length} weeks
+      <div className="card elev-sm anim-rise" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 1 }}>
+        <div className="row-baseline">
+          <div className="card-kicker">Weekly trend</div>
+          <div className="seg">
+            <label className="seg-opt">
+              <input type="radio" name="metric" checked={metric === "earnings"} onChange={() => setMetric("earnings")} /> Earnings
+            </label>
+            <label className="seg-opt">
+              <input type="radio" name="metric" checked={metric === "hours"} onChange={() => setMetric("hours")} /> Hours
+            </label>
+          </div>
         </div>
-        <p className="card-body">
-          met your {CURRENCY}
-          {user.goalEarnings} weekly goal, over the last {history.length} completed weeks.
+
+        <svg viewBox="0 0 320 150" width="100%" height="150" preserveAspectRatio="none" className="chart-svg">
+          <line x1="0" y1="118" x2="320" y2="118" stroke="var(--color-divider)" strokeWidth="1" />
+          <path d={chart.areaPath} fill="var(--color-accent-100)" stroke="none" className="chart-area-fade" />
+          <polyline
+            points={chart.linePoints}
+            fill="none"
+            stroke="var(--color-accent)"
+            strokeWidth="2.5"
+            pathLength={1}
+            className="chart-line-draw"
+          />
+          {chart.points.map((p, i) => (
+            <g key={i} className="chart-point" style={{ ["--i" as string]: i }}>
+              <circle cx={p.x} cy={p.y} r="4.5" fill={p.dotColor} stroke={p.dotStroke} strokeWidth="2" />
+              <text x={p.x} y={p.labelY} fontSize="10" textAnchor="middle" fill="var(--color-text)" opacity="0.7">
+                {p.valueLabel}
+              </text>
+            </g>
+          ))}
+        </svg>
+        <div className="chart-x-labels">
+          {chart.points.map((p, i) => (
+            <div className="chart-x-label" key={i} style={{ ["--i" as string]: i }}>
+              {p.short}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="card elev-sm anim-rise" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 2 }}>
+        <div className="card-kicker">Goals this week</div>
+        <div className="ring-goal-row">
+          <div className="ring-goal-col">
+            <GoalRing pct={progressPct} value={`${progressPctAnim}%`} size={88} strokeWidth={9} />
+            <div className="ring-goal-label">Hours</div>
+            <div className="card-meta">{fmt2(totalHours)}h of {user.goalHours}h</div>
+          </div>
+          <div className="ring-goal-col">
+            <GoalRing pct={earningsProgressPct} value={`${earningsProgressPctAnim}%`} size={88} strokeWidth={9} />
+            <div className="ring-goal-label">Earnings</div>
+            <div className="card-meta">{CURRENCY}{fmt2(totalEarnings)} of {CURRENCY}{user.goalEarnings}</div>
+          </div>
+        </div>
+        <div className="hr" style={{ margin: "var(--space-2) 0 var(--space-3)" }} />
+        <p className="card-body" style={{ textAlign: "center", margin: 0 }}>
+          <span className="count-value" style={{ fontFamily: "var(--font-heading)", fontWeight: 800, color: "var(--color-text)" }}>
+            {metGoalAnim} of {history.length}
+          </span>{" "}
+          weeks met your {CURRENCY}{user.goalEarnings} weekly goal.
         </p>
       </div>
 
-      <div className="hr compare-hr" />
-      <div className="row-baseline" style={{ marginBottom: "var(--space-1)" }}>
-        <h6 className="section-title" style={{ margin: 0 }}>
-          Compare periods
-        </h6>
-      </div>
-      <div className="section-hint">See how you're doing week over week, month over month, or year over year.</div>
-      <div className="seg" style={{ marginBottom: "var(--space-4)" }}>
-        <label className="seg-opt">
-          <input type="radio" name="period" checked={period === "week"} onChange={() => setPeriod("week")} /> Weeks
-        </label>
-        <label className="seg-opt">
-          <input type="radio" name="period" checked={period === "month"} onChange={() => setPeriod("month")} /> Months
-        </label>
-        <label className="seg-opt">
-          <input type="radio" name="period" checked={period === "year"} onChange={() => setPeriod("year")} /> Years
-        </label>
-      </div>
-      <div className="period-bars">
-        {periodBars.map((b, i) => (
-          <div className="period-bar-col" key={i} style={{ ["--i" as string]: i }}>
-            <div className="period-bar-label">{b.valueLabel}</div>
-            <div className="period-bar-fill" style={{ height: b.barStyle, background: b.barColor }} />
-            <div className="period-bar-label">{b.short}</div>
-          </div>
-        ))}
+      <div className="card elev-sm anim-rise" style={{ ["--i" as string]: 3 }}>
+        <h6 className="section-title" style={{ margin: 0 }}>Compare periods</h6>
+        <div className="section-hint" style={{ marginBottom: "var(--space-3)" }}>
+          Week over week, month over month, or year over year — showing {metricLabel} (change the view above to switch).
+        </div>
+        <div className="seg" style={{ marginBottom: "var(--space-4)" }}>
+          <label className="seg-opt">
+            <input type="radio" name="period" checked={period === "week"} onChange={() => setPeriod("week")} /> Weeks
+          </label>
+          <label className="seg-opt">
+            <input type="radio" name="period" checked={period === "month"} onChange={() => setPeriod("month")} /> Months
+          </label>
+          <label className="seg-opt">
+            <input type="radio" name="period" checked={period === "year"} onChange={() => setPeriod("year")} /> Years
+          </label>
+        </div>
+        <div className="period-bars">
+          {periodBars.map((b, i) => (
+            <div className="period-bar-col" key={i} style={{ ["--i" as string]: i }}>
+              <div className="period-bar-label">{b.valueLabel}</div>
+              <div className="period-bar-fill" style={{ height: b.barStyle, background: b.barColor }} />
+              <div className="period-bar-label">{b.short}</div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
