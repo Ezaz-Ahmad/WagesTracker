@@ -161,6 +161,30 @@ export function ChevronDownIcon({ size = 16, className }: IconProps & { classNam
   );
 }
 
+/** Flame — used on the Home screen's current-streak stat tile. */
+export function FlameIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <path d="M12 2.5c1 3-3.5 4.5-3.5 8.5a3.5 3.5 0 007 0c0-1.3-.6-2.1-1.1-2.9-.4.9-1.2 1.4-1.2 1.4.6-2.3-.7-4-1.2-7z" />
+      <path d="M8.5 12.2A5.5 5.5 0 0012 20.5a5.5 5.5 0 003.5-9.7" />
+    </svg>
+  );
+}
+
+/** Trophy — used on the Home screen's best-day-this-week stat tile. */
+export function TrophyIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <path d="M7 4h10v5a5 5 0 01-10 0V4z" />
+      <path d="M7 5H4v2a3 3 0 003 3" />
+      <path d="M17 5h3v2a3 3 0 01-3 3" />
+      <path d="M12 14v3" />
+      <path d="M9 20h6" />
+      <path d="M10 17h4v3h-4z" />
+    </svg>
+  );
+}
+
 /** GitHub brand mark — filled silhouette, used only next to the credit link. */
 export function GithubIcon({ size = 14 }: IconProps) {
   return (

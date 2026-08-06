@@ -1,11 +1,21 @@
 import { useState } from "react";
 import { CURRENCY, useApp } from "../context/AppContext";
-import { buildWeekDaysComputed, buildWeeklyHistory, groupByDate, groupExpensesByDate, weekExtraFor, weekTotals } from "../lib/aggregate";
+import {
+  buildWeekDaysComputed,
+  buildWeeklyHistory,
+  computeStreak,
+  groupByDate,
+  groupExpensesByDate,
+  weekExtraFor,
+  weekTotals,
+} from "../lib/aggregate";
 import { buildWeekDays, fmt2, formatTime12, isoDate } from "../lib/date";
 import { useTodayShift } from "../lib/useTodayShift";
 import { useCountUp } from "../lib/useCountUp";
 import { useLiveElapsedHours } from "../lib/useLiveElapsedHours";
 import { ElapsedTimer, ShiftButton } from "../components/ShiftButton";
+import { GoalRing } from "../components/GoalRing";
+import { FlameIcon, TrophyIcon } from "../components/icons";
 import { Skeleton } from "../components/Skeleton";
 
 export function HomeScreen() {
@@ -61,6 +71,30 @@ export function HomeScreen() {
   const progressPctAnim = active ? progressPct : progressPctSmoothed;
   const daysLoggedAnim = Math.round(useCountUp(daysLogged, 450));
   const metGoalAnim = Math.round(useCountUp(metGoalCount, 450));
+
+  const streak = computeStreak(shiftsByDate, today);
+  const streakAnim = Math.round(useCountUp(streak, 450));
+  const daysLoggedPct = Math.round((daysLogged / 7) * 100);
+  const weeksOnGoalPct = history.length > 0 ? Math.round((metGoalCount / history.length) * 100) : 0;
+
+  // The day with the highest earnings this week (hours × rate + fuel cost),
+  // ignoring days with nothing logged. Undefined until at least one shift or
+  // fuel entry exists — the tile falls back to a prompt in that case.
+  let bestDay: (typeof days)[number] | undefined;
+  let bestDayEarnings = 0;
+  for (const d of days) {
+    const earnings = d.hours * rate + d.fuelCost;
+    if (earnings > bestDayEarnings) {
+      bestDayEarnings = earnings;
+      bestDay = d;
+    }
+  }
+
+  // Week-at-a-glance bar heights, scaled to the tallest day. Today's bar
+  // includes the live-ticking elapsed hours so it visibly grows while a
+  // shift is in progress instead of only jumping once it's signed out.
+  const glanceDays = days.map((d) => ({ ...d, displayHours: d.hours + (d.isToday ? liveHours : 0) }));
+  const maxGlanceHours = Math.max(...glanceDays.map((d) => d.displayHours), 1);
 
   if (!user) return null;
   // Wait for the first shifts fetch before showing any totals — otherwise this
@@ -137,14 +171,60 @@ export function HomeScreen() {
         </div>
       </div>
 
-      <div className="stat-grid">
-        <div className="card stat-tile anim-rise" style={{ ["--i" as string]: 2 }}>
-          <div className="card-kicker">Days logged</div>
-          <div className="card-title stat-tile-value count-value">{daysLoggedAnim} / 7</div>
+      <h6 className="section-title" style={{ marginTop: "var(--space-5)" }}>Week at a glance</h6>
+      <div className="section-hint">How this week's hours are spread out, day by day.</div>
+      <div className="card elev-sm anim-rise glance-card" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 2 }}>
+        <div className="glance-bars">
+          {glanceDays.map((d, i) => {
+            const pct = Math.max(4, Math.round((d.displayHours / maxGlanceHours) * 100));
+            const worked = d.displayHours > 0;
+            return (
+              <div
+                key={d.dateISO}
+                className={`glance-bar-col${d.isToday ? " is-today" : ""}`}
+                style={{ ["--i" as string]: i }}
+                title={`${d.dayAbbr} ${d.dateLabel} — ${worked ? `${fmt2(d.displayHours)}h · ${d.moneyLabel}` : "No entry"}`}
+              >
+                <div className="glance-bar-track">
+                  <div className={`glance-bar-fill${worked ? " is-worked" : ""}`} style={{ height: `${pct}%` }} />
+                </div>
+                <div className="glance-bar-label">{d.dayAbbr.charAt(0)}</div>
+              </div>
+            );
+          })}
         </div>
-        <div className="card stat-tile anim-rise" style={{ ["--i" as string]: 3 }}>
+      </div>
+
+      <div className="stat-grid">
+        <div className="card stat-tile stat-tile-ring anim-rise" style={{ ["--i" as string]: 3 }}>
+          <div className="card-kicker">Days logged</div>
+          <div className="stat-tile-ring-row">
+            <GoalRing pct={daysLoggedPct} value={`${daysLoggedAnim}/7`} />
+            <div className="card-meta stat-tile-ring-caption">days worked</div>
+          </div>
+        </div>
+        <div className="card stat-tile stat-tile-ring anim-rise" style={{ ["--i" as string]: 4 }}>
           <div className="card-kicker">Weeks on goal</div>
-          <div className="card-title stat-tile-value-lg count-value">{metGoalAnim} / {history.length}</div>
+          <div className="stat-tile-ring-row">
+            <GoalRing pct={weeksOnGoalPct} value={`${metGoalAnim}/${history.length}`} />
+            <div className="card-meta stat-tile-ring-caption">on goal</div>
+          </div>
+        </div>
+        <div className="card stat-tile anim-rise" style={{ ["--i" as string]: 5 }}>
+          <div className="card-kicker">Current streak</div>
+          <div className="card-title stat-tile-value stat-tile-icon-row">
+            <FlameIcon size={19} />
+            <span className="count-value">{streakAnim}</span>
+          </div>
+          <div className="card-meta">{streak === 1 ? "day in a row" : "days in a row"}</div>
+        </div>
+        <div className="card stat-tile anim-rise" style={{ ["--i" as string]: 6 }}>
+          <div className="card-kicker">Best day this week</div>
+          <div className="card-title stat-tile-value stat-tile-icon-row">
+            <TrophyIcon size={19} />
+            <span>{bestDay ? bestDay.dayAbbr : "—"}</span>
+          </div>
+          <div className="card-meta">{bestDay ? bestDay.moneyLabel : "Log a shift to see it"}</div>
         </div>
       </div>
     </div>

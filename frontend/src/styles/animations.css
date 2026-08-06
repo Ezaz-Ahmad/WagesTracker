@@ -124,6 +124,31 @@
   to { transform: scaleY(1); }
 }
 
+/* — week-at-a-glance bars (home) — */
+.glance-bar-fill {
+  transition: height var(--dur-slower) var(--ease-out);
+  transform-origin: bottom;
+  animation: bar-grow var(--dur-slower) var(--ease-emphasized) both;
+  animation-delay: calc(var(--i, 0) * 60ms + 80ms);
+}
+.glance-bar-col.is-today .glance-bar-track { animation: today-ring-in var(--dur-slow) var(--ease-out) 460ms both; }
+@keyframes today-ring-in {
+  from { box-shadow: 0 0 0 0 var(--color-accent) inset; }
+  to { box-shadow: 0 0 0 2px var(--color-accent) inset; }
+}
+
+/* — animated goal ring — */
+.goal-ring-fill {
+  stroke-dashoffset: var(--ring-offset-target);
+  transition: stroke-dashoffset var(--dur-slower) var(--ease-out);
+  animation: ring-fill-in var(--dur-slower) var(--ease-emphasized) 140ms both;
+}
+@keyframes ring-fill-in {
+  from { stroke-dashoffset: var(--ring-circumference); }
+  to { stroke-dashoffset: var(--ring-offset-target); }
+}
+.goal-ring-center { animation: fade-in var(--dur-base) var(--ease-standard) 380ms both; }
+
 /* — report chart — */
 .chart-line-draw {
   stroke-dasharray: 1;

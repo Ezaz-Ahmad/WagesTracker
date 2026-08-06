@@ -150,6 +150,37 @@ export function weekExtraFor(weekStartISO: string, weekExtras: WeekExtra[]): Wee
   return weekExtras.find((w) => w.weekStart === weekStartISO);
 }
 
+/**
+ * Current logging streak: consecutive calendar days, walking backwards, that
+ * have at least one shift with real hours on them. Not scoped to the current
+ * week — walks across week boundaries using the full shift history, so a
+ * streak that started last week keeps counting.
+ *
+ * If today has nothing logged yet, that's expected (the day isn't over) so
+ * the walk starts from yesterday instead of zeroing the streak out from
+ * under someone mid-day.
+ */
+export function computeStreak(shiftsByDate: Map<string, Shift[]>, today: Date): number {
+  const hasHours = (d: Date) => {
+    const dayShifts = shiftsByDate.get(isoDate(d));
+    if (!dayShifts || dayShifts.length === 0) return false;
+    return dayShifts.some((s) => computeHours(s.signIn, s.signOut) > 0);
+  };
+
+  let cursor = today;
+  if (!hasHours(cursor)) cursor = addDays(cursor, -1);
+
+  let streak = 0;
+  // 5-year cap matches the data-retention window elsewhere in the app — a
+  // sane upper bound so this can never spin forever on bad data.
+  for (let i = 0; i < 1826; i++) {
+    if (!hasHours(cursor)) break;
+    streak++;
+    cursor = addDays(cursor, -1);
+  }
+  return streak;
+}
+
 export function buildShiftRows(days: DayComputed[], currency: string, rate: number): ShiftRow[] {
   const rows: ShiftRow[] = [];
   for (const d of days) {
