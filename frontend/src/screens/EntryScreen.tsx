@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CURRENCY, useApp } from "../context/AppContext";
 import {
   buildWeekDaysComputed,
@@ -19,6 +19,7 @@ import { ElapsedTimer, ShiftButton } from "../components/ShiftButton";
 import { ChevronDownIcon, ExtraEarningIcon, FuelIcon } from "../components/icons";
 import { Skeleton } from "../components/Skeleton";
 import { Amount } from "../components/Amount";
+import { AmountWheelPicker } from "../components/AmountWheelPicker";
 
 type Row = ShiftComputed & { tempId?: string };
 
@@ -44,6 +45,10 @@ export function EntryScreen() {
   // holds state while the user has the box open but hasn't entered/blurred an
   // amount yet, or has just unchecked it (before the save round-trips).
   const [fuelOpen, setFuelOpen] = useState<Record<string, boolean>>({});
+  // Which day's fuel-cost wheel picker is currently open, if any — the
+  // picker itself is rendered once, driven by this, rather than one
+  // instance per day.
+  const [fuelPickerDate, setFuelPickerDate] = useState<string | null>(null);
 
   // Each day collapses into an accordion so the week always reads as a
   // short, organized list — every day starts closed regardless of whether
@@ -57,7 +62,10 @@ export function EntryScreen() {
   const [otherOpen, setOtherOpen] = useState<boolean | undefined>(undefined);
   const [otherSaving, setOtherSaving] = useState(false);
   const [otherHint, setOtherHint] = useState<string | null>(null);
-  const otherAmountRef = useRef<HTMLInputElement>(null);
+  // Chosen via the wheel picker rather than typed, so this is real state
+  // (not a ref read at save time like the old text input was).
+  const [otherAmountValue, setOtherAmountValue] = useState(0);
+  const [otherPickerOpen, setOtherPickerOpen] = useState(false);
   const otherReasonRef = useRef<HTMLTextAreaElement>(null);
 
   // Hooks below must run every render regardless of loading state, so the
@@ -86,6 +94,15 @@ export function EntryScreen() {
   // "stuck," not live.
   const totalEarningsSmoothed = useCountUp(totalEarnings, 650);
   const totalEarningsAnim = active ? totalEarnings : totalEarningsSmoothed;
+
+  // Keeps the picker's starting value in sync with the saved amount until
+  // the user actually opens the section this session (otherOpen still
+  // undefined) — covers both the initial load (weekExtras arriving async)
+  // and switching weeks. Once they've explicitly toggled it, this stops, so
+  // it never clobbers an in-progress pick.
+  useEffect(() => {
+    if (otherOpen === undefined) setOtherAmountValue(otherAmount);
+  }, [otherAmount, otherOpen]);
 
   if (!user) return null;
   // Same reasoning as Home: don't render totals off the empty initial `shifts`
@@ -189,16 +206,22 @@ export function EntryScreen() {
   function handleFuelToggle(day: DayComputed, checked: boolean) {
     setFuelOpen((prev) => ({ ...prev, [day.dateISO]: checked }));
     if (!checked && day.fuelCost > 0) void setFuelCost(day.dateISO, null);
+    // Freshly checked with nothing set yet — jump straight into the picker,
+    // same continuity the old text input's autoFocus gave.
+    if (checked && day.fuelCost === 0) setFuelPickerDate(day.dateISO);
   }
 
-  function handleFuelAmountBlur(day: DayComputed, value: string) {
-    const amount = Math.round(parseFloat(value) * 100) / 100;
-    if (!value.trim() || !Number.isFinite(amount) || amount <= 0) {
+  /** Called when the wheel picker's "Done" is pressed for a given day —
+   * replaces the old parse-on-blur handler now that the amount is chosen,
+   * not typed. */
+  function handleFuelAmountPick(day: DayComputed, amount: number) {
+    const rounded = Math.round(amount * 100) / 100;
+    if (rounded <= 0) {
       if (day.fuelCost > 0) void setFuelCost(day.dateISO, null);
       setFuelOpen((prev) => ({ ...prev, [day.dateISO]: false }));
       return;
     }
-    void setFuelCost(day.dateISO, amount);
+    void setFuelCost(day.dateISO, rounded);
     setFuelOpen((prev) => {
       const next = { ...prev };
       delete next[day.dateISO];
@@ -211,15 +234,19 @@ export function EntryScreen() {
   function handleOtherToggle(checked: boolean) {
     setOtherOpen(checked);
     setOtherHint(null);
+    if (checked) {
+      setOtherAmountValue(otherAmount > 0 ? otherAmount : 0);
+      // Same continuity as fuel cost — nothing set yet, go straight to the picker.
+      if (otherAmount === 0) setOtherPickerOpen(true);
+    }
     if (!checked && otherAmount > 0) void setWeekExtra(weekStartISO, null, "");
   }
 
   async function handleOtherSave() {
-    const amountStr = otherAmountRef.current?.value ?? "";
     const reasonStr = (otherReasonRef.current?.value ?? "").trim();
-    const amount = Math.round(parseFloat(amountStr) * 100) / 100;
-    if (!amountStr.trim() || !Number.isFinite(amount) || amount <= 0) {
-      setOtherHint("Enter an amount greater than 0.");
+    const amount = Math.round(otherAmountValue * 100) / 100;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setOtherHint("Pick an amount greater than 0.");
       return;
     }
     if (!reasonStr) {
@@ -378,23 +405,14 @@ export function EntryScreen() {
                   Fuel cost
                 </label>
                 {isFuelChecked(day) && (
-                  <div className="fuel-amount">
+                  <button
+                    type="button"
+                    className="fuel-amount fuel-amount-btn"
+                    onClick={() => setFuelPickerDate(day.dateISO)}
+                  >
                     <span className="fuel-amount-prefix">{CURRENCY}</span>
-                    <input
-                      className="fuel-amount-input"
-                      type="number"
-                      inputMode="decimal"
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                      autoFocus={fuelOpen[day.dateISO] === true && day.fuelCost === 0}
-                      defaultValue={day.fuelCost > 0 ? day.fuelCost : ""}
-                      onBlur={(e) => handleFuelAmountBlur(day, e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") e.currentTarget.blur();
-                      }}
-                    />
-                  </div>
+                    <span className="fuel-amount-value">{fmt2(day.fuelCost)}</span>
+                  </button>
                 )}
               </div>
             </div>
@@ -415,19 +433,14 @@ export function EntryScreen() {
         </p>
         {otherChecked && (
           <div className="other-earning-form">
-            <div className="fuel-amount other-amount">
+            <button
+              type="button"
+              className="fuel-amount other-amount fuel-amount-btn"
+              onClick={() => setOtherPickerOpen(true)}
+            >
               <span className="fuel-amount-prefix">{CURRENCY}</span>
-              <input
-                ref={otherAmountRef}
-                className="fuel-amount-input"
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                defaultValue={otherAmount > 0 ? otherAmount : ""}
-              />
-            </div>
+              <span className="fuel-amount-value">{fmt2(otherAmountValue)}</span>
+            </button>
             <textarea
               ref={otherReasonRef}
               className="input other-reason-input"
@@ -474,6 +487,37 @@ export function EntryScreen() {
           </div>
         )}
       </div>
+
+      {fuelPickerDate &&
+        (() => {
+          const day = days.find((d) => d.dateISO === fuelPickerDate);
+          if (!day) return null;
+          return (
+            <AmountWheelPicker
+              title={`Fuel cost — ${day.dayAbbr} ${day.dateLabel}`}
+              currency={CURRENCY}
+              initialAmount={day.fuelCost}
+              onCancel={() => setFuelPickerDate(null)}
+              onDone={(amount) => {
+                handleFuelAmountPick(day, amount);
+                setFuelPickerDate(null);
+              }}
+            />
+          );
+        })()}
+
+      {otherPickerOpen && (
+        <AmountWheelPicker
+          title="Other earnings amount"
+          currency={CURRENCY}
+          initialAmount={otherAmountValue}
+          onCancel={() => setOtherPickerOpen(false)}
+          onDone={(amount) => {
+            setOtherAmountValue(amount);
+            setOtherPickerOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }

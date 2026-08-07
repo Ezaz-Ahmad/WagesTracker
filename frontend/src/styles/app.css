@@ -459,6 +459,70 @@ button { font-family: inherit; }
   .other-earning-form { animation: none; }
 }
 
+/* The fuel-cost/other-earnings amount is now *chosen*, not typed — this
+   turns the old inline text input into a tappable pill matching its old
+   look, opening the wheel picker below instead of a keyboard. */
+.fuel-amount-btn { cursor: pointer; }
+.fuel-amount-btn:hover { background: var(--color-accent-200); }
+.fuel-amount-btn:active { background: var(--color-accent-300); }
+.other-amount.fuel-amount-btn:hover { background: var(--color-neutral-200); }
+.other-amount.fuel-amount-btn:active { background: var(--color-neutral-300); }
+.fuel-amount-value { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* — amount wheel picker (AmountWheelPicker) — a scroll-snap dollars/cents
+   wheel for picking the fuel-cost and other-earnings amounts without
+   typing, mirroring the native picker used for sign-in/sign-out times.
+   Uses the same soft-corner/shadow treatment as the confirm popup — a
+   floating picker reads as a deliberate, premium moment better with a bit
+   of softness than the app's usual flat 0-radius edges. */
+.wheel-backdrop {
+  position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-neutral-900) 64%, transparent);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+.wheel-modal {
+  width: min(300px, 100%);
+  display: flex; flex-direction: column; align-items: center; gap: var(--space-3);
+  padding: var(--space-5) var(--space-4);
+  background: var(--color-bg);
+  border-radius: 22px;
+  box-shadow:
+    0 24px 60px -8px color-mix(in srgb, #000 40%, transparent),
+    0 2px 10px color-mix(in srgb, #000 14%, transparent);
+}
+.wheel-title { font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 14px; text-align: center; }
+.wheel-readout {
+  font-family: var(--font-heading); font-weight: 800; font-size: 32px;
+  color: var(--color-accent); font-variant-numeric: tabular-nums;
+}
+.wheel-columns { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; }
+.wheel-col {
+  width: 84px; overflow-y: scroll; scroll-snap-type: y mandatory;
+  scrollbar-width: none; -ms-overflow-style: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent);
+}
+.wheel-col::-webkit-scrollbar { display: none; }
+.wheel-item {
+  scroll-snap-align: center; text-align: center; cursor: pointer;
+  font-family: var(--font-heading); font-weight: 700; font-size: 17px;
+  color: color-mix(in srgb, var(--color-text) 45%, transparent);
+  transition: color var(--dur-base) var(--ease-out), font-size var(--dur-base) var(--ease-out);
+}
+.wheel-item.is-selected { color: var(--color-text); font-size: 21px; }
+.wheel-dot { font-family: var(--font-heading); font-weight: 800; font-size: 20px; padding: 0 2px; flex: none; }
+.wheel-selection-band {
+  position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
+  height: 40px; pointer-events: none;
+  border-top: 1.5px solid var(--color-divider); border-bottom: 1.5px solid var(--color-divider);
+}
+.wheel-actions { display: flex; gap: 10px; width: 100%; margin-top: var(--space-1); }
+.wheel-actions .btn { flex: 1; justify-content: center; }
+@media (prefers-reduced-motion: reduce) {
+  .wheel-col { scroll-behavior: auto; }
+}
+
 /* — report — */
 /* `aspect-ratio` matches the chart's viewBox (320x150) exactly, so the SVG's
    default uniform scaling has no width/height mismatch to stretch against —
