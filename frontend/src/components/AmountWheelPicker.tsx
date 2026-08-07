@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { fmt2 } from "../lib/date";
 
 const ITEM_HEIGHT = 40;
@@ -167,7 +168,16 @@ export function AmountWheelPicker({
     return () => clearTimeout(t);
   }, [amount]);
 
-  return (
+  // Rendered via a portal straight into <body>, bypassing wherever this
+  // component happens to sit in the tree. EntryScreen renders inside
+  // App.tsx's `.swipe-track`, which always carries `will-change: transform`
+  // for the tab-swipe/pull-to-refresh gestures — and per the CSS spec, ANY
+  // transformed (or will-change: transform) ancestor becomes the containing
+  // block for a `position: fixed` descendant instead of the real viewport.
+  // Without the portal, this modal was centering and clamping itself against
+  // that scrollable track's box, not the screen — hence the huge gap above
+  // the wheel and having to scroll the page to reach the buttons below it.
+  return createPortal(
     <div className="wheel-backdrop" role="dialog" aria-modal="true" aria-label={title}>
       <div className="wheel-modal">
         <div className="wheel-title">{title}</div>
@@ -196,6 +206,7 @@ export function AmountWheelPicker({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

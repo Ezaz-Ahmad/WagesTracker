@@ -128,6 +128,16 @@ export function CheckCircleIcon({ size = 20 }: IconProps) {
   );
 }
 
+/** Plain checkmark, no enclosing circle — used as a brief "that registered"
+ * flash over the sign-in/out button, which is already circular itself. */
+export function CheckIcon({ size = 20 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <path d="M5 13l4.5 4.5L19 7" />
+    </svg>
+  );
+}
+
 /** Warning badge for the confirm dialog — used for destructive confirmations
  * (delete, remove, clear, log out). */
 export function AlertTriangleIcon({ size = 20 }: IconProps) {
