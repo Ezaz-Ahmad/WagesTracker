@@ -26,7 +26,12 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <div className="app-shell">
+        // `.app-shell` fades in via the `.is-entered` class App.tsx adds a
+        // couple of frames after mount (see app.css) — this static fallback
+        // never goes through that flow, so without `is-entered` here too it
+        // would sit at the class's base `opacity: 0` forever, making the one
+        // screen meant to catch a fatal error itself invisible.
+        <div className="app-shell is-entered">
           <div className="app-frame" style={{ padding: "var(--space-4)" }}>
             <h6 className="section-title">Something went wrong</h6>
             <p className="card-body">

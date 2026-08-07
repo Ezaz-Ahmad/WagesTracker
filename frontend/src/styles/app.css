@@ -272,7 +272,13 @@ button { font-family: inherit; }
 
 .section-title { color: var(--color-accent); margin-bottom: var(--space-1); }
 .section-hint { font-size: 12px; opacity: 0.6; margin-bottom: var(--space-3); }
-.row-baseline { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+/* `flex-wrap: wrap` is a safety net, not the normal case — every current
+   use (screen title + a ghost/PDF button, or a kicker + segmented toggle)
+   fits on one line at typical phone widths and stays exactly as designed.
+   It only kicks in on the narrowest real devices (~360px) where a longer
+   label like "Download this week (PDF)" would otherwise be clipped by
+   .app-main's `overflow-x: hidden` instead of wrapping to its own line. */
+.row-baseline { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
 
 /* — progress bars — */
 .progress-label-row {
@@ -579,6 +585,19 @@ button { font-family: inherit; }
    with the labels added above location/sign-in/sign-out (see shift-field
    below), centering would leave the shorter controls floating oddly high. */
 .shift-row { display: flex; align-items: flex-end; gap: var(--space-2); margin-bottom: var(--space-3); }
+/* On the narrowest phones, location + both time fields + the hours badge +
+   remove button never all fit on one line at a readable width — the two
+   native <input type="time"> fields in particular have their own minimum
+   render width before their "12:00 PM" text starts clipping, and flex
+   alone can squeeze them well past that. Below ~480px (every phone; no
+   tablet/desktop viewport is this narrow) location drops to its own full-
+   width row, leaving the second row — sign in / sign out / hours / remove —
+   noticeably more breathing room than sharing one row with a third field. */
+@media (max-width: 480px) {
+  .shift-row { flex-wrap: wrap; row-gap: var(--space-2); }
+  .shift-field-location { flex: 1 1 100%; }
+  .shift-field-time { flex: 1 1 0; }
+}
 /* Real, always-visible labels above each shift field — added because an
    empty native <input type="time"> renders completely differently by
    platform (desktop Chrome shows a "--:-- --" placeholder; iOS/Android show
@@ -852,6 +871,17 @@ button { font-family: inherit; }
 .report-hero-row > .report-hero-divider { width: 2px; flex: none; }
 .report-hero-divider { background: var(--color-divider); }
 .report-hero-hours { color: var(--color-accent-700); }
+/* `.week-amount`'s 38px is sized for a card the number has to itself (Home).
+   Here it's split into two half-width columns instead — fine for a typical
+   2-3 digit total, but a weekly total at or above $1,000 (no thousands
+   separator; see fmt2) is 8 characters wide and starts overlapping the
+   divider/other column on a phone-width card. Only scoped below the
+   tablet breakpoint, where the card is still phone-width; from 720px up
+   the wider card (see shell.css) gives each column plenty of room at the
+   full size. */
+@media (max-width: 719px) {
+  .report-hero-row .week-amount { font-size: 28px; }
+}
 /* Goals card — two GoalRings (see components/GoalRing) side by side rather
    than the old stacked linear bars; a filled ring reads faster at a glance
    than two separate percentage rows, and doubles as the same visual
