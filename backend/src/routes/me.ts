@@ -85,10 +85,11 @@ const deleteSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
-// Permanently deletes the account and every row that references it. Shifts are also
-// removed explicitly (not just relying on ON DELETE CASCADE) as a safety net: foreign-key
-// enforcement on a remote libSQL/Turso connection isn't guaranteed to behave identically
-// to local SQLite, so this doesn't assume the cascade fires.
+// Permanently deletes the account and every row that references it. Every referencing
+// table is deleted explicitly (not just relying on ON DELETE CASCADE) as a safety net:
+// foreign-key enforcement on a remote libSQL/Turso connection isn't guaranteed to behave
+// identically to local SQLite, so this doesn't assume the cascade fires. Covered by
+// backend/test/account-deletion.test.ts, which asserts all four tables end up empty.
 meRouter.delete(
   "/",
   asyncHandler<AuthedRequest>(async (req, res) => {
@@ -112,6 +113,8 @@ meRouter.delete(
     await db.batch(
       [
         { sql: "DELETE FROM shifts WHERE user_id = ?", args: [req.userId!] },
+        { sql: "DELETE FROM day_expenses WHERE user_id = ?", args: [req.userId!] },
+        { sql: "DELETE FROM week_extras WHERE user_id = ?", args: [req.userId!] },
         { sql: "DELETE FROM users WHERE id = ?", args: [req.userId!] },
       ],
       "write"

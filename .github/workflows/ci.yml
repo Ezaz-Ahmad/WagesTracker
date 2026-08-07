@@ -1,0 +1,52 @@
+name: CI
+
+# Runs on every push and PR so a broken build/typecheck/test never reaches
+# main silently — the only thing that used to catch these was noticing the
+# app was broken after a deploy. Backend and frontend run as separate jobs
+# (not one job with `-w`) so a failure in one shows up as its own red X
+# instead of one job whose name doesn't say which side broke, and so they
+# run in parallel instead of one waiting on the other.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {} # lets you trigger a manual run from the Actions tab
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      # `npm ci` at the repo root installs every workspace (backend +
+      # frontend) in one pass, per package-lock.json.
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck -w backend
+      # Talks to a real (temp, throwaway) SQLite file per test file — see
+      # backend/test/testApp.ts — so this needs no external services/secrets.
+      - name: Test
+        run: npm run test -w backend
+      - name: Build
+        run: npm run build -w backend
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck -w frontend
+      - name: Test
+        run: npm run test -w frontend
+      - name: Build
+        run: npm run build -w frontend
