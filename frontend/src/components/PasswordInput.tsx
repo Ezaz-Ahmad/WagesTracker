@@ -17,6 +17,7 @@ export function PasswordInput({ className = "input", ...props }: InputHTMLAttrib
         className="password-toggle-btn"
         onClick={() => setVisible((v) => !v)}
         aria-label={visible ? "Hide password" : "Show password"}
+        title={visible ? "Hide password" : "Show password"}
       >
         {visible ? <EyeOffIcon size={17} /> : <EyeIcon size={17} />}
       </button>

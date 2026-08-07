@@ -837,6 +837,15 @@ button { font-family: inherit; }
 .period-bar-label { font-size: 10px; opacity: 0.6; }
 .period-bar-fill { width: 100%; }
 
+/* — per-screen error boundary fallback (ScreenErrorBoundary) — */
+.screen-error-card {
+  align-items: center;
+  text-align: center;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-4);
+  margin-top: var(--space-4);
+}
+
 /* — settings — */
 .field-spaced { margin-bottom: var(--space-3); }
 .settings-note { font-size: 11px; opacity: 0.5; margin-top: var(--space-3); }

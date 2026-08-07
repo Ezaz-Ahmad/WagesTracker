@@ -6,6 +6,7 @@ import { Logo } from "./components/Logo";
 import { EyeIcon, EyeOffIcon, LogoutIcon, RefreshIcon } from "./components/icons";
 import { AuthScreen } from "./screens/AuthScreen";
 import { WakingUpScreen } from "./components/WakingUpScreen";
+import { ScreenErrorBoundary } from "./components/ScreenErrorBoundary";
 import { useDelayedFlag } from "./lib/useDelayedFlag";
 import { HomeScreen } from "./screens/HomeScreen";
 import { EntryScreen } from "./screens/EntryScreen";
@@ -101,6 +102,7 @@ function AuthedApp() {
             className={`app-nav-eye-btn${earningsHidden ? "" : " is-visible"}`}
             onClick={() => (earningsHidden ? revealEarnings() : hideEarningsNow())}
             aria-label={earningsHidden ? "Show earnings for 20 minutes" : "Hide earnings"}
+            title={earningsHidden ? "Show earnings for 20 minutes" : "Hide earnings"}
             aria-pressed={!earningsHidden}
           >
             {earningsHidden ? <EyeIcon size={16} /> : <EyeOffIcon size={16} />}
@@ -139,11 +141,13 @@ function AuthedApp() {
           )}
           <div className="swipe-track" style={trackStyle}>
             <div key={screen} className={screenTransitionClass}>
-              {screen === "home" && <HomeScreen />}
-              {screen === "entry" && <EntryScreen />}
-              {screen === "report" && <ReportScreen />}
-              {screen === "history" && <HistoryScreen />}
-              {screen === "settings" && <SettingsScreen />}
+              <ScreenErrorBoundary key={screen}>
+                {screen === "home" && <HomeScreen />}
+                {screen === "entry" && <EntryScreen />}
+                {screen === "report" && <ReportScreen />}
+                {screen === "history" && <HistoryScreen />}
+                {screen === "settings" && <SettingsScreen />}
+              </ScreenErrorBoundary>
             </div>
           </div>
         </div>

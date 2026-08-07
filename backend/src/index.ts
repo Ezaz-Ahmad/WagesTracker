@@ -11,6 +11,23 @@ import { meRouter } from "./routes/me.js";
 import { shiftsRouter } from "./routes/shifts.js";
 import { weekExtrasRouter } from "./routes/weekExtras.js";
 
+// Last-resort safety net: every route already goes through asyncHandler (see
+// asyncHandler.ts), which turns a rejected route handler into a normal 500
+// response instead of an unhandled rejection — but that only covers the
+// request/response cycle. Anything outside it (a stray rejected promise a
+// future change forgets to await/catch, a bug in a background task) would
+// otherwise either crash the whole process — taking down every logged-in
+// user's session, not just the one request that misbehaved — or fail
+// silently. Logging and staying up trades a small risk of running past a
+// truly corrupted state for a much larger, likelier win: one bad request
+// doesn't take the whole API offline for everyone else.
+process.on("unhandledRejection", (reason) => {
+  console.error("[unhandled rejection]", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[uncaught exception]", err);
+});
+
 const isProd = process.env.NODE_ENV === "production";
 
 // Comma-separated list of allowed browser origins, e.g. "https://app.example.com,https://staging.example.com"

@@ -15,12 +15,13 @@ import {
 } from "../lib/aggregate";
 import { buildWeekDays, fmt2, isoDate } from "../lib/date";
 import { buildWeekReportData } from "../lib/reportData";
-import { generateReportPdf } from "../pdf/generateReportPdf";
+import { usePdfDownload } from "../lib/usePdfDownload";
 import { useCountUp } from "../lib/useCountUp";
 import { Skeleton } from "../components/Skeleton";
 import { GoalRing } from "../components/GoalRing";
 import { Amount } from "../components/Amount";
 import { EarningsHiddenHint } from "../components/EarningsHiddenHint";
+import { BubbleLoader } from "../components/BubbleLoader";
 
 type Metric = "earnings" | "hours";
 type Period = "week" | "month" | "year";
@@ -29,6 +30,13 @@ export function ReportScreen() {
   const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras, earningsHidden } = useApp();
   const [metric, setMetric] = useState<Metric>("earnings");
   const [period, setPeriod] = useState<Period>("week");
+  const {
+    download: downloadPdf,
+    downloading: pdfDownloading,
+    justDownloaded: pdfJustDownloaded,
+    error: pdfError,
+    clearError: clearPdfError,
+  } = usePdfDownload();
 
   // Hooks below must run every render regardless of loading state, so the
   // bail-out has to come after all of them — see HomeScreen for the same fix.
@@ -78,7 +86,7 @@ export function ReportScreen() {
   }
 
   function handleDownloadPdf() {
-    void generateReportPdf(buildWeekReportData(user!, shifts, today, CURRENCY, dayExpenses, weekExtras));
+    void downloadPdf(buildWeekReportData(user!, shifts, today, CURRENCY, dayExpenses, weekExtras));
   }
 
   const metricLabel = metric === "earnings" ? "earnings" : "hours";
@@ -87,11 +95,27 @@ export function ReportScreen() {
     <div className="screen-wide">
       <div className="row-baseline">
         <h6 className="section-title">Progress report</h6>
-        <button className="btn btn-ghost" onClick={handleDownloadPdf} style={{ flex: "none" }}>
-          Download this week (PDF)
+        <button
+          className={`btn btn-ghost${pdfJustDownloaded ? " btn-save-flash" : ""}`}
+          onClick={handleDownloadPdf}
+          disabled={pdfDownloading}
+          style={{ flex: "none" }}
+        >
+          {pdfDownloading ? (
+            <BubbleLoader label="Preparing PDF" />
+          ) : pdfJustDownloaded ? (
+            "Downloaded ✓"
+          ) : (
+            "Download this week (PDF)"
+          )}
         </button>
       </div>
       <div className="section-hint">Last 7 weeks plus this week in progress.</div>
+      {pdfError && (
+        <div className="form-error" role="alert" onClick={clearPdfError}>
+          {pdfError}
+        </div>
+      )}
 
       {/* Headline numbers up front, before any chart — answers "how am I
           doing this week" in one glance instead of making that the reward
