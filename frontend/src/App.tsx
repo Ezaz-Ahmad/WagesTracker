@@ -5,6 +5,7 @@ import { ConfirmProvider } from "./components/ConfirmProvider";
 import { Logo } from "./components/Logo";
 import { EyeIcon, EyeOffIcon, LogoutIcon, RefreshIcon } from "./components/icons";
 import { AuthScreen } from "./screens/AuthScreen";
+import { WakingUpScreen } from "./components/WakingUpScreen";
 import { HomeScreen } from "./screens/HomeScreen";
 import { EntryScreen } from "./screens/EntryScreen";
 import { ReportScreen } from "./screens/ReportScreen";
@@ -154,7 +155,10 @@ function AuthedApp() {
 
 function Root() {
   const { status } = useApp();
-  if (status === "loading") return null;
+  // Was previously a blank white screen for however long the session check
+  // took — invisible during a normal fast response, but a real multi-minute
+  // wait if Render's free-tier backend had spun down. See WakingUpScreen.
+  if (status === "loading") return <WakingUpScreen />;
   return status === "loggedIn" ? <AuthedApp /> : <AuthScreen />;
 }
 

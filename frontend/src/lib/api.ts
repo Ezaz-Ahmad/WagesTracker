@@ -41,6 +41,25 @@ export function clearRememberedEmail(): void {
   localStorage.removeItem(REMEMBERED_EMAIL_KEY);
 }
 
+/** Pings the backend's lightweight health endpoint directly — no auth header,
+ * no JSON error parsing, just "did it answer." Used by the "waking up"
+ * screen to show real progress while a cold Render instance spins back up.
+ * Deliberately separate from `fetchMe` (the actual session check that
+ * decides whether the user is logged in): this just answers "is the server
+ * up yet," which resolves slightly sooner since it skips the DB lookup. */
+export async function pingHealth(timeoutMs: number = 10000): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${API_ORIGIN}/api/health`, { signal: controller.signal });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
