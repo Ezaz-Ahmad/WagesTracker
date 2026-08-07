@@ -26,24 +26,60 @@ function WheelColumn({
   format: (v: number) => string;
   ariaLabel: string;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<Array<HTMLDivElement | null>>([]);
   const settleTimer = useRef<ReturnType<typeof setTimeout>>();
+  const rafId = useRef<number>();
   const didInit = useRef(false);
 
   // Jump to the starting value once, without animating — a smooth scroll on
   // mount would read as the picker "searching" for the current amount.
   useEffect(() => {
-    const el = ref.current;
+    const el = containerRef.current;
     if (!el || didInit.current) return;
     didInit.current = true;
     el.scrollTop = index * ITEM_HEIGHT;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // The wheel's actual "feel" — every row's tilt/scale/fade is driven live
+  // off the real scroll position, every frame, for as long as the picker is
+  // open. Riding on the browser's own scroll physics (momentum, snap,
+  // rubber-band overscroll) rather than reimplementing it in JS is what
+  // makes this track a finger exactly instead of feeling like a canned
+  // animation layered on top of a plain list.
+  useEffect(() => {
+    function tick() {
+      const el = containerRef.current;
+      if (el) {
+        const offset = el.scrollTop / ITEM_HEIGHT;
+        const lo = Math.max(0, Math.floor(offset) - PAD_ROWS - 1);
+        const hi = Math.min(values.length - 1, Math.ceil(offset) + PAD_ROWS + 1);
+        for (let i = lo; i <= hi; i++) {
+          const item = itemRefs.current[i];
+          if (!item) continue;
+          const distance = i - offset;
+          const abs = Math.min(Math.abs(distance), 2.4);
+          const scale = 1 - abs * 0.16;
+          const opacity = Math.max(0.16, 1 - abs * 0.42);
+          const rotate = distance * 20;
+          item.style.transform = `perspective(260px) rotateX(${rotate}deg) scale(${scale})`;
+          item.style.opacity = String(opacity);
+        }
+      }
+      rafId.current = requestAnimationFrame(tick);
+    }
+    rafId.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafId.current) cancelAnimationFrame(rafId.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function handleScroll() {
     clearTimeout(settleTimer.current);
     settleTimer.current = setTimeout(() => {
-      const el = ref.current;
+      const el = containerRef.current;
       if (!el) return;
       const nextIndex = Math.max(0, Math.min(values.length - 1, Math.round(el.scrollTop / ITEM_HEIGHT)));
       // Native scroll-snap usually lands exactly on a row already; this just
@@ -59,7 +95,7 @@ function WheelColumn({
   return (
     <div
       className="wheel-col"
-      ref={ref}
+      ref={containerRef}
       onScroll={handleScroll}
       role="listbox"
       aria-label={ariaLabel}
@@ -72,11 +108,14 @@ function WheelColumn({
       {values.map((v, i) => (
         <div
           key={v}
+          ref={(el) => {
+            itemRefs.current[i] = el;
+          }}
           className={`wheel-item${i === index ? " is-selected" : ""}`}
           style={{ height: ITEM_HEIGHT, lineHeight: `${ITEM_HEIGHT}px` }}
           role="option"
           aria-selected={i === index}
-          onClick={() => ref.current?.scrollTo({ top: i * ITEM_HEIGHT, behavior: "smooth" })}
+          onClick={() => containerRef.current?.scrollTo({ top: i * ITEM_HEIGHT, behavior: "smooth" })}
         >
           {format(v)}
         </div>
@@ -113,11 +152,26 @@ export function AmountWheelPicker({
   const [centIndex, setCentIndex] = useState(initialCentIndex);
   const amount = DOLLAR_VALUES[dollarIndex] + CENT_VALUES[centIndex] / 100;
 
+  // A small tactile "pop" on the readout every time a wheel actually
+  // settles on a new value — skipped on first mount so it doesn't fire the
+  // instant the picker opens.
+  const [bump, setBump] = useState(false);
+  const firstRender = useRef(true);
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    setBump(true);
+    const t = setTimeout(() => setBump(false), 220);
+    return () => clearTimeout(t);
+  }, [amount]);
+
   return (
     <div className="wheel-backdrop" role="dialog" aria-modal="true" aria-label={title}>
       <div className="wheel-modal">
         <div className="wheel-title">{title}</div>
-        <div className="wheel-readout count-value">
+        <div className={`wheel-readout count-value${bump ? " is-bump" : ""}`}>
           {currency}
           {fmt2(amount)}
         </div>

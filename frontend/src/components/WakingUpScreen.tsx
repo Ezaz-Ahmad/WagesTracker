@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { pingHealth } from "../lib/api";
+import { GoalRing } from "./GoalRing";
 import { Logo } from "./Logo";
 
 /** How long the eased progress takes to visually settle near its cap — tuned
@@ -84,13 +85,18 @@ export function WakingUpScreen() {
 
   return (
     <div className="wakeup-shell">
-      <div className="wakeup-card card elev-md">
-        <Logo size={40} />
-        <div className="wakeup-percent">{Math.round(percent)}%</div>
-        <div className="progress-track wakeup-track">
-          <div className="progress-fill" style={{ width: `${percent}%` }} />
+      <div className="wakeup-glow" aria-hidden="true" />
+      <div className="wakeup-card">
+        <div className="wakeup-logo-wrap">
+          <span className="wakeup-logo-halo" aria-hidden="true" />
+          <Logo size={34} />
         </div>
-        <p className="wakeup-caption">{caption}</p>
+        <GoalRing pct={percent} value={`${Math.round(percent)}%`} size={148} strokeWidth={10} />
+        {/* Keyed so each distinct message crossfades in on its own, instead
+            of the text silently jumping mid-sentence. */}
+        <p className="wakeup-caption" key={caption}>
+          {caption}
+        </p>
       </div>
     </div>
   );

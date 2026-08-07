@@ -213,16 +213,55 @@ button { font-family: inherit; }
 .progress-fill { height: 100%; background: var(--color-accent); }
 
 /* — waking up (cold-start) screen — shown instead of a blank page while we
-   wait to learn if there's a valid session; see WakingUpScreen.tsx */
-.wakeup-shell { min-height: 100dvh; display: grid; place-items: center; padding: var(--space-4); }
-.wakeup-card { width: min(320px, 100%); align-items: center; text-align: center; gap: var(--space-3); padding: var(--space-6) var(--space-4); }
-.wakeup-card svg { animation: timer-breathe 2.2s var(--ease-standard) infinite; }
-.wakeup-percent {
-  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
-  font-size: 40px; line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
+   wait to learn if there's a valid session; see WakingUpScreen.tsx. Built
+   as its own floating, glowing moment (like the confirm popup and wheel
+   picker) rather than a plain flat card, since it can be the only thing on
+   screen for a while — worth making it feel alive, not just functional. */
+.wakeup-shell { position: relative; min-height: 100dvh; display: grid; place-items: center; padding: var(--space-4); overflow: hidden; }
+.wakeup-glow {
+  position: absolute; width: 440px; height: 440px; max-width: 120vw; border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--color-accent) 24%, transparent), transparent 68%);
+  filter: blur(6px); pointer-events: none;
+  animation: wakeup-glow-pulse 3.6s var(--ease-standard) infinite;
 }
-.wakeup-track { width: 100%; }
-.wakeup-caption { margin: 0; font-size: 13px; min-height: 2.6em; color: color-mix(in srgb, var(--color-text) 60%, transparent); }
+@keyframes wakeup-glow-pulse {
+  0%, 100% { transform: scale(0.9); opacity: 0.5; }
+  50% { transform: scale(1.08); opacity: 0.85; }
+}
+.wakeup-card {
+  position: relative; width: min(300px, 100%);
+  display: flex; flex-direction: column; align-items: center; gap: var(--space-4);
+  padding: var(--space-6) var(--space-5);
+  background: color-mix(in srgb, var(--color-bg) 88%, white 12%);
+  border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+  border-radius: 26px;
+  box-shadow:
+    0 30px 70px -14px color-mix(in srgb, #000 32%, transparent),
+    0 3px 14px color-mix(in srgb, #000 10%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 55%, transparent);
+  animation: wakeup-card-in 520ms var(--ease-emphasized) both;
+}
+@keyframes wakeup-card-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.wakeup-logo-wrap { position: relative; display: grid; place-items: center; }
+.wakeup-logo-halo {
+  position: absolute; width: 58px; height: 58px; border-radius: 50%;
+  background: color-mix(in srgb, var(--color-accent) 38%, transparent);
+  filter: blur(11px);
+  animation: timer-breathe 2.2s var(--ease-standard) infinite;
+}
+.wakeup-logo-wrap svg { position: relative; filter: drop-shadow(0 4px 10px color-mix(in srgb, var(--color-accent) 45%, transparent)); }
+.wakeup-caption {
+  margin: 0; font-size: 13px; text-align: center; min-height: 2.6em;
+  color: color-mix(in srgb, var(--color-text) 62%, transparent);
+  animation: fade-in var(--dur-base) var(--ease-standard) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wakeup-glow, .wakeup-logo-halo { animation: none; }
+  .wakeup-card { animation: none; }
+}
 
 /* — circular CTA — */
 .cta-circle {
@@ -474,53 +513,95 @@ button { font-family: inherit; }
    typing, mirroring the native picker used for sign-in/sign-out times.
    Uses the same soft-corner/shadow treatment as the confirm popup — a
    floating picker reads as a deliberate, premium moment better with a bit
-   of softness than the app's usual flat 0-radius edges. */
+   of softness than the app's usual flat 0-radius edges. Each row's
+   tilt/scale/fade is driven live off real scroll position in JS (see
+   AmountWheelPicker.tsx), not CSS, so what's styled here is each row's
+   *resting* look — color and weight — while the 3D motion itself comes
+   from the component. */
 .wheel-backdrop {
   position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center;
   padding: var(--space-4);
-  background: color-mix(in srgb, var(--color-neutral-900) 64%, transparent);
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  background: color-mix(in srgb, var(--color-neutral-900) 68%, transparent);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  animation: fade-in var(--dur-fast) var(--ease-standard) both;
 }
 .wheel-modal {
-  width: min(300px, 100%);
+  position: relative; width: min(300px, 100%);
   display: flex; flex-direction: column; align-items: center; gap: var(--space-3);
-  padding: var(--space-5) var(--space-4);
-  background: var(--color-bg);
-  border-radius: 22px;
+  padding: var(--space-6) var(--space-4) var(--space-4);
+  background: color-mix(in srgb, var(--color-bg) 90%, white 10%);
+  border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+  border-radius: 26px;
   box-shadow:
-    0 24px 60px -8px color-mix(in srgb, #000 40%, transparent),
-    0 2px 10px color-mix(in srgb, #000 14%, transparent);
+    0 30px 70px -14px color-mix(in srgb, #000 40%, transparent),
+    0 3px 14px color-mix(in srgb, #000 12%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 55%, transparent);
+  animation: wheel-modal-in 420ms var(--ease-emphasized) both;
 }
-.wheel-title { font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 14px; text-align: center; }
+@keyframes wheel-modal-in {
+  from { opacity: 0; transform: translateY(20px) scale(0.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.wheel-title {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 13px;
+  text-align: center; text-transform: uppercase; letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+}
 .wheel-readout {
-  font-family: var(--font-heading); font-weight: 800; font-size: 32px;
+  font-family: var(--font-heading); font-weight: 800; font-size: 34px;
   color: var(--color-accent); font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 18px color-mix(in srgb, var(--color-accent) 35%, transparent);
+  transition: transform 220ms var(--ease-out);
 }
-.wheel-columns { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; }
+.wheel-readout.is-bump { animation: wheel-readout-pop 220ms var(--ease-out); }
+@keyframes wheel-readout-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+.wheel-columns {
+  position: relative; display: flex; align-items: center; justify-content: center; width: 100%;
+  padding: var(--space-2) 0;
+}
 .wheel-col {
-  width: 84px; overflow-y: scroll; scroll-snap-type: y mandatory;
+  width: 92px; overflow-y: scroll; scroll-snap-type: y mandatory;
   scrollbar-width: none; -ms-overflow-style: none;
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent);
-  mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 28%, #000 72%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 28%, #000 72%, transparent);
 }
 .wheel-col::-webkit-scrollbar { display: none; }
 .wheel-item {
   scroll-snap-align: center; text-align: center; cursor: pointer;
-  font-family: var(--font-heading); font-weight: 700; font-size: 17px;
-  color: color-mix(in srgb, var(--color-text) 45%, transparent);
-  transition: color var(--dur-base) var(--ease-out), font-size var(--dur-base) var(--ease-out);
+  font-family: var(--font-heading); font-weight: 700; font-size: 18px;
+  color: color-mix(in srgb, var(--color-text) 42%, transparent);
+  will-change: transform, opacity;
 }
-.wheel-item.is-selected { color: var(--color-text); font-size: 21px; }
-.wheel-dot { font-family: var(--font-heading); font-weight: 800; font-size: 20px; padding: 0 2px; flex: none; }
+.wheel-item.is-selected { color: var(--color-text); font-weight: 800; }
+.wheel-dot {
+  font-family: var(--font-heading); font-weight: 800; font-size: 22px; padding: 0 4px; flex: none;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+/* The glossy "lens" behind the centered row — a soft accent-tinted band
+   with an inset highlight, standing in for the old plain hairlines. */
 .wheel-selection-band {
-  position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
-  height: 40px; pointer-events: none;
-  border-top: 1.5px solid var(--color-divider); border-bottom: 1.5px solid var(--color-divider);
+  position: absolute; left: -10px; right: -10px; top: 50%; transform: translateY(-50%);
+  height: 42px; pointer-events: none; border-radius: 14px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-accent) 12%, transparent),
+    color-mix(in srgb, var(--color-accent) 18%, transparent)
+  );
+  border: 1px solid color-mix(in srgb, var(--color-accent) 28%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 65%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, #000 8%, transparent);
 }
 .wheel-actions { display: flex; gap: 10px; width: 100%; margin-top: var(--space-1); }
-.wheel-actions .btn { flex: 1; justify-content: center; }
+.wheel-actions .btn { flex: 1; height: 46px; border-radius: 13px; justify-content: center; font-size: 14.5px; }
+.wheel-actions .btn-primary { box-shadow: 0 8px 18px -4px color-mix(in srgb, var(--color-accent) 55%, transparent); }
 @media (prefers-reduced-motion: reduce) {
   .wheel-col { scroll-behavior: auto; }
+  .wheel-modal, .wheel-backdrop, .wheel-readout.is-bump { animation: none; }
 }
 
 /* — report — */
