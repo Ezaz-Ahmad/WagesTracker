@@ -445,16 +445,24 @@ export function EntryScreen() {
                   <FuelIcon size={14} />
                   Fuel cost
                 </label>
-                {isFuelChecked(day) && (
-                  <button
-                    type="button"
-                    className="fuel-amount fuel-amount-btn"
-                    onClick={() => setFuelPickerDate(day.dateISO)}
-                  >
-                    <span className="fuel-amount-prefix">{CURRENCY}</span>
-                    <span className="fuel-amount-value">{fmt2(day.fuelCost)}</span>
-                  </button>
-                )}
+                {/* Always mounted — visibility is a CSS transition on the
+                    `is-open` class, not a conditional render, so unchecking
+                    "Fuel cost" fades/shrinks this away smoothly instead of it
+                    vanishing the instant React removes the node (the same
+                    instant-unmount gap fixed for the popups elsewhere, just
+                    not fixable with useDismissTransition here since this
+                    lives inside a day-by-day .map() — hooks can't be called
+                    per loop iteration). */}
+                <button
+                  type="button"
+                  className={`fuel-amount fuel-amount-btn fuel-amount-collapse${isFuelChecked(day) ? " is-open" : ""}`}
+                  onClick={() => setFuelPickerDate(day.dateISO)}
+                  tabIndex={isFuelChecked(day) ? 0 : -1}
+                  aria-hidden={!isFuelChecked(day)}
+                >
+                  <span className="fuel-amount-prefix">{CURRENCY}</span>
+                  <span className="fuel-amount-value">{fmt2(day.fuelCost)}</span>
+                </button>
               </div>
             </div>
           </div>
@@ -472,7 +480,14 @@ export function EntryScreen() {
         <p className="card-body" style={{ margin: 0 }}>
           A one-off amount for the week — a tip, bonus, or reimbursement — added on top of your hours.
         </p>
-        {otherChecked && (
+        {/* Always mounted — the collapse is a grid-rows transition (same
+            technique as the day accordion's day-row-collapse), not a
+            conditional render, so unchecking "Other earnings" eases shut
+            smoothly instead of the whole form vanishing the instant React
+            would otherwise remove it. Bonus: an in-progress reason/amount
+            now survives an accidental uncheck-recheck instead of being
+            wiped, since the textarea node itself never actually unmounts. */}
+        <div className={`other-earning-collapse${otherChecked ? " is-open" : ""}`}>
           <div className="other-earning-form">
             <button
               type="button"
@@ -496,7 +511,7 @@ export function EntryScreen() {
               {otherHint && <span className="other-earning-hint">{otherHint}</span>}
             </div>
           </div>
-        )}
+        </div>
       </div>
 
       <div className="card elev-sm week-total-card anim-rise">
