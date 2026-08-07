@@ -26,6 +26,26 @@ export function clearToken(): void {
   sessionStorage.removeItem(TOKEN_KEY);
 }
 
+const LAST_ACTIVITY_KEY = "wageTracker.lastActivity";
+
+/** Timestamp (ms) of the last recorded user activity, in localStorage rather
+ * than component state so it survives the app being minimized, backgrounded,
+ * or fully closed and relaunched — the idle-logout check needs the *real*
+ * elapsed time even when no in-page timer was alive to track it. Shared
+ * across tabs for the same reason: any activity anywhere resets the clock,
+ * and if every tab is closed the stored value simply stops moving, which is
+ * exactly the "how long has this actually been idle" signal we want. */
+export function recordActivity(): void {
+  localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
+}
+export function getLastActivity(): number | null {
+  const raw = localStorage.getItem(LAST_ACTIVITY_KEY);
+  return raw ? Number(raw) : null;
+}
+export function clearLastActivity(): void {
+  localStorage.removeItem(LAST_ACTIVITY_KEY);
+}
+
 const REMEMBERED_EMAIL_KEY = "wageTracker.rememberedEmail";
 
 /** The email from the last "Remember me" login — survives logging out and

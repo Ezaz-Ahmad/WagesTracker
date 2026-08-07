@@ -69,15 +69,18 @@ export function WakingUpScreen() {
     };
   }, []);
 
+  // Kept deliberately generic — this screen covers both a silent auto-login
+  // check and an explicit login/signup submission, so it never assumes
+  // which one is in flight.
   const caption = ready
-    ? "Server's awake — signing you in…"
+    ? "Connected — just a moment…"
     : elapsedSec > SLOW_AFTER_SECONDS
       ? "Still going — a cold start can occasionally take a couple of minutes."
-      : percent < 35
-        ? "Waking up the server…"
+      : elapsedSec < 8
+        ? "Connecting…"
         : percent < 80
-          ? "Almost there…"
-          : "Just a little longer…";
+          ? "Waking up the server — this can take a minute if it's been idle."
+          : "Almost there…";
 
   return (
     <div className="wakeup-shell">

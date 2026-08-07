@@ -14,7 +14,18 @@ export const CURRENCY = "$";
 // open shift keeps accruing time from its stored sign-in timestamp on the
 // server regardless of whether the app is logged in, so nothing is lost —
 // signing back in picks the running total back up exactly where it left off.
-const IDLE_LOGOUT_MS = 10 * 60 * 1000;
+//
+// Enforced regardless of *how* the app was away — not just a live in-page
+// timer counting up while the tab sits open. The elapsed time is measured
+// against a timestamp in localStorage (see recordActivity/getLastActivity
+// in lib/api.ts), which survives the app being minimized, backgrounded, or
+// killed and relaunched. So: minimize the app for 20 minutes and reopen it,
+// and it logs out and asks for credentials immediately — no silent
+// auto-login, no waiting on the server — even though nothing was "counting"
+// while it was closed.
+const IDLE_LOGOUT_MS = 15 * 60 * 1000;
+const IDLE_LOGOUT_MESSAGE =
+  "You were logged out after 15 minutes of inactivity. Any shift in progress kept counting — log back in to see it.";
 
 // How long a manual "reveal" of the earnings-privacy toggle lasts before it
 // auto-hides again — a flat window from the moment of reveal, not an idle
@@ -152,10 +163,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setStatus("loggedOut");
       return;
     }
+
+    // The idle timeout applies even across a full close/relaunch: if more
+    // time has passed since the last recorded activity than the timeout
+    // allows, this is exactly an idle logout — clear the session and show
+    // the login form immediately. No silent auto-login attempt, and
+    // critically no wake-up-screen wait on a possibly-cold server for a
+    // session we're about to throw away anyway.
+    const lastActivity = api.getLastActivity();
+    if (lastActivity !== null && Date.now() - lastActivity >= IDLE_LOGOUT_MS) {
+      api.clearToken();
+      api.clearLastActivity();
+      setStatus("loggedOut");
+      setAuthError(IDLE_LOGOUT_MESSAGE);
+      return;
+    }
+
     api
       .fetchMe()
       .then(({ user }) => {
         setUser(user);
+        api.recordActivity();
         setStatus("loggedIn");
       })
       .catch((e) => {
@@ -201,6 +229,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const { token, user } = await api.login(email, password);
       api.setToken(token, remember);
+      api.recordActivity();
       if (remember) api.setRememberedEmail(email);
       else api.clearRememberedEmail();
       setUser(user);
@@ -220,6 +249,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const { token, user } = await api.signup(input);
       api.setToken(token, true);
+      api.recordActivity();
       setUser(user);
       hideEarningsNow();
       await settleKeyboardBeforeAuth();
@@ -233,6 +263,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     api.clearToken();
+    api.clearLastActivity();
     setUser(null);
     setShifts([]);
     setDayExpenses([]);
@@ -273,20 +304,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let timer: ReturnType<typeof setTimeout>;
     const handleIdle = () => {
       logout();
-      setAuthError("You were logged out after 10 minutes of inactivity. Any shift in progress kept counting — log back in to see it.");
+      setAuthError(IDLE_LOGOUT_MESSAGE);
     };
     const resetTimer = () => {
+      api.recordActivity();
       clearTimeout(timer);
       timer = setTimeout(handleIdle, IDLE_LOGOUT_MS);
+    };
+    // Backstop for the case a live in-page timer can't cover: the tab gets
+    // backgrounded/the device sleeps for longer than the timeout, and the
+    // browser throttles or fully suspends timers while it's not visible —
+    // `handleIdle` above might never fire on its own. Checked the instant
+    // the app is visible/focused again, against the real elapsed time
+    // (not the timer's), so a stale session is caught right away instead
+    // of surviving until the next mouse move or tap.
+    const checkStaleOnResume = () => {
+      const lastActivity = api.getLastActivity();
+      if (lastActivity !== null && Date.now() - lastActivity >= IDLE_LOGOUT_MS) {
+        handleIdle();
+      }
     };
 
     const activityEvents = ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "wheel"] as const;
     activityEvents.forEach((evt) => window.addEventListener(evt, resetTimer, { passive: true }));
+    document.addEventListener("visibilitychange", checkStaleOnResume);
+    window.addEventListener("focus", checkStaleOnResume);
+    window.addEventListener("pageshow", checkStaleOnResume);
     resetTimer();
 
     return () => {
       clearTimeout(timer);
       activityEvents.forEach((evt) => window.removeEventListener(evt, resetTimer));
+      document.removeEventListener("visibilitychange", checkStaleOnResume);
+      window.removeEventListener("focus", checkStaleOnResume);
+      window.removeEventListener("pageshow", checkStaleOnResume);
     };
   }, [status, logout]);
 
@@ -296,6 +347,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await api.deleteAccount(password);
     api.clearToken();
     api.clearRememberedEmail();
+    api.clearLastActivity();
     setUser(null);
     setShifts([]);
     setDayExpenses([]);

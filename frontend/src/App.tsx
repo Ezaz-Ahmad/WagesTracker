@@ -6,6 +6,7 @@ import { Logo } from "./components/Logo";
 import { EyeIcon, EyeOffIcon, LogoutIcon, RefreshIcon } from "./components/icons";
 import { AuthScreen } from "./screens/AuthScreen";
 import { WakingUpScreen } from "./components/WakingUpScreen";
+import { useDelayedFlag } from "./lib/useDelayedFlag";
 import { HomeScreen } from "./screens/HomeScreen";
 import { EntryScreen } from "./screens/EntryScreen";
 import { ReportScreen } from "./screens/ReportScreen";
@@ -154,11 +155,22 @@ function AuthedApp() {
 }
 
 function Root() {
-  const { status } = useApp();
-  // Was previously a blank white screen for however long the session check
-  // took — invisible during a normal fast response, but a real multi-minute
-  // wait if Render's free-tier backend had spun down. See WakingUpScreen.
-  if (status === "loading") return <WakingUpScreen />;
+  const { status, authBusy } = useApp();
+
+  // Covers every path that can stall on a cold backend: the silent
+  // session check on load (status === "loading") *and* an explicit
+  // login/signup submission (authBusy) — same treatment either way, since
+  // from the user's side both are just "the app is waiting on the server."
+  // Delayed by 500ms so a normal, already-warm response never flashes this
+  // screen — it only escalates once a wait is actually starting to look
+  // like a Render cold start rather than ordinary network latency.
+  const isWaiting = status === "loading" || authBusy;
+  const showWakingScreen = useDelayedFlag(isWaiting, 500);
+
+  if (showWakingScreen) return <WakingUpScreen />;
+  // Still within the 500ms grace window of the initial session check —
+  // previously blank here too, so no visible change on the fast path.
+  if (status === "loading") return null;
   return status === "loggedIn" ? <AuthedApp /> : <AuthScreen />;
 }
 
