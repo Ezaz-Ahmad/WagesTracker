@@ -20,6 +20,7 @@ import { useCountUp } from "../lib/useCountUp";
 import { Skeleton } from "../components/Skeleton";
 import { GoalRing } from "../components/GoalRing";
 import { Amount } from "../components/Amount";
+import { EarningsHiddenHint } from "../components/EarningsHiddenHint";
 
 type Metric = "earnings" | "hours";
 type Period = "week" | "month" | "year";
@@ -109,6 +110,7 @@ export function ReportScreen() {
             <div className="week-amount count-value report-hero-hours">{fmt2(totalHours)}h</div>
           </div>
         </div>
+        <EarningsHiddenHint />
       </div>
 
       <div className="card elev-sm anim-rise" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 1 }}>

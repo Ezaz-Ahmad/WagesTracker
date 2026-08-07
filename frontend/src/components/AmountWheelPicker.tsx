@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fmt2 } from "../lib/date";
+import { useDismissTransition } from "../lib/useDismissTransition";
 
 const ITEM_HEIGHT = 40;
 const VISIBLE_ROWS = 5; // odd, so exactly one row sits centered
@@ -153,6 +154,13 @@ export function AmountWheelPicker({
   const [centIndex, setCentIndex] = useState(initialCentIndex);
   const amount = DOLLAR_VALUES[dollarIndex] + CENT_VALUES[centIndex] / 100;
 
+  // Cancel/Done/backdrop-tap all play a quick scale+fade-out first, then call
+  // the real prop — by the time the parent unmounts this (clearing whichever
+  // state was driving it), the modal is already invisible instead of
+  // snapping away mid-frame. See the hook for why this can't just be a plain
+  // callback.
+  const { closing, requestClose } = useDismissTransition(180);
+
   // A small tactile "pop" on the readout every time a wheel actually
   // settles on a new value — skipped on first mount so it doesn't fire the
   // instant the picker opens.
@@ -178,8 +186,14 @@ export function AmountWheelPicker({
   // that scrollable track's box, not the screen — hence the huge gap above
   // the wheel and having to scroll the page to reach the buttons below it.
   return createPortal(
-    <div className="wheel-backdrop" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="wheel-modal">
+    <div
+      className={`wheel-backdrop${closing ? " is-closing" : ""}`}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      onClick={() => requestClose(onCancel)}
+    >
+      <div className={`wheel-modal${closing ? " is-closing" : ""}`} onClick={(e) => e.stopPropagation()}>
         <div className="wheel-title">{title}</div>
         <div className={`wheel-readout count-value${bump ? " is-bump" : ""}`}>
           {currency}
@@ -198,10 +212,10 @@ export function AmountWheelPicker({
           />
         </div>
         <div className="wheel-actions">
-          <button type="button" className="btn btn-secondary" onClick={onCancel}>
+          <button type="button" className="btn btn-secondary" onClick={() => requestClose(onCancel)}>
             Cancel
           </button>
-          <button type="button" className="btn btn-primary" onClick={() => onDone(amount)}>
+          <button type="button" className="btn btn-primary" onClick={() => requestClose(() => onDone(amount))}>
             Done
           </button>
         </div>

@@ -39,6 +39,32 @@
 .cta-circle:active:not(:disabled) { transform: scale(0.93); }
 .app-bottomnav-btn:active { transform: scale(0.9); }
 
+/* — universal press feedback — every clickable control gets an immediate,
+   smooth response the instant a finger/cursor goes down, even ones that
+   don't use the shared .btn class (icon pills, the day-accordion header,
+   any button added later). Wrapped in :where() so the whole selector
+   contributes ZERO specificity — this only ever fills a gap; it can never
+   outrank a real rule. That matters here specifically: without :where(),
+   a bare `button` type selector is actually *more* specific than a
+   single-class selector like `.password-toggle-btn:active` (the type
+   selector tips it), which would have silently stripped that button's
+   `translateY(-50%)` centering transform down to a plain scale. Scale-only
+   and compositor-cheap, so it can never cause a reflow no matter what it
+   lands on. */
+:where(button:not(:disabled), [role="button"]) {
+  transition: transform 110ms var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
+}
+:where(button:not(:disabled), [role="button"]):active {
+  transform: scale(0.97);
+}
+/* The day-accordion header (EntryScreen) is a full-width row, not a small
+   tappable pill — shrinking a whole row reads as broken, not tactile. It
+   gets an immediate background flash instead, and — unlike the old
+   hover-only rule below it — this fires on touch devices too, since a phone
+   has no `:hover` to fall back on and was giving zero feedback on tap until
+   the 340ms accordion animation caught up. */
+.day-row-head:active { transform: none; background: color-mix(in srgb, var(--color-neutral-800) 8%, transparent); }
+
 /* — button press, specifically — a quick, snappy squish going down
    (inherits the standard curve above), but a springier overshoot coming
    back up, so releasing a button has a little bounce to it instead of
@@ -218,6 +244,10 @@
   from { opacity: 0; }
   to { opacity: 1; }
 }
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
 .chart-point {
   animation: pop-in var(--dur-base) var(--ease-out) both;
   animation-delay: calc(var(--i, 0) * 70ms + 420ms);
@@ -269,6 +299,12 @@
 /* — dialog — */
 .dialog-backdrop { animation: fade-in var(--dur-fast) var(--ease-standard) both; }
 .dialog { animation: pop-in var(--dur-base) var(--ease-out) both; }
+.dialog-backdrop.is-closing { animation: fade-out 160ms var(--ease-standard) both; }
+.dialog.is-closing { animation: pop-out 160ms var(--ease-standard) both; pointer-events: none; }
+@keyframes pop-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.92); }
+}
 
 /* — confirm popup — */
 .confirm-backdrop { animation: fade-in var(--dur-fast) var(--ease-standard) both; }
@@ -279,6 +315,20 @@
   100% { opacity: 1; transform: scale(1) translateY(0); }
 }
 .confirm-modal-icon { animation: pop-in var(--dur-base) var(--ease-out) 60ms both; }
+/* Closing (Cancel/Confirm/Escape/backdrop-tap) — mirrors the entrance so the
+   popup reads as one continuous, reversible motion instead of snapping to
+   nothing. Quicker than the entrance on purpose: an exit only needs to get
+   out of the way, not make an entrance. Driven by useDismissTransition,
+   which delays the actual unmount until this has had time to play. */
+.confirm-backdrop.is-closing { animation: fade-out 160ms var(--ease-standard) both; }
+.confirm-modal.is-closing {
+  animation: confirm-pop-out 180ms var(--ease-standard) both;
+  pointer-events: none;
+}
+@keyframes confirm-pop-out {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to { opacity: 0; transform: scale(0.92) translateY(6px); }
+}
 .confirm-action-btn {
   transition: background-color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
 }

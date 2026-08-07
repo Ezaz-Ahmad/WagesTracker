@@ -18,6 +18,7 @@ import { GoalRing } from "../components/GoalRing";
 import { FlameIcon, TrophyIcon } from "../components/icons";
 import { Skeleton } from "../components/Skeleton";
 import { Amount } from "../components/Amount";
+import { EarningsHiddenHint } from "../components/EarningsHiddenHint";
 
 export function HomeScreen() {
   const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras, earningsHidden } = useApp();
@@ -153,6 +154,7 @@ export function HomeScreen() {
               {Math.abs(trendPct)}% vs prior week
             </div>
           </div>
+          <EarningsHiddenHint />
           <div className="card-meta" style={{ marginTop: 2 }}>
             {fmt2(totalHours)}h logged · goal {user.goalHours}h
           </div>

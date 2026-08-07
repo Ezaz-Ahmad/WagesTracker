@@ -196,6 +196,53 @@ button { font-family: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .amount-mask { transition: none; }
 }
+
+/* — earnings-hidden hint (EarningsHiddenHint) — a small tappable pill next
+   to whichever amount is currently blurred, pointing at the eye icon in the
+   nav. Styled like a soft callout (accent-tinted pill) rather than plain
+   text so it reads as "helpful nudge" rather than an error/warning.
+
+   Always rendered in the DOM; visibility is a CSS grid-rows collapse (see
+   .day-row-collapse below for the original use of this trick) rather than
+   mounting/unmounting the element on a timer. Mount/unmount was the first
+   version of this, and it looked cheap: the instant React added or removed
+   the node, its margin and height entered/left the layout in one frame, so
+   the card's own content below it (the "hours logged" line, the progress
+   bar, etc.) would hop into its new position instead of easing there. With
+   the height itself animated via grid-template-rows 0fr -> 1fr, the space
+   the hint occupies grows/shrinks over the same transition as its fade, so
+   everything below it eases into place in sync instead of jumping. */
+.earnings-hint-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 320ms var(--ease-emphasized);
+}
+.earnings-hint-collapse.is-open { grid-template-rows: 1fr; }
+.earnings-hint-wrap {
+  overflow: hidden;
+  min-height: 0;
+  opacity: 0;
+  transition: opacity 200ms var(--ease-emphasized) 70ms;
+}
+.earnings-hint-collapse.is-open .earnings-hint-wrap { opacity: 1; }
+.earnings-hint {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: 6px; padding: 6px 12px 6px 10px;
+  font-family: var(--font-body); font-size: 11.5px; font-weight: 600; text-align: left;
+  color: var(--color-accent-700);
+  background: var(--color-accent-100);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 22%, transparent);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-standard);
+}
+.earnings-hint svg { flex: none; opacity: 0.9; }
+.history-earnings-hint { margin-bottom: var(--space-2); }
+.earnings-hint:hover { background: var(--color-accent-200); }
+.earnings-hint:active { background: var(--color-accent-300); }
+@media (prefers-reduced-motion: reduce) {
+  .earnings-hint-collapse, .earnings-hint-wrap { transition: none; }
+}
 .app-main {
   flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
   -webkit-overflow-scrolling: touch; overscroll-behavior-y: none;
@@ -685,6 +732,16 @@ button { font-family: inherit; }
 @keyframes wheel-modal-in {
   from { opacity: 0; transform: translateY(20px) scale(0.94); }
   to { opacity: 1; transform: translateY(0) scale(1); }
+}
+/* Closing (Done/Cancel/backdrop-tap) — see useDismissTransition; the picker
+   delays calling onDone/onCancel until this has played, so by the time the
+   parent unmounts it the modal is already faded away rather than snapping
+   out of existence mid-gesture. */
+.wheel-backdrop.is-closing { animation: fade-out 160ms var(--ease-standard) both; }
+.wheel-modal.is-closing { animation: wheel-modal-out 180ms var(--ease-standard) both; pointer-events: none; }
+@keyframes wheel-modal-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(14px) scale(0.94); }
 }
 .wheel-title {
   font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 13px;

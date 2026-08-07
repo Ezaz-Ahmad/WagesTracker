@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangleIcon, CheckCircleIcon } from "./icons";
+import { useDismissTransition } from "../lib/useDismissTransition";
 
 interface PendingConfirm {
   message: string;
@@ -36,6 +37,10 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
   const pendingRef = useRef<PendingConfirm | null>(null);
   const bypass = useRef<WeakSet<Element>>(new WeakSet());
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
+  // Popup close (Cancel/Confirm/Escape/backdrop-tap) plays a quick
+  // scale+fade-out before the node actually unmounts — see the hook for why
+  // this needs to exist at all instead of just clearing `pending` directly.
+  const { closing, requestClose } = useDismissTransition(180);
 
   pendingRef.current = pending;
 
@@ -64,11 +69,13 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
         message,
         tone,
         resolve: (ok) => {
-          setPending(null);
-          if (ok) {
-            bypass.current.add(btn);
-            btn.click();
-          }
+          requestClose(() => {
+            setPending(null);
+            if (ok) {
+              bypass.current.add(btn);
+              btn.click();
+            }
+          });
         },
       });
     }
@@ -94,9 +101,9 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
     <>
       {children}
       {pending && (
-        <div className="confirm-backdrop" onClick={() => pending.resolve(false)}>
+        <div className={`confirm-backdrop${closing ? " is-closing" : ""}`} onClick={() => pending.resolve(false)}>
           <div
-            className={`confirm-modal${pending.tone === "danger" ? " is-danger" : ""}`}
+            className={`confirm-modal${pending.tone === "danger" ? " is-danger" : ""}${closing ? " is-closing" : ""}`}
             role="alertdialog"
             aria-modal="true"
             onClick={(e) => e.stopPropagation()}

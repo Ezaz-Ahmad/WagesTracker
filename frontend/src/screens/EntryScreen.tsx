@@ -20,6 +20,7 @@ import { ChevronDownIcon, ExtraEarningIcon, FuelIcon } from "../components/icons
 import { Skeleton } from "../components/Skeleton";
 import { Amount } from "../components/Amount";
 import { AmountWheelPicker } from "../components/AmountWheelPicker";
+import { EarningsHiddenHint } from "../components/EarningsHiddenHint";
 
 type Row = ShiftComputed & { tempId?: string };
 
@@ -469,6 +470,7 @@ export function EntryScreen() {
             {fmt2(totalHours)}h · <Amount>{CURRENCY}{fmt2(totalEarningsAnim)}</Amount>
           </span>
         </div>
+        <EarningsHiddenHint />
         {(weekFuelCost > 0 || otherAmount > 0) && (
           <div className="week-extras-breakdown">
             {weekFuelCost > 0 && (

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Shift, User } from "../lib/types";
 import { AdminApiError, deleteUser, fetchAllUsers, fetchUserDetail, type AdminUserSummary } from "./adminApi";
 import { Logo } from "../components/Logo";
+import { useDismissTransition } from "../lib/useDismissTransition";
 
 const CURRENCY = "$";
 
@@ -32,6 +33,11 @@ export function AdminDashboard({
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Both dialogs below play a quick fade+scale-out on close instead of just
+  // vanishing the instant their state clears — see useDismissTransition.
+  const detailDismiss = useDismissTransition(180);
+  const deleteDismiss = useDismissTransition(180);
 
   useEffect(() => {
     void loadUsers();
@@ -78,6 +84,18 @@ export function AdminDashboard({
     setDeleteError(null);
   }
 
+  function closeDetail() {
+    detailDismiss.requestClose(() => {
+      setDetail(null);
+      setDetailError(null);
+    });
+  }
+
+  function closeDeleteDialog() {
+    if (deleting) return;
+    deleteDismiss.requestClose(() => setDeleteTarget(null));
+  }
+
   async function handleDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -85,8 +103,10 @@ export function AdminDashboard({
     try {
       await deleteUser(deleteTarget.id);
       setUsers((prev) => (prev ? prev.filter((u) => u.id !== deleteTarget.id) : prev));
-      setDeleteTarget(null);
-      setDeleteConfirmText("");
+      deleteDismiss.requestClose(() => {
+        setDeleteTarget(null);
+        setDeleteConfirmText("");
+      });
     } catch (e) {
       if (onAuthError(e)) return;
       setDeleteError(e instanceof AdminApiError ? e.message : "Couldn't delete user");
@@ -195,13 +215,13 @@ export function AdminDashboard({
 
       {detail && (
         <div
-          className="dialog-backdrop"
-          onClick={() => {
-            setDetail(null);
-            setDetailError(null);
-          }}
+          className={`dialog-backdrop${detailDismiss.closing ? " is-closing" : ""}`}
+          onClick={closeDetail}
         >
-          <div className="dialog admin-detail-dialog" onClick={(e) => e.stopPropagation()}>
+          <div
+            className={`dialog admin-detail-dialog${detailDismiss.closing ? " is-closing" : ""}`}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="dialog-title">{detail.user.name}</div>
             <p className="dialog-body" style={{ margin: 0 }}>
               {detail.user.email} · {detail.user.workLocationName || "No work location set"}
@@ -238,13 +258,7 @@ export function AdminDashboard({
               )}
             </div>
             <div className="dialog-actions">
-              <button
-                className="btn btn-secondary"
-                onClick={() => {
-                  setDetail(null);
-                  setDetailError(null);
-                }}
-              >
+              <button className="btn btn-secondary" onClick={closeDetail}>
                 Close
               </button>
             </div>
@@ -253,8 +267,11 @@ export function AdminDashboard({
       )}
 
       {deleteTarget && (
-        <div className="dialog-backdrop" onClick={() => !deleting && setDeleteTarget(null)}>
-          <div className="dialog" onClick={(e) => e.stopPropagation()}>
+        <div className={`dialog-backdrop${deleteDismiss.closing ? " is-closing" : ""}`} onClick={closeDeleteDialog}>
+          <div
+            className={`dialog${deleteDismiss.closing ? " is-closing" : ""}`}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="dialog-title">Delete {deleteTarget.name}?</div>
             <p className="dialog-body">
               This permanently deletes this user's account and all {deleteTarget.shiftCount} logged shift
@@ -273,7 +290,7 @@ export function AdminDashboard({
               />
             </div>
             <div className="dialog-actions">
-              <button className="btn btn-secondary" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+              <button className="btn btn-secondary" onClick={closeDeleteDialog} disabled={deleting}>
                 Cancel
               </button>
               <button

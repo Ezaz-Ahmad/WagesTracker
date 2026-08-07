@@ -3,6 +3,7 @@ import { buildWeeklyHistory } from "../lib/aggregate";
 import { fmt2 } from "../lib/date";
 import { Skeleton } from "../components/Skeleton";
 import { Amount } from "../components/Amount";
+import { EarningsHiddenHint } from "../components/EarningsHiddenHint";
 
 export function HistoryScreen() {
   const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras } = useApp();
@@ -37,6 +38,7 @@ export function HistoryScreen() {
     <div className="screen-narrow">
       <h6 className="section-title">History</h6>
       <div className="section-hint">Completed weeks, most recent first.</div>
+      <EarningsHiddenHint className="history-earnings-hint" />
       {rows.length === 0 ? (
         <div className="card anim-rise">
           <p className="card-body" style={{ margin: 0 }}>

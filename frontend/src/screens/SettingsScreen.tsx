@@ -2,6 +2,7 @@ import { useState } from "react";
 import { CURRENCY, useApp } from "../context/AppContext";
 import { PasswordInput } from "../components/PasswordInput";
 import { AppCredit } from "../components/AppCredit";
+import { useDismissTransition } from "../lib/useDismissTransition";
 
 export function SettingsScreen() {
   const { user, updateSettings, deleteAccount } = useApp();
@@ -22,6 +23,9 @@ export function SettingsScreen() {
   const [deletePassword, setDeletePassword] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // Plays a quick fade+scale-out on close instead of the dialog vanishing
+  // the instant state clears — see useDismissTransition.
+  const { closing: deleteDialogClosing, requestClose: requestCloseDeleteDialog } = useDismissTransition(180);
 
   if (!user) return null;
 
@@ -31,9 +35,11 @@ export function SettingsScreen() {
 
   function closeDeleteDialog() {
     if (deleting) return;
-    setShowDeleteDialog(false);
-    setDeletePassword("");
-    setDeleteError(null);
+    requestCloseDeleteDialog(() => {
+      setShowDeleteDialog(false);
+      setDeletePassword("");
+      setDeleteError(null);
+    });
   }
 
   async function handleDeleteAccount() {
@@ -199,8 +205,8 @@ export function SettingsScreen() {
       </button>
 
       {showDeleteDialog && (
-        <div className="dialog-backdrop" onClick={closeDeleteDialog}>
-          <div className="dialog" onClick={(e) => e.stopPropagation()}>
+        <div className={`dialog-backdrop${deleteDialogClosing ? " is-closing" : ""}`} onClick={closeDeleteDialog}>
+          <div className={`dialog${deleteDialogClosing ? " is-closing" : ""}`} onClick={(e) => e.stopPropagation()}>
             <div className="dialog-title">Delete your account?</div>
             <p className="dialog-body">
               This permanently deletes your account, settings, and all logged shifts. There's no way to undo this.
