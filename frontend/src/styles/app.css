@@ -207,21 +207,35 @@ button { font-family: inherit; }
    container (.app-main) and everything outside it (nav, bottom bar) stay
    put, so a swipe only ever "moves the options", never the page. */
 .swipe-track { will-change: transform; }
+/* A floating glass dock instead of a flush, flat bar — it lifts off the
+   bottom edge with its own margin, rounded corners, a blurred translucent
+   fill, and a soft elevated shadow, so it reads as a distinct piece of UI
+   hovering over the content rather than a hairline strip glued to the
+   screen edge. */
 .app-bottomnav {
   flex: none;
   display: flex;
-  border-top: 1px solid color-mix(in srgb, var(--color-text) 9%, transparent);
-  background: var(--color-bg);
-  box-shadow: 0 -8px 20px -16px color-mix(in srgb, #000 40%, transparent);
-  padding-bottom: env(safe-area-inset-bottom);
+  gap: 2px;
+  margin: 0 var(--space-3) max(var(--space-3), env(safe-area-inset-bottom));
+  padding: 6px;
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--color-bg) 88%, transparent);
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  border: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent);
+  box-shadow:
+    0 18px 34px -16px color-mix(in srgb, #000 34%, transparent),
+    0 3px 10px -4px color-mix(in srgb, #000 16%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #fff 55%, transparent);
 }
 .app-bottomnav-btn {
-  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
-  padding: 9px 0 10px; background: none; border: none; cursor: pointer;
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  padding: 8px 2px 7px; background: none; border: none; cursor: pointer;
+  border-radius: 16px;
   color: color-mix(in srgb, var(--color-text) 45%, transparent);
 }
 .app-bottomnav-btn.is-active { color: var(--color-accent-700); font-weight: 700; }
-.app-bottomnav-label { font-size: 10px; }
+.app-bottomnav-label { font-size: 10px; letter-spacing: 0.1px; }
 
 .section-title { color: var(--color-accent); margin-bottom: var(--space-1); }
 .section-hint { font-size: 12px; opacity: 0.6; margin-bottom: var(--space-3); }
