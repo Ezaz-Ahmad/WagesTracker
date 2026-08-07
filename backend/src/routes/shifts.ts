@@ -15,14 +15,17 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // seconds so short shifts can be rounded fairly instead of truncated to zero).
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
 
-// Overnight shifts (sign-out earlier than or equal to sign-in) aren't
-// supported — every shift is same-day only. Consistently zero-padded
-// "HH:MM"/"HH:MM:SS" strings sort identically as strings and as times, so a
-// plain string comparison is enough; no need to parse either one.
-function isValidTimeOrder(signIn: string, signOut: string): boolean {
-  return signOut > signIn;
+// Overnight shifts ARE supported — a sign-out earlier than sign-in (e.g.
+// 10:00 PM -> 6:00 AM) is read as crossing midnight into the next calendar
+// day, not rejected. The only combination that's actually invalid is an
+// identical sign-in/sign-out: that's a zero-length shift, not a 24-hour one,
+// so it's rejected rather than silently saved as 0 hours. See computeHours
+// in frontend/src/lib/date.ts for the matching duration math, and the note
+// below on which calendar date an overnight shift's hours belong to.
+function isNonZeroDuration(signIn: string, signOut: string): boolean {
+  return signOut !== signIn;
 }
-const OVERNIGHT_MESSAGE = "Sign-out must be after sign-in — overnight shifts (crossing midnight) aren't supported.";
+const ZERO_LENGTH_MESSAGE = "Sign-in and sign-out can't be the same time.";
 
 shiftsRouter.get(
   "/",
@@ -49,6 +52,13 @@ shiftsRouter.get(
   })
 );
 
+// `date` is the day this shift is filed under — for an overnight shift,
+// that's always the *starting* day (when sign-in happened), never the day
+// sign-out lands on. There's no separate end-date field: the client sends
+// one `date` for the whole shift, and every screen/report that groups by
+// day (Entry's accordion, Home's week-at-a-glance, weekly/monthly/yearly
+// totals in aggregate.ts) attributes 100% of an overnight shift's hours to
+// that one date, none of it carried over onto the next calendar day's row.
 const createSchema = z
   .object({
     date: z.string().regex(DATE_RE, "date must be YYYY-MM-DD"),
@@ -56,8 +66,8 @@ const createSchema = z
     signIn: z.string().regex(TIME_RE).nullable().optional().default(null),
     signOut: z.string().regex(TIME_RE).nullable().optional().default(null),
   })
-  .refine((data) => !data.signIn || !data.signOut || isValidTimeOrder(data.signIn, data.signOut), {
-    message: OVERNIGHT_MESSAGE,
+  .refine((data) => !data.signIn || !data.signOut || isNonZeroDuration(data.signIn, data.signOut), {
+    message: ZERO_LENGTH_MESSAGE,
     path: ["signOut"],
   });
 
@@ -120,8 +130,8 @@ shiftsRouter.patch(
     // isn't being changed), not just whatever happens to be in this request.
     const mergedSignIn = "signIn" in updates ? updates.signIn : existing.sign_in;
     const mergedSignOut = "signOut" in updates ? updates.signOut : existing.sign_out;
-    if (mergedSignIn && mergedSignOut && !isValidTimeOrder(mergedSignIn, mergedSignOut)) {
-      res.status(400).json({ error: OVERNIGHT_MESSAGE });
+    if (mergedSignIn && mergedSignOut && !isNonZeroDuration(mergedSignIn, mergedSignOut)) {
+      res.status(400).json({ error: ZERO_LENGTH_MESSAGE });
       return;
     }
 

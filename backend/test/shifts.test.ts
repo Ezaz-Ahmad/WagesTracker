@@ -119,24 +119,54 @@ describe("shifts", () => {
     expect(res.status).toBe(400);
   });
 
-  it("rejects a sign-out earlier than sign-in — overnight shifts aren't supported", async () => {
+  it("creates an overnight shift (sign-out earlier than sign-in) and retrieves it successfully", async () => {
+    // 10:00 PM -> 6:00 AM crosses midnight — this must succeed, not be
+    // rejected. `date` is the shift's *starting* day; there's no separate
+    // end-date field, so the full 8-hour duration is filed entirely under
+    // this one date (see the comment on createSchema in shifts.ts and on
+    // computeHours in the frontend).
     const created = await request(app)
       .post("/api/shifts")
       .set("Authorization", `Bearer ${tokenA}`)
-      .send({ date: "2026-01-08", signIn: "22:00", signOut: "06:00" });
-    expect(created.status).toBe(400);
+      .send({ date: "2026-01-08", location: "Night Shift", signIn: "22:00", signOut: "06:00" });
+    expect(created.status).toBe(201);
+    expect(created.body.shift.signIn).toBe("22:00");
+    expect(created.body.shift.signOut).toBe("06:00");
+    expect(created.body.shift.date).toBe("2026-01-08");
 
-    // Same rule applies on PATCH: completing an existing sign-in-only shift
-    // with an earlier sign-out must be rejected too, not just at creation.
+    // Retrieval round-trips the same values — this isn't silently coerced
+    // or dropped anywhere between save and fetch.
+    const list = await request(app).get("/api/shifts?from=2026-01-08&to=2026-01-08").set("Authorization", `Bearer ${tokenA}`);
+    expect(list.status).toBe(200);
+    const fetched = list.body.shifts.find((s: { id: string }) => s.id === created.body.shift.id);
+    expect(fetched).toMatchObject({ date: "2026-01-08", signIn: "22:00", signOut: "06:00" });
+  });
+
+  it("allows completing an open shift with a PATCH sign-out earlier than its sign-in (still overnight, not rejected)", async () => {
     const openShift = await request(app)
       .post("/api/shifts")
       .set("Authorization", `Bearer ${tokenA}`)
-      .send({ date: "2026-01-08", signIn: "22:00" });
+      .send({ date: "2026-01-09", signIn: "23:00" });
     expect(openShift.status).toBe(201);
+
     const patched = await request(app)
       .patch(`/api/shifts/${openShift.body.shift.id}`)
       .set("Authorization", `Bearer ${tokenA}`)
-      .send({ signOut: "06:00" });
+      .send({ signOut: "07:00" });
+    expect(patched.status).toBe(200);
+    expect(patched.body.shift.signIn).toBe("23:00");
+    expect(patched.body.shift.signOut).toBe("07:00");
+  });
+
+  it("still rejects identical sign-in/sign-out via PATCH, even though overnight is otherwise allowed", async () => {
+    const openShift = await request(app)
+      .post("/api/shifts")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ date: "2026-01-10", signIn: "20:00" });
+    const patched = await request(app)
+      .patch(`/api/shifts/${openShift.body.shift.id}`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ signOut: "20:00" });
     expect(patched.status).toBe(400);
   });
 });

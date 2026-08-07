@@ -31,6 +31,16 @@ describe("buildDayComputed", () => {
     expect(day.moneyLabel).toBe("$5.92");
   });
 
+  it("attributes an overnight shift's full duration to its starting date, not the day it technically ends on", () => {
+    const shifts: Shift[] = [{ id: "1", date: "2026-01-05", location: "", signIn: "22:00", signOut: "06:00" }]; // 8h, crosses midnight
+    const day = buildDayComputed(new Date(2026, 0, 5), shifts, false, CURRENCY, 20);
+    // All 8 hours land on the 5th (the starting date) — there's no separate
+    // end-date field, and the following day (the 6th) gets none of it; see
+    // buildWeekDaysComputed's own test below for that half of the guarantee.
+    expect(day.hours).toBe(8);
+    expect(day.moneyLabel).toBe("$160.00");
+  });
+
   it("does not count an active (still clocked-in) shift's hours in the saved total", () => {
     const shifts: Shift[] = [
       { id: "1", date: "2026-01-05", location: "", signIn: "09:00", signOut: "13:00" }, // 4h, completed
@@ -134,6 +144,21 @@ describe("weekTotals", () => {
     // weekTotals not knowing about it is the rule, not a gap.
     expect(totals.earnings).toBe(175);
     expect(totals.earnings + otherAmount).toBe(225);
+  });
+
+  it("gives the day after an overnight shift zero hours from it — nothing carries over past midnight", () => {
+    const monday = new Date(2026, 0, 5);
+    const tuesday = new Date(2026, 0, 6);
+    // Filed entirely under the 5th (its `date`), even though 22:00->06:00
+    // technically runs into the 6th on the clock.
+    const shiftsByDate = new Map<string, Shift[]>([
+      ["2026-01-05", [{ id: "1", date: "2026-01-05", location: "", signIn: "22:00", signOut: "06:00" }]], // 8h
+    ]);
+    const days = buildWeekDaysComputed([monday, tuesday], shiftsByDate, monday, CURRENCY, 20);
+    const [mon, tue] = days;
+    expect(mon.hours).toBe(8);
+    expect(tue.hours).toBe(0); // the 6th has no shift record of its own, so it gets none of the 5th's hours
+    expect(weekTotals(days, 20).hours).toBe(8); // and the week total isn't double-counting it either
   });
 
   it("returns all zeros for a week with nothing logged", () => {

@@ -56,15 +56,25 @@ function timeToSeconds(t: string): number {
  * precision, far finer than a cent at any real wage) — callers that display
  * this should format it (see `fmt2`), not print it raw.
  *
- * Same-day only — overnight shifts (sign-out earlier than sign-in) are not
- * supported. The backend rejects them at creation (see backend/src/routes/
- * shifts.ts), so this should never actually see one in practice; a
- * non-positive diff here just falls back to 0, the same as a shift with no
- * sign-out yet, rather than guessing which day was meant.
+ * Overnight shifts ARE supported: a sign-out earlier than sign-in (e.g.
+ * 10:00 PM -> 6:00 AM) reads as crossing midnight into the next calendar
+ * day, so the raw negative diff gets 24h added back rather than treated as
+ * invalid. The backend enforces the one combination that's genuinely
+ * invalid — an identical sign-in/sign-out (see backend/src/routes/
+ * shifts.ts) — which is why that specific case falls back to 0 here too,
+ * same as a shift with no sign-out yet, instead of reading as a 24-hour
+ * shift.
+ *
+ * A shift's full duration — even one that crosses midnight — is always
+ * attributed to whichever calendar date the shift record itself is filed
+ * under (its starting day), never split across the two days it technically
+ * spans. There's no separate "end date": see the `date` field on Shift
+ * (lib/types.ts) and how aggregate.ts groups by it.
  */
 export function computeHours(signIn: string | null, signOut: string | null): number {
   if (!signIn || !signOut) return 0;
-  const diffSec = timeToSeconds(signOut) - timeToSeconds(signIn);
+  let diffSec = timeToSeconds(signOut) - timeToSeconds(signIn);
+  if (diffSec < 0) diffSec += 24 * 3600;
   if (diffSec <= 0) return 0;
 
   return Math.round((diffSec / 3600) * 1_000_000) / 1_000_000;

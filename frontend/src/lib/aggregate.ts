@@ -52,6 +52,16 @@ export interface LocationBreakdown {
   moneyLabel: string;
 }
 
+/**
+ * Buckets shifts by their single `date` field — which is also the *only*
+ * place an overnight shift's calendar date lives. A shift has no separate
+ * end-date: `date` is always the day it started (sign-in), so a 10:00 PM ->
+ * 6:00 AM shift filed under, say, the 5th shows up here (and therefore in
+ * every day/week/month/year total below) entirely on the 5th's bucket, with
+ * nothing carried over onto the 6th even though the shift's actual clock
+ * time runs past midnight into it. See computeHours in date.ts for the
+ * matching duration math.
+ */
 export function groupByDate(shifts: Shift[]): Map<string, Shift[]> {
   const map = new Map<string, Shift[]>();
   for (const s of shifts) {
