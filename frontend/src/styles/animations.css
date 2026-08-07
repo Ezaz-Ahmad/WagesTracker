@@ -100,17 +100,19 @@
 /* — bottom nav — */
 .app-bottomnav { position: relative; }
 /* The outer element is an invisible "slot" the width of one tab, sliding
-   with the same translateX math as before; the actual visible bubble is a
-   centered ::after inside it, sized to just the icon rather than the whole
-   column, so it reads as a small glowing "app icon" tile chasing your tap
-   instead of a flat pill smeared across the icon and label both. A springy
-   overshoot on the slide (rather than a plain ease-out) is what makes it
-   feel like a floating highlight, not a bar sliding into place. */
+   with the same translateX math as before; the actual visible pill is a
+   centered ::after inside it. It's sized to the button's own top/bottom
+   padding (matching the dock's 6px inner padding exactly) so it hugs the
+   icon AND the label together as one clean rounded tile — a bubble sized
+   to just the icon left the label sitting half in, half out of it, which
+   read as broken rather than deliberate. A springy overshoot on the slide
+   (rather than a plain ease-out) is what makes it feel like a floating
+   highlight chasing your tap, not a bar sliding into place. */
 .app-bottomnav-indicator {
   position: absolute;
-  top: 6px;
+  top: 0;
+  bottom: 0;
   left: 0;
-  height: 38px;
   width: calc(100% / var(--nav-count, 5));
   display: flex;
   align-items: center;
@@ -121,17 +123,17 @@
 }
 .app-bottomnav-indicator::after {
   content: "";
-  width: 38px;
-  height: 38px;
-  border-radius: var(--radius-btn, 14px);
+  width: calc(100% - 10px);
+  height: 100%;
+  border-radius: 18px;
   background: linear-gradient(
     155deg,
-    color-mix(in srgb, var(--color-accent) 24%, var(--color-bg)),
-    color-mix(in srgb, var(--color-accent) 11%, var(--color-bg))
+    color-mix(in srgb, var(--color-accent) 22%, var(--color-bg)),
+    color-mix(in srgb, var(--color-accent) 10%, var(--color-bg))
   );
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 26%, transparent),
-    0 8px 16px -8px color-mix(in srgb, var(--color-accent) 55%, transparent);
+    inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 24%, transparent),
+    0 8px 16px -8px color-mix(in srgb, var(--color-accent) 50%, transparent);
   transition: box-shadow var(--dur-base) var(--ease-standard);
 }
 .app-bottomnav-btn { position: relative; z-index: 1; }
