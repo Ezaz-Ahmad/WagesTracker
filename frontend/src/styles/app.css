@@ -390,10 +390,39 @@ button { font-family: inherit; }
 }
 
 /* — entry — */
+/* The shift-status hero card — deliberately breaks from the system's flat
+   0-radius cards the same way buttons do: this is the one thing on the
+   Entry screen a user looks at and taps most, so it earns real depth
+   (rounded corners, a soft diagonal gradient instead of one flat pastel
+   fill, a contained glow, elevation) rather than reading as a plain
+   pink rectangle. */
 .entry-today-card {
-  background: var(--color-accent-100); margin-bottom: var(--space-3);
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--color-accent) 12%, var(--color-bg)),
+    color-mix(in srgb, var(--color-accent) 3%, var(--color-bg))
+  );
+  border: 1px solid color-mix(in srgb, var(--color-accent) 16%, transparent);
+  border-radius: 22px;
+  padding: var(--space-5) var(--space-4);
+  margin-bottom: var(--space-3);
   display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  box-shadow:
+    0 16px 34px -20px color-mix(in srgb, var(--color-accent) 50%, transparent),
+    0 2px 10px -4px color-mix(in srgb, #000 12%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 55%, transparent);
 }
+.entry-today-card::before {
+  content: "";
+  position: absolute; right: -36px; top: 50%; transform: translateY(-50%);
+  width: 170px; height: 170px; border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--color-accent) 20%, transparent), transparent 70%);
+  filter: blur(2px);
+  pointer-events: none;
+}
+.entry-today-card > * { position: relative; z-index: 1; }
 .entry-today-sub { margin: 0 0 2px; opacity: 1; color: var(--color-accent-800); font-weight: 600; }
 .elapsed-timer {
   font-family: var(--font-heading); font-weight: 800; font-size: 26px;
@@ -415,22 +444,35 @@ button { font-family: inherit; }
 .day-card {
   background: var(--color-bg);
   border: 1px solid var(--color-divider);
-  border-radius: 14px;
+  border-radius: 16px;
   margin-bottom: var(--space-3);
   overflow: hidden;
+  box-shadow: 0 1px 3px color-mix(in srgb, #000 5%, transparent);
   transition: border-color 340ms var(--ease-emphasized), box-shadow 340ms var(--ease-emphasized);
 }
-.day-card.has-content { border-color: color-mix(in srgb, var(--color-accent) 22%, var(--color-divider)); }
+/* A logged/in-progress day used to get a fully accent-tinted border on all
+   four edges — with most days in an active week carrying at least one
+   shift, that meant nearly every row in the list was outlined in red,
+   which is what read as an overall pink wash rather than a deliberate
+   accent. Toned down to a soft neutral-leaning border plus a faint
+   accent-tinted shadow instead — present, but a quiet cue rather than a
+   loud outline repeated down the whole list. */
+.day-card.has-content {
+  border-color: color-mix(in srgb, var(--color-accent) 10%, var(--color-divider));
+  box-shadow: 0 3px 10px -6px color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
 .day-card.is-open {
-  border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-divider));
-  box-shadow: 0 6px 20px -10px color-mix(in srgb, var(--color-neutral-900) 22%, transparent);
+  border-color: color-mix(in srgb, var(--color-accent) 34%, var(--color-divider));
+  box-shadow:
+    0 10px 26px -14px color-mix(in srgb, var(--color-accent) 38%, transparent),
+    0 6px 20px -10px color-mix(in srgb, var(--color-neutral-900) 20%, transparent);
 }
 .day-row-head {
   display: flex; align-items: center; gap: var(--space-3);
   padding: 13px var(--space-3);
   cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
 }
-.day-card.has-content:not(.is-open) .day-row-head { background: color-mix(in srgb, var(--color-accent) 4%, transparent); }
+.day-card.has-content:not(.is-open) .day-row-head { background: color-mix(in srgb, var(--color-text) 3%, transparent); }
 @media (hover: hover) and (pointer: fine) {
   .day-row-head:hover { background: color-mix(in srgb, var(--color-neutral-800) 5%, transparent); }
 }
@@ -469,7 +511,15 @@ button { font-family: inherit; }
 .day-hours { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .day-hours.is-empty { font-weight: 600; color: color-mix(in srgb, var(--color-text) 40%, transparent); }
 .day-row-actions { display: flex; align-items: center; gap: var(--space-2); flex: none; }
-.day-clear-btn { font-size: 11px; padding: 2px var(--space-2); color: var(--color-accent-700); }
+/* Muted by default — full red only shows up on hover/press, so a week where
+   most days have an entry doesn't read as a row of red "Clear" labels
+   repeated five times down the screen. The destructive intent is still
+   there the moment you actually reach for it. */
+.day-clear-btn {
+  font-size: 11px; padding: 2px var(--space-2);
+  color: color-mix(in srgb, var(--color-accent-700) 55%, var(--color-text) 45%);
+}
+.day-clear-btn:hover, .day-clear-btn:focus-visible { color: var(--color-accent-700); }
 
 .day-row-collapse {
   display: grid;
