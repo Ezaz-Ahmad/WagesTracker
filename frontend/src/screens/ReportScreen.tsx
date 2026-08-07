@@ -155,8 +155,16 @@ export function ReportScreen() {
             <g key={i} className="chart-point" style={{ ["--i" as string]: i }}>
               <circle cx={p.x} cy={p.y} r="4.5" fill={p.dotColor} stroke={p.dotStroke} strokeWidth="2" />
               {/* SVG <text> can't hold the <Amount> span, so the same mask
-                  class is applied directly here — only relevant in earnings
-                  mode, since hours were never considered sensitive. */}
+                  class is applied directly here for the dim/opacity styling
+                  — only relevant in earnings mode, since hours were never
+                  considered sensitive. The actual hiding, though, comes from
+                  swapping the text content itself rather than relying on the
+                  class's `filter: blur()`: WebKit on iOS doesn't reliably
+                  apply CSS blur filters to SVG <text> glyphs (a known
+                  cross-browser quirk, unlike every other Amount usage in
+                  this app, which are plain HTML elements where blur works
+                  fine) — that gap let the real figure show through on
+                  mobile despite the eye toggle being on. */}
               <text
                 x={p.x}
                 y={p.labelY}
@@ -166,7 +174,7 @@ export function ReportScreen() {
                 opacity="0.7"
                 className={metric === "earnings" ? `amount-mask${earningsHidden ? " is-hidden" : ""}` : undefined}
               >
-                {p.valueLabel}
+                {metric === "earnings" && earningsHidden ? "••••" : p.valueLabel}
               </text>
             </g>
           ))}
