@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useApp } from "../context/AppContext";
+import { CURRENCY, useApp } from "../context/AppContext";
 import { useCountUp } from "../lib/useCountUp";
 import { fmt2 } from "../lib/date";
 import { getRememberedEmail } from "../lib/api";
@@ -58,6 +58,7 @@ export function AuthScreen() {
   const [workAddress, setWorkAddress] = useState("");
   const [multipleLocations, setMultipleLocations] = useState(false);
   const [otherLocations, setOtherLocations] = useState("");
+  const [rate, setRate] = useState("");
   const [remember, setRemember] = useState(true);
 
   function switchMode(next: Mode) {
@@ -72,7 +73,21 @@ export function AuthScreen() {
 
   function handleSignup(e: React.FormEvent) {
     e.preventDefault();
-    void signup({ name, email, password, address, workLocationName, workAddress, multipleLocations, otherLocations });
+    // Left blank, this falls back to the same default the app always used
+    // (18.50) — the field just gives everyone the chance to set their real
+    // rate up front instead of discovering it's wrong later in Settings.
+    const parsedRate = parseFloat(rate);
+    void signup({
+      name,
+      email,
+      password,
+      address,
+      workLocationName,
+      workAddress,
+      multipleLocations,
+      otherLocations,
+      rate: Number.isFinite(parsedRate) && parsedRate >= 0 ? parsedRate : 18.5,
+    });
   }
 
   return (
@@ -193,6 +208,20 @@ export function AuthScreen() {
                     minLength={6}
                     required
                   />
+                </div>
+                <div className="field field-spaced">
+                  <label>Hourly rate ({CURRENCY})</label>
+                  <input
+                    className="input"
+                    type="number"
+                    inputMode="decimal"
+                    step={0.25}
+                    min={0}
+                    placeholder="e.g. 25.00"
+                    value={rate}
+                    onChange={(e) => setRate(e.target.value)}
+                  />
+                  <div className="field-hint">Used to calculate your earnings — you can change this any time in Settings.</div>
                 </div>
                 <div className="field field-spaced">
                   <label>Your address</label>

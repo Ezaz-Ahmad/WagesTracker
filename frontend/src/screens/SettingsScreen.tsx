@@ -79,7 +79,7 @@ export function SettingsScreen() {
 
       <div className="field field-spaced">
         <label>Your name</label>
-        <input className="input" type="text" value={name} onChange={(e) => setName(e.target.value)} />
+        <input className="input" type="text" placeholder="Alex Rivera" value={name} onChange={(e) => setName(e.target.value)} />
       </div>
       <div className="field field-spaced">
         <label>Your address</label>
@@ -109,11 +109,11 @@ export function SettingsScreen() {
 
       <div className="field field-spaced">
         <label>Work location name</label>
-        <input className="input" type="text" value={workLocationName} onChange={(e) => setWorkLocationName(e.target.value)} />
+        <input className="input" type="text" placeholder="Downtown Store" value={workLocationName} onChange={(e) => setWorkLocationName(e.target.value)} />
       </div>
       <div className="field field-spaced">
         <label>Work address</label>
-        <input className="input" type="text" value={workAddress} onChange={(e) => setWorkAddress(e.target.value)} />
+        <input className="input" type="text" placeholder="123 Main St, Springfield" value={workAddress} onChange={(e) => setWorkAddress(e.target.value)} />
       </div>
       <div className="field field-spaced">
         <label>Do you work multiple locations?</label>
@@ -129,7 +129,7 @@ export function SettingsScreen() {
       {multipleLocations && (
         <div className="field field-spaced">
           <label>Other locations</label>
-          <input className="input" type="text" value={otherLocations} onChange={(e) => setOtherLocations(e.target.value)} />
+          <input className="input" type="text" placeholder="e.g. Uptown Branch, Airport Kiosk" value={otherLocations} onChange={(e) => setOtherLocations(e.target.value)} />
         </div>
       )}
 
@@ -139,9 +139,11 @@ export function SettingsScreen() {
         <input
           className="input"
           type="number"
+          inputMode="decimal"
           step={0.25}
           min={0}
-          value={rate}
+          placeholder="e.g. 25.00"
+          value={rate || ""}
           onChange={(e) => setRate(parseFloat(e.target.value) || 0)}
         />
       </div>
@@ -150,9 +152,11 @@ export function SettingsScreen() {
         <input
           className="input"
           type="number"
+          inputMode="decimal"
           step={0.5}
           min={0}
-          value={goalHours}
+          placeholder="e.g. 35"
+          value={goalHours || ""}
           onChange={(e) => setGoalHours(parseFloat(e.target.value) || 0)}
         />
       </div>
@@ -161,9 +165,11 @@ export function SettingsScreen() {
         <input
           className="input"
           type="number"
+          inputMode="decimal"
           step={1}
           min={0}
-          value={goalEarnings}
+          placeholder="e.g. 650"
+          value={goalEarnings || ""}
           onChange={(e) => setGoalEarnings(parseFloat(e.target.value) || 0)}
         />
       </div>

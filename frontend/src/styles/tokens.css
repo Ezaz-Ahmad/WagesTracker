@@ -198,6 +198,14 @@ figcaption {
   border-color: var(--color-accent); outline-offset: 0; background: var(--color-bg);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent);
 }
+/* A hint of what goes where, not a wall of text — muted enough to read as
+   a placeholder rather than a real value, and it eases in slightly darker
+   on focus so the field feels responsive rather than just static. */
+.input::placeholder {
+  color: color-mix(in srgb, var(--color-text) 38%, transparent);
+  transition: color var(--dur-fast, 140ms) var(--ease-standard, ease);
+}
+.input:focus-visible::placeholder { color: color-mix(in srgb, var(--color-text) 48%, transparent); }
 textarea.input { min-height: 90px; resize: vertical; }
 /* The native time-picker glyph inside <input type="time"> (shift sign-in/
    sign-out) — dimmed to sit quietly until you actually want it, accent-tinted

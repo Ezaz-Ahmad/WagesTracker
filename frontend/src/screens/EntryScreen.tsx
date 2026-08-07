@@ -366,12 +366,16 @@ export function EntryScreen() {
                   <input
                     className="input shift-time"
                     type="time"
+                    aria-label="Sign-in time"
+                    title="Sign-in time"
                     defaultValue={row.signIn ?? ""}
                     onChange={(e) => handleFieldChange(day, row, "signIn", e.target.value)}
                   />
                   <input
                     className="input shift-time"
                     type="time"
+                    aria-label="Sign-out time"
+                    title="Sign-out time"
                     defaultValue={row.signOut ?? ""}
                     onChange={(e) => handleFieldChange(day, row, "signOut", e.target.value)}
                   />

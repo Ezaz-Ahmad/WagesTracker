@@ -120,6 +120,7 @@ export interface SignupInput {
   workAddress: string;
   multipleLocations: boolean;
   otherLocations: string;
+  rate: number;
 }
 
 export function signup(input: SignupInput): Promise<{ token: string; user: User }> {

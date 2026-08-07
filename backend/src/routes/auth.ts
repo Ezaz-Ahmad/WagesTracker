@@ -18,6 +18,10 @@ const signupSchema = z.object({
   workAddress: z.string().trim().max(300).optional().default(""),
   multipleLocations: z.boolean().optional().default(false),
   otherLocations: z.string().trim().max(300).optional().default(""),
+  // Optional so old clients (or a signup call that omits it) still work —
+  // falls back to the same 18.50 default the app used before this was
+  // exposed on the signup form, rather than rejecting the request.
+  rate: z.coerce.number().min(0).max(1000).optional(),
 });
 
 authRouter.post(
@@ -28,7 +32,7 @@ authRouter.post(
       res.status(400).json({ error: parsed.error.issues[0]?.message || "Invalid input" });
       return;
     }
-    const { name, email, password, address, workLocationName, workAddress, multipleLocations, otherLocations } =
+    const { name, email, password, address, workLocationName, workAddress, multipleLocations, otherLocations, rate: rateInput } =
       parsed.data;
 
     const existing = await db.execute({ sql: "SELECT id FROM users WHERE email = ?", args: [email] });
@@ -39,7 +43,7 @@ authRouter.post(
 
     const id = randomUUID();
     const passwordHash = bcrypt.hashSync(password, 10);
-    const rate = 18.5;
+    const rate = rateInput ?? 18.5;
     const goalHours = 35;
     const goalEarnings = Math.round(rate * goalHours * 100) / 100;
 
