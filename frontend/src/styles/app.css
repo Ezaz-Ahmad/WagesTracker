@@ -27,13 +27,20 @@ button { font-family: inherit; }
 .app-credit-links { display: inline-flex; gap: 6px; }
 .app-credit-link {
   display: inline-flex; align-items: center; gap: 5px;
-  padding: 4px 9px; font-size: 11px; font-weight: 600;
-  border: 1px solid var(--color-divider); color: var(--color-text);
+  padding: 6px 12px; font-size: 11px; font-weight: 600;
+  border-radius: 999px; border: 1px solid transparent; color: var(--color-text);
+  background: color-mix(in srgb, var(--color-text) 5%, var(--color-bg));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 50%, transparent);
   text-decoration: none;
-  transition: border-color var(--dur-fast, 140ms) ease, color var(--dur-fast, 140ms) ease, background-color var(--dur-fast, 140ms) ease;
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-base) var(--ease-standard), transform var(--dur-base) cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .app-credit-link svg { display: block; flex: none; }
-.app-credit-link:hover { border-color: var(--color-accent); color: var(--color-accent); background: var(--color-accent-100); }
+.app-credit-link:hover {
+  color: var(--color-accent-700); background: var(--color-accent-100);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 50%, transparent), 0 4px 10px -6px color-mix(in srgb, var(--color-accent) 40%, transparent);
+}
+.app-credit-link:active { transform: scale(0.94); transition-duration: 90ms; transition-timing-function: var(--ease-standard); }
 .app-credit-version {
   width: 100%; text-align: center; margin-top: 2px;
   font-size: 10px; font-variant-numeric: tabular-nums;
@@ -46,10 +53,13 @@ button { font-family: inherit; }
 .password-toggle-btn {
   position: absolute; top: 50%; right: 3px; transform: translateY(-50%);
   display: grid; place-items: center; width: 30px; height: 30px; padding: 0;
-  background: none; border: none; cursor: pointer;
+  background: none; border: none; border-radius: 50%; cursor: pointer;
   color: color-mix(in srgb, var(--color-text) 50%, transparent);
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard),
+    transform var(--dur-base) cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.password-toggle-btn:hover { color: var(--color-accent); }
+.password-toggle-btn:hover { color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+.password-toggle-btn:active { transform: translateY(-50%) scale(0.86); transition-duration: 90ms; transition-timing-function: var(--ease-standard); }
 .password-toggle-btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
 .form-error {
   font-size: 12px; color: var(--color-accent-700); background: var(--color-accent-100);
@@ -138,13 +148,16 @@ button { font-family: inherit; }
 .app-nav-date { font-size: 12px; color: var(--color-text); opacity: 0.6; }
 .app-nav-logout {
   display: inline-flex; align-items: center; gap: 6px; flex: none;
-  padding: 7px 11px; border: 1px solid var(--color-divider); border-radius: var(--radius-md);
-  background: none; cursor: pointer;
+  padding: 8px 12px; border: 1px solid transparent; border-radius: var(--radius-btn);
+  background: color-mix(in srgb, var(--color-text) 5%, var(--color-bg)); cursor: pointer;
   font-family: var(--font-heading); font-weight: 700; font-size: 12px;
   color: color-mix(in srgb, var(--color-text) 65%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 55%, transparent), 0 2px 8px -5px color-mix(in srgb, #000 30%, transparent);
+  transition: background-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-base) var(--ease-standard), transform var(--dur-base) cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.app-nav-logout:hover { border-color: var(--color-accent-700); color: var(--color-accent-700); background: var(--color-accent-100); }
-.app-nav-logout:active { transform: scale(0.95); }
+.app-nav-logout:hover { color: var(--color-accent-700); background: var(--color-accent-100); }
+.app-nav-logout:active { transform: scale(0.94); transition-duration: 90ms; transition-timing-function: var(--ease-standard); }
 .app-nav-logout svg { flex: none; }
 
 /* — earnings-privacy eye toggle — icon-only, same footprint/feel as the
@@ -153,12 +166,19 @@ button { font-family: inherit; }
    a glance that something is currently un-masked. */
 .app-nav-eye-btn {
   display: inline-flex; align-items: center; justify-content: center; flex: none;
-  width: 34px; height: 34px; border: 1px solid var(--color-divider); border-radius: var(--radius-md);
-  background: none; cursor: pointer; color: color-mix(in srgb, var(--color-text) 65%, transparent);
+  width: 36px; height: 36px; border: 1px solid transparent; border-radius: 50%;
+  background: color-mix(in srgb, var(--color-text) 5%, var(--color-bg)); cursor: pointer;
+  color: color-mix(in srgb, var(--color-text) 65%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 55%, transparent), 0 2px 8px -5px color-mix(in srgb, #000 30%, transparent);
+  transition: background-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-base) var(--ease-standard), transform var(--dur-base) cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.app-nav-eye-btn:hover { border-color: var(--color-accent-700); color: var(--color-accent-700); background: var(--color-accent-100); }
-.app-nav-eye-btn:active { transform: scale(0.92); }
-.app-nav-eye-btn.is-visible { border-color: var(--color-accent); color: var(--color-accent-700); background: var(--color-accent-100); }
+.app-nav-eye-btn:hover { color: var(--color-accent-700); background: var(--color-accent-100); }
+.app-nav-eye-btn:active { transform: scale(0.9); transition-duration: 90ms; transition-timing-function: var(--ease-standard); }
+.app-nav-eye-btn.is-visible {
+  color: var(--color-accent-700); background: var(--color-accent-100);
+  box-shadow: 0 0 0 1px var(--color-accent) inset, 0 4px 12px -6px color-mix(in srgb, var(--color-accent) 55%, transparent);
+}
 .app-nav-eye-btn svg { flex: none; }
 
 /* — amount masking (see components/Amount.tsx) — a blur + slight dim reads
@@ -189,15 +209,18 @@ button { font-family: inherit; }
 .swipe-track { will-change: transform; }
 .app-bottomnav {
   flex: none;
-  display: flex; border-top: 2px solid var(--color-divider); background: var(--color-bg);
+  display: flex;
+  border-top: 1px solid color-mix(in srgb, var(--color-text) 9%, transparent);
+  background: var(--color-bg);
+  box-shadow: 0 -8px 20px -16px color-mix(in srgb, #000 40%, transparent);
   padding-bottom: env(safe-area-inset-bottom);
 }
 .app-bottomnav-btn {
-  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
-  padding: 8px 0 10px; background: none; border: none; cursor: pointer;
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 9px 0 10px; background: none; border: none; cursor: pointer;
   color: color-mix(in srgb, var(--color-text) 45%, transparent);
 }
-.app-bottomnav-btn.is-active { color: var(--color-accent); }
+.app-bottomnav-btn.is-active { color: var(--color-accent-700); font-weight: 700; }
 .app-bottomnav-label { font-size: 10px; }
 
 .section-title { color: var(--color-accent); margin-bottom: var(--space-1); }
@@ -263,13 +286,45 @@ button { font-family: inherit; }
   .wakeup-card { animation: none; }
 }
 
-/* — circular CTA — */
+/* — circular CTA — the sign-in/sign-out button, in whichever color
+   ShiftButton sets inline; the glow/highlight here works with either since
+   it's built from shadow layers rather than a fixed tint. */
 .cta-circle {
+  position: relative; overflow: hidden;
   flex: none; width: 76px; height: 76px; border-radius: 50%; padding: 0;
   text-align: center; justify-content: center; font-size: 11px; line-height: 1.15;
   white-space: normal; color: #fff; border: none; cursor: pointer;
+  box-shadow:
+    0 12px 26px -8px color-mix(in srgb, #000 45%, transparent),
+    inset 0 1.5px 0 color-mix(in srgb, white 35%, transparent),
+    inset 0 -10px 16px -8px color-mix(in srgb, #000 20%, transparent);
 }
 .cta-circle:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Label/checkmark crossfade — a sign-in/out that actually went through
+   gets a brief checkmark flash instead of the label just silently
+   swapping. See ShiftButton.tsx: `is-confirmed` is only added right after
+   the server confirms the change, not on every click. */
+.cta-circle-label {
+  position: relative;
+  transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out);
+}
+.cta-circle-check {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  opacity: 0; transform: scale(0.4); pointer-events: none;
+}
+.cta-circle.is-confirmed .cta-circle-label { opacity: 0; transform: scale(0.82); }
+.cta-circle.is-confirmed .cta-circle-check { animation: cta-check-pop 900ms var(--ease-emphasized) both; }
+@keyframes cta-check-pop {
+  0% { opacity: 0; transform: scale(0.3); }
+  22% { opacity: 1; transform: scale(1.18); }
+  38% { transform: scale(1); }
+  78% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.9); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cta-circle-label, .cta-circle.is-confirmed .cta-circle-check { transition: none; animation: none; }
+}
 
 /* — home — */
 .week-card-top { display: flex; align-items: baseline; justify-content: space-between; }
@@ -428,10 +483,18 @@ button { font-family: inherit; }
   .day-row-summary { transition: none; }
   .day-row-body { transition: none; opacity: 1; }
 }
-.shift-row { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); }
+.shift-row { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
 .shift-location { flex: 1.3; }
 .shift-time { flex: 1; }
-.shift-hours { width: 42px; flex: none; text-align: right; font-size: 12px; opacity: 0.7; }
+/* A small rounded badge rather than plain trailing text — reads as a
+   distinct "computed result" chip next to the two fields that produced it,
+   instead of blending into the row as one more unstyled label. */
+.shift-hours {
+  flex: none; min-width: 50px; text-align: center;
+  font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums;
+  padding: 6px 8px; border-radius: 999px;
+  background: var(--color-neutral-100); color: color-mix(in srgb, var(--color-text) 65%, transparent);
+}
 .shift-remove { flex: none; font-size: 16px; }
 .add-shift-btn { font-size: 12px; }
 .week-total-card { margin-top: var(--space-4); }
@@ -446,7 +509,8 @@ button { font-family: inherit; }
 .fuel-amount {
   display: inline-flex; align-items: center; gap: 4px;
   background: var(--color-accent-100); border: 1px solid var(--color-accent-200);
-  border-radius: var(--radius-md); padding: 2px 8px 2px 10px;
+  border-radius: 999px; padding: 4px 12px 4px 12px;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 50%, transparent);
   animation: fuel-amount-in 0.2s ease;
 }
 .fuel-amount-prefix { font-size: 13px; color: var(--color-accent-700); font-weight: 600; }

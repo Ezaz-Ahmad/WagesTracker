@@ -55,6 +55,12 @@
   --radius-sm: 0px;
   --radius-md: 0px;
   --radius-lg: 0px;
+  /* Buttons deliberately opt out of the system's flat 0-radius edges —
+     rounded, with real depth (gradient/shadow below), so the things you
+     actually tap read as tappable, modern surfaces rather than flat
+     outlines. Everything else (cards, inputs, tags) keeps the sharp
+     Modernist look above. */
+  --radius-btn: 14px;
 
   /* Elevation — derived from the ground: soft ink-tinted shadows on a
      light theme, a hairline edge + ambient darkness on a dark one. */
@@ -118,25 +124,58 @@ figcaption {
   font-size: 14px; line-height: 1.2; color: var(--color-text); /* matches the .input's 14px —
      the pair sits side by side in sign-up rows */
   background: transparent; border: 1px solid transparent;
-  padding: var(--space-2) calc(var(--space-3) * 1.2);
-  border-radius: var(--radius-md);
+  padding: 10px calc(var(--space-3) * 1.35);
+  border-radius: var(--radius-btn);
 }
 .btn svg { display: block; }
-.btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn-primary { background: var(--color-accent); color: var(--color-bg); }
-.btn-primary:hover { background: var(--color-accent-600); }
-.btn-primary:active { background: var(--color-accent-700); }
-.btn-secondary { border-color: var(--color-divider); }
-.btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
-.btn-secondary:active { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
-.btn-danger { border-color: var(--color-accent-700); color: var(--color-accent-700); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none !important; transform: none !important; }
+
+.btn-primary {
+  background: linear-gradient(155deg, var(--color-accent-400), var(--color-accent) 55%, var(--color-accent-600));
+  color: #fff;
+  box-shadow:
+    0 10px 22px -9px color-mix(in srgb, var(--color-accent) 65%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 30%, transparent);
+}
+.btn-primary:hover {
+  background: linear-gradient(155deg, var(--color-accent-300), var(--color-accent-600) 55%, var(--color-accent-700));
+  box-shadow:
+    0 14px 26px -8px color-mix(in srgb, var(--color-accent) 70%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 30%, transparent);
+}
+.btn-primary:active {
+  box-shadow: 0 4px 10px -5px color-mix(in srgb, var(--color-accent) 60%, transparent);
+}
+
+.btn-secondary {
+  background: color-mix(in srgb, var(--color-text) 5%, var(--color-bg));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 55%, transparent),
+    0 3px 10px -6px color-mix(in srgb, #000 30%, transparent);
+}
+.btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 9%, var(--color-bg)); }
+.btn-secondary:active { background: color-mix(in srgb, var(--color-text) 14%, var(--color-bg)); box-shadow: none; }
+
+.btn-danger {
+  border-color: transparent; color: var(--color-accent-700);
+  background: color-mix(in srgb, var(--color-accent-700) 9%, var(--color-bg));
+  box-shadow: 0 3px 10px -6px color-mix(in srgb, var(--color-accent-700) 40%, transparent);
+}
 .btn-danger:hover { background: var(--color-accent-100); }
-.btn-danger:active { background: var(--color-accent-200); }
-.btn-ghost { color: var(--color-accent); padding-inline: var(--space-1); }
+.btn-danger:active { background: var(--color-accent-200); box-shadow: none; }
+
+.btn-ghost { color: var(--color-accent); padding-inline: var(--space-2); border-radius: 10px; }
 .btn-ghost:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
 .btn-ghost:active { background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
-.btn-icon { width: 36px; height: 36px; padding: 0; }
+
+.btn-icon { width: 38px; height: 38px; padding: 0; border-radius: 50%; }
 .btn-block { width: 100%; margin-top: var(--space-2); justify-content: flex-start; text-align: left; }
+
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover:not(:disabled), .btn-danger:hover:not(:disabled), .btn-secondary:hover:not(:disabled) {
+    transform: translateY(-1.5px);
+  }
+}
 
 /* — forms — */
 .field > label {
@@ -148,14 +187,29 @@ figcaption {
   color: color-mix(in srgb, var(--color-text) 50%, transparent);
 }
 .input {
-  width: 100%; min-height: 36px; padding: 6px 10px; font: inherit;
+  width: 100%; min-height: 40px; padding: 8px 12px; font: inherit;
   font-size: 14px; color: var(--color-text); caret-color: var(--color-accent);
-  background: var(--color-surface);
-  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-text) 4%, var(--color-bg));
+  border: 1px solid transparent; border-radius: 12px;
+  box-shadow: inset 0 1px 2px color-mix(in srgb, #000 6%, transparent);
 }
-.input:hover { border-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
-.input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
+.input:hover { background: color-mix(in srgb, var(--color-text) 6%, var(--color-bg)); }
+.input:focus-visible {
+  border-color: var(--color-accent); outline-offset: 0; background: var(--color-bg);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent);
+}
 textarea.input { min-height: 90px; resize: vertical; }
+/* The native time-picker glyph inside <input type="time"> (shift sign-in/
+   sign-out) — dimmed to sit quietly until you actually want it, accent-tinted
+   on hover so it reads as the same tappable-affordance language as the rest
+   of the redesigned controls, not a leftover default browser icon. */
+input[type="time"]::-webkit-calendar-picker-indicator {
+  opacity: 0.5; cursor: pointer; border-radius: 6px; padding: 2px;
+  transition: opacity var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
+}
+input[type="time"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1; background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
 .radio { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; }
 .radio input, .seg-opt input {
   position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;
@@ -175,12 +229,17 @@ textarea.input { min-height: 90px; resize: vertical; }
   position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;
 }
 .checkbox .box {
-  width: 16px; height: 16px; flex: none; display: grid; place-items: center;
-  border: 1.5px solid var(--color-divider);
+  width: 18px; height: 18px; flex: none; display: grid; place-items: center;
+  border: 1.5px solid var(--color-divider); border-radius: 6px;
+  background: color-mix(in srgb, var(--color-text) 3%, var(--color-bg));
+  transition: border-color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-base) var(--ease-standard);
 }
 .checkbox:hover .box { border-color: var(--color-accent); }
 .checkbox input:checked + .box {
-  border-color: var(--color-accent); background: var(--color-accent);
+  border-color: var(--color-accent);
+  background: linear-gradient(155deg, var(--color-accent-400), var(--color-accent) 60%, var(--color-accent-600));
+  box-shadow: 0 3px 8px -3px color-mix(in srgb, var(--color-accent) 55%, transparent);
 }
 .checkbox input:checked + .box::after {
   content: "";
@@ -190,17 +249,28 @@ textarea.input { min-height: 90px; resize: vertical; }
   transform: rotate(45deg) translate(-1px, -1px);
 }
 .checkbox input:focus-visible + .box { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+/* Segmented toggle (login/signup, earnings/hours, etc.) — a pill "track"
+   the checked option floats inside, same glossy language as the buttons
+   above rather than the flat divided rectangle it used to be. */
 .seg {
   display: inline-flex; overflow: hidden;
-  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+  border: none; border-radius: 999px; padding: 4px; gap: 2px;
+  background: color-mix(in srgb, var(--color-text) 6%, var(--color-bg));
+  box-shadow: inset 0 1px 4px color-mix(in srgb, #000 14%, transparent);
 }
 .seg-opt {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 7px 12px; font-size: 13px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 8px 14px; font-size: 13px; cursor: pointer;
+  border-radius: 999px;
+  transition: background-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-base) var(--ease-standard);
 }
-.seg-opt + .seg-opt { border-left: 1px solid var(--color-divider); }
-.seg-opt:has(input:checked) { background: var(--color-accent); color: var(--color-bg); }
-.seg-opt:not(:has(input:checked)):hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.seg-opt:has(input:checked) {
+  background: linear-gradient(155deg, var(--color-accent-400), var(--color-accent) 55%, var(--color-accent-600));
+  color: #fff;
+  box-shadow: 0 6px 14px -6px color-mix(in srgb, var(--color-accent) 60%, transparent), inset 0 1px 0 color-mix(in srgb, white 30%, transparent);
+}
+.seg-opt:not(:has(input:checked)):hover { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
 .seg-opt:has(input:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: -2px; }
 
 /* — cards — */

@@ -94,22 +94,48 @@
     border-top: none;
     border-right: 2px solid var(--color-divider);
     padding: var(--space-3);
-    gap: 2px;
+    gap: 4px;
     overflow-y: auto;
   }
   .app-sidebar-brand { display: flex; align-items: center; gap: 9px; }
   .app-bottomnav-indicator { display: none; }
+  /* Each sidebar item is its own rounded, tappable pill (matching the
+     button/input redesign) rather than a full-bleed flat rectangle — the
+     active item gets a soft tinted fill, an inset accent ring, a subtle
+     glow, and a small rounded bar on the leading edge, instead of just a
+     flat solid-color block. */
   .app-bottomnav-btn {
+    position: relative;
     flex: none;
     flex-direction: row;
     justify-content: flex-start;
     gap: var(--space-3);
-    padding: 10px var(--space-3);
+    padding: 10px 14px;
+    border-radius: var(--radius-btn);
     color: color-mix(in srgb, var(--color-text) 60%, transparent);
   }
+  @media (hover: hover) and (pointer: fine) {
+    .app-bottomnav-btn:not(.is-active):hover {
+      background: color-mix(in srgb, var(--color-text) 6%, transparent);
+      color: var(--color-text);
+    }
+  }
   .app-bottomnav-btn.is-active {
-    background: var(--color-accent-100);
+    background: linear-gradient(
+      155deg,
+      color-mix(in srgb, var(--color-accent) 16%, var(--color-bg)),
+      color-mix(in srgb, var(--color-accent) 9%, var(--color-bg))
+    );
     color: var(--color-accent-700);
+    font-weight: 700;
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 24%, transparent),
+      0 6px 14px -8px color-mix(in srgb, var(--color-accent) 45%, transparent);
+  }
+  .app-bottomnav-btn.is-active::before {
+    content: "";
+    position: absolute; left: -3px; top: 24%; bottom: 24%; width: 3px;
+    border-radius: 3px; background: var(--color-accent);
   }
   .app-bottomnav-btn.is-active svg { transform: none; }
   .app-bottomnav-label { font-size: 13px; }
