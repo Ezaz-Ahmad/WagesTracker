@@ -91,4 +91,52 @@ describe("shifts", () => {
     const after = await request(app).get("/api/shifts").set("Authorization", `Bearer ${tokenA}`);
     expect(after.body.shifts).toEqual([]);
   });
+
+  it("creates an active (still-clocked-in) shift with a sign-in but no sign-out", async () => {
+    const res = await request(app)
+      .post("/api/shifts")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ date: "2026-01-06", location: "Downtown", signIn: "09:00" });
+    expect(res.status).toBe(201);
+    expect(res.body.shift.signIn).toBe("09:00");
+    expect(res.body.shift.signOut).toBeNull();
+
+    // ...and can be completed later with a PATCH adding the sign-out.
+    const patched = await request(app)
+      .patch(`/api/shifts/${res.body.shift.id}`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ signOut: "17:00" });
+    expect(patched.status).toBe(200);
+    expect(patched.body.shift.signIn).toBe("09:00");
+    expect(patched.body.shift.signOut).toBe("17:00");
+  });
+
+  it("rejects a shift with identical sign-in and sign-out (zero-length, not a real shift)", async () => {
+    const res = await request(app)
+      .post("/api/shifts")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ date: "2026-01-07", signIn: "09:00", signOut: "09:00" });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects a sign-out earlier than sign-in — overnight shifts aren't supported", async () => {
+    const created = await request(app)
+      .post("/api/shifts")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ date: "2026-01-08", signIn: "22:00", signOut: "06:00" });
+    expect(created.status).toBe(400);
+
+    // Same rule applies on PATCH: completing an existing sign-in-only shift
+    // with an earlier sign-out must be rejected too, not just at creation.
+    const openShift = await request(app)
+      .post("/api/shifts")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ date: "2026-01-08", signIn: "22:00" });
+    expect(openShift.status).toBe(201);
+    const patched = await request(app)
+      .patch(`/api/shifts/${openShift.body.shift.id}`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ signOut: "06:00" });
+    expect(patched.status).toBe(400);
+  });
 });

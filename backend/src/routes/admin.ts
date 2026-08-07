@@ -74,9 +74,10 @@ adminRouter.get(
   })
 );
 
-// Same reasoning as the self-service delete in routes/me.ts: shifts are deleted explicitly
-// rather than relying solely on ON DELETE CASCADE, since FK enforcement on a remote
-// libSQL/Turso connection isn't guaranteed to behave identically to local SQLite.
+// Same reasoning as the self-service delete in routes/me.ts: every referencing table is
+// deleted explicitly rather than relying solely on ON DELETE CASCADE, since FK enforcement
+// on a remote libSQL/Turso connection isn't guaranteed to behave identically to local
+// SQLite. Covered by backend/test/admin.test.ts, which asserts all four tables end up empty.
 adminRouter.delete(
   "/users/:id",
   asyncHandler(async (req, res) => {
@@ -88,6 +89,8 @@ adminRouter.delete(
     await db.batch(
       [
         { sql: "DELETE FROM shifts WHERE user_id = ?", args: [req.params.id] },
+        { sql: "DELETE FROM day_expenses WHERE user_id = ?", args: [req.params.id] },
+        { sql: "DELETE FROM week_extras WHERE user_id = ?", args: [req.params.id] },
         { sql: "DELETE FROM users WHERE id = ?", args: [req.params.id] },
       ],
       "write"

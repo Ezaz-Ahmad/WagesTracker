@@ -15,6 +15,15 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // seconds so short shifts can be rounded fairly instead of truncated to zero).
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
 
+// Overnight shifts (sign-out earlier than or equal to sign-in) aren't
+// supported — every shift is same-day only. Consistently zero-padded
+// "HH:MM"/"HH:MM:SS" strings sort identically as strings and as times, so a
+// plain string comparison is enough; no need to parse either one.
+function isValidTimeOrder(signIn: string, signOut: string): boolean {
+  return signOut > signIn;
+}
+const OVERNIGHT_MESSAGE = "Sign-out must be after sign-in — overnight shifts (crossing midnight) aren't supported.";
+
 shiftsRouter.get(
   "/",
   asyncHandler<AuthedRequest>(async (req, res) => {
@@ -40,12 +49,17 @@ shiftsRouter.get(
   })
 );
 
-const createSchema = z.object({
-  date: z.string().regex(DATE_RE, "date must be YYYY-MM-DD"),
-  location: z.string().trim().max(200).optional().default(""),
-  signIn: z.string().regex(TIME_RE).nullable().optional().default(null),
-  signOut: z.string().regex(TIME_RE).nullable().optional().default(null),
-});
+const createSchema = z
+  .object({
+    date: z.string().regex(DATE_RE, "date must be YYYY-MM-DD"),
+    location: z.string().trim().max(200).optional().default(""),
+    signIn: z.string().regex(TIME_RE).nullable().optional().default(null),
+    signOut: z.string().regex(TIME_RE).nullable().optional().default(null),
+  })
+  .refine((data) => !data.signIn || !data.signOut || isValidTimeOrder(data.signIn, data.signOut), {
+    message: OVERNIGHT_MESSAGE,
+    path: ["signOut"],
+  });
 
 shiftsRouter.post(
   "/",
@@ -100,6 +114,17 @@ shiftsRouter.patch(
       res.status(400).json({ error: "No fields to update" });
       return;
     }
+
+    // A PATCH can touch just one of signIn/signOut — validate the pair as it
+    // will actually end up after this update (falling back to whichever side
+    // isn't being changed), not just whatever happens to be in this request.
+    const mergedSignIn = "signIn" in updates ? updates.signIn : existing.sign_in;
+    const mergedSignOut = "signOut" in updates ? updates.signOut : existing.sign_out;
+    if (mergedSignIn && mergedSignOut && !isValidTimeOrder(mergedSignIn, mergedSignOut)) {
+      res.status(400).json({ error: OVERNIGHT_MESSAGE });
+      return;
+    }
+
     const columnFor: Record<string, string> = { location: "location", signIn: "sign_in", signOut: "sign_out" };
     const setClauses = keys.map((k) => `${columnFor[k]} = @${k}`);
     const params: Record<string, InValue> = { id: req.params.id, updatedAt: new Date().toISOString() };

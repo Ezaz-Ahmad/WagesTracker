@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import jwt from "jsonwebtoken";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { cleanupTestDb, createTestApp } from "./testApp.js";
@@ -56,13 +57,29 @@ describe("auth", () => {
     expect(res.status).toBe(409);
   });
 
-  it("logs in with the correct password", async () => {
+  it("logs in with the correct password, without ever returning the password/hash", async () => {
     const res = await request(app)
       .post("/api/auth/login")
       .send({ email: validSignup.email, password: validSignup.password });
     expect(res.status).toBe(200);
     expect(res.body.token).toBeTypeOf("string");
     expect(res.body.user.email).toBe(validSignup.email);
+    expect(res.body.user.password).toBeUndefined();
+    expect(res.body.user.password_hash).toBeUndefined();
+  });
+
+  it("normalizes email case — signup with a mixed-case email logs in with any casing", async () => {
+    const email = "MixedCase@Example.com";
+    const password = "case-test-pw";
+    const signup = await request(app).post("/api/auth/signup").send({ name: "Case Test", email, password, rate: 15 });
+    expect(signup.status).toBe(201);
+    expect(signup.body.user.email).toBe(email.toLowerCase());
+
+    const loginLower = await request(app).post("/api/auth/login").send({ email: email.toLowerCase(), password });
+    expect(loginLower.status).toBe(200);
+
+    const loginUpper = await request(app).post("/api/auth/login").send({ email: email.toUpperCase(), password });
+    expect(loginUpper.status).toBe(200);
   });
 
   it("rejects login with the wrong password", async () => {
@@ -84,6 +101,16 @@ describe("auth", () => {
 
   it("blocks a request carrying a garbage/forged token", async () => {
     const res = await request(app).get("/api/shifts").set("Authorization", "Bearer not-a-real-token");
+    expect(res.status).toBe(401);
+  });
+
+  it("blocks a request carrying an expired JWT", async () => {
+    // Signed with the same secret createTestApp put in process.env.JWT_SECRET
+    // (so it's cryptographically valid) but already expired — this is the
+    // "the signature checks out, but the clock doesn't" case, distinct from
+    // the garbage-token test above.
+    const expiredToken = jwt.sign({ sub: "some-user-id" }, process.env.JWT_SECRET!, { expiresIn: "-10s" });
+    const res = await request(app).get("/api/shifts").set("Authorization", `Bearer ${expiredToken}`);
     expect(res.status).toBe(401);
   });
 });

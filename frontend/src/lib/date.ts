@@ -55,11 +55,16 @@ function timeToSeconds(t: string): number {
  * places purely to avoid floating-point noise (that's sub-millisecond
  * precision, far finer than a cent at any real wage) — callers that display
  * this should format it (see `fmt2`), not print it raw.
+ *
+ * Same-day only — overnight shifts (sign-out earlier than sign-in) are not
+ * supported. The backend rejects them at creation (see backend/src/routes/
+ * shifts.ts), so this should never actually see one in practice; a
+ * non-positive diff here just falls back to 0, the same as a shift with no
+ * sign-out yet, rather than guessing which day was meant.
  */
 export function computeHours(signIn: string | null, signOut: string | null): number {
   if (!signIn || !signOut) return 0;
-  let diffSec = timeToSeconds(signOut) - timeToSeconds(signIn);
-  if (diffSec < 0) diffSec += 24 * 3600;
+  const diffSec = timeToSeconds(signOut) - timeToSeconds(signIn);
   if (diffSec <= 0) return 0;
 
   return Math.round((diffSec / 3600) * 1_000_000) / 1_000_000;
