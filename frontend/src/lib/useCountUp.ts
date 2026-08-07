@@ -1,15 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 
-function prefersReducedMotion(): boolean {
-  return typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-}
-
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 
 /**
  * Animates a displayed number toward `target` with an eased tween whenever
- * `target` changes (e.g. earnings ticking up after a shift is logged).
- * Jumps straight to the target under prefers-reduced-motion.
+ * `target` changes (e.g. earnings ticking up after a shift is logged). Plays
+ * the same tween on every device regardless of the OS's reduced-motion
+ * setting — this app deliberately doesn't vary its animations by that
+ * preference (see animations.css).
  */
 export function useCountUp(target: number, durationMs = 650): number {
   const [value, setValue] = useState(target);
@@ -17,7 +15,7 @@ export function useCountUp(target: number, durationMs = 650): number {
   const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (prefersReducedMotion() || !Number.isFinite(target)) {
+    if (!Number.isFinite(target)) {
       fromRef.current = target;
       setValue(target);
       return;

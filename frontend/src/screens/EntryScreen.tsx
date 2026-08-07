@@ -375,29 +375,46 @@ export function EntryScreen() {
             <div className="day-row-body">
               {rowsFor(day).map((row) => (
                 <div className="shift-row" key={`${day.dateISO}-${row.id ?? row.tempId ?? "placeholder"}`}>
-                  <input
-                    className="input shift-location"
-                    type="text"
-                    placeholder="Location"
-                    defaultValue={row.location}
-                    onBlur={(e) => handleFieldChange(day, row, "location", e.target.value)}
-                  />
-                  <input
-                    className="input shift-time"
-                    type="time"
-                    aria-label="Sign-in time"
-                    title="Sign-in time"
-                    defaultValue={row.signIn ?? ""}
-                    onChange={(e) => handleFieldChange(day, row, "signIn", e.target.value)}
-                  />
-                  <input
-                    className="input shift-time"
-                    type="time"
-                    aria-label="Sign-out time"
-                    title="Sign-out time"
-                    defaultValue={row.signOut ?? ""}
-                    onChange={(e) => handleFieldChange(day, row, "signOut", e.target.value)}
-                  />
+                  <div className="shift-field shift-field-location">
+                    <label className="shift-field-label">Location</label>
+                    <input
+                      className="input shift-location"
+                      type="text"
+                      placeholder="e.g. Downtown Store"
+                      defaultValue={row.location}
+                      onBlur={(e) => handleFieldChange(day, row, "location", e.target.value)}
+                    />
+                  </div>
+                  <div className="shift-field shift-field-time">
+                    {/* A real label rendered by us, not the native placeholder — an
+                        empty <input type="time"> looks completely different by
+                        platform (desktop Chrome draws a "--:-- --" placeholder;
+                        iOS/Android draw their own native control with no such
+                        text), so relying on that to say "this is sign-in" left
+                        phones with no visible cue at all. This label looks
+                        identical everywhere regardless of how the native picker
+                        renders. */}
+                    <label className="shift-field-label">Sign in</label>
+                    <input
+                      className="input shift-time"
+                      type="time"
+                      aria-label="Sign-in time"
+                      title="Sign-in time"
+                      defaultValue={row.signIn ?? ""}
+                      onChange={(e) => handleFieldChange(day, row, "signIn", e.target.value)}
+                    />
+                  </div>
+                  <div className="shift-field shift-field-time">
+                    <label className="shift-field-label">Sign out</label>
+                    <input
+                      className="input shift-time"
+                      type="time"
+                      aria-label="Sign-out time"
+                      title="Sign-out time"
+                      defaultValue={row.signOut ?? ""}
+                      onChange={(e) => handleFieldChange(day, row, "signOut", e.target.value)}
+                    />
+                  </div>
                   <div className="shift-hours">{row.hoursLabel}</div>
                   {row.canRemove && (
                     <button

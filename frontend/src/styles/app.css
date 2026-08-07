@@ -111,9 +111,6 @@ button { font-family: inherit; }
   transition: opacity 380ms var(--ease-out, ease);
 }
 .app-shell.is-entered { opacity: 1; }
-@media (prefers-reduced-motion: reduce) {
-  .app-shell { opacity: 1; transition: none; }
-}
 .app-frame {
   width: 100%; max-width: 460px; height: 100%; background: var(--color-bg);
   display: flex; flex-direction: column; box-shadow: var(--shadow-lg); position: relative;
@@ -135,10 +132,6 @@ button { font-family: inherit; }
 @keyframes pull-refresh-spin {
   to { transform: rotate(360deg); }
 }
-@media (prefers-reduced-motion: reduce) {
-  .pull-refresh-indicator.is-refreshing svg { animation: none; }
-}
-
 .app-nav { flex: none; padding-top: max(var(--space-3), env(safe-area-inset-top)); }
 /* Groups brand/greeting + date into one left-aligned block so the log out
    button can own the far right — the date used to live there, but that's
@@ -193,10 +186,6 @@ button { font-family: inherit; }
   opacity: 0.5;
   user-select: none;
 }
-@media (prefers-reduced-motion: reduce) {
-  .amount-mask { transition: none; }
-}
-
 /* — earnings-hidden hint (EarningsHiddenHint) — a small tappable pill next
    to whichever amount is currently blurred, pointing at the eye icon in the
    nav. Styled like a soft callout (accent-tinted pill) rather than plain
@@ -240,9 +229,6 @@ button { font-family: inherit; }
 .history-earnings-hint { margin-bottom: var(--space-2); }
 .earnings-hint:hover { background: var(--color-accent-200); }
 .earnings-hint:active { background: var(--color-accent-300); }
-@media (prefers-reduced-motion: reduce) {
-  .earnings-hint-collapse, .earnings-hint-wrap { transition: none; }
-}
 .app-main {
   flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
   -webkit-overflow-scrolling: touch; overscroll-behavior-y: none;
@@ -342,11 +328,6 @@ button { font-family: inherit; }
   color: color-mix(in srgb, var(--color-text) 62%, transparent);
   animation: fade-in var(--dur-base) var(--ease-standard) both;
 }
-@media (prefers-reduced-motion: reduce) {
-  .wakeup-glow, .wakeup-logo-halo { animation: none; }
-  .wakeup-card { animation: none; }
-}
-
 /* — circular CTA — the sign-in/sign-out button, in whichever color
    ShiftButton sets inline; the glow/highlight here works with either since
    it's built from shadow layers rather than a fixed tint. */
@@ -388,10 +369,6 @@ button { font-family: inherit; }
   78% { opacity: 1; transform: scale(1); }
   100% { opacity: 0; transform: scale(0.9); }
 }
-@media (prefers-reduced-motion: reduce) {
-  .cta-circle-label, .cta-circle.is-confirmed .cta-circle-check { transition: none; animation: none; }
-}
-
 /* — home — */
 .week-card-top { display: flex; align-items: baseline; justify-content: space-between; }
 .week-amount { font-family: var(--font-heading); font-weight: 800; font-size: 38px; line-height: 1; }
@@ -597,16 +574,26 @@ button { font-family: inherit; }
   transition: opacity 220ms var(--ease-emphasized) 90ms;
 }
 .day-card.is-open .day-row-body { opacity: 1; }
-@media (prefers-reduced-motion: reduce) {
-  .day-row-collapse { transition: none; }
-  .day-chevron { transition: none; }
-  .day-chevron-btn { transition: none; }
-  .day-row-summary { transition: none; }
-  .day-row-body { transition: none; opacity: 1; }
+/* `align-items: flex-end` so the actual inputs line up along one bottom edge
+   with the hours badge/remove button (which have no label above them) —
+   with the labels added above location/sign-in/sign-out (see shift-field
+   below), centering would leave the shorter controls floating oddly high. */
+.shift-row { display: flex; align-items: flex-end; gap: var(--space-2); margin-bottom: var(--space-3); }
+/* Real, always-visible labels above each shift field — added because an
+   empty native <input type="time"> renders completely differently by
+   platform (desktop Chrome shows a "--:-- --" placeholder; iOS/Android show
+   their own native control with no such text), which left phones with zero
+   visual cue for what each time field was. These labels are ours, not the
+   browser's, so they look identical on every device. */
+.shift-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.shift-field-location { flex: 1.3; }
+.shift-field-time { flex: 1; }
+.shift-field-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  padding-left: 2px;
+  color: color-mix(in srgb, var(--color-text) 45%, transparent);
 }
-.shift-row { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
-.shift-location { flex: 1.3; }
-.shift-time { flex: 1; }
+.shift-location, .shift-time { width: 100%; }
 /* A small rounded badge rather than plain trailing text — reads as a
    distinct "computed result" chip next to the two fields that produced it,
    instead of blending into the row as one more unstyled label. */
@@ -645,10 +632,6 @@ button { font-family: inherit; }
   from { opacity: 0; transform: translateX(-4px); }
   to { opacity: 1; transform: translateX(0); }
 }
-@media (prefers-reduced-motion: reduce) {
-  .fuel-amount { animation: none; }
-}
-
 /* "Other earnings" reuses the fuel-cost toggle/amount styles but in a neutral
    tint, so the two extras stay visually distinct at a glance. */
 .other-toggle:has(input:checked) { color: var(--color-neutral-800); }
@@ -679,10 +662,6 @@ button { font-family: inherit; }
 .other-reason-input { resize: vertical; min-height: 44px; font-size: 13px; }
 .other-earning-actions { display: flex; align-items: center; gap: var(--space-3); }
 .other-earning-hint { font-size: 12px; color: var(--color-accent-700); }
-@media (prefers-reduced-motion: reduce) {
-  .other-earning-form { animation: none; }
-}
-
 /* The fuel-cost/other-earnings amount is now *chosen*, not typed — this
    turns the old inline text input into a tappable pill matching its old
    look, opening the wheel picker below instead of a keyboard. */
@@ -800,10 +779,6 @@ button { font-family: inherit; }
 .wheel-actions { display: flex; gap: 10px; width: 100%; margin-top: var(--space-1); }
 .wheel-actions .btn { flex: 1; height: 46px; border-radius: 13px; justify-content: center; font-size: 14.5px; }
 .wheel-actions .btn-primary { box-shadow: 0 8px 18px -4px color-mix(in srgb, var(--color-accent) 55%, transparent); }
-@media (prefers-reduced-motion: reduce) {
-  .wheel-col { scroll-behavior: auto; }
-  .wheel-modal, .wheel-backdrop, .wheel-readout.is-bump { animation: none; }
-}
 
 /* — report — */
 /* `aspect-ratio` matches the chart's viewBox (320x150) exactly, so the SVG's

@@ -4,7 +4,10 @@
    it confirms an action, orients you after navigation, or draws the eye to
    a number that just changed. Nothing loops forever except the two "live"
    indicators (active shift pulse, elapsed timer breathe).
-   Fully disabled under prefers-reduced-motion at the bottom of this file.
+   By design, this app does NOT reduce motion under prefers-reduced-motion —
+   every animation here plays identically on every device regardless of the
+   OS-level accessibility setting (an explicit product choice, not an
+   oversight — see the note near the bottom of this file).
    ══════════════════════════════════════════════════════════════════════ */
 
 :root {
@@ -165,10 +168,6 @@
 .app-bottomnav-btn { position: relative; z-index: 1; }
 .app-bottomnav-btn svg { transition: transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1); }
 .app-bottomnav-btn.is-active svg { transform: translateY(-2px) scale(1.14); }
-@media (prefers-reduced-motion: reduce) {
-  .app-bottomnav-indicator { transition: none; }
-}
-
 /* — shift CTA — */
 @keyframes pulse-ring {
   0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 45%, transparent); }
@@ -374,12 +373,9 @@
 .skeleton-chart { height: 150px; margin-bottom: var(--space-4); }
 .skeleton-bars { height: 150px; }
 
-/* — accessibility: honor reduced-motion — */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-    scroll-behavior: auto !important;
-  }
-}
+/* By explicit choice, this app does not honor prefers-reduced-motion — every
+   animation plays the same on every device regardless of the OS-level
+   accessibility setting, so behavior never silently diverges between a
+   phone with Reduce Motion on and a desktop without it. (Removed a blanket
+   `@media (prefers-reduced-motion: reduce)` override that used to force
+   every animation/transition duration to ~0 here.) */

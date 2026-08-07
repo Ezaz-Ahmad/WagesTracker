@@ -12,9 +12,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * Usage: call `requestClose(actuallyClose)` instead of calling `actuallyClose`
  * (your state setter / callback prop) directly. This flips `closing` to
  * true — add a matching `is-closing` class in CSS with an exit keyframe —
- * then waits `ms` (honoring prefers-reduced-motion by skipping straight to
- * zero) before invoking `actuallyClose`, at which point the element is
- * already visually gone and unmounting it is invisible.
+ * then waits `ms` before invoking `actuallyClose`, at which point the
+ * element is already visually gone and unmounting it is invisible. Runs the
+ * same way regardless of the OS's reduced-motion setting — this app
+ * deliberately doesn't vary its animations by that preference (see
+ * animations.css) — so the only skip is `ms <= 0` for a caller that opts out
+ * of the delay entirely.
  */
 export function useDismissTransition(ms = 200) {
   const [closing, setClosing] = useState(false);
@@ -27,9 +30,7 @@ export function useDismissTransition(ms = 200) {
     (onClosed: () => void) => {
       if (closingRef.current) return; // already closing — ignore a second trigger
       closingRef.current = true;
-      const reduced =
-        typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-      if (reduced || ms <= 0) {
+      if (ms <= 0) {
         onClosed();
         return;
       }
