@@ -95,19 +95,21 @@ export function ReportScreen() {
     <div className="screen-wide">
       <div className="row-baseline">
         <h6 className="section-title">Progress report</h6>
+        {/* `.btn-secondary` (a real filled pill), not `.btn-ghost` (bare
+            colored text) — `.row-baseline` wraps this onto its own line on
+            a phone-width card (the full "Download this week (PDF)" label
+            plus "Progress report" doesn't fit on one line even on a
+            standard-width phone), and a ghost button alone on a line, in
+            the same bold heading font as the title above it, read as a
+            second oversized heading rather than a tappable button. A short
+            label also makes that wrap far less likely to begin with. */}
         <button
-          className={`btn btn-ghost${pdfJustDownloaded ? " btn-save-flash" : ""}`}
+          className={`btn btn-secondary${pdfJustDownloaded ? " btn-save-flash" : ""}`}
           onClick={handleDownloadPdf}
           disabled={pdfDownloading}
           style={{ flex: "none" }}
         >
-          {pdfDownloading ? (
-            <BubbleLoader label="Preparing PDF" />
-          ) : pdfJustDownloaded ? (
-            "Downloaded ✓"
-          ) : (
-            "Download this week (PDF)"
-          )}
+          {pdfDownloading ? <BubbleLoader label="Preparing PDF" /> : pdfJustDownloaded ? "Downloaded ✓" : "Download PDF"}
         </button>
       </div>
       <div className="section-hint">Last 7 weeks plus this week in progress.</div>

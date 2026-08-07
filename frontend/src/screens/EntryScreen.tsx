@@ -10,8 +10,6 @@ import {
   type ShiftComputed,
 } from "../lib/aggregate";
 import { buildWeekDays, fmt2, formatTime12, isoDate } from "../lib/date";
-import { buildWeekReportData } from "../lib/reportData";
-import { usePdfDownload } from "../lib/usePdfDownload";
 import { useTodayShift } from "../lib/useTodayShift";
 import { useCountUp } from "../lib/useCountUp";
 import { useLiveElapsedHours } from "../lib/useLiveElapsedHours";
@@ -21,7 +19,6 @@ import { Skeleton } from "../components/Skeleton";
 import { Amount } from "../components/Amount";
 import { AmountWheelPicker } from "../components/AmountWheelPicker";
 import { EarningsHiddenHint } from "../components/EarningsHiddenHint";
-import { BubbleLoader } from "../components/BubbleLoader";
 
 type Row = ShiftComputed & { tempId?: string };
 
@@ -41,13 +38,6 @@ export function EntryScreen() {
   } = useApp();
   const { active, last, start, end } = useTodayShift();
   const [busy, setBusy] = useState(false);
-  const {
-    download: downloadPdf,
-    downloading: pdfDownloading,
-    justDownloaded: pdfJustDownloaded,
-    error: pdfError,
-    clearError: clearPdfError,
-  } = usePdfDownload();
   const [pending, setPending] = useState<Record<string, string[]>>({});
   // Manual override for the fuel-cost checkbox, keyed by date. Undefined means
   // "derive from whether that day already has a saved fuel cost" — this only
@@ -196,10 +186,6 @@ export function EntryScreen() {
     }
   }
 
-  function handleDownloadPdf() {
-    void downloadPdf(buildWeekReportData(user!, shifts, today, CURRENCY, dayExpenses, weekExtras));
-  }
-
   function isDayOpen(day: DayComputed): boolean {
     return openDays[day.dateISO] ?? false;
   }
@@ -271,23 +257,11 @@ export function EntryScreen() {
 
   return (
     <div className="screen-narrow">
-      <div className="row-baseline">
-        <h6 className="section-title">This week's hours</h6>
-        <button
-          className={`btn btn-ghost${pdfJustDownloaded ? " btn-save-flash" : ""}`}
-          onClick={handleDownloadPdf}
-          disabled={pdfDownloading}
-          style={{ flex: "none" }}
-        >
-          {pdfDownloading ? <BubbleLoader label="Preparing PDF" /> : pdfJustDownloaded ? "Downloaded ✓" : "Download PDF"}
-        </button>
-      </div>
+      {/* PDF export lives on the Report screen only now — having the same
+          "Download PDF" action in two places was redundant, and Report is
+          the screen actually built around reporting/exporting. */}
+      <h6 className="section-title">This week's hours</h6>
       <div className="section-hint">Tap a time to set sign-in and sign-out for each day, or use the clock button for today.</div>
-      {pdfError && (
-        <div className="form-error" role="alert" onClick={clearPdfError}>
-          {pdfError}
-        </div>
-      )}
 
       <div className="card entry-today-card anim-rise">
         <div>
