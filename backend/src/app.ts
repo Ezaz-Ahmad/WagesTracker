@@ -86,7 +86,17 @@ export function createApp(): express.Express {
   app.get("/", (_req, res) => res.json({ status: "API is healthy and awake" }));
 
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
-  app.use("/api/auth", authLimiter, authRouter);
+  // authLimiter is scoped to only signup/login — not the whole /api/auth
+  // router — so it never catches POST /api/auth/logout. Logout is already
+  // gated by requireAuth (needs a currently-valid JWT) and the general /api
+  // limiter above; stacking the tight 20-req/15min signup/login limiter on
+  // top of that let a burst of failed login attempts lock a legitimate,
+  // already-authenticated user out of logging out, leaving their session
+  // un-revoked server-side even though the frontend had already discarded
+  // its local token (see sessions.test.ts for the exact scenario).
+  app.use("/api/auth/signup", authLimiter);
+  app.use("/api/auth/login", authLimiter);
+  app.use("/api/auth", authRouter);
   app.use("/api/me", meRouter);
   app.use("/api/shifts", shiftsRouter);
   app.use("/api/day-expenses", dayExpensesRouter);
