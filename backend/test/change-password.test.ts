@@ -1,5 +1,6 @@
 import type { Client } from "@libsql/client";
 import type { Express } from "express";
+import jwt from "jsonwebtoken";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { verifyPassword } from "../src/security/passwordHashing.js";
@@ -90,10 +91,26 @@ describe("change password", () => {
     expect(res.status).toBe(401);
   });
 
-  it("accepts the replacement token issued by the password change", async () => {
+  it("revoked the original session's own row in the database, not just its token_version", async () => {
+    // The tokenVersion bump alone would already reject the old token (see
+    // the test above) — this specifically proves the session-table layer
+    // also did its job, by checking user_sessions directly rather than
+    // through the API.
+    const originalSid = (jwt.decode(originalToken) as { sid: string }).sid;
+    const row = await db.execute({ sql: "SELECT revoked_at FROM user_sessions WHERE id = ?", args: [originalSid] });
+    expect(row.rows[0]?.revoked_at).not.toBeNull();
+  });
+
+  it("accepts the replacement token issued by the password change, backed by a fresh, unrevoked session", async () => {
     const res = await request(app).get("/api/me").set("Authorization", `Bearer ${replacementToken}`);
     expect(res.status).toBe(200);
     expect(res.body.user.email).toBe(email);
+
+    const replacementSid = (jwt.decode(replacementToken) as { sid: string }).sid;
+    expect(replacementSid).not.toBe((jwt.decode(originalToken) as { sid: string }).sid);
+    const row = await db.execute({ sql: "SELECT revoked_at, user_id FROM user_sessions WHERE id = ?", args: [replacementSid] });
+    expect(row.rows[0]?.revoked_at).toBeNull();
+    expect(row.rows[0]?.user_id).toBe(userId);
   });
 
   it("can no longer log in with the old password", async () => {

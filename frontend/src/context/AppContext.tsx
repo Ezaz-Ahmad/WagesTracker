@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
 import { addDays, isoDate, startOfWeek } from "../lib/date";
+import type { SessionInfo } from "../lib/api";
 import type { DayExpense, Shift, User, WeekExtra } from "../lib/types";
 
 export const RETENTION_YEARS = 5;
@@ -82,6 +83,13 @@ interface AppContextValue {
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   deleteAccount: (password: string) => Promise<void>;
 
+  sessions: SessionInfo[];
+  sessionsLoading: boolean;
+  sessionsError: string | null;
+  loadSessions: () => Promise<void>;
+  revokeSession: (sessionId: string) => Promise<void>;
+  revokeOtherSessions: () => Promise<void>;
+
   today: Date;
   shifts: Shift[];
   shiftsLoading: boolean;
@@ -114,6 +122,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [dayExpenses, setDayExpenses] = useState<DayExpense[]>([]);
   const [weekExtras, setWeekExtras] = useState<WeekExtra[]>([]);
+  const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsError, setSessionsError] = useState<string | null>(null);
   const [shiftsLoading, setShiftsLoading] = useState(false);
   // Sticky — true after the first successful/attempted load and never reset, so
   // screens can show a one-time loading state instead of flashing $0 totals
@@ -263,6 +274,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [hideEarningsNow]);
 
   const logout = useCallback(() => {
+    // Best-effort server-side revocation of the current session, fired
+    // before the token is cleared below (so it still has a valid
+    // Authorization header to send) but never awaited: a network failure,
+    // an already-expired token, or the session already being revoked by
+    // some other means must never prevent the *local* logout from
+    // completing. The request itself is read synchronously up to its first
+    // await, so the token is still in storage at the moment it builds its
+    // headers even though clearToken() runs on the very next line here.
+    void api.logout().catch(() => {});
+
     api.clearToken();
     api.clearLastActivity();
     setUser(null);
@@ -270,6 +291,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDayExpenses([]);
     setWeekExtras([]);
     setShiftsLoaded(false);
+    setSessions([]);
     setStatus("loggedOut");
     hideEarningsNow();
   }, [hideEarningsNow]);
@@ -397,6 +419,46 @@ export function AppProvider({ children }: { children: ReactNode }) {
     api.setToken(token, api.isRemembered());
   }, []);
 
+  const loadSessions = useCallback(async () => {
+    setSessionsLoading(true);
+    setSessionsError(null);
+    try {
+      const { sessions } = await api.listSessions();
+      setSessions(sessions);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) {
+        logout();
+        setActionError("Your session expired. Please log in again.");
+        return;
+      }
+      setSessionsError(e instanceof Error ? e.message : "Couldn't load sessions");
+    } finally {
+      setSessionsLoading(false);
+    }
+  }, [logout]);
+
+  // Left to throw on failure so the Settings UI can show the error inline —
+  // same pattern as changePassword/deleteAccount. If the session revoked was
+  // this very device's current one, the backend says so via `revokedCurrent`
+  // and the app logs itself out right away rather than waiting for some
+  // later request to fail with a generic 401.
+  const revokeSession = useCallback(
+    async (sessionId: string) => {
+      const { revokedCurrent } = await api.revokeSession(sessionId);
+      if (revokedCurrent) {
+        logout();
+        return;
+      }
+      await loadSessions();
+    },
+    [logout, loadSessions]
+  );
+
+  const revokeOtherSessions = useCallback(async () => {
+    await api.revokeOtherSessions();
+    await loadSessions();
+  }, [loadSessions]);
+
   const createShift = useCallback(
     async (input: api.ShiftInput) => {
       try {
@@ -498,6 +560,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       updateSettings,
       changePassword,
       deleteAccount,
+      sessions,
+      sessionsLoading,
+      sessionsError,
+      loadSessions,
+      revokeSession,
+      revokeOtherSessions,
       today,
       shifts,
       shiftsLoading,
@@ -526,6 +594,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       updateSettings,
       changePassword,
       deleteAccount,
+      sessions,
+      sessionsLoading,
+      sessionsError,
+      loadSessions,
+      revokeSession,
+      revokeOtherSessions,
       today,
       shifts,
       shiftsLoading,

@@ -3,9 +3,10 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { asyncHandler } from "../asyncHandler.js";
 import { db } from "../db.js";
-import { signToken } from "../auth.js";
+import { requireAuth, signToken, type AuthedRequest } from "../auth.js";
 import { hashPassword, needsRehash, verifyPassword } from "../security/passwordHashing.js";
 import { validatePassword } from "../security/passwordPolicy.js";
+import { createSession, extractClientInfo, revokeSessionById } from "../security/sessions.js";
 import { toPublicUser, type UserRow } from "../types.js";
 
 export const authRouter = Router();
@@ -79,7 +80,11 @@ authRouter.post(
 
     const result = await db.execute({ sql: "SELECT * FROM users WHERE id = ?", args: [id] });
     const row = result.rows[0] as unknown as UserRow;
-    res.status(201).json({ token: signToken(id, row.token_version), user: toPublicUser(row) });
+
+    const { userAgent, ipAddress } = extractClientInfo(req);
+    const sessionId = await createSession({ userId: id, userAgent, ipAddress });
+
+    res.status(201).json({ token: signToken(id, row.token_version, sessionId), user: toPublicUser(row) });
   })
 );
 
@@ -125,6 +130,26 @@ authRouter.post(
       });
     }
 
-    res.json({ token: signToken(row.id, row.token_version), user: toPublicUser(row) });
+    const { userAgent, ipAddress } = extractClientInfo(req);
+    const sessionId = await createSession({ userId: row.id, userAgent, ipAddress });
+
+    res.json({ token: signToken(row.id, row.token_version, sessionId), user: toPublicUser(row) });
+  })
+);
+
+/**
+ * Server-side logout: revokes the session backing the request's own JWT, so
+ * it stops working immediately rather than just being discarded client-side
+ * (which a stolen/copied token wouldn't be affected by at all). Requires
+ * auth specifically to learn *which* session to revoke — req.sessionId
+ * comes only from requireAuth's own validation of the caller's token, never
+ * from anything the client sends directly (see AuthedRequest in ../auth.ts).
+ */
+authRouter.post(
+  "/logout",
+  requireAuth,
+  asyncHandler<AuthedRequest>(async (req, res) => {
+    await revokeSessionById(req.sessionId!);
+    res.status(204).end();
   })
 );

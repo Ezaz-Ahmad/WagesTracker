@@ -81,6 +81,30 @@ await db.executeMultiple(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_week_extras_user_week ON week_extras(user_id, week_start);
+
+  -- Database-backed sessions, layered on top of (not replacing) the existing
+  -- JWT expiry/token_version protections — see backend/src/security/sessions.ts
+  -- and requireAuth in backend/src/auth.ts. Every regular-user JWT now carries
+  -- a "sid" claim pointing at a row here; a token without one (i.e. every
+  -- token issued before this migration) is rejected, so existing users need
+  -- to log in once after this deploys. ON DELETE CASCADE means a user's
+  -- sessions disappear automatically when their account does, as a backstop
+  -- alongside the explicit delete in routes/me.ts's own account-deletion
+  -- handler (this codebase never relies solely on FK cascade for user data,
+  -- since remote libSQL/Turso FK enforcement isn't guaranteed identical to
+  -- local SQLite).
+  CREATE TABLE IF NOT EXISTS user_sessions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_agent TEXT NOT NULL DEFAULT '',
+    ip_address TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    revoked_at TEXT
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
 `);
 
 // An earlier iteration of day_expenses briefly had an `other_earning` column

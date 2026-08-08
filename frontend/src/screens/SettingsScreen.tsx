@@ -1,12 +1,32 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CURRENCY, useApp } from "../context/AppContext";
 import { PasswordInput } from "../components/PasswordInput";
 import { AppCredit } from "../components/AppCredit";
 import { useDismissTransition } from "../lib/useDismissTransition";
 import { validatePassword } from "../lib/passwordPolicy";
 
+/** "Aug 15, 3:42 PM" — used for session created/last-active timestamps.
+ * Falls back to a plain label rather than throwing or showing "Invalid
+ * Date" if a timestamp is ever missing or malformed. */
+function formatSessionTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "Unknown";
+  return d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
 export function SettingsScreen() {
-  const { user, updateSettings, changePassword, deleteAccount } = useApp();
+  const {
+    user,
+    updateSettings,
+    changePassword,
+    deleteAccount,
+    sessions,
+    sessionsLoading,
+    sessionsError,
+    loadSessions,
+    revokeSession,
+    revokeOtherSessions,
+  } = useApp();
   const [name, setName] = useState(user?.name ?? "");
   const [address, setAddress] = useState(user?.address ?? "");
   const [weekStartsOn, setWeekStartsOn] = useState<"Monday" | "Sunday">(user?.weekStartsOn ?? "Monday");
@@ -30,6 +50,20 @@ export function SettingsScreen() {
   // field — not on first render, so the form doesn't open with a wall of red.
   const newPasswordCheck = newPassword ? validatePassword(newPassword) : null;
   const confirmMismatch = confirmNewPassword.length > 0 && confirmNewPassword !== newPassword;
+
+  const [revokingSessionId, setRevokingSessionId] = useState<string | null>(null);
+  const [revokingOthers, setRevokingOthers] = useState(false);
+  const [sessionActionError, setSessionActionError] = useState<string | null>(null);
+  const [sessionActionMessage, setSessionActionMessage] = useState<string | null>(null);
+
+  // Loaded once when Settings mounts — refreshed again after any revoke
+  // below (loadSessions is called again inside AppContext's revokeSession/
+  // revokeOtherSessions on success) so the list never shows a stale entry
+  // for a device that was just logged out.
+  useEffect(() => {
+    void loadSessions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
@@ -83,6 +117,37 @@ export function SettingsScreen() {
       setPasswordError(e instanceof Error ? e.message : "Couldn't change password");
     } finally {
       setChangingPassword(false);
+    }
+  }
+
+  async function handleRevokeSession(sessionId: string) {
+    setRevokingSessionId(sessionId);
+    setSessionActionError(null);
+    setSessionActionMessage(null);
+    try {
+      await revokeSession(sessionId);
+      // If that was this device's own current session, revokeSession above
+      // already logged the app out and this screen is about to unmount —
+      // nothing else to do here.
+      setSessionActionMessage("That device has been logged out.");
+    } catch (e) {
+      setSessionActionError(e instanceof Error ? e.message : "Couldn't log out that device");
+    } finally {
+      setRevokingSessionId(null);
+    }
+  }
+
+  async function handleRevokeOtherSessions() {
+    setRevokingOthers(true);
+    setSessionActionError(null);
+    setSessionActionMessage(null);
+    try {
+      await revokeOtherSessions();
+      setSessionActionMessage("All other devices have been logged out.");
+    } catch (e) {
+      setSessionActionError(e instanceof Error ? e.message : "Couldn't log out other devices");
+    } finally {
+      setRevokingOthers(false);
     }
   }
 
@@ -277,6 +342,76 @@ export function SettingsScreen() {
           {passwordFlash ? "Password changed ✓" : changingPassword ? "Changing…" : "Change password"}
         </button>
       </form>
+
+      <div className="hr" />
+      <h6 className="section-title">Security &amp; Sessions</h6>
+      <div className="section-hint" style={{ marginBottom: "var(--space-3)" }}>
+        Devices currently signed in to your account. If you don't recognize one, log it out.
+      </div>
+
+      {sessionActionError && (
+        <div className="form-error" role="alert">
+          {sessionActionError}
+        </div>
+      )}
+      {sessionActionMessage && (
+        <div className="section-hint" role="status" style={{ marginBottom: "var(--space-3)" }}>
+          {sessionActionMessage}
+        </div>
+      )}
+
+      {sessionsLoading && sessions.length === 0 ? (
+        <div className="section-hint" role="status">
+          Loading sessions…
+        </div>
+      ) : sessionsError ? (
+        <div className="form-error" role="alert">
+          {sessionsError}
+        </div>
+      ) : sessions.length === 0 ? (
+        <div className="section-hint">No active sessions found.</div>
+      ) : (
+        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+          {sessions.map((s) => (
+            <li key={s.id} className="card" style={{ marginBottom: "var(--space-3)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", flexWrap: "wrap" }}>
+                <strong>{s.userAgent || "Unknown device"}</strong>
+                {s.isCurrent && <span className="tag tag-accent-2">This device</span>}
+              </div>
+              <div className="field-hint">
+                {s.ipAddress && <>IP {s.ipAddress} · </>}
+                Created {formatSessionTime(s.createdAt)} · Last active {formatSessionTime(s.lastActiveAt)}
+              </div>
+              {!s.isCurrent && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ marginTop: "var(--space-2)" }}
+                  onClick={() => handleRevokeSession(s.id)}
+                  disabled={revokingSessionId === s.id}
+                  data-confirm={`Log out ${s.userAgent || "this device"}? It will need to sign in again.`}
+                  aria-label={`Log out ${s.userAgent || "this device"}`}
+                >
+                  {revokingSessionId === s.id ? "Logging out…" : "Log out"}
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {sessions.some((s) => !s.isCurrent) && (
+        <button
+          type="button"
+          className="btn btn-danger btn-block"
+          onClick={handleRevokeOtherSessions}
+          disabled={revokingOthers}
+          data-confirm="Log out all other devices? Only this device will stay signed in."
+          data-confirm-tone="danger"
+        >
+          {revokingOthers ? "Logging out other devices…" : "Log out all other devices"}
+        </button>
+      )}
 
       <div className="hr" />
       <h6 className="section-title">Danger zone</h6>

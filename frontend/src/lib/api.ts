@@ -205,6 +205,47 @@ export async function changePassword(currentPassword: string, newPassword: strin
   return { token: newToken };
 }
 
+export interface SessionInfo {
+  id: string;
+  userAgent: string;
+  ipAddress: string;
+  createdAt: string;
+  lastActiveAt: string;
+  expiresAt: string;
+  isCurrent: boolean;
+}
+
+/** Lists the current user's own active (non-revoked, non-expired) sessions —
+ * powers the "Security & Sessions" list in Settings. Never includes a raw
+ * JWT, password hash, or anything about another user's sessions; that's
+ * enforced server-side, not just by what this function happens to render. */
+export function listSessions(): Promise<{ sessions: SessionInfo[] }> {
+  return request("/me/sessions");
+}
+
+/** Revokes one session by id. `revokedCurrent` tells the caller whether that
+ * was the session backing the request making this very call — if so, the
+ * caller is responsible for logging itself out locally right away, rather
+ * than waiting for some future request to fail. */
+export function revokeSession(sessionId: string): Promise<{ revokedCurrent: boolean }> {
+  return request(`/me/sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
+}
+
+/** Revokes every session except the one making this call — "log out all
+ * other devices." Never touches the current session. */
+export function revokeOtherSessions(): Promise<void> {
+  return request("/me/sessions/others", { method: "DELETE" });
+}
+
+/** Server-side logout: revokes the session backing the current token, so a
+ * copied/stolen token stops working immediately rather than just being
+ * forgotten client-side. Deliberately doesn't swallow its own errors — the
+ * caller (AppContext's logout) decides how to handle a failure, and must
+ * always still clear the local token regardless of whether this succeeds. */
+export function logout(): Promise<void> {
+  return request("/auth/logout", { method: "POST" });
+}
+
 export function listShifts(from: string, to: string): Promise<{ shifts: Shift[] }> {
   return request(`/shifts?from=${from}&to=${to}`);
 }

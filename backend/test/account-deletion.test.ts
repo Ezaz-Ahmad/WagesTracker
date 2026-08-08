@@ -48,16 +48,18 @@ describe("account deletion", () => {
     expect(res.status).toBe(401);
   });
 
-  it("removed the user's row from every table that referenced them", async () => {
-    const [users, shifts, dayExpenses, weekExtras] = await Promise.all([
+  it("removed the user's row from every table that referenced them, including their sessions", async () => {
+    const [users, shifts, dayExpenses, weekExtras, sessions] = await Promise.all([
       db.execute("SELECT COUNT(*) as c FROM users"),
       db.execute("SELECT COUNT(*) as c FROM shifts"),
       db.execute("SELECT COUNT(*) as c FROM day_expenses"),
       db.execute("SELECT COUNT(*) as c FROM week_extras"),
+      db.execute("SELECT COUNT(*) as c FROM user_sessions"),
     ]);
     expect(Number(users.rows[0].c)).toBe(0);
     expect(Number(shifts.rows[0].c)).toBe(0);
     expect(Number(dayExpenses.rows[0].c)).toBe(0);
     expect(Number(weekExtras.rows[0].c)).toBe(0);
+    expect(Number(sessions.rows[0].c)).toBe(0);
   });
 });

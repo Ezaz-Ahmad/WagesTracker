@@ -1,4 +1,5 @@
 import type { InValue } from "@libsql/client";
+import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
 import { asyncHandler } from "../asyncHandler.js";
@@ -6,7 +7,15 @@ import { db } from "../db.js";
 import { requireAuth, signToken, type AuthedRequest } from "../auth.js";
 import { hashPassword, verifyPassword } from "../security/passwordHashing.js";
 import { validatePassword } from "../security/passwordPolicy.js";
-import { toPublicUser, type UserRow } from "../types.js";
+import {
+  extractClientInfo,
+  listSessionsForUser,
+  revokeOtherSessions,
+  revokeSessionById,
+  sessionBelongsToUser,
+  SESSION_TTL_MS,
+} from "../security/sessions.js";
+import { toPublicSession, toPublicUser, type UserRow } from "../types.js";
 
 export const meRouter = Router();
 meRouter.use(requireAuth);
@@ -21,6 +30,52 @@ meRouter.get(
       return;
     }
     res.json({ user: toPublicUser(row) });
+  })
+);
+
+/**
+ * Lists the authenticated user's own currently-valid sessions (never
+ * revoked/expired ones, and never another user's) — the "Security &
+ * Sessions" list in Settings. `isCurrent` is computed from req.sessionId,
+ * which requireAuth attached from the caller's own validated JWT; the
+ * frontend has no way to tell the backend which session is "current"
+ * itself (see AuthedRequest in ../auth.ts).
+ */
+meRouter.get(
+  "/sessions",
+  asyncHandler<AuthedRequest>(async (req, res) => {
+    const sessions = await listSessionsForUser(req.userId!);
+    res.json({ sessions: sessions.map((s) => toPublicSession(s, req.sessionId!)) });
+  })
+);
+
+// Registered before "/sessions/:sessionId" below — Express matches routes in
+// registration order, so this static path has to come first or "others"
+// would be swallowed as a :sessionId value instead of hitting this handler.
+meRouter.delete(
+  "/sessions/others",
+  asyncHandler<AuthedRequest>(async (req, res) => {
+    await revokeOtherSessions(req.userId!, req.sessionId!);
+    res.status(204).end();
+  })
+);
+
+meRouter.delete(
+  "/sessions/:sessionId",
+  asyncHandler<AuthedRequest>(async (req, res) => {
+    // Same 404 for "doesn't exist" and "belongs to someone else" — a user
+    // must never be able to distinguish another user's session id from one
+    // that was never issued at all.
+    const owns = await sessionBelongsToUser(req.params.sessionId, req.userId!);
+    if (!owns) {
+      res.status(404).json({ error: "Session not found" });
+      return;
+    }
+    await revokeSessionById(req.params.sessionId);
+    // Not a bare 204: the frontend needs to know whether it just revoked its
+    // own current session so it can log itself out immediately, rather than
+    // waiting for some future request to fail with a generic 401.
+    res.json({ revokedCurrent: req.params.sessionId === req.sessionId });
   })
 );
 
@@ -97,12 +152,19 @@ const changePasswordSchema = z.object({
  * Changes the signed-in user's password. Responds `204 No Content` per the
  * task's required contract, but a password change also has to invalidate
  * every other JWT issued for this account (see auth.ts's tokenVersion
- * check) — including the one the caller is using right now. Rather than
- * force a re-login for the request that just succeeded, the replacement
- * token is returned in the `X-New-Token` response header instead of a JSON
- * body, so the 204 stays a true empty-body response while the current
- * session can still pick it up and keep going. `app.ts` exposes this header
- * cross-origin via CORS `exposedHeaders` so the browser can actually read it.
+ * check) *and* every database session backing one — including the session
+ * the caller is using right now. Rather than force a re-login for the
+ * request that just succeeded, a fresh session is created for this device
+ * and its JWT is returned in the `X-New-Token` response header instead of a
+ * JSON body, so the 204 stays a true empty-body response while the current
+ * device can still pick the new token up and keep going. `app.ts` exposes
+ * this header cross-origin via CORS `exposedHeaders` so the browser can
+ * actually read it.
+ *
+ * The password/token_version update, revoking every existing session, and
+ * creating the replacement session are all one `db.batch` "write"
+ * transaction — see the comment above that call for why the revoke has to
+ * run before the insert, not just alongside it.
  */
 meRouter.patch(
   "/password",
@@ -136,15 +198,34 @@ meRouter.patch(
 
     const newPasswordHash = await hashPassword(newPassword);
     const newTokenVersion = row.token_version + 1;
-    // Single UPDATE — hash and token_version move together, so no other
-    // request can ever observe the new hash paired with the old version (or
-    // vice versa).
-    await db.execute({
-      sql: "UPDATE users SET password_hash = ?, token_version = ? WHERE id = ?",
-      args: [newPasswordHash, newTokenVersion, req.userId!],
-    });
+    const newSessionId = randomUUID();
+    const { userAgent, ipAddress } = extractClientInfo(req);
+    const nowIso = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
 
-    const replacementToken = signToken(req.userId!, newTokenVersion);
+    await db.batch(
+      [
+        {
+          sql: "UPDATE users SET password_hash = ?, token_version = ? WHERE id = ?",
+          args: [newPasswordHash, newTokenVersion, req.userId!],
+        },
+        // Must run BEFORE the INSERT below, in the same transaction: this
+        // revokes every currently-unrevoked session for the user, and the
+        // new session created next must not be caught by that same sweep.
+        {
+          sql: "UPDATE user_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
+          args: [nowIso, req.userId!],
+        },
+        {
+          sql: `INSERT INTO user_sessions (id, user_id, user_agent, ip_address, created_at, last_seen_at, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          args: [newSessionId, req.userId!, userAgent, ipAddress, nowIso, nowIso, expiresAt],
+        },
+      ],
+      "write"
+    );
+
+    const replacementToken = signToken(req.userId!, newTokenVersion, newSessionId);
     res.setHeader("X-New-Token", replacementToken);
     res.status(204).end();
   })
@@ -158,7 +239,9 @@ const deleteSchema = z.object({
 // table is deleted explicitly (not just relying on ON DELETE CASCADE) as a safety net:
 // foreign-key enforcement on a remote libSQL/Turso connection isn't guaranteed to behave
 // identically to local SQLite, so this doesn't assume the cascade fires. Covered by
-// backend/test/account-deletion.test.ts, which asserts all four tables end up empty.
+// backend/test/account-deletion.test.ts, which asserts all five tables end up empty
+// (including user_sessions, so a deleted account can never be reached through an old
+// still-valid-looking token either).
 meRouter.delete(
   "/",
   asyncHandler<AuthedRequest>(async (req, res) => {
@@ -184,6 +267,7 @@ meRouter.delete(
         { sql: "DELETE FROM shifts WHERE user_id = ?", args: [req.userId!] },
         { sql: "DELETE FROM day_expenses WHERE user_id = ?", args: [req.userId!] },
         { sql: "DELETE FROM week_extras WHERE user_id = ?", args: [req.userId!] },
+        { sql: "DELETE FROM user_sessions WHERE user_id = ?", args: [req.userId!] },
         { sql: "DELETE FROM users WHERE id = ?", args: [req.userId!] },
       ],
       "write"

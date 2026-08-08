@@ -72,11 +72,20 @@ describe("legacy bcrypt password migration", () => {
     // exercises DELETE /api/me's own bcrypt-verification path specifically —
     // logging in first would already upgrade the hash to Argon2id (proven
     // above) before deletion ever ran, which wouldn't prove this endpoint
-    // itself supports the legacy format.
+    // itself supports the legacy format. A real session row is still
+    // required, though — requireAuth checks the JWT's `sid` against
+    // user_sessions regardless of which password format the account uses.
     const email = "legacy-bcrypt-delete@example.com";
     const password = "delete-this-legacy-bcrypt-account-2026";
     const { id } = await insertLegacyBcryptUser(email, password);
-    const token = jwt.sign({ sub: id, tokenVersion: 0 }, process.env.JWT_SECRET!, { expiresIn: "30d" });
+    const sessionId = randomUUID();
+    const nowIso = new Date().toISOString();
+    await db.execute({
+      sql: `INSERT INTO user_sessions (id, user_id, user_agent, ip_address, created_at, last_seen_at, expires_at)
+            VALUES (?, ?, '', '', ?, ?, ?)`,
+      args: [sessionId, id, nowIso, nowIso, new Date(Date.now() + 86400_000).toISOString()],
+    });
+    const token = jwt.sign({ sub: id, tokenVersion: 0, sid: sessionId }, process.env.JWT_SECRET!, { expiresIn: "30d" });
 
     const del = await request(app).delete("/api/me").set("Authorization", `Bearer ${token}`).send({ password });
     expect(del.status).toBe(204);

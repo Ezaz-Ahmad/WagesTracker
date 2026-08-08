@@ -124,6 +124,41 @@ export function toPublicWeekExtra(row: WeekExtraRow): PublicWeekExtra {
   };
 }
 
+export interface UserSessionRow {
+  id: string;
+  user_id: string;
+  user_agent: string;
+  ip_address: string;
+  created_at: string;
+  last_seen_at: string;
+  expires_at: string;
+  revoked_at: string | null;
+}
+
+export interface PublicSession {
+  id: string;
+  userAgent: string;
+  ipAddress: string;
+  createdAt: string;
+  lastActiveAt: string;
+  expiresAt: string;
+  isCurrent: boolean;
+}
+
+/** Never include revoked_at, the raw JWT (never stored — see sessions.ts),
+ * or anything beyond what a user should see about their own device list. */
+export function toPublicSession(row: UserSessionRow, currentSessionId: string): PublicSession {
+  return {
+    id: row.id,
+    userAgent: row.user_agent,
+    ipAddress: row.ip_address,
+    createdAt: row.created_at,
+    lastActiveAt: row.last_seen_at,
+    expiresAt: row.expires_at,
+    isCurrent: row.id === currentSessionId,
+  };
+}
+
 export interface AdminUserSummary extends PublicUser {
   shiftCount: number;
 }
