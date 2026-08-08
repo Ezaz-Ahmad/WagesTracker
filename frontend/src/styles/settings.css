@@ -22,8 +22,15 @@
   text-align: left; padding: 12px var(--space-3); min-height: 44px;
   background: var(--color-surface); border: 1px solid transparent; border-radius: var(--radius-md);
   cursor: pointer;
+  /* Active/hover state changes color only — never width, height, padding,
+     or the number of visible lines — so picking a category never nudges
+     its neighbors in the list. */
+  transition: background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard);
 }
-.settings-nav-item-label { font-family: var(--font-heading); font-weight: 700; font-size: 14.5px; }
+.settings-nav-item-label {
+  font-family: var(--font-heading); font-weight: 700; font-size: 14.5px;
+  transition: color var(--dur-fast) var(--ease-standard);
+}
 .settings-nav-item-hint { font-size: 11.5px; color: color-mix(in srgb, var(--color-text) 68%, transparent); }
 .settings-nav-item:hover { background: color-mix(in srgb, var(--color-text) 6%, var(--color-surface)); }
 .settings-nav-item.is-active {
@@ -42,6 +49,24 @@
 }
 .settings-back-icon { transform: rotate(90deg); display: block; }
 .settings-detail-title { margin-bottom: var(--space-3); }
+
+/* Each category panel is always mounted and toggled via the `hidden`
+   attribute (see SettingsScreen.tsx) rather than being mounted/unmounted, so
+   drafts and scroll state inside an inactive category survive a switch away
+   from it. Going from `hidden` to shown is exactly the "display: none -> a
+   real box" transition that lets a keyframe animation play from the start
+   every time, which is what this relies on for a fade-in on every switch
+   (not just first mount). Opacity only — no scale, no slide, no size change
+   — and the global prefers-reduced-motion override (animations.css) already
+   collapses its duration to near-zero, so category switches become instant
+   with no separate opt-out needed here. */
+@keyframes settings-panel-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.settings-panel {
+  animation: settings-panel-fade-in 140ms var(--ease-standard) both;
+}
 
 .settings-section-card { gap: 0; }
 .settings-section-card .field-spaced { margin-bottom: var(--space-3); }
@@ -75,13 +100,35 @@
 .session-card .btn { margin-top: var(--space-2); }
 
 /* — mobile / tablet portrait: exactly one of nav-list or detail visible — */
-.settings-detail-panel { display: block; }
+.settings-detail-panel {
+  display: block;
+  /* Flex/grid children default to min-width: auto, which lets an
+     unbreakable-content descendant (a long email address, a session's raw
+     user-agent string) force this column wider than intended — a second,
+     unrelated way the overall panel width could shift between categories.
+     min-width: 0 lets it shrink to the grid track/column width and wrap or
+     truncate its own content instead. */
+  min-width: 0;
+  /* This panel's content is replaced wholesale on every category switch;
+     letting the browser "anchor" scroll position to whatever used to be at
+     the top of the viewport (its default heuristic when content above the
+     viewport changes size) is what produces the abrupt vertical clamp/jump
+     when going from a long category to a short one. The scroll position is
+     reset deliberately in SettingsLayout instead (see its useLayoutEffect). */
+  overflow-anchor: none;
+}
 .settings-nav-panel { display: block; }
 .settings-layout--list .settings-detail-panel { display: none; }
 .settings-layout--detail .settings-nav-panel { display: none; }
 
-/* — desktop: two columns, both always visible, no back button needed — */
-@media (min-width: 880px) {
+/* — desktop: two columns, both always visible, no back button needed —
+   Matches the app frame's own persistent-sidebar breakpoint (shell.css,
+   1080px) rather than an earlier one of its own. The two used to disagree
+   (880px here vs. 1080px for the frame), so there was a jarring window where
+   Settings had already switched to its two-column layout while the rest of
+   the app was still single-column — an inconsistency users would notice as
+   "Settings looks different" purely as a function of viewport width. */
+@media (min-width: 1080px) {
   .settings-layout {
     max-width: 900px;
     display: grid;

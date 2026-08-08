@@ -3,6 +3,7 @@ import { useApp } from "../context/AppContext";
 import { PasswordInput } from "../components/PasswordInput";
 import { validatePassword } from "../lib/passwordPolicy";
 import { CheckCircleIcon } from "../components/icons";
+import { StableLabel } from "../components/StableLabel";
 import { SessionList } from "./SessionList";
 
 export function SecuritySettings() {
@@ -118,7 +119,7 @@ export function SecuritySettings() {
             (newPasswordCheck ? !newPasswordCheck.valid : false)
           }
         >
-          {changingPassword ? "Changing…" : "Change password"}
+          <StableLabel current={changingPassword ? "Changing…" : "Change password"} longest="Change password" />
         </button>
       </form>
 

@@ -36,6 +36,13 @@ export function useDismissTransition(ms = 200) {
           : false;
       if (ms <= 0 || prefersReducedMotion) {
         onClosed();
+        // Same reset as the delayed branch below — without this, a consumer
+        // that reuses one hook instance across many popups (ConfirmProvider)
+        // gets permanently stuck "closing" after the first dialog whenever
+        // this immediate branch runs, and silently ignores every close
+        // request after that (the guard on line 31 above never lets a second
+        // dialog start closing).
+        closingRef.current = false;
         return;
       }
       setClosing(true);

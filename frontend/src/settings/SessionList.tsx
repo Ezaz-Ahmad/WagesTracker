@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useApp } from "../context/AppContext";
 import { parseDeviceLabel } from "../lib/parseUserAgent";
 import { AlertTriangleIcon, CheckCircleIcon, RefreshIcon } from "../components/icons";
+import { StableLabel } from "../components/StableLabel";
 
 /** "Aug 15, 3:42 PM" — falls back to a plain label rather than "Invalid
  * Date" if a timestamp is ever missing or malformed. */
@@ -129,7 +130,7 @@ export function SessionList() {
                     data-confirm={`Log out ${label}? It will need to sign in again.`}
                     aria-label={`Log out ${label}`}
                   >
-                    {revokingSessionId === s.id ? "Logging out…" : "Log out"}
+                    <StableLabel current={revokingSessionId === s.id ? "Logging out…" : "Log out"} longest="Logging out…" />
                   </button>
                 )}
               </li>
@@ -147,7 +148,10 @@ export function SessionList() {
           data-confirm="Log out all other devices? Only this device will stay signed in."
           data-confirm-tone="danger"
         >
-          {revokingOthers ? "Logging out other devices…" : "Log out all other devices"}
+          <StableLabel
+            current={revokingOthers ? "Logging out other devices…" : "Log out all other devices"}
+            longest="Logging out other devices…"
+          />
         </button>
       )}
     </div>

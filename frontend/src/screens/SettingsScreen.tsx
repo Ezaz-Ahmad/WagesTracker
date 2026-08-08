@@ -40,19 +40,19 @@ export function SettingsScreen() {
       onSelect={setActiveCategory}
       onBack={() => setActiveCategory(null)}
     >
-      <div hidden={effectiveCategory !== "profile"}>
+      <div className="settings-panel" hidden={effectiveCategory !== "profile"}>
         <ProfileSettings />
       </div>
-      <div hidden={effectiveCategory !== "workpay"}>
+      <div className="settings-panel" hidden={effectiveCategory !== "workpay"}>
         <WorkPaySettings />
       </div>
-      <div hidden={effectiveCategory !== "goals"}>
+      <div className="settings-panel" hidden={effectiveCategory !== "goals"}>
         <GoalSettings />
       </div>
-      <div hidden={effectiveCategory !== "security"}>
+      <div className="settings-panel" hidden={effectiveCategory !== "security"}>
         <SecuritySettings />
       </div>
-      <div hidden={effectiveCategory !== "data"}>
+      <div className="settings-panel" hidden={effectiveCategory !== "data"}>
         <DataAccountSettings />
       </div>
     </SettingsLayout>

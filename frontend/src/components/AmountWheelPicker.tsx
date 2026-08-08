@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { fmt2 } from "../lib/date";
 import { useDismissTransition } from "../lib/useDismissTransition";
+import { useFocusTrap } from "../lib/useFocusTrap";
 
 const ITEM_HEIGHT = 40;
 const VISIBLE_ROWS = 5; // odd, so exactly one row sits centered
@@ -33,6 +34,50 @@ function WheelColumn({
   const settleTimer = useRef<ReturnType<typeof setTimeout>>();
   const rafId = useRef<number>();
   const didInit = useRef(false);
+  const idPrefix = useId();
+  const optionId = (i: number) => `${idPrefix}-opt-${i}`;
+
+  // Moves the selection by `delta` rows (or to an absolute `to` index),
+  // scrolling smoothly to the new position and reporting it the same way a
+  // settled scroll gesture does — this is what makes the wheel fully
+  // keyboard-operable instead of pointer/touch-only.
+  function moveSelection(next: number) {
+    const clamped = Math.max(0, Math.min(values.length - 1, next));
+    const el = containerRef.current;
+    el?.scrollTo({ top: clamped * ITEM_HEIGHT, behavior: "smooth" });
+    onSettle(clamped);
+  }
+
+  function handleKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        moveSelection(index + 1);
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        moveSelection(index - 1);
+        break;
+      case "PageDown":
+        e.preventDefault();
+        moveSelection(index + 5);
+        break;
+      case "PageUp":
+        e.preventDefault();
+        moveSelection(index - 5);
+        break;
+      case "Home":
+        e.preventDefault();
+        moveSelection(0);
+        break;
+      case "End":
+        e.preventDefault();
+        moveSelection(values.length - 1);
+        break;
+      default:
+        break;
+    }
+  }
 
   // Jump to the starting value once, without animating — a smooth scroll on
   // mount would read as the picker "searching" for the current amount.
@@ -99,8 +144,16 @@ function WheelColumn({
       className="wheel-col"
       ref={containerRef}
       onScroll={handleScroll}
+      onKeyDown={handleKeyDown}
       role="listbox"
       aria-label={ariaLabel}
+      // Roving-focus-via-aria-activedescendant: the scrollable listbox
+      // itself is the one Tab stop, and arrow/Home/End/PageUp/PageDown
+      // (handleKeyDown above) move the reported selection, mirroring what
+      // flicking or tapping a row already does — the wheel has no
+      // keyboard-only dead ends.
+      tabIndex={0}
+      aria-activedescendant={optionId(index)}
       style={{
         height: ITEM_HEIGHT * VISIBLE_ROWS,
         paddingTop: ITEM_HEIGHT * PAD_ROWS,
@@ -110,6 +163,7 @@ function WheelColumn({
       {values.map((v, i) => (
         <div
           key={v}
+          id={optionId(i)}
           ref={(el) => {
             itemRefs.current[i] = el;
           }}
@@ -117,7 +171,7 @@ function WheelColumn({
           style={{ height: ITEM_HEIGHT, lineHeight: `${ITEM_HEIGHT}px` }}
           role="option"
           aria-selected={i === index}
-          onClick={() => containerRef.current?.scrollTo({ top: i * ITEM_HEIGHT, behavior: "smooth" })}
+          onClick={() => moveSelection(i)}
         >
           {format(v)}
         </div>
@@ -161,6 +215,12 @@ export function AmountWheelPicker({
   // callback.
   const { closing, requestClose } = useDismissTransition(180);
 
+  // Focus trapping, Escape-to-cancel, and focus restoration on close —
+  // shared with every other modal in the app (ConfirmProvider, account
+  // deletion). Escape maps to the same requestClose(onCancel) path Cancel
+  // and the backdrop tap already use, so there's exactly one cancel route.
+  const trapRef = useFocusTrap<HTMLDivElement>(true, () => requestClose(onCancel));
+
   // A small tactile "pop" on the readout every time a wheel actually
   // settles on a new value — skipped on first mount so it doesn't fire the
   // instant the picker opens.
@@ -193,7 +253,11 @@ export function AmountWheelPicker({
       aria-label={title}
       onClick={() => requestClose(onCancel)}
     >
-      <div className={`wheel-modal${closing ? " is-closing" : ""}`} onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={trapRef}
+        className={`wheel-modal${closing ? " is-closing" : ""}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="wheel-title">{title}</div>
         <div className={`wheel-readout count-value${bump ? " is-bump" : ""}`}>
           {currency}

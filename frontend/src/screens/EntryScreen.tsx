@@ -298,44 +298,44 @@ export function EntryScreen() {
           className={`day-card anim-rise${open ? " is-open" : ""}${dayHasContent ? " has-content" : ""}`}
           style={{ ["--i" as string]: Math.min(i, 4) }}
         >
-          <div
-            className="day-row-head"
-            role="button"
-            tabIndex={0}
-            aria-expanded={open}
-            onClick={() => toggleDay(day.dateISO, open)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                toggleDay(day.dateISO, open);
-              }
-            }}
-          >
-            <span className="day-chevron-btn" aria-hidden="true">
-              <ChevronDownIcon size={15} className="day-chevron" />
-            </span>
-            <div className="day-row-head-main">
-              <div className="day-row-head-title">
-                <span className="day-name">{day.dayAbbr}</span>
-                <span className="day-date">{day.dateLabel}</span>
-                {day.isToday && <span className="day-today-badge">Today</span>}
-              </div>
-              {summary && (
-                <div className="day-row-summary" aria-hidden={open}>
-                  {summary}
+          <div className="day-row-head">
+            {/* A real <button> for the accordion trigger — not a <div
+                role="button"> with the separate Clear <button> nested
+                inside it. A <button> inside another interactive element is
+                an invalid, unreliably-operable pattern for assistive tech
+                (activating the outer one can also activate/confuse focus
+                on the inner one). Clear lives in .day-row-actions as a
+                sibling instead, exactly as before visually, but no longer
+                nested inside the toggle. */}
+            <button
+              type="button"
+              className="day-row-toggle"
+              aria-expanded={open}
+              onClick={() => toggleDay(day.dateISO, open)}
+            >
+              <span className="day-chevron-btn" aria-hidden="true">
+                <ChevronDownIcon size={15} className="day-chevron" />
+              </span>
+              <div className="day-row-head-main">
+                <div className="day-row-head-title">
+                  <span className="day-name">{day.dayAbbr}</span>
+                  <span className="day-date">{day.dateLabel}</span>
+                  {day.isToday && <span className="day-today-badge">Today</span>}
                 </div>
-              )}
-            </div>
+                {summary && (
+                  <div className="day-row-summary" aria-hidden={open}>
+                    {summary}
+                  </div>
+                )}
+              </div>
+            </button>
             <div className="day-row-actions">
               <div className={`day-hours${day.hours > 0 ? "" : " is-empty"}`}>{day.hoursLabel}</div>
               {dayHasContent && (
                 <button
                   type="button"
                   className="btn btn-ghost day-clear-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleClearDay(day);
-                  }}
+                  onClick={() => handleClearDay(day)}
                   data-confirm={`Clear all shifts for ${day.dayAbbr}, ${day.dateLabel}? This can't be undone.`}
                   data-confirm-tone="danger"
                 >

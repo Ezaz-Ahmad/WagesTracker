@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { PasswordInput } from "../components/PasswordInput";
+import { StableLabel } from "../components/StableLabel";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { useDismissTransition } from "../lib/useDismissTransition";
 
@@ -81,7 +82,7 @@ export function DeleteAccountDialog({ onClose, onDelete }: DeleteAccountDialogPr
             Cancel
           </button>
           <button type="button" className="btn btn-danger btn-destructive-final" onClick={handleDelete} disabled={deleting || !password}>
-            {deleting ? "Deleting…" : "Yes, permanently delete my account"}
+            <StableLabel current={deleting ? "Deleting…" : "Yes, permanently delete my account"} longest="Yes, permanently delete my account" />
           </button>
         </div>
       </div>
