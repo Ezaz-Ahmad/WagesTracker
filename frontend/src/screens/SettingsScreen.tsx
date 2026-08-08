@@ -317,16 +317,18 @@ export function SettingsScreen() {
       <form onSubmit={handleChangePassword} autoComplete="on">
         {passwordError && <div className="form-error">{passwordError}</div>}
         <div className="field field-spaced">
-          <label>Current password</label>
+          <label htmlFor="settings-current-password">Current password</label>
           <PasswordInput
+            id="settings-current-password"
             autoComplete="current-password"
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
           />
         </div>
         <div className="field field-spaced">
-          <label>New password</label>
+          <label htmlFor="settings-new-password">New password</label>
           <PasswordInput
+            id="settings-new-password"
             autoComplete="new-password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
@@ -334,8 +336,9 @@ export function SettingsScreen() {
           {newPasswordCheck && !newPasswordCheck.valid && <div className="field-hint">{newPasswordCheck.error}</div>}
         </div>
         <div className="field" style={{ marginBottom: "var(--space-3)" }}>
-          <label>Confirm new password</label>
+          <label htmlFor="settings-confirm-new-password">Confirm new password</label>
           <PasswordInput
+            id="settings-confirm-new-password"
             autoComplete="new-password"
             value={confirmNewPassword}
             onChange={(e) => setConfirmNewPassword(e.target.value)}
