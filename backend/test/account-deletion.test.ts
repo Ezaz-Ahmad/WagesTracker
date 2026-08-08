@@ -10,7 +10,7 @@ describe("account deletion", () => {
   let dbPath: string;
   let token: string;
   const email = "delete-me@example.com";
-  const password = "delete-me-1";
+  const password = "delete-me-securely-1";
 
   beforeAll(async () => {
     ({ app, db, dbPath } = await createTestApp());

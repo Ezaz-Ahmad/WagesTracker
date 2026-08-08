@@ -12,6 +12,7 @@ export interface UserRow {
   rate: number;
   goal_hours: number;
   goal_earnings: number;
+  token_version: number;
   created_at: string;
 }
 

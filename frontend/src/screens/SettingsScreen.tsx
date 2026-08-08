@@ -3,9 +3,10 @@ import { CURRENCY, useApp } from "../context/AppContext";
 import { PasswordInput } from "../components/PasswordInput";
 import { AppCredit } from "../components/AppCredit";
 import { useDismissTransition } from "../lib/useDismissTransition";
+import { validatePassword } from "../lib/passwordPolicy";
 
 export function SettingsScreen() {
-  const { user, updateSettings, deleteAccount } = useApp();
+  const { user, updateSettings, changePassword, deleteAccount } = useApp();
   const [name, setName] = useState(user?.name ?? "");
   const [address, setAddress] = useState(user?.address ?? "");
   const [weekStartsOn, setWeekStartsOn] = useState<"Monday" | "Sunday">(user?.weekStartsOn ?? "Monday");
@@ -18,6 +19,17 @@ export function SettingsScreen() {
   const [goalEarnings, setGoalEarnings] = useState(user?.goalEarnings ?? 0);
   const [saving, setSaving] = useState(false);
   const [saveFlash, setSaveFlash] = useState(false);
+
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordFlash, setPasswordFlash] = useState(false);
+  // Only shown once the user has actually typed something in the new-password
+  // field — not on first render, so the form doesn't open with a wall of red.
+  const newPasswordCheck = newPassword ? validatePassword(newPassword) : null;
+  const confirmMismatch = confirmNewPassword.length > 0 && confirmNewPassword !== newPassword;
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
@@ -51,6 +63,26 @@ export function SettingsScreen() {
     } catch (e) {
       setDeleteError(e instanceof Error ? e.message : "Couldn't delete account");
       setDeleting(false);
+    }
+  }
+
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!currentPassword || !newPassword || confirmMismatch || newPasswordCheck?.valid === false) return;
+    setChangingPassword(true);
+    setPasswordError(null);
+    try {
+      await changePassword(currentPassword, newPassword);
+      // Clear the form on success — never leave a just-used password sitting in state.
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmNewPassword("");
+      setPasswordFlash(true);
+      setTimeout(() => setPasswordFlash(false), 2500);
+    } catch (e) {
+      setPasswordError(e instanceof Error ? e.message : "Couldn't change password");
+    } finally {
+      setChangingPassword(false);
     }
   }
 
@@ -196,6 +228,55 @@ export function SettingsScreen() {
         the top of the app.
       </div>
       <AppCredit showVersion />
+
+      <div className="hr" />
+      <h6 className="section-title">Change password</h6>
+      <div className="section-hint" style={{ marginBottom: "var(--space-3)" }}>
+        Use at least 15 characters — a short memorable phrase works better than a short complicated one. No need for
+        symbols or numbers, but common or app-related passwords are rejected.
+      </div>
+      <form onSubmit={handleChangePassword} autoComplete="on">
+        {passwordError && <div className="form-error">{passwordError}</div>}
+        <div className="field field-spaced">
+          <label>Current password</label>
+          <PasswordInput
+            autoComplete="current-password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+          />
+        </div>
+        <div className="field field-spaced">
+          <label>New password</label>
+          <PasswordInput
+            autoComplete="new-password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+          />
+          {newPasswordCheck && !newPasswordCheck.valid && <div className="field-hint">{newPasswordCheck.error}</div>}
+        </div>
+        <div className="field" style={{ marginBottom: "var(--space-3)" }}>
+          <label>Confirm new password</label>
+          <PasswordInput
+            autoComplete="new-password"
+            value={confirmNewPassword}
+            onChange={(e) => setConfirmNewPassword(e.target.value)}
+          />
+          {confirmMismatch && <div className="field-hint">Passwords don't match</div>}
+        </div>
+        <button
+          className={`btn btn-secondary btn-block${passwordFlash ? " btn-save-flash" : ""}`}
+          type="submit"
+          disabled={
+            changingPassword ||
+            !currentPassword ||
+            !newPassword ||
+            confirmMismatch ||
+            (newPasswordCheck ? !newPasswordCheck.valid : false)
+          }
+        >
+          {passwordFlash ? "Password changed ✓" : changingPassword ? "Changing…" : "Change password"}
+        </button>
+      </form>
 
       <div className="hr" />
       <h6 className="section-title">Danger zone</h6>

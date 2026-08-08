@@ -25,6 +25,14 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
   sessionStorage.removeItem(TOKEN_KEY);
 }
+/** Whether the current session is in "remember me" storage (localStorage,
+ * survives a browser restart) rather than session-only storage. Used so a
+ * replacement token issued mid-session (see changePassword below) gets
+ * stored the same way the current one was, instead of quietly downgrading a
+ * remembered session to a session-only one or vice versa. */
+export function isRemembered(): boolean {
+  return localStorage.getItem(TOKEN_KEY) !== null;
+}
 
 const LAST_ACTIVITY_KEY = "wageTracker.lastActivity";
 
@@ -154,6 +162,47 @@ export function patchMe(patch: MePatch): Promise<{ user: User }> {
 
 export function deleteAccount(password: string): Promise<void> {
   return request("/me", { method: "DELETE", body: JSON.stringify({ password }) });
+}
+
+/**
+ * Changes the current user's password. The backend responds `204 No
+ * Content` (see backend/src/routes/me.ts) but hands back a replacement
+ * session token — needed because the change invalidates every token issued
+ * before it, including the one this very request is using — in the
+ * `X-New-Token` response header rather than a JSON body, so it can't go
+ * through the generic `request()` helper above (which only ever returns a
+ * parsed body). Fetches directly instead, mirroring request()'s auth-header
+ * and error-shape handling.
+ */
+export async function changePassword(currentPassword: string, newPassword: string): Promise<{ token: string }> {
+  const token = getToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_ORIGIN}/api/me/password`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+  } catch {
+    throw new ApiError("Couldn't reach the server. Check your connection and try again.", 0);
+  }
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError((body as { error?: string }).error || `Request failed (${res.status})`, res.status);
+  }
+
+  const newToken = res.headers.get("X-New-Token");
+  if (!newToken) {
+    // Shouldn't happen against this app's own backend — surfaced as an error
+    // rather than silently leaving the old (about-to-be-invalidated) token
+    // in place, which would just fail on the very next request instead.
+    throw new ApiError("Password was changed, but no replacement session token was returned.", 500);
+  }
+  return { token: newToken };
 }
 
 export function listShifts(from: string, to: string): Promise<{ shifts: Shift[] }> {

@@ -1,10 +1,11 @@
-import bcrypt from "bcryptjs";
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { asyncHandler } from "../asyncHandler.js";
 import { db } from "../db.js";
 import { signToken } from "../auth.js";
+import { hashPassword, verifyPassword } from "../security/passwordHashing.js";
+import { validatePassword } from "../security/passwordPolicy.js";
 import { toPublicUser, type UserRow } from "../types.js";
 
 export const authRouter = Router();
@@ -12,7 +13,16 @@ export const authRouter = Router();
 const signupSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),
   email: z.string().trim().toLowerCase().email("Enter a valid email"),
-  password: z.string().min(6, "Password must be at least 6 characters").max(200),
+  // Deliberately not .trim()'d — see security/passwordPolicy.ts. The length/
+  // blocklist rules themselves live in validatePassword, applied below via
+  // superRefine, so the policy can never drift between signup and
+  // change-password (both call the same function).
+  password: z.string().superRefine((value, ctx) => {
+    const result = validatePassword(value);
+    if (!result.valid) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: result.error ?? "Invalid password" });
+    }
+  }),
   address: z.string().trim().max(300).optional().default(""),
   workLocationName: z.string().trim().max(200).optional().default(""),
   workAddress: z.string().trim().max(300).optional().default(""),
@@ -42,7 +52,7 @@ authRouter.post(
     }
 
     const id = randomUUID();
-    const passwordHash = bcrypt.hashSync(password, 10);
+    const passwordHash = await hashPassword(password);
     const rate = rateInput ?? 18.5;
     const goalHours = 35;
     const goalEarnings = Math.round(rate * goalHours * 100) / 100;
@@ -69,10 +79,15 @@ authRouter.post(
 
     const result = await db.execute({ sql: "SELECT * FROM users WHERE id = ?", args: [id] });
     const row = result.rows[0] as unknown as UserRow;
-    res.status(201).json({ token: signToken(id), user: toPublicUser(row) });
+    res.status(201).json({ token: signToken(id, row.token_version), user: toPublicUser(row) });
   })
 );
 
+// Deliberately NOT run through validatePassword — that policy (15-128 chars,
+// no common/blocklisted passwords) applies only to setting a new password
+// (signup, change-password). Existing accounts created before this policy
+// existed must still be able to log in with their original, shorter
+// password, so login only checks that something was submitted.
 const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email"),
   password: z.string().min(1, "Password is required"),
@@ -89,10 +104,13 @@ authRouter.post(
     const { email, password } = parsed.data;
     const result = await db.execute({ sql: "SELECT * FROM users WHERE email = ?", args: [email] });
     const row = result.rows[0] as unknown as UserRow | undefined;
-    if (!row || !bcrypt.compareSync(password, row.password_hash)) {
+    // Generic "incorrect email or password" for both a nonexistent email and a
+    // wrong password — never reveals which one it was (OWASP account
+    // enumeration guidance).
+    if (!row || !(await verifyPassword(password, row.password_hash))) {
       res.status(401).json({ error: "Incorrect email or password" });
       return;
     }
-    res.json({ token: signToken(row.id), user: toPublicUser(row) });
+    res.json({ token: signToken(row.id, row.token_version), user: toPublicUser(row) });
   })
 );

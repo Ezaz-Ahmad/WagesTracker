@@ -16,7 +16,7 @@ describe("auth", () => {
   const validSignup = {
     name: "Alex Rivera",
     email: "alex@example.com",
-    password: "correct-horse",
+    password: "alex-signup-flow-2026",
     rate: 20,
   };
 
@@ -70,7 +70,7 @@ describe("auth", () => {
 
   it("normalizes email case — signup with a mixed-case email logs in with any casing", async () => {
     const email = "MixedCase@Example.com";
-    const password = "case-test-pw";
+    const password = "case-sensitivity-check-2026";
     const signup = await request(app).post("/api/auth/signup").send({ name: "Case Test", email, password, rate: 15 });
     expect(signup.status).toBe(201);
     expect(signup.body.user.email).toBe(email.toLowerCase());

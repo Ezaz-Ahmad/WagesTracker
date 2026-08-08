@@ -44,7 +44,7 @@ flowchart TD
 **Backend** (`backend/`)
 - [Express](https://expressjs.com/) 4 + TypeScript, running on Node ≥20 (`type: module`, ESM throughout)
 - [@libsql/client](https://github.com/tursodatabase/libsql-client-ts) — talks to a local SQLite file in dev, or a hosted [Turso](https://turso.tech) (libSQL) database in production, over the same client API
-- Auth: [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) (30-day JWTs) + [bcryptjs](https://github.com/dcodeIO/bcrypt.js) for password hashing
+- Auth: [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) (30-day JWTs, invalidated early on password change via a `tokenVersion` claim) + [bcryptjs](https://github.com/dcodeIO/bcrypt.js) (async hashing) for passwords, which are also subject to a length/blocklist policy — see [Authentication and password security](#authentication-and-password-security)
 - [zod](https://zod.dev/) for request validation
 - Hardening: [helmet](https://helmetjs.github.io/) (security headers), [express-rate-limit](https://github.com/express-rate-limit/express-rate-limit) (300 req/15min general, 20 req/15min on `/api/auth/*`), a CORS allowlist driven by `ALLOWED_ORIGINS`, and a startup check that refuses to boot in production without a real `JWT_SECRET`
 - Dev tooling: [tsx](https://github.com/privatenumber/tsx) (watch mode), plain `tsc` for the production build
@@ -97,7 +97,7 @@ To try the admin panel locally, add `ADMIN_PASSWORD=something` to `backend/.env`
 
 ## Testing and CI
 
-The project has 82 automated tests: 54 backend integration/API tests (`backend/test/`), written with [Vitest](https://vitest.dev/) and [Supertest](https://github.com/ladjs/supertest) and exercising the real Express app end-to-end over HTTP, each test file getting its own isolated, throwaway temporary SQLite database (see `backend/test/testApp.ts`) so runs never share or pollute data; plus 28 frontend tests (`frontend/src/lib/__tests__/`), also Vitest, covering wage/duration calculations, week aggregation, and PDF report data.
+The project has 101 automated tests: 73 backend integration/API tests (`backend/test/`), written with [Vitest](https://vitest.dev/) and [Supertest](https://github.com/ladjs/supertest) and exercising the real Express app end-to-end over HTTP, each test file getting its own isolated, throwaway temporary SQLite database (see `backend/test/testApp.ts`) so runs never share or pollute data; plus 28 frontend tests (`frontend/src/lib/__tests__/`), also Vitest, covering wage/duration calculations, week aggregation, and PDF report data. Of the 73 backend tests, 19 (`backend/test/passwordPolicy.test.ts` and `backend/test/change-password.test.ts`) specifically cover the password policy and change-password flow described in [Authentication and password security](#authentication-and-password-security) below.
 
 Run everything with `npm test` from the root, or target one workspace at a time with `npm run test -w backend` / `npm run test -w frontend`.
 
@@ -117,12 +117,24 @@ Run everything with `npm test` from the root, or target one workspace at a time 
 | `TURSO_AUTH_TOKEN` | **yes, in production** (if `TURSO_DATABASE_URL` is set) | auth token for the database above, from `turso db tokens create <db-name>` |
 | `ALLOWED_ORIGINS` | **yes, in production** | comma-separated list of browser origins allowed to call the API, e.g. `https://your-app.vercel.app` |
 | `ADMIN_PASSWORD` | no, but the admin panel is disabled without it | a single shared secret (unrelated to any user account) gating the admin panel at `<frontend-url>/admin`. See [Admin panel](#admin-panel) |
+| `BCRYPT_COST` | no | bcrypt cost factor for password hashing, defaults to `12`. See [Authentication and password security](#authentication-and-password-security) |
 
 ### Frontend (`frontend/.env`, copy from `frontend/.env.example`)
 
 | Variable | Required | Notes |
 | --- | --- | --- |
 | `VITE_API_URL` | **yes, in production** | the deployed backend's origin, e.g. `https://wage-tracker-api.onrender.com`. Leave unset locally — the Vite dev proxy handles it |
+
+## Authentication and password security
+
+Regular-user authentication (separate from the admin panel below, which has its own isolated auth — see [Admin panel](#admin-panel)):
+
+- **Password policy** — enforced server-side in `backend/src/security/passwordPolicy.ts` (the single source of truth; a frontend copy in `frontend/src/lib/passwordPolicy.ts` exists only to give inline feedback as you type and is never trusted on its own). New and changed passwords must be 15–128 characters, with no forced composition rules — uppercase, numbers, and symbols are all optional, and spaces and full Unicode are allowed. Passwords are never trimmed, since leading/trailing spaces are legal characters. Candidates are also checked against a maintainable blocklist (`backend/src/security/commonPasswords.ts`) of common/weak passwords and obvious app-specific values like "wagetracker". This policy applies only when a password is *set* — signup and the change-password endpoint below — never to login, so accounts created before this policy existed keep working with their original, shorter password.
+- **Async password hashing** — passwords are hashed and verified with bcrypt's asynchronous `hash`/`compare` (`backend/src/security/passwordHashing.ts`), not the blocking `hashSync`/`compareSync`, so a slow hash never stalls Node's single event loop for every other in-flight request. The bcrypt cost factor defaults to 12 and is configurable via `BCRYPT_COST`.
+- **Changing your password** — `PATCH /api/me/password` (authenticated, in Settings under "Change password") takes `currentPassword` and `newPassword`, verifies the current password, validates the new one against the policy above, rejects reusing the current password, and responds `204 No Content`.
+- **Session invalidation on password change** — every user row has a `token_version` column, and every regular-user JWT carries a matching `tokenVersion` claim checked on each request. Changing your password increments the column, which instantly invalidates every JWT issued before the change — including on other devices — without waiting for their natural 30-day expiry. The device that made the change isn't logged out: the change-password response includes a replacement token in an `X-New-Token` response header (not the JSON body, since the endpoint itself returns 204), which the frontend stores and keeps using automatically. This mechanism is specific to regular-user tokens; admin tokens are untouched.
+
+This covers password strength, hashing, and session invalidation on password change — it does not include multi-factor authentication, cookie-based sessions, email verification, or password recovery, none of which exist in the app yet.
 
 ## Admin panel
 

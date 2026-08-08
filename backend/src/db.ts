@@ -40,6 +40,7 @@ await db.executeMultiple(`
     rate REAL NOT NULL DEFAULT 18.5,
     goal_hours REAL NOT NULL DEFAULT 35,
     goal_earnings REAL NOT NULL DEFAULT 647.5,
+    token_version INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
   );
 
@@ -92,6 +93,19 @@ await db.executeMultiple(`
 // NOT EXISTS). Fails harmlessly with "duplicate column" if already migrated.
 try {
   await db.execute("ALTER TABLE users ADD COLUMN address TEXT NOT NULL DEFAULT ''");
+} catch {
+  // already migrated
+}
+
+// Migration for databases created before `users.token_version` existed.
+// Every pre-existing account defaults to 0 (matching brand-new signups), so
+// their existing JWTs — which were minted before this column existed and
+// therefore carry no tokenVersion claim — keep working: requireAuth treats a
+// missing claim as tokenVersion 0, and this migration guarantees the stored
+// value starts at 0 too. Fails harmlessly with "duplicate column" if already
+// migrated.
+try {
+  await db.execute("ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0");
 } catch {
   // already migrated
 }

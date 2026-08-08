@@ -56,6 +56,10 @@ export function createApp(): express.Express {
         }
         callback(new Error("Not allowed by CORS"));
       },
+      // Lets the frontend read the replacement session token PATCH /api/me/password
+      // returns in a response header (see routes/me.ts) — browsers hide all
+      // non-simple response headers from cross-origin fetch() by default.
+      exposedHeaders: ["X-New-Token"],
     })
   );
   app.use(express.json({ limit: "100kb" }));

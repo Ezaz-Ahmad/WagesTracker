@@ -16,7 +16,7 @@ describe("admin", () => {
     ({ app, db, dbPath } = await createTestApp());
     const signup = await request(app)
       .post("/api/auth/signup")
-      .send({ name: "Regular User", email: "regular@example.com", password: "password-1", rate: 20 });
+      .send({ name: "Regular User", email: "regular@example.com", password: "admin-regular-user-2026", rate: 20 });
     regularUserToken = signup.body.token;
   });
   afterAll(() => cleanupTestDb(dbPath));
@@ -70,7 +70,7 @@ describe("admin", () => {
   it("deletes a user and every row referencing them across all four tables", async () => {
     const signup = await request(app)
       .post("/api/auth/signup")
-      .send({ name: "Deletable Via Admin", email: "admin-deletes-me@example.com", password: "password-2", rate: 18 });
+      .send({ name: "Deletable Via Admin", email: "admin-deletes-me@example.com", password: "admin-deletable-user-2026", rate: 18 });
     const targetToken = signup.body.token;
     const targetId = signup.body.user.id;
 

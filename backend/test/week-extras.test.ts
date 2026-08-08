@@ -14,11 +14,11 @@ describe("week-extras (other earnings)", () => {
     ({ app, dbPath } = await createTestApp());
     const a = await request(app)
       .post("/api/auth/signup")
-      .send({ name: "Extra User A", email: "extra-a@example.com", password: "password-a", rate: 20 });
+      .send({ name: "Extra User A", email: "extra-a@example.com", password: "extras-user-a-secure-2026", rate: 20 });
     tokenA = a.body.token;
     const b = await request(app)
       .post("/api/auth/signup")
-      .send({ name: "Extra User B", email: "extra-b@example.com", password: "password-b", rate: 25 });
+      .send({ name: "Extra User B", email: "extra-b@example.com", password: "extras-user-b-secure-2026", rate: 25 });
     tokenB = b.body.token;
   });
   afterAll(() => cleanupTestDb(dbPath));

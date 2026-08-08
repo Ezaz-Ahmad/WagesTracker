@@ -79,6 +79,7 @@ interface AppContextValue {
   logout: () => void;
   clearAuthError: () => void;
   updateSettings: (patch: api.MePatch) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   deleteAccount: (password: string) => Promise<void>;
 
   today: Date;
@@ -385,6 +386,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [handleActionError]
   );
 
+  // Left to throw on failure (wrong current password, weak new password, etc.)
+  // so the Settings form can show the error inline, same pattern as deleteAccount.
+  // On success, the new session token replaces the old one in whichever storage
+  // (localStorage vs sessionStorage) the current session was already using —
+  // see api.isRemembered — so a "remember me" session stays remembered and a
+  // session-only one doesn't suddenly start surviving a browser restart.
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    const { token } = await api.changePassword(currentPassword, newPassword);
+    api.setToken(token, api.isRemembered());
+  }, []);
+
   const createShift = useCallback(
     async (input: api.ShiftInput) => {
       try {
@@ -484,6 +496,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       logout,
       clearAuthError: () => setAuthError(null),
       updateSettings,
+      changePassword,
       deleteAccount,
       today,
       shifts,
@@ -511,6 +524,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       signup,
       logout,
       updateSettings,
+      changePassword,
       deleteAccount,
       today,
       shifts,

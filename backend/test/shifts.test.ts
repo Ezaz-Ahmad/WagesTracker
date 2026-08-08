@@ -14,11 +14,11 @@ describe("shifts", () => {
     ({ app, dbPath } = await createTestApp());
     const a = await request(app)
       .post("/api/auth/signup")
-      .send({ name: "User A", email: "user-a@example.com", password: "password-a", rate: 20 });
+      .send({ name: "User A", email: "user-a@example.com", password: "shift-user-a-secure-2026", rate: 20 });
     tokenA = a.body.token;
     const b = await request(app)
       .post("/api/auth/signup")
-      .send({ name: "User B", email: "user-b@example.com", password: "password-b", rate: 25 });
+      .send({ name: "User B", email: "user-b@example.com", password: "shift-user-b-secure-2026", rate: 25 });
     tokenB = b.body.token;
   });
   afterAll(() => cleanupTestDb(dbPath));

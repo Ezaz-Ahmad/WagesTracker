@@ -14,11 +14,11 @@ describe("day-expenses (fuel cost)", () => {
     ({ app, dbPath } = await createTestApp());
     const a = await request(app)
       .post("/api/auth/signup")
-      .send({ name: "Fuel User A", email: "fuel-a@example.com", password: "password-a", rate: 20 });
+      .send({ name: "Fuel User A", email: "fuel-a@example.com", password: "fuel-user-a-secure-2026", rate: 20 });
     tokenA = a.body.token;
     const b = await request(app)
       .post("/api/auth/signup")
-      .send({ name: "Fuel User B", email: "fuel-b@example.com", password: "password-b", rate: 25 });
+      .send({ name: "Fuel User B", email: "fuel-b@example.com", password: "fuel-user-b-secure-2026", rate: 25 });
     tokenB = b.body.token;
   });
   afterAll(() => cleanupTestDb(dbPath));

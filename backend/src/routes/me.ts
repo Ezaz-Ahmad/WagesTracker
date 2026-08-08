@@ -1,10 +1,11 @@
 import type { InValue } from "@libsql/client";
-import bcrypt from "bcryptjs";
 import { Router } from "express";
 import { z } from "zod";
 import { asyncHandler } from "../asyncHandler.js";
 import { db } from "../db.js";
-import { requireAuth, type AuthedRequest } from "../auth.js";
+import { requireAuth, signToken, type AuthedRequest } from "../auth.js";
+import { hashPassword, verifyPassword } from "../security/passwordHashing.js";
+import { validatePassword } from "../security/passwordPolicy.js";
 import { toPublicUser, type UserRow } from "../types.js";
 
 export const meRouter = Router();
@@ -81,6 +82,74 @@ meRouter.patch(
   })
 );
 
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required"),
+  // Not .trim()'d, same reasoning as signup — see security/passwordPolicy.ts.
+  newPassword: z.string().superRefine((value, ctx) => {
+    const result = validatePassword(value);
+    if (!result.valid) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: result.error ?? "Invalid password" });
+    }
+  }),
+});
+
+/**
+ * Changes the signed-in user's password. Responds `204 No Content` per the
+ * task's required contract, but a password change also has to invalidate
+ * every other JWT issued for this account (see auth.ts's tokenVersion
+ * check) — including the one the caller is using right now. Rather than
+ * force a re-login for the request that just succeeded, the replacement
+ * token is returned in the `X-New-Token` response header instead of a JSON
+ * body, so the 204 stays a true empty-body response while the current
+ * session can still pick it up and keep going. `app.ts` exposes this header
+ * cross-origin via CORS `exposedHeaders` so the browser can actually read it.
+ */
+meRouter.patch(
+  "/password",
+  asyncHandler<AuthedRequest>(async (req, res) => {
+    const parsed = changePasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]?.message || "Invalid input" });
+      return;
+    }
+    const { currentPassword, newPassword } = parsed.data;
+
+    const result = await db.execute({ sql: "SELECT * FROM users WHERE id = ?", args: [req.userId!] });
+    const row = result.rows[0] as unknown as UserRow | undefined;
+    // Shouldn't happen for an authenticated request (requireAuth already
+    // confirmed the account exists), but a generic 401 rather than a 404
+    // avoids leaking anything about account state either way.
+    if (!row) {
+      res.status(401).json({ error: "Current password is incorrect" });
+      return;
+    }
+
+    if (!(await verifyPassword(currentPassword, row.password_hash))) {
+      res.status(401).json({ error: "Current password is incorrect" });
+      return;
+    }
+
+    if (await verifyPassword(newPassword, row.password_hash)) {
+      res.status(400).json({ error: "New password must be different from your current password" });
+      return;
+    }
+
+    const newPasswordHash = await hashPassword(newPassword);
+    const newTokenVersion = row.token_version + 1;
+    // Single UPDATE — hash and token_version move together, so no other
+    // request can ever observe the new hash paired with the old version (or
+    // vice versa).
+    await db.execute({
+      sql: "UPDATE users SET password_hash = ?, token_version = ? WHERE id = ?",
+      args: [newPasswordHash, newTokenVersion, req.userId!],
+    });
+
+    const replacementToken = signToken(req.userId!, newTokenVersion);
+    res.setHeader("X-New-Token", replacementToken);
+    res.status(204).end();
+  })
+);
+
 const deleteSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
@@ -105,7 +174,7 @@ meRouter.delete(
       res.status(404).json({ error: "User not found" });
       return;
     }
-    if (!bcrypt.compareSync(parsed.data.password, row.password_hash)) {
+    if (!(await verifyPassword(parsed.data.password, row.password_hash))) {
       res.status(401).json({ error: "Incorrect password" });
       return;
     }

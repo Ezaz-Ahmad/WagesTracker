@@ -12,7 +12,7 @@ describe("me (profile/settings)", () => {
     ({ app, dbPath } = await createTestApp());
     const signup = await request(app)
       .post("/api/auth/signup")
-      .send({ name: "Settings User", email: "settings@example.com", password: "password-1", rate: 20 });
+      .send({ name: "Settings User", email: "settings@example.com", password: "settings-user-secure-2026", rate: 20 });
     token = signup.body.token;
   });
   afterAll(() => cleanupTestDb(dbPath));
