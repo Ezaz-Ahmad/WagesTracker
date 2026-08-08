@@ -8,6 +8,7 @@ import { PasswordInput } from "../components/PasswordInput";
 import { AppCredit } from "../components/AppCredit";
 import { BubbleLoader } from "../components/BubbleLoader";
 import { Logo } from "../components/Logo";
+import { MIN_PASSWORD_LENGTH, validatePassword } from "../lib/passwordPolicy";
 
 type Mode = "login" | "signup";
 
@@ -60,6 +61,12 @@ export function AuthScreen() {
   const [otherLocations, setOtherLocations] = useState("");
   const [rate, setRate] = useState("");
   const [remember, setRemember] = useState(true);
+
+  // Immediate feedback only — the backend re-validates every signup password
+  // against its own copy of this policy and is the only thing that actually
+  // enforces it (see lib/passwordPolicy.ts). Not shown until something's been
+  // typed, so the form doesn't open already covered in red.
+  const signupPasswordCheck = password ? validatePassword(password) : null;
 
   function switchMode(next: Mode) {
     clearAuthError();
@@ -205,9 +212,18 @@ export function AuthScreen() {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    minLength={6}
+                    autoComplete="new-password"
+                    minLength={MIN_PASSWORD_LENGTH}
                     required
                   />
+                  {signupPasswordCheck && !signupPasswordCheck.valid ? (
+                    <div className="field-hint">{signupPasswordCheck.error}</div>
+                  ) : (
+                    <div className="field-hint">
+                      At least {MIN_PASSWORD_LENGTH} characters — a short phrase works better than a short
+                      complicated password. No symbols or numbers required.
+                    </div>
+                  )}
                 </div>
                 <div className="field field-spaced">
                   <label>Hourly rate ({CURRENCY})</label>
@@ -277,7 +293,12 @@ export function AuthScreen() {
                     />
                   </div>
                 )}
-                <button className="btn btn-primary btn-block" type="submit" disabled={authBusy} style={{ justifyContent: "center" }}>
+                <button
+                  className="btn btn-primary btn-block"
+                  type="submit"
+                  disabled={authBusy || (signupPasswordCheck ? !signupPasswordCheck.valid : false)}
+                  style={{ justifyContent: "center" }}
+                >
                   {authBusy ? <BubbleLoader label="Creating your account" /> : "Create account"}
                 </button>
               </form>

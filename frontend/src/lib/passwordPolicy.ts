@@ -10,23 +10,37 @@ import { APP_SPECIFIC_BLOCKLIST, COMMON_PASSWORD_BLOCKLIST } from "./commonPassw
 export const MIN_PASSWORD_LENGTH = 15;
 export const MAX_PASSWORD_LENGTH = 128;
 
-const MIN_SUBSTRING_MATCH_LENGTH = 6;
-
 export interface PasswordValidationResult {
   valid: boolean;
   error?: string;
 }
 
-function normalize(raw: string): string {
-  return raw.toLowerCase().replace(/[^a-z0-9]/gi, "");
+/** NFC-normalizes and case-folds for the general blocklist's exact-match
+ * check — never used to decide what actually gets submitted/hashed. */
+function normalizeExact(raw: string): string {
+  return raw.normalize("NFC").toLowerCase();
 }
 
-function containsBlockedTerm(normalized: string, list: readonly string[]): boolean {
-  for (const term of list) {
-    if (normalized === term) return true;
-    if (term.length >= MIN_SUBSTRING_MATCH_LENGTH && normalized.includes(term)) return true;
-  }
-  return false;
+/** Same, plus stripping non-alphanumerics, for the app-specific
+ * substring check only (see backend for the full rationale). */
+function normalizeForSubstring(raw: string): string {
+  return normalizeExact(raw).replace(/[^\p{L}\p{N}]/gu, "");
+}
+
+const COMMON_PASSWORD_SET = new Set(COMMON_PASSWORD_BLOCKLIST.map(normalizeExact));
+
+/** Exact match only — a passphrase that merely contains an ordinary word
+ * (e.g. "chocolate") must not be blocked just because that word happens to
+ * also be a common standalone password. See backend/src/security/passwordPolicy.ts. */
+function isCommonPassword(password: string): boolean {
+  return COMMON_PASSWORD_SET.has(normalizeExact(password));
+}
+
+/** Substring match is intentional here — catches any decorated form of the
+ * app's name inside an otherwise-fine password. */
+function containsAppSpecificTerm(password: string): boolean {
+  const normalized = normalizeForSubstring(password);
+  return APP_SPECIFIC_BLOCKLIST.some((term) => normalized.includes(term));
 }
 
 /** Same rules as the backend — see security/passwordPolicy.ts there for the
@@ -44,12 +58,10 @@ export function validatePassword(password: string): PasswordValidationResult {
     return { valid: false, error: `Must be at most ${MAX_PASSWORD_LENGTH} characters` };
   }
 
-  const normalized = normalize(password);
-
-  if (containsBlockedTerm(normalized, APP_SPECIFIC_BLOCKLIST)) {
+  if (containsAppSpecificTerm(password)) {
     return { valid: false, error: "Can't contain the app name — choose something less guessable" };
   }
-  if (containsBlockedTerm(normalized, COMMON_PASSWORD_BLOCKLIST)) {
+  if (isCommonPassword(password)) {
     return { valid: false, error: "That's a very common password — please choose something more unique" };
   }
 

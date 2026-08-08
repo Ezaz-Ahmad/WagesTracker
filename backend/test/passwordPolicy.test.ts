@@ -35,6 +35,43 @@ describe("password policy (signup)", () => {
     expect(res.body.token).toBeTypeOf("string");
   });
 
+  it("stores a new signup password as an Argon2id hash", async () => {
+    const email = "argon2id-signup@example.com";
+    const signup = await request(app)
+      .post("/api/auth/signup")
+      .send({ name: "Argon2id Signup", email, password: "brand-new-argon2id-account-2026", rate: 20 });
+    expect(signup.status).toBe(201);
+
+    const result = await db.execute({ sql: "SELECT password_hash FROM users WHERE email = ?", args: [email] });
+    expect(result.rows[0].password_hash as string).toMatch(/^\$argon2id\$/);
+  });
+
+  it("accepts a legitimate long passphrase that merely contains an ordinary common word, while still rejecting that word alone", async () => {
+    // "chocolate" is on the common-password blocklist, but the blocklist is
+    // an EXACT match against the whole password, not a substring match —
+    // otherwise this entirely reasonable passphrase would be rejected just
+    // for mentioning an ordinary word inside a much longer, unrelated
+    // credential.
+    const passphrase = await request(app).post("/api/auth/signup").send({
+      name: "Chocolate Passphrase",
+      email: "chocolate-passphrase@example.com",
+      password: "grandmas dark chocolate chip cookies recipe",
+      rate: 20,
+    });
+    expect(passphrase.status).toBe(201);
+
+    // "welcometothejungle" (18 characters) is that same kind of standalone
+    // common password, and — unlike the passphrase above — IS the whole
+    // candidate, so it must still be rejected.
+    const standalone = await request(app).post("/api/auth/signup").send({
+      name: "Standalone Common",
+      email: "standalone-common@example.com",
+      password: "welcometothejungle",
+      rate: 20,
+    });
+    expect(standalone.status).toBe(400);
+  });
+
   it("accepts spaces and symbols in a password, without requiring them", async () => {
     const res = await request(app)
       .post("/api/auth/signup")

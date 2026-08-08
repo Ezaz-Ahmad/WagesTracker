@@ -3,15 +3,17 @@
  *
  * This is deliberately a short, hand-picked list rather than a bundled
  * 10k/100k-entry breach corpus — easy to read, diff, and extend in review,
- * which is what "maintainable" means for a project this size. It's checked
- * two ways by `passwordPolicy.ts`:
+ * which is what "maintainable" means for a project this size.
  *
- *   1. Exact match against the fully normalized (lowercased, non-alphanumeric
- *      stripped) candidate password.
- *   2. Substring match for entries of MIN_SUBSTRING_MATCH_LENGTH+ characters,
- *      so padded/decorated variants like "password12345678" or
- *      "iloveyou-forever-2026" are still caught even though they aren't a
- *      literal 1:1 match with anything below.
+ * `passwordPolicy.ts` checks this list with an EXACT match against the
+ * whole (NFC-normalized, case-folded) candidate password — not a substring
+ * match. Substring matching would reject perfectly good long passphrases
+ * just for containing an ordinary word (e.g. "...dark chocolate cake..."
+ * contains "chocolate"); exact matching only catches a password that *is*
+ * one of these, in full. Longer passphrase-shaped entries are included
+ * below specifically so still-too-common padded/passphrase passwords (e.g.
+ * "iloveyouforever") get caught even though they clear the 15-character
+ * minimum on length alone.
  *
  * Add to this list as needed — it's plain data, no logic lives here.
  */

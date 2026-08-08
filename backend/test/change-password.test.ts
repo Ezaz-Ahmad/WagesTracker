@@ -118,12 +118,12 @@ describe("change password", () => {
     expect(serialized).not.toContain("yet-another-secure-login-3".toLowerCase());
   });
 
-  it("stores the new password as a bcrypt hash that verifies against the new password", async () => {
+  it("stores the new password as an Argon2id hash that verifies against the new password", async () => {
+    // Password changes always produce Argon2id — never bcrypt — regardless
+    // of which format the account's previous hash was in.
     const result = await db.execute({ sql: "SELECT password_hash FROM users WHERE id = ?", args: [userId] });
     const hash = result.rows[0].password_hash as string;
-    // bcrypt hashes always start with one of these version prefixes — never
-    // the plaintext, and never any other format.
-    expect(hash).toMatch(/^\$2[aby]\$/);
+    expect(hash).toMatch(/^\$argon2id\$/);
     expect(await verifyPassword("yet-another-secure-login-3", hash)).toBe(true);
     expect(await verifyPassword(newPassword, hash)).toBe(false);
   });

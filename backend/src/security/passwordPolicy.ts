@@ -16,46 +16,75 @@ import { APP_SPECIFIC_BLOCKLIST, COMMON_PASSWORD_BLOCKLIST } from "./commonPassw
 export const MIN_PASSWORD_LENGTH = 15;
 export const MAX_PASSWORD_LENGTH = 128;
 
-/** Blocklist entries at or above this length are also checked as a
- * substring of the (normalized) candidate password, so a padded variant
- * like "password12345678" or "Wage-Tracker-2026!" is still caught even
- * though it isn't a literal match for anything in the list. Kept fairly
- * high to avoid flagging a short common syllable inside an otherwise fine
- * long passphrase. */
-const MIN_SUBSTRING_MATCH_LENGTH = 6;
-
 export interface PasswordValidationResult {
   valid: boolean;
   error?: string;
 }
 
-/** Lowercases and strips everything but letters/digits, so spacing,
- * punctuation, and casing can't be used to dodge the blocklist (e.g.
- * "Wage-Tracker!" and "wagetracker" are the same thing for this check).
- * Deliberately NOT used for length validation — length is checked against
- * the real, untouched password the user will actually authenticate with. */
-function normalize(raw: string): string {
-  return raw.toLowerCase().replace(/[^a-z0-9]/gi, "");
+/**
+ * Case-folds and applies Unicode NFC normalization so two passwords that
+ * look identical but are encoded differently (e.g. an accented character as
+ * one composed code point vs. a base letter + combining mark) compare
+ * equal. Used only to decide whether the *whole* password matches a
+ * blocklisted common password — never to decide what actually gets hashed,
+ * and never to strip or reshape characters the way the app-specific check
+ * below does.
+ */
+function normalizeExact(raw: string): string {
+  return raw.normalize("NFC").toLowerCase();
 }
 
-function containsBlockedTerm(normalized: string, list: readonly string[]): boolean {
-  for (const term of list) {
-    if (normalized === term) return true;
-    if (term.length >= MIN_SUBSTRING_MATCH_LENGTH && normalized.includes(term)) return true;
-  }
-  return false;
+/**
+ * Same case-folding/NFC normalization as above, plus stripping everything
+ * but letters and digits — used only for the app-specific check, where the
+ * goal is "does this password contain the app's name in any decorated
+ * form" (spacing, punctuation, casing all ignored), not "is this password
+ * exactly a known-common one."
+ */
+function normalizeForSubstring(raw: string): string {
+  return normalizeExact(raw).replace(/[^\p{L}\p{N}]/gu, "");
+}
+
+const COMMON_PASSWORD_SET = new Set(COMMON_PASSWORD_BLOCKLIST.map(normalizeExact));
+
+/**
+ * General common/breached-style passwords are checked as an EXACT match
+ * against the whole (normalized) password, not a substring — substring
+ * matching over-blocks: a perfectly good long passphrase like "my
+ * grandmother's dark chocolate cake recipe" contains the common password
+ * "chocolate" as a substring, but is nothing like it as an actual
+ * credential. NIST-style blocklists are meant to catch a candidate that
+ * *is* a known-common password, not one that merely mentions an ordinary
+ * word somewhere inside a much longer, otherwise-fine passphrase.
+ */
+function isCommonPassword(password: string): boolean {
+  return COMMON_PASSWORD_SET.has(normalizeExact(password));
+}
+
+/**
+ * App-specific terms are a different kind of check: the goal is catching
+ * "this password is obviously tied to WagesTracker" in any decorated form
+ * ("Wage-Tracker!23", "MyWageTracker2026"), so substring matching is
+ * intentional and correct here, unlike for the general list above.
+ */
+function containsAppSpecificTerm(password: string): boolean {
+  const normalized = normalizeForSubstring(password);
+  return APP_SPECIFIC_BLOCKLIST.some((term) => normalized.includes(term));
 }
 
 /**
  * Validates a candidate password against the app's password policy.
  *
- * Deliberately does NOT trim the input — leading/trailing spaces are legal,
- * meaningful characters in a password (e.g. from a password manager or a
- * multi-word passphrase) and stripping them here would silently accept a
- * password different from the one the user will actually be authenticated
- * with later. Length is measured in Unicode code points (not UTF-16 code
- * units) so multi-byte/astral characters — emoji included — each count as
- * one character rather than two.
+ * Deliberately does NOT trim or otherwise transform the input before
+ * hashing — leading/trailing spaces are legal, meaningful characters in a
+ * password (e.g. from a password manager or a multi-word passphrase), and
+ * stripping them here would silently accept a password different from the
+ * one the user will actually be authenticated with later. The
+ * normalization functions above exist only to decide whether the password
+ * *matches the blocklist*; they never touch the string that gets hashed.
+ * Length is measured in Unicode code points (not UTF-16 code units) so
+ * multi-byte/astral characters — emoji included — each count as one
+ * character rather than two.
  */
 export function validatePassword(password: string): PasswordValidationResult {
   if (typeof password !== "string" || password.length === 0) {
@@ -70,12 +99,10 @@ export function validatePassword(password: string): PasswordValidationResult {
     return { valid: false, error: `Password must be at most ${MAX_PASSWORD_LENGTH} characters` };
   }
 
-  const normalized = normalize(password);
-
-  if (containsBlockedTerm(normalized, APP_SPECIFIC_BLOCKLIST)) {
+  if (containsAppSpecificTerm(password)) {
     return { valid: false, error: "Password can't contain the app name — choose something less guessable" };
   }
-  if (containsBlockedTerm(normalized, COMMON_PASSWORD_BLOCKLIST)) {
+  if (isCommonPassword(password)) {
     return { valid: false, error: "That password is too common — please choose something more unique" };
   }
 

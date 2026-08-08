@@ -4,7 +4,7 @@ import { z } from "zod";
 import { asyncHandler } from "../asyncHandler.js";
 import { db } from "../db.js";
 import { signToken } from "../auth.js";
-import { hashPassword, verifyPassword } from "../security/passwordHashing.js";
+import { hashPassword, needsRehash, verifyPassword } from "../security/passwordHashing.js";
 import { validatePassword } from "../security/passwordPolicy.js";
 import { toPublicUser, type UserRow } from "../types.js";
 
@@ -111,6 +111,20 @@ authRouter.post(
       res.status(401).json({ error: "Incorrect email or password" });
       return;
     }
+
+    // Transparent migration off legacy bcrypt: a successful login is the one
+    // moment this request already holds the plaintext password, so it's the
+    // only place this upgrade can happen without a forced reset. Awaited
+    // before responding so the stored hash and the token issued below are
+    // never observably out of sync with each other.
+    if (needsRehash(row.password_hash)) {
+      row.password_hash = await hashPassword(password);
+      await db.execute({
+        sql: "UPDATE users SET password_hash = ? WHERE id = ?",
+        args: [row.password_hash, row.id],
+      });
+    }
+
     res.json({ token: signToken(row.id, row.token_version), user: toPublicUser(row) });
   })
 );
