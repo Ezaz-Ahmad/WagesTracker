@@ -106,7 +106,21 @@ export function SettingsScreen() {
     setChangingPassword(true);
     setPasswordError(null);
     try {
+      // changePassword (AppContext) stores the replacement token — issued by
+      // the backend for the new session it just created — before its promise
+      // resolves, so by the time we get here every subsequent request
+      // (including the loadSessions call below) already carries the new
+      // token, not the one that was just revoked.
       await changePassword(currentPassword, newPassword);
+      // Refresh the session list against the replacement token so the old,
+      // now-revoked sessions disappear and the new one shows as "This
+      // device" immediately — without this, the list would keep showing
+      // stale data from before the password change until Settings was
+      // reopened. loadSessions manages its own loading/error state
+      // (sessionsError) and never throws, so a failure here surfaces only
+      // through the sessions section below — it can never turn into a
+      // false "password change failed" error.
+      await loadSessions();
       // Clear the form on success — never leave a just-used password sitting in state.
       setCurrentPassword("");
       setNewPassword("");
