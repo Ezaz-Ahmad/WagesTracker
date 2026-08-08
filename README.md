@@ -70,7 +70,7 @@ flowchart TD
 
 ## Versioning
 
-`frontend/package.json`'s `version` is bumped by hand on every commit that changes app behavior or code — patch (`1.1.0` → `1.1.1`) for fixes and small changes, minor (`1.1.0` → `1.2.0`) for a new feature, major for breaking changes. Pure docs/config-only commits (like a README tweak) don't bump it, since nothing about the running app changed. This is a project convention, not an automated tool — there's no CI pipeline or npm publish step here, so a full [Conventional Commits](https://www.conventionalcommits.org/) + semantic-release setup would be more infrastructure than the project needs.
+`frontend/package.json`'s `version` is bumped by hand on every commit that changes app behavior or code — patch (`1.1.0` → `1.1.1`) for fixes and small changes, minor (`1.1.0` → `1.2.0`) for a new feature, major for breaking changes. Pure docs/config-only commits (like a README tweak) don't bump it, since nothing about the running app changed. This is a project convention, not an automated tool — there's no npm publish step here, so a full [Conventional Commits](https://www.conventionalcommits.org/) + semantic-release setup would be more infrastructure than the project needs.
 
 What *does* update automatically, on every single build with no exceptions, is the git commit hash and commit date the build was produced from (computed in `vite.config.ts`, exposed via `frontend/src/lib/appVersion.ts`). That's the part that actually proves which exact code is live — shown together with the version number in Settings and the PDF footer, e.g. `v1.1.0 (ba15955) · Aug 6, 2026`.
 
@@ -91,8 +91,17 @@ Useful scripts (run from the root):
 - `npm run dev` — backend + frontend, both in watch mode
 - `npm run build` — production build of both
 - `npm run typecheck` — type-check both
+- `npm test` — run the full automated test suite (backend + frontend)
 
 To try the admin panel locally, add `ADMIN_PASSWORD=something` to `backend/.env` and visit `http://localhost:5173/admin`.
+
+## Testing and CI
+
+The project has 82 automated tests: 54 backend integration/API tests (`backend/test/`), written with [Vitest](https://vitest.dev/) and [Supertest](https://github.com/ladjs/supertest) and exercising the real Express app end-to-end over HTTP, each test file getting its own isolated, throwaway temporary SQLite database (see `backend/test/testApp.ts`) so runs never share or pollute data; plus 28 frontend tests (`frontend/src/lib/__tests__/`), also Vitest, covering wage/duration calculations, week aggregation, and PDF report data.
+
+Run everything with `npm test` from the root, or target one workspace at a time with `npm run test -w backend` / `npm run test -w frontend`.
+
+[GitHub Actions](.github/workflows/ci.yml) runs on every push and pull request to `main`: type-checking, the test suite, and a production build, for both the backend and frontend workspaces as separate parallel jobs.
 
 ## Configuration
 
