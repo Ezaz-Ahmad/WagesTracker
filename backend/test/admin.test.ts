@@ -67,12 +67,18 @@ describe("admin", () => {
     expect(detail.body.user.password_hash).toBeUndefined();
   });
 
-  it("deletes a user and every row referencing them across all four tables", async () => {
+  it("deletes a user and every row referencing them across all five tables, including their sessions", async () => {
     const signup = await request(app)
       .post("/api/auth/signup")
       .send({ name: "Deletable Via Admin", email: "admin-deletes-me@example.com", password: "admin-deletable-user-2026", rate: 18 });
     const targetToken = signup.body.token;
     const targetId = signup.body.user.id;
+
+    // Signup already creates one session row for this user (see
+    // backend/src/routes/auth.ts) — log in again too, so there's more than
+    // one session row to prove the delete isn't just clearing a single row
+    // by coincidence.
+    await request(app).post("/api/auth/login").send({ email: "admin-deletes-me@example.com", password: "admin-deletable-user-2026" });
 
     await request(app)
       .post("/api/shifts")
@@ -84,19 +90,24 @@ describe("admin", () => {
       .set("Authorization", `Bearer ${targetToken}`)
       .send({ amount: 25, reason: "Bonus" });
 
+    const sessionsBefore = await db.execute({ sql: "SELECT COUNT(*) as c FROM user_sessions WHERE user_id = ?", args: [targetId] });
+    expect(Number(sessionsBefore.rows[0].c)).toBeGreaterThanOrEqual(2);
+
     const del = await request(app).delete(`/api/admin/users/${targetId}`).set("Authorization", `Bearer ${adminToken}`);
     expect(del.status).toBe(204);
 
-    const [users, shifts, dayExpenses, weekExtras] = await Promise.all([
+    const [users, shifts, dayExpenses, weekExtras, sessions] = await Promise.all([
       db.execute({ sql: "SELECT COUNT(*) as c FROM users WHERE id = ?", args: [targetId] }),
       db.execute({ sql: "SELECT COUNT(*) as c FROM shifts WHERE user_id = ?", args: [targetId] }),
       db.execute({ sql: "SELECT COUNT(*) as c FROM day_expenses WHERE user_id = ?", args: [targetId] }),
       db.execute({ sql: "SELECT COUNT(*) as c FROM week_extras WHERE user_id = ?", args: [targetId] }),
+      db.execute({ sql: "SELECT COUNT(*) as c FROM user_sessions WHERE user_id = ?", args: [targetId] }),
     ]);
     expect(Number(users.rows[0].c)).toBe(0);
     expect(Number(shifts.rows[0].c)).toBe(0);
     expect(Number(dayExpenses.rows[0].c)).toBe(0);
     expect(Number(weekExtras.rows[0].c)).toBe(0);
+    expect(Number(sessions.rows[0].c)).toBe(0);
   });
 
   it("returns 404 deleting a user that doesn't exist", async () => {

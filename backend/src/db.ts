@@ -89,10 +89,11 @@ await db.executeMultiple(`
   -- token issued before this migration) is rejected, so existing users need
   -- to log in once after this deploys. ON DELETE CASCADE means a user's
   -- sessions disappear automatically when their account does, as a backstop
-  -- alongside the explicit delete in routes/me.ts's own account-deletion
-  -- handler (this codebase never relies solely on FK cascade for user data,
-  -- since remote libSQL/Turso FK enforcement isn't guaranteed identical to
-  -- local SQLite).
+  -- alongside the explicit deletes in both routes/me.ts's self-service
+  -- account-deletion handler and routes/admin.ts's admin-initiated one
+  -- (this codebase never relies solely on FK cascade for user data, since
+  -- remote libSQL/Turso FK enforcement isn't guaranteed identical to local
+  -- SQLite).
   CREATE TABLE IF NOT EXISTS user_sessions (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
