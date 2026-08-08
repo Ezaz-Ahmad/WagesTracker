@@ -126,7 +126,7 @@ function AuthedApp() {
           </div>
         )}
 
-        <div className="app-main" ref={swipeRef}>
+        <main className="app-main" ref={swipeRef}>
           {screen === "home" && (
             <div
               className={`pull-refresh-indicator${refreshing ? " is-refreshing" : ""}`}
@@ -150,7 +150,7 @@ function AuthedApp() {
               </ScreenErrorBoundary>
             </div>
           </div>
-        </div>
+        </main>
 
         <BottomNav screen={screen} onNavigate={setScreen} />
       </div>

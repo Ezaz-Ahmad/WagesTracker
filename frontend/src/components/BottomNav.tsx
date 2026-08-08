@@ -18,7 +18,7 @@ export function BottomNav({ screen, onNavigate }: { screen: Screen; onNavigate: 
   } as React.CSSProperties;
 
   return (
-    <nav className="app-bottomnav" style={navStyle}>
+    <nav className="app-bottomnav" style={navStyle} aria-label="Main">
       <span className="app-bottomnav-indicator" aria-hidden="true" />
       <div className="app-sidebar-brand">
         <Logo size={22} />
@@ -30,6 +30,7 @@ export function BottomNav({ screen, onNavigate }: { screen: Screen; onNavigate: 
           type="button"
           className={`app-bottomnav-btn${screen === s ? " is-active" : ""}`}
           onClick={() => onNavigate(s)}
+          aria-current={screen === s ? "page" : undefined}
         >
           <Icon />
           <span className="app-bottomnav-label">{label}</span>

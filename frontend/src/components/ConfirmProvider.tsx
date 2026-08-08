@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangleIcon, CheckCircleIcon } from "./icons";
 import { useDismissTransition } from "../lib/useDismissTransition";
+import { useFocusTrap } from "../lib/useFocusTrap";
 
 interface PendingConfirm {
   message: string;
@@ -84,9 +85,12 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("click", onClick, true);
   }, []);
 
-  useEffect(() => {
-    if (pending) confirmBtnRef.current?.focus();
-  }, [pending]);
+  // Focus trapping + restore-on-close for the popup, shared with every other
+  // dialog in the app (see the account-deletion dialog in settings/). Escape
+  // is still wired up below via the same resolve(false) path the Cancel
+  // button uses, rather than through this hook's own onEscape, so both routes
+  // go through one place.
+  const trapRef = useFocusTrap<HTMLDivElement>(!!pending, undefined, confirmBtnRef);
 
   useEffect(() => {
     if (!pending) return;
@@ -103,15 +107,21 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
       {pending && (
         <div className={`confirm-backdrop${closing ? " is-closing" : ""}`} onClick={() => pending.resolve(false)}>
           <div
+            ref={trapRef}
             className={`confirm-modal${pending.tone === "danger" ? " is-danger" : ""}${closing ? " is-closing" : ""}`}
             role="alertdialog"
             aria-modal="true"
+            aria-label={pending.tone === "danger" ? "Confirm destructive action" : "Confirm action"}
+            aria-describedby="confirm-modal-message"
+            tabIndex={-1}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="confirm-modal-icon" aria-hidden="true">
               {pending.tone === "danger" ? <AlertTriangleIcon size={26} /> : <CheckCircleIcon size={26} />}
             </div>
-            <p className="confirm-modal-message">{pending.message}</p>
+            <p id="confirm-modal-message" className="confirm-modal-message">
+              {pending.message}
+            </p>
             <div className="confirm-modal-actions">
               <button type="button" className="confirm-action-btn confirm-action-cancel" onClick={() => pending.resolve(false)}>
                 Cancel

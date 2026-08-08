@@ -8,6 +8,7 @@ import "./styles/app.css";
 import "./styles/animations.css";
 import "./styles/shell.css";
 import "./styles/landing.css";
+import "./styles/settings.css";
 import "./admin/admin.css";
 
 // Last-resort net for a stray rejected promise nothing else catches (every

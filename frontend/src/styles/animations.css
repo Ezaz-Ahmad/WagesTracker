@@ -4,10 +4,10 @@
    it confirms an action, orients you after navigation, or draws the eye to
    a number that just changed. Nothing loops forever except the two "live"
    indicators (active shift pulse, elapsed timer breathe).
-   By design, this app does NOT reduce motion under prefers-reduced-motion —
-   every animation here plays identically on every device regardless of the
-   OS-level accessibility setting (an explicit product choice, not an
-   oversight — see the note near the bottom of this file).
+   Respects prefers-reduced-motion (see the block at the bottom of this
+   file): every transition/animation duration collapses to near-zero and
+   infinite loops stop after a single iteration, so nothing here keeps
+   moving for someone who has asked their OS to reduce motion.
    ══════════════════════════════════════════════════════════════════════ */
 
 :root {
@@ -373,9 +373,23 @@
 .skeleton-chart { height: 150px; margin-bottom: var(--space-4); }
 .skeleton-bars { height: 150px; }
 
-/* By explicit choice, this app does not honor prefers-reduced-motion — every
-   animation plays the same on every device regardless of the OS-level
-   accessibility setting, so behavior never silently diverges between a
-   phone with Reduce Motion on and a desktop without it. (Removed a blanket
-   `@media (prefers-reduced-motion: reduce)` override that used to force
-   every animation/transition duration to ~0 here.) */
+/* — reduced motion — collapses every animation/transition to effectively
+   instant and stops infinite loops (the active-shift pulse ring, the
+   elapsed-timer breathe, skeleton shimmer, the bubble-loader dots) after one
+   iteration, for anyone who has turned on "Reduce Motion" at the OS level.
+   Screen transitions, staggered entrances, chart draws, and dialog/confirm-
+   popup enter/exit all lose their motion this way without needing an
+   individual override per selector — deliberately broad rather than a
+   hand-picked list, so a new animation added later is covered automatically
+   instead of silently forgetting to check this preference. useCountUp.ts
+   separately checks the same media query to skip its own requestAnimationFrame
+   tween and jump straight to the target value, since that one isn't driven
+   by CSS at all. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

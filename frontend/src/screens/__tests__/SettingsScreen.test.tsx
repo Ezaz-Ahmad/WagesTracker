@@ -17,7 +17,7 @@
 // This is the one component test in the project so far, hence the
 // `@vitest-environment jsdom` pragma above (see vitest.config.ts) instead of
 // switching the whole suite over to jsdom.
-import { useCallback, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -61,31 +61,59 @@ let changePasswordImpl: (currentPassword: string, newPassword: string) => Promis
 let fetchSessionsImpl: () => Promise<SessionInfo[]>;
 let callOrder: string[];
 
+// The Settings hub is now several independent components (ProfileSettings,
+// WorkPaySettings, GoalSettings, SecuritySettings, SessionList,
+// DataAccountSettings), each calling useApp() on its own — unlike the old
+// single-component SettingsScreen, a plain `useState` inside this fake hook
+// would give *each calling component its own separate copy* of the
+// sessions state (React attributes hooks to whichever fiber is currently
+// rendering them), so SecuritySettings changing the password and calling
+// loadSessions would never be visible to SessionList's own copy. A tiny
+// external store shared by every useFakeApp() call — subscribed to via
+// useSyncExternalStore — is what actually makes this behave like one real
+// shared context, the way AppProvider's single useState instance does in
+// production.
+interface SessionsState {
+  sessions: SessionInfo[];
+  sessionsLoading: boolean;
+  sessionsError: string | null;
+}
+function createSessionsStore(initial: SessionInfo[]) {
+  let state: SessionsState = { sessions: initial, sessionsLoading: false, sessionsError: null };
+  const listeners = new Set<() => void>();
+  return {
+    getState: () => state,
+    setState: (patch: Partial<SessionsState>) => {
+      state = { ...state, ...patch };
+      listeners.forEach((l) => l());
+    },
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+}
+let sessionsStore: ReturnType<typeof createSessionsStore>;
+
 // A minimal stand-in for AppContext's real state/logic — just enough of it
 // (sessions/sessionsLoading/sessionsError/loadSessions/changePassword) to
-// drive SettingsScreen exactly the way the real AppProvider would, backed by
-// real React state so a call to `loadSessions` here causes a real re-render,
-// the same as it would in production. Mirrors AppContext.loadSessions's own
-// error handling (catches and sets sessionsError, never rethrows) so the
-// failure test below behaves the same way the real app does.
+// drive the Settings hub exactly the way the real AppProvider would.
+// Mirrors AppContext.loadSessions's own error handling (catches and sets
+// sessionsError, never rethrows) so the failure test below behaves the same
+// way the real app does.
 function useFakeApp(): AppCtx {
-  const [sessions, setSessions] = useState<SessionInfo[]>(initialSessions);
-  const [sessionsLoading, setSessionsLoading] = useState(false);
-  const [sessionsError, setSessionsError] = useState<string | null>(null);
+  const { sessions, sessionsLoading, sessionsError } = useSyncExternalStore(sessionsStore.subscribe, sessionsStore.getState);
 
   const loadSessions = useCallback(async () => {
     callOrder.push("loadSessions:start");
-    setSessionsLoading(true);
-    setSessionsError(null);
+    sessionsStore.setState({ sessionsLoading: true, sessionsError: null });
     try {
       const next = await fetchSessionsImpl();
-      setSessions(next);
+      sessionsStore.setState({ sessions: next, sessionsLoading: false });
       callOrder.push("loadSessions:resolved");
     } catch (e) {
-      setSessionsError(e instanceof Error ? e.message : "Couldn't load sessions");
+      sessionsStore.setState({ sessionsError: e instanceof Error ? e.message : "Couldn't load sessions", sessionsLoading: false });
       callOrder.push("loadSessions:failed");
-    } finally {
-      setSessionsLoading(false);
     }
   }, []);
 
@@ -106,7 +134,7 @@ function useFakeApp(): AppCtx {
     loadSessions,
     revokeSession: vi.fn().mockResolvedValue(undefined),
     revokeOtherSessions: vi.fn().mockResolvedValue(undefined),
-    // Everything below this line is unused by SettingsScreen — inert stubs
+    // Everything below this line is unused by the Settings hub — inert stubs
     // only so this object satisfies AppContextValue's full shape.
   } as unknown as AppCtx;
 }
@@ -115,6 +143,17 @@ vi.mock("../../context/AppContext", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../context/AppContext")>();
   return { ...actual, useApp: () => useFakeApp() };
 });
+
+// Settings is now a hub of categories (Profile & preferences, Work & pay,
+// Weekly goals, Security, Data & account) rather than one long page — the
+// password form and session list live under "Security," which isn't the
+// default category shown on render. Every category panel is always mounted
+// (see SettingsScreen.tsx), so navigating there doesn't lose anything; it's
+// just required before these fields are visible/interactable.
+async function goToSecurity() {
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: /security/i }));
+}
 
 async function fillAndSubmitPasswordChangeForm() {
   const user = userEvent.setup();
@@ -127,6 +166,7 @@ async function fillAndSubmitPasswordChangeForm() {
 describe("SettingsScreen — session list refresh after password change", () => {
   beforeEach(() => {
     initialSessions = oldSessions;
+    sessionsStore = createSessionsStore(initialSessions);
     callOrder = [];
     changePasswordImpl = vi.fn().mockResolvedValue(undefined);
     fetchSessionsImpl = vi.fn().mockResolvedValue(oldSessions);
@@ -141,6 +181,7 @@ describe("SettingsScreen — session list refresh after password change", () => 
     fetchSessionsImpl = vi.fn().mockResolvedValueOnce(oldSessions).mockResolvedValue(newSessions);
 
     render(<SettingsScreen />);
+    await goToSecurity();
 
     // Old sessions are what's shown before anything happens. getByText
     // throws (failing the test) if the text isn't found, so its return
@@ -179,6 +220,7 @@ describe("SettingsScreen — session list refresh after password change", () => 
     });
 
     render(<SettingsScreen />);
+    await goToSecurity();
     await waitFor(() => expect(screen.getByText("Old Device A")).toBeTruthy());
 
     await fillAndSubmitPasswordChangeForm();

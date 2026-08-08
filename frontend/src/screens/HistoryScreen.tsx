@@ -11,7 +11,7 @@ export function HistoryScreen() {
   if (!shiftsLoaded) {
     return (
       <div className="screen-narrow screen-transition">
-        <h6 className="section-title">History</h6>
+        <h1 className="section-title">History</h1>
         <Skeleton className="skeleton-row" />
         <Skeleton className="skeleton-row" />
         <Skeleton className="skeleton-row" />
@@ -36,7 +36,7 @@ export function HistoryScreen() {
 
   return (
     <div className="screen-narrow">
-      <h6 className="section-title">History</h6>
+      <h1 className="section-title">History</h1>
       <div className="section-hint">Completed weeks, most recent first.</div>
       <EarningsHiddenHint className="history-earnings-hint" />
       {rows.length === 0 ? (

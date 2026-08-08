@@ -33,7 +33,7 @@ export class ErrorBoundary extends Component<Props, State> {
         // screen meant to catch a fatal error itself invisible.
         <div className="app-shell is-entered">
           <div className="app-frame" style={{ padding: "var(--space-4)" }}>
-            <h6 className="section-title">Something went wrong</h6>
+            <h1 className="section-title">Something went wrong</h1>
             <p className="card-body">
               The app hit an unexpected error. Try reloading — if it keeps happening, your data is safe on the server.
             </p>

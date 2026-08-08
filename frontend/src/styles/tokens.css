@@ -67,6 +67,29 @@
   --shadow-sm: 0 1px 2px color-mix(in srgb, #2d2b2b 14%, transparent);
   --shadow-md: 0 3px 10px color-mix(in srgb, #2d2b2b 16%, transparent);
   --shadow-lg: 0 12px 32px color-mix(in srgb, #2d2b2b 22%, transparent);
+
+  /* Semantic state tokens — success/warning/danger are visually distinct
+     colors (not the brand accent reused for everything), each with a text-
+     safe shade (~700, ≥4.5:1 on both --color-bg and --color-surface) and a
+     light background tint for banners. "Danger" reuses the existing
+     accent-700/accent-100 pair since the brand accent is already a red-
+     orange appropriate for destructive state — it's aliased here so callers
+     reach for a semantic name instead of the raw accent scale. */
+  --color-success: #1a7f37;
+  --color-success-700: #146c2e;
+  --color-success-100: #e6f4ea;
+  --color-warning: #9a5b00;
+  --color-warning-700: #7a4800;
+  --color-warning-100: #fdf0dc;
+  --color-danger: var(--color-accent-700);
+  --color-danger-700: var(--color-accent-800);
+  --color-danger-100: var(--color-accent-100);
+  /* A text-safe version of the brand accent, for small/normal-weight text
+     (links, kickers, section titles) where the raw --color-accent fails
+     WCAG AA (~3.8:1 on --color-bg). Buttons/badges that put the accent on a
+     colored or white background are unaffected and keep using --color-accent
+     directly. */
+  --color-accent-text: var(--color-accent-700);
 }
 
 body {
@@ -98,17 +121,49 @@ h5 { font-size: 16px; }
 h6 { font-size: 13px; }
 h6 { letter-spacing: 0.08em; text-transform: uppercase; }
 p { margin: 0 0 var(--space-3); }
-a { color: var(--color-accent); text-underline-offset: 3px; }
+a { color: var(--color-accent-text); text-underline-offset: 3px; }
 img { display: block; max-width: 100%; }
 figure { margin: 0; }
 figcaption {
   font-size: 11px; margin-top: var(--space-1);
-  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  color: color-mix(in srgb, var(--color-text) 68%, transparent);
 }
-.text-muted { color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+.text-muted { color: color-mix(in srgb, var(--color-text) 68%, transparent); }
 :focus { outline: none; }
 :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 ::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+
+/* Visually hides content while keeping it in the accessibility tree — for a
+   <legend> or heading that a sighted user doesn't need (an adjacent visible
+   label already says the same thing) but a screen-reader user still needs
+   for context/grouping. Never use `display:none`/`visibility:hidden` for
+   this — those remove it from the accessibility tree too. */
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* A <fieldset>/<legend> pair used purely for grouping a set of related
+   radio options (screen-reader/keyboard structure), with none of the
+   browser's default fieldset chrome. */
+.fieldset-plain { border: 0; margin: 0; padding: 0; min-width: 0; }
+.fieldset-plain > legend { padding: 0; margin-bottom: 5px; font-size: 12px; color: color-mix(in srgb, var(--color-text) 68%, transparent); }
+.fieldset-plain.visually-hidden-legend-only { display: contents; }
+.fieldset-inline { display: inline; }
+.fieldset-inline > legend { display: none; }
+
+/* — semantic status banners — success/warning/danger states that pair an
+   icon with real text, so they're never conveyed by color alone. */
+.banner {
+  display: flex; align-items: flex-start; gap: 8px;
+  font-size: 12.5px; line-height: 1.4; padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3); border-radius: 10px;
+}
+.banner svg { flex: none; margin-top: 1px; }
+.banner-success { color: var(--color-success-700); background: var(--color-success-100); }
+.banner-warning { color: var(--color-warning-700); background: var(--color-warning-100); }
+.banner-danger { color: var(--color-danger-700); background: var(--color-danger-100); }
+.field-hint-danger { color: var(--color-danger-700); }
 
 /* — rules — */
 .hr {
@@ -164,11 +219,13 @@ figcaption {
 .btn-danger:hover { background: var(--color-accent-100); }
 .btn-danger:active { background: var(--color-accent-200); box-shadow: none; }
 
-.btn-ghost { color: var(--color-accent); padding-inline: var(--space-2); border-radius: 10px; }
+.btn-ghost { color: var(--color-accent-text); padding-inline: var(--space-2); border-radius: 10px; }
 .btn-ghost:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
 .btn-ghost:active { background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
 
-.btn-icon { width: 38px; height: 38px; padding: 0; border-radius: 50%; }
+/* 44px is the WCAG-recommended minimum touch target — slightly larger than
+   the icon's own visual footprint, which stays centered inside it. */
+.btn-icon { width: 44px; height: 44px; padding: 0; border-radius: 50%; }
 .btn-block { width: 100%; margin-top: var(--space-2); justify-content: flex-start; text-align: left; }
 
 @media (hover: hover) and (pointer: fine) {
@@ -184,7 +241,7 @@ figcaption {
 }
 .field-hint {
   font-size: 11px; margin-top: 4px;
-  color: color-mix(in srgb, var(--color-text) 50%, transparent);
+  color: color-mix(in srgb, var(--color-text) 68%, transparent);
 }
 .input {
   width: 100%; min-height: 40px; padding: 8px 12px; font: inherit;
@@ -286,7 +343,7 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   display: flex; flex-direction: column; gap: var(--space-2);
   padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-surface);
 }
-.card-kicker { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent); }
+.card-kicker { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent-text); }
 .card-title {
   font-family: var(--font-heading); font-weight: var(--font-heading-weight);
   font-size: 17px; line-height: 1.2;
@@ -294,7 +351,7 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 .card-body { margin: 0; font-size: 13px; opacity: 0.8; flex: 1; }
 .card-meta {
   display: flex; align-items: center; gap: 6px; font-size: 11px;
-  color: color-mix(in srgb, var(--color-text) 50%, transparent);
+  color: color-mix(in srgb, var(--color-text) 68%, transparent);
 }
 .elev-sm { box-shadow: var(--shadow-sm); }
 .elev-md { box-shadow: var(--shadow-md); }
@@ -309,7 +366,7 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 .tag-accent { background: var(--color-accent-100); color: var(--color-accent-800); }
 .tag-accent-2 { background: var(--color-accent-2-100); color: var(--color-accent-2-800); }
 .tag-neutral { background: var(--color-neutral-100); color: var(--color-neutral-800); }
-.tag-outline { border: 1px solid var(--color-accent); color: var(--color-accent); }
+.tag-outline { border: 1px solid var(--color-accent-text); color: var(--color-accent-text); }
 
 /* — navigation — */
 .nav {
@@ -323,13 +380,13 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   font-size: 18px; margin-right: auto;
 }
 .nav a { color: inherit; text-decoration: none; font-size: 14px; }
-.nav a:hover, .nav a[aria-current='page'] { color: var(--color-accent); }
+.nav a:hover, .nav a[aria-current='page'] { color: var(--color-accent-text); }
 
 /* — tables — */
 .table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .table th {
   text-align: left; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
-  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  color: color-mix(in srgb, var(--color-text) 68%, transparent);
   padding: var(--space-2); border-bottom: 2px solid var(--color-divider);
 }
 .table td {

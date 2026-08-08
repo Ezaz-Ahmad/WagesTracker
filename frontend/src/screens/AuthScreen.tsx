@@ -167,8 +167,9 @@ export function AuthScreen() {
               <form key="login" className="anim-rise" onSubmit={handleLogin}>
                 <h3 style={{ margin: "0 0 var(--space-3)" }}>Log in</h3>
                 <div className="field field-spaced">
-                  <label>Email</label>
+                  <label htmlFor="login-email">Email</label>
                   <input
+                    id="login-email"
                     className="input"
                     type="email"
                     placeholder="you@example.com"
@@ -178,8 +179,9 @@ export function AuthScreen() {
                   />
                 </div>
                 <div className="field field-spaced">
-                  <label>Password</label>
+                  <label htmlFor="login-password">Password</label>
                   <PasswordInput
+                    id="login-password"
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -199,16 +201,17 @@ export function AuthScreen() {
               <form key="signup" className="anim-rise" onSubmit={handleSignup}>
                 <h3 style={{ margin: "0 0 var(--space-3)" }}>Create your account</h3>
                 <div className="field field-spaced">
-                  <label>Full name</label>
-                  <input className="input" type="text" placeholder="Alex Rivera" value={name} onChange={(e) => setName(e.target.value)} required />
+                  <label htmlFor="signup-name">Full name</label>
+                  <input id="signup-name" className="input" type="text" placeholder="Alex Rivera" value={name} onChange={(e) => setName(e.target.value)} required />
                 </div>
                 <div className="field field-spaced">
-                  <label>Email</label>
-                  <input className="input" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                  <label htmlFor="signup-email">Email</label>
+                  <input id="signup-email" className="input" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
                 </div>
                 <div className="field field-spaced">
-                  <label>Password</label>
+                  <label htmlFor="signup-password">Password</label>
                   <PasswordInput
+                    id="signup-password"
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -226,8 +229,9 @@ export function AuthScreen() {
                   )}
                 </div>
                 <div className="field field-spaced">
-                  <label>Hourly rate ({CURRENCY})</label>
+                  <label htmlFor="signup-rate">Hourly rate ({CURRENCY})</label>
                   <input
+                    id="signup-rate"
                     className="input"
                     type="number"
                     inputMode="decimal"
@@ -240,8 +244,9 @@ export function AuthScreen() {
                   <div className="field-hint">Used to calculate your earnings — you can change this any time in Settings.</div>
                 </div>
                 <div className="field field-spaced">
-                  <label>Your address</label>
+                  <label htmlFor="signup-address">Your address</label>
                   <input
+                    id="signup-address"
                     className="input"
                     type="text"
                     placeholder="123 Main St, Springfield"
@@ -251,8 +256,9 @@ export function AuthScreen() {
                   <div className="field-hint">Shown on your PDF reports, under your name.</div>
                 </div>
                 <div className="field field-spaced">
-                  <label>Work location name</label>
+                  <label htmlFor="signup-work-location">Work location name</label>
                   <input
+                    id="signup-work-location"
                     className="input"
                     type="text"
                     placeholder="Downtown Store"
@@ -261,8 +267,9 @@ export function AuthScreen() {
                   />
                 </div>
                 <div className="field field-spaced">
-                  <label>Work address</label>
+                  <label htmlFor="signup-work-address">Work address</label>
                   <input
+                    id="signup-work-address"
                     className="input"
                     type="text"
                     placeholder="123 Main St, Springfield"
@@ -270,8 +277,8 @@ export function AuthScreen() {
                     onChange={(e) => setWorkAddress(e.target.value)}
                   />
                 </div>
-                <div className="field field-spaced">
-                  <label>Do you work multiple locations?</label>
+                <fieldset className="fieldset-plain field field-spaced">
+                  <legend>Do you work multiple locations?</legend>
                   <div className="seg">
                     <label className="seg-opt">
                       <input type="radio" name="multiloc" checked={!multipleLocations} onChange={() => setMultipleLocations(false)} /> No
@@ -280,11 +287,12 @@ export function AuthScreen() {
                       <input type="radio" name="multiloc" checked={multipleLocations} onChange={() => setMultipleLocations(true)} /> Yes
                     </label>
                   </div>
-                </div>
+                </fieldset>
                 {multipleLocations && (
                   <div className="field field-spaced">
-                    <label>Other locations</label>
+                    <label htmlFor="signup-other-locations">Other locations</label>
                     <input
+                      id="signup-other-locations"
                       className="input"
                       type="text"
                       placeholder="e.g. Uptown Branch, Airport Kiosk"

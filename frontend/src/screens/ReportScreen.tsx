@@ -77,7 +77,7 @@ export function ReportScreen() {
   if (!shiftsLoaded) {
     return (
       <div className="screen-wide screen-transition">
-        <h6 className="section-title">Progress report</h6>
+        <h1 className="section-title">Progress report</h1>
         <Skeleton className="skeleton-card" style={{ height: 76 }} />
         <Skeleton className="skeleton-chart" />
         <Skeleton className="skeleton-bars" />
@@ -94,7 +94,7 @@ export function ReportScreen() {
   return (
     <div className="screen-wide">
       <div className="row-baseline">
-        <h6 className="section-title">Progress report</h6>
+        <h1 className="section-title">Progress report</h1>
         {/* `.btn-secondary` (a real filled pill), not `.btn-ghost` (bare
             colored text) — `.row-baseline` wraps this onto its own line on
             a phone-width card (the full "Download this week (PDF)" label
@@ -142,14 +142,17 @@ export function ReportScreen() {
       <div className="card elev-sm anim-rise" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 1 }}>
         <div className="row-baseline">
           <div className="card-kicker">Weekly trend</div>
-          <div className="seg">
-            <label className="seg-opt">
-              <input type="radio" name="metric" checked={metric === "earnings"} onChange={() => setMetric("earnings")} /> Earnings
-            </label>
-            <label className="seg-opt">
-              <input type="radio" name="metric" checked={metric === "hours"} onChange={() => setMetric("hours")} /> Hours
-            </label>
-          </div>
+          <fieldset className="fieldset-plain fieldset-inline">
+            <legend className="visually-hidden">Weekly trend metric</legend>
+            <div className="seg">
+              <label className="seg-opt">
+                <input type="radio" name="metric" checked={metric === "earnings"} onChange={() => setMetric("earnings")} /> Earnings
+              </label>
+              <label className="seg-opt">
+                <input type="radio" name="metric" checked={metric === "hours"} onChange={() => setMetric("hours")} /> Hours
+              </label>
+            </div>
+          </fieldset>
         </div>
 
         {/* `width="100%"` with no fixed `height` and no `preserveAspectRatio`
@@ -242,21 +245,24 @@ export function ReportScreen() {
       </div>
 
       <div className="card elev-sm anim-rise" style={{ ["--i" as string]: 3 }}>
-        <h6 className="section-title" style={{ margin: 0 }}>Compare periods</h6>
+        <h2 className="section-title" style={{ margin: 0 }}>Compare periods</h2>
         <div className="section-hint" style={{ marginBottom: "var(--space-3)" }}>
           Week over week, month over month, or year over year — showing {metricLabel} (change the view above to switch).
         </div>
-        <div className="seg" style={{ marginBottom: "var(--space-4)" }}>
-          <label className="seg-opt">
-            <input type="radio" name="period" checked={period === "week"} onChange={() => setPeriod("week")} /> Weeks
-          </label>
-          <label className="seg-opt">
-            <input type="radio" name="period" checked={period === "month"} onChange={() => setPeriod("month")} /> Months
-          </label>
-          <label className="seg-opt">
-            <input type="radio" name="period" checked={period === "year"} onChange={() => setPeriod("year")} /> Years
-          </label>
-        </div>
+        <fieldset className="fieldset-plain">
+          <legend className="visually-hidden">Compare by period</legend>
+          <div className="seg" style={{ marginBottom: "var(--space-4)" }}>
+            <label className="seg-opt">
+              <input type="radio" name="period" checked={period === "week"} onChange={() => setPeriod("week")} /> Weeks
+            </label>
+            <label className="seg-opt">
+              <input type="radio" name="period" checked={period === "month"} onChange={() => setPeriod("month")} /> Months
+            </label>
+            <label className="seg-opt">
+              <input type="radio" name="period" checked={period === "year"} onChange={() => setPeriod("year")} /> Years
+            </label>
+          </div>
+        </fieldset>
         <div className="period-bars">
           {periodBars.map((b, i) => (
             <div className="period-bar-col" key={i} style={{ ["--i" as string]: i }}>

@@ -16,14 +16,14 @@ button { font-family: inherit; }
 }
 .auth-card { width: 100%; max-width: 380px; padding: var(--space-4); }
 .auth-footnote { font-size: 12px; margin-top: var(--space-3); text-align: center; }
-.auth-demo-note { font-size: 11px; opacity: 0.5; margin-top: var(--space-2); text-align: center; }
+.auth-demo-note { font-size: 11px; opacity: 0.68; margin-top: var(--space-2); text-align: center; }
 
 /* — credit — */
 .app-credit {
   display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
   gap: var(--space-2); margin-top: var(--space-3); margin-bottom: var(--space-3);
 }
-.app-credit-name { font-size: 11px; opacity: 0.55; }
+.app-credit-name { font-size: 11px; opacity: 0.7; }
 .app-credit-links { display: inline-flex; gap: 6px; }
 .app-credit-link {
   display: inline-flex; align-items: center; gap: 5px;
@@ -44,7 +44,7 @@ button { font-family: inherit; }
 .app-credit-version {
   width: 100%; text-align: center; margin-top: 2px;
   font-size: 10px; font-variant-numeric: tabular-nums;
-  color: color-mix(in srgb, var(--color-text) 38%, transparent);
+  color: color-mix(in srgb, var(--color-text) 65%, transparent);
 }
 
 /* — password visibility toggle — */
@@ -54,9 +54,15 @@ button { font-family: inherit; }
   position: absolute; top: 50%; right: 3px; transform: translateY(-50%);
   display: grid; place-items: center; width: 30px; height: 30px; padding: 0;
   background: none; border: none; border-radius: 50%; cursor: pointer;
-  color: color-mix(in srgb, var(--color-text) 50%, transparent);
+  color: color-mix(in srgb, var(--color-text) 62%, transparent);
   transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard),
     transform var(--dur-base) cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+/* Enlarges the tappable area to the 44×44px WCAG-recommended minimum
+   without growing the visible 30px circle itself (which would crowd the
+   input it sits inside) — an invisible hit-box centered on the same spot. */
+.password-toggle-btn::before {
+  content: ""; position: absolute; inset: -7px; border-radius: 50%;
 }
 .password-toggle-btn:hover { color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
 .password-toggle-btn:active { transform: translateY(-50%) scale(0.86); transition-duration: 90ms; transition-timing-function: var(--ease-standard); }
@@ -138,7 +144,7 @@ button { font-family: inherit; }
    prime, easy-to-reach real estate that a once-a-session action (logging
    out) was wasting. It reads fine as a small subtitle here instead. */
 .app-nav-identity { display: flex; flex-direction: column; gap: 1px; margin-right: auto; min-width: 0; }
-.app-nav-date { font-size: 12px; color: var(--color-text); opacity: 0.6; }
+.app-nav-date { font-size: 12px; color: var(--color-text); opacity: 0.72; }
 .app-nav-logout {
   display: inline-flex; align-items: center; gap: 6px; flex: none;
   padding: 8px 12px; border: 1px solid transparent; border-radius: var(--radius-btn);
@@ -270,8 +276,15 @@ button { font-family: inherit; }
 .app-bottomnav-btn.is-active { color: var(--color-accent-700); font-weight: 700; }
 .app-bottomnav-label { font-size: 10px; letter-spacing: 0.1px; }
 
-.section-title { color: var(--color-accent); margin-bottom: var(--space-1); }
-.section-hint { font-size: 12px; opacity: 0.6; margin-bottom: var(--space-3); }
+/* Used as the visual style for each screen's page title — applied to a
+   real <h1> (or <h2> for a subsection) rather than a <h6>, so screen
+   readers get correct document structure while the look (small, uppercase,
+   accent-colored kicker) stays exactly what it always was. */
+.section-title {
+  color: var(--color-accent-text); margin-bottom: var(--space-1);
+  font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.section-hint { font-size: 12px; opacity: 0.72; margin-bottom: var(--space-3); }
 /* `flex-wrap: wrap` is a safety net, not the normal case — every current
    use (screen title + a ghost/PDF button, or a kicker + segmented toggle)
    fits on one line at typical phone widths and stays exactly as designed.
@@ -283,7 +296,7 @@ button { font-family: inherit; }
 /* — progress bars — */
 .progress-label-row {
   display: flex; justify-content: space-between; font-size: 11px; text-transform: uppercase;
-  letter-spacing: 0.06em; opacity: 0.6; margin-bottom: 6px;
+  letter-spacing: 0.06em; opacity: 0.72; margin-bottom: 6px;
 }
 .progress-track { height: 8px; background: var(--color-neutral-200); }
 .progress-fill { height: 100%; background: var(--color-accent); }
@@ -412,7 +425,7 @@ button { font-family: inherit; }
 .glance-bar-col.is-today .glance-bar-track { box-shadow: 0 0 0 2px var(--color-accent) inset; }
 .glance-bar-col.is-today .glance-bar-fill.is-worked { background: var(--color-accent-600); }
 .glance-bar-label {
-  font-size: 11px; font-weight: 600; color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  font-size: 11px; font-weight: 600; color: color-mix(in srgb, var(--color-text) 68%, transparent);
 }
 .glance-bar-col.is-today .glance-bar-label { color: var(--color-accent-700); }
 
@@ -524,14 +537,14 @@ button { font-family: inherit; }
 }
 .day-card.is-open .day-chevron-btn { background: var(--color-accent-100); }
 .day-chevron {
-  color: color-mix(in srgb, var(--color-text) 50%, transparent);
+  color: color-mix(in srgb, var(--color-text) 62%, transparent);
   transition: transform 340ms var(--ease-emphasized), color 340ms var(--ease-emphasized);
 }
 .day-card.is-open .day-chevron { transform: rotate(-180deg); color: var(--color-accent-700); }
 .day-row-head-main { flex: 1; min-width: 0; }
 .day-row-head-title { display: flex; align-items: baseline; gap: 0; }
 .day-name { font-weight: 800; font-family: var(--font-heading); font-size: 14px; }
-.day-date { font-size: 11px; opacity: 0.55; margin-left: 6px; }
+.day-date { font-size: 11px; opacity: 0.68; margin-left: 6px; }
 .day-today-badge {
   margin-left: 8px; padding: 1px 7px; border-radius: 999px;
   background: var(--color-accent-100); color: var(--color-accent-700);
@@ -541,7 +554,7 @@ button { font-family: inherit; }
    card never causes the header to snap to a new height out of sync with the
    smooth body reveal below it — that mismatch was the "shake" on open. */
 .day-row-summary {
-  font-size: 11.5px; color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  font-size: 11.5px; color: color-mix(in srgb, var(--color-text) 68%, transparent);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   max-height: 15px; margin-top: 2px; opacity: 1;
   transition: max-height 340ms var(--ease-emphasized), opacity 200ms var(--ease-emphasized),
@@ -796,7 +809,7 @@ button { font-family: inherit; }
 .wheel-title {
   font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 13px;
   text-align: center; text-transform: uppercase; letter-spacing: 0.06em;
-  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  color: color-mix(in srgb, var(--color-text) 68%, transparent);
 }
 .wheel-readout {
   font-family: var(--font-heading); font-weight: 800; font-size: 34px;
@@ -859,7 +872,7 @@ button { font-family: inherit; }
    in shell.css, and the comment on the <svg> itself in ReportScreen). */
 .chart-svg { width: 100%; aspect-ratio: 320 / 150; height: auto; overflow: visible; display: block; }
 .chart-x-labels { display: flex; gap: 0; padding: 0 var(--space-1); margin-top: 4px; }
-.chart-x-label { flex: 1; text-align: center; font-size: 10px; opacity: 0.6; }
+.chart-x-label { flex: 1; text-align: center; font-size: 10px; opacity: 0.72; }
 /* Headline card at the top of the report — two big numbers side by side,
    split by a plain divider rule, same numeral treatment as Home's "this
    week" amount so the two screens read as one family. */
@@ -891,7 +904,7 @@ button { font-family: inherit; }
 .ring-goal-label { font-family: var(--font-heading); font-weight: 700; font-size: 13px; margin-top: 3px; }
 .period-bars { display: flex; align-items: flex-end; gap: 8px; height: 150px; padding: 0 var(--space-1); }
 .period-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 6px; }
-.period-bar-label { font-size: 10px; opacity: 0.6; }
+.period-bar-label { font-size: 10px; opacity: 0.72; }
 .period-bar-fill { width: 100%; }
 
 /* — per-screen error boundary fallback (ScreenErrorBoundary) — */
@@ -905,4 +918,6 @@ button { font-family: inherit; }
 
 /* — settings — */
 .field-spaced { margin-bottom: var(--space-3); }
-.settings-note { font-size: 11px; opacity: 0.5; margin-top: var(--space-3); }
+.settings-note { font-size: 11px; opacity: 0.68; margin-top: var(--space-3); }
+.settings-note-static { margin-bottom: 0; }
+.settings-danger-title { color: var(--color-danger-700); }

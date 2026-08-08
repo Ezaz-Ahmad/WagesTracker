@@ -396,16 +396,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [logout]
   );
 
+  // Left to throw on any failure — including validation and network errors —
+  // so the Settings UI can tell a genuine save from a failed one and never
+  // show "Saved" when nothing actually changed server-side (see
+  // SettingsScreen/the settings/* section components). The one exception is
+  // an expired/invalid session: that's still handled here (logout + the
+  // top-level actionError banner) exactly like every other authenticated
+  // action, since the Settings screen itself is about to unmount in that
+  // case anyway and has nothing useful to show inline. The error is
+  // rethrown even then so a caller mid-`await` never mistakes it for success.
   const updateSettings = useCallback(
-    async (patch: api.MePatch) => {
+    async (patch: api.MePatch): Promise<void> => {
       try {
         const { user } = await api.patchMe(patch);
         setUser(user);
       } catch (e) {
-        handleActionError(e, "Couldn't save settings");
+        if (e instanceof ApiError && e.status === 401) {
+          logout();
+          setActionError("Your session expired. Please log in again.");
+        }
+        throw e;
       }
     },
-    [handleActionError]
+    [logout]
   );
 
   // Left to throw on failure (wrong current password, weak new password, etc.)

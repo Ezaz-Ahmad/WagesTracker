@@ -105,7 +105,7 @@ export function HomeScreen() {
   if (!shiftsLoaded || !todayDay) {
     return (
       <div className="screen-wide screen-transition">
-        <h6 className="section-title">This week</h6>
+        <h1 className="section-title">This week</h1>
         <div className="home-top-grid">
           <Skeleton className="skeleton-card" />
           <Skeleton className="skeleton-card" />
@@ -142,7 +142,7 @@ export function HomeScreen() {
 
   return (
     <div className="screen-wide">
-      <h6 className="section-title">This week</h6>
+      <h1 className="section-title">This week</h1>
       <div className="home-top-grid">
         <div className="card elev-sm anim-rise" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 0 }}>
           <div className="week-card-top">
@@ -180,7 +180,7 @@ export function HomeScreen() {
         </div>
       </div>
 
-      <h6 className="section-title" style={{ marginTop: "var(--space-5)" }}>Week at a glance</h6>
+      <h2 className="section-title" style={{ marginTop: "var(--space-5)" }}>Week at a glance</h2>
       <div className="section-hint">How this week's hours are spread out, day by day.</div>
       <div className="card elev-sm anim-rise glance-card" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 2 }}>
         <div className="glance-bars">

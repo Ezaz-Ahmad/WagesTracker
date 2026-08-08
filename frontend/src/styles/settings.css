@@ -1,0 +1,95 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   Settings hub — SettingsLayout/SettingsNav plus one card style shared by
+   every category panel (Profile, Work & pay, Weekly goals, Security,
+   Data & account). Mobile shows exactly one of the nav list / detail view at
+   a time (driven by the `--list`/`--detail` modifier below); tablet portrait
+   stays single-column and comfortable rather than switching early; desktop
+   shows both side by side. Category panels themselves are always mounted
+   (see SettingsScreen.tsx) — only visibility changes here.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.settings-layout {
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.settings-page-title { margin-bottom: 2px; }
+
+.settings-nav { margin-top: var(--space-2); }
+.settings-nav-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.settings-nav-item {
+  width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  text-align: left; padding: 12px var(--space-3); min-height: 44px;
+  background: var(--color-surface); border: 1px solid transparent; border-radius: var(--radius-md);
+  cursor: pointer;
+}
+.settings-nav-item-label { font-family: var(--font-heading); font-weight: 700; font-size: 14.5px; }
+.settings-nav-item-hint { font-size: 11.5px; color: color-mix(in srgb, var(--color-text) 68%, transparent); }
+.settings-nav-item:hover { background: color-mix(in srgb, var(--color-text) 6%, var(--color-surface)); }
+.settings-nav-item.is-active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-100);
+}
+.settings-nav-item.is-active .settings-nav-item-label { color: var(--color-accent-text); }
+.settings-nav-item:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+.settings-back-btn {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 44px;
+  padding: 0; margin-bottom: var(--space-2);
+  background: none; border: none; cursor: pointer;
+  font-family: var(--font-heading); font-weight: 700; font-size: 13.5px;
+  color: var(--color-accent-text);
+}
+.settings-back-icon { transform: rotate(90deg); display: block; }
+.settings-detail-title { margin-bottom: var(--space-3); }
+
+.settings-section-card { gap: 0; }
+.settings-section-card .field-spaced { margin-bottom: var(--space-3); }
+.settings-subsection-title { font-size: 15px; margin-bottom: var(--space-1); }
+.settings-subsection-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+.session-list-hint { margin: 0; max-width: 34ch; }
+
+.settings-savebar { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); margin-top: var(--space-2); }
+.settings-savebar .banner { width: 100%; margin-bottom: 0; }
+
+.btn-icon-label { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; white-space: nowrap; }
+.btn-destructive-final { font-weight: 800; }
+
+/* — session cards — */
+.session-list { list-style: none; margin: 0 0 var(--space-3); padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.session-card { gap: 4px; }
+.session-card.is-current { box-shadow: inset 0 0 0 1.5px var(--color-accent); }
+.session-card-head { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.session-card-label {
+  min-width: 0; overflow-wrap: anywhere; word-break: break-word;
+  font-size: 14px;
+}
+.session-card-primary { font-size: 13px; }
+.session-card-secondary {
+  font-size: 11.5px; color: color-mix(in srgb, var(--color-text) 68%, transparent);
+  overflow-wrap: anywhere; word-break: break-word;
+}
+.session-card .btn { margin-top: var(--space-2); }
+
+/* — mobile / tablet portrait: exactly one of nav-list or detail visible — */
+.settings-detail-panel { display: block; }
+.settings-nav-panel { display: block; }
+.settings-layout--list .settings-detail-panel { display: none; }
+.settings-layout--detail .settings-nav-panel { display: none; }
+
+/* — desktop: two columns, both always visible, no back button needed — */
+@media (min-width: 880px) {
+  .settings-layout {
+    max-width: 900px;
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: var(--space-6);
+    align-items: start;
+  }
+  .settings-nav-panel, .settings-detail-panel { display: block !important; }
+  .settings-back-btn { display: none; }
+  .settings-nav-panel { position: sticky; top: 0; }
+}

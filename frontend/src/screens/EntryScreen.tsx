@@ -109,7 +109,7 @@ export function EntryScreen() {
   if (!shiftsLoaded || !todayDay) {
     return (
       <div className="screen-narrow screen-transition">
-        <h6 className="section-title">This week's hours</h6>
+        <h1 className="section-title">This week's hours</h1>
         <Skeleton className="skeleton-card" />
         <Skeleton className="skeleton-row" />
         <Skeleton className="skeleton-row" />
@@ -260,7 +260,7 @@ export function EntryScreen() {
       {/* PDF export lives on the Report screen only now — having the same
           "Download PDF" action in two places was redundant, and Report is
           the screen actually built around reporting/exporting. */}
-      <h6 className="section-title">This week's hours</h6>
+      <h1 className="section-title">This week's hours</h1>
       <div className="section-hint">Tap a time to set sign-in and sign-out for each day, or use the clock button for today.</div>
 
       <div className="card entry-today-card anim-rise">
@@ -347,11 +347,14 @@ export function EntryScreen() {
 
           <div className="day-row-collapse">
             <div className="day-row-body">
-              {rowsFor(day).map((row) => (
-                <div className="shift-row" key={`${day.dateISO}-${row.id ?? row.tempId ?? "placeholder"}`}>
+              {rowsFor(day).map((row) => {
+                const rowKey = `${day.dateISO}-${row.id ?? row.tempId ?? "placeholder"}`;
+                return (
+                <div className="shift-row" key={rowKey}>
                   <div className="shift-field shift-field-location">
-                    <label className="shift-field-label">Location</label>
+                    <label className="shift-field-label" htmlFor={`shift-location-${rowKey}`}>Location</label>
                     <input
+                      id={`shift-location-${rowKey}`}
                       className="input shift-location"
                       type="text"
                       placeholder="e.g. Downtown Store"
@@ -368,8 +371,9 @@ export function EntryScreen() {
                         phones with no visible cue at all. This label looks
                         identical everywhere regardless of how the native picker
                         renders. */}
-                    <label className="shift-field-label">Sign in</label>
+                    <label className="shift-field-label" htmlFor={`shift-signin-${rowKey}`}>Sign in</label>
                     <input
+                      id={`shift-signin-${rowKey}`}
                       className="input shift-time"
                       type="time"
                       aria-label="Sign-in time"
@@ -379,8 +383,9 @@ export function EntryScreen() {
                     />
                   </div>
                   <div className="shift-field shift-field-time">
-                    <label className="shift-field-label">Sign out</label>
+                    <label className="shift-field-label" htmlFor={`shift-signout-${rowKey}`}>Sign out</label>
                     <input
+                      id={`shift-signout-${rowKey}`}
                       className="input shift-time"
                       type="time"
                       aria-label="Sign-out time"
@@ -403,7 +408,8 @@ export function EntryScreen() {
                     </button>
                   )}
                 </div>
-              ))}
+                );
+              })}
               <button className="btn btn-ghost add-shift-btn" onClick={() => handleAddShift(day.dateISO)}>
                 + Add another shift
               </button>
