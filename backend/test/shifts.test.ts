@@ -169,4 +169,84 @@ describe("shifts", () => {
       .send({ signOut: "20:00" });
     expect(patched.status).toBe(400);
   });
+
+  // Note: tokenA's shift from "2026-01-10" (the test right above) was never
+  // successfully closed — the PATCH that tried to close it was rejected for
+  // being zero-length, so it's still open. That's what the tests below rely
+  // on to exercise the "already has an open shift" conflict without having
+  // to open a fresh one first.
+  describe("simultaneous open shifts (two tabs/devices)", () => {
+    it("rejects creating a second open shift while one is already open, with a 409", async () => {
+      const res = await request(app)
+        .post("/api/shifts")
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ date: "2026-01-11", location: "Second Tab", signIn: "08:00" });
+      expect(res.status).toBe(409);
+      expect(res.body.error).toMatch(/already have an open shift/i);
+    });
+
+    it("does not actually create the rejected second shift — only the original open one still exists for that date range", async () => {
+      const res = await request(app)
+        .get("/api/shifts?from=2026-01-11&to=2026-01-11")
+        .set("Authorization", `Bearer ${tokenA}`);
+      expect(res.body.shifts).toEqual([]);
+    });
+
+    it("still allows a *complete* shift (both times set) to be created while another shift is open", async () => {
+      // Only creating a second *open* shift is blocked — backfilling a
+      // finished shift on some other day is unrelated and must keep working.
+      const res = await request(app)
+        .post("/api/shifts")
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ date: "2026-01-11", location: "Backfilled", signIn: "08:00", signOut: "12:00" });
+      expect(res.status).toBe(201);
+    });
+
+    it("rejects re-opening a different, already-closed shift via PATCH while another shift is open", async () => {
+      // The "Backfilled" shift just created above is closed; try to clear its
+      // sign-out (making it open again) while the 2026-01-10 shift is still open.
+      const complete = await request(app)
+        .get("/api/shifts?from=2026-01-11&to=2026-01-11")
+        .set("Authorization", `Bearer ${tokenA}`);
+      const backfilled = complete.body.shifts.find((s: { location: string }) => s.location === "Backfilled");
+
+      const res = await request(app)
+        .patch(`/api/shifts/${backfilled.id}`)
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ signOut: null });
+      expect(res.status).toBe(409);
+    });
+
+    it("lets the owner close the original open shift normally, unaffected by the rejected attempts above", async () => {
+      const list = await request(app).get("/api/shifts?from=2026-01-10&to=2026-01-10").set("Authorization", `Bearer ${tokenA}`);
+      const openShift = list.body.shifts.find((s: { signOut: string | null }) => s.signOut === null);
+      expect(openShift).toBeTruthy();
+
+      const res = await request(app)
+        .patch(`/api/shifts/${openShift.id}`)
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ signOut: "23:59" });
+      expect(res.status).toBe(200);
+      expect(res.body.shift.signOut).toBe("23:59");
+    });
+
+    it("allows starting a new open shift again now that no other shift is open", async () => {
+      const res = await request(app)
+        .post("/api/shifts")
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ date: "2026-01-12", location: "Fresh Start", signIn: "07:00" });
+      expect(res.status).toBe(201);
+      expect(res.body.shift.signOut).toBeNull();
+    });
+
+    it("keeps the one-open-shift rule scoped per user — user B can have their own open shift independently", async () => {
+      // tokenA has an open shift from the test just above; this must not
+      // affect user B at all.
+      const res = await request(app)
+        .post("/api/shifts")
+        .set("Authorization", `Bearer ${tokenB}`)
+        .send({ date: "2026-01-12", location: "User B's shift", signIn: "07:00" });
+      expect(res.status).toBe(201);
+    });
+  });
 });

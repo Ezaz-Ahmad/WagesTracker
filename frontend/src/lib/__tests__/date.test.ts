@@ -39,6 +39,15 @@ describe("computeHours", () => {
     expect(computeHours("09:00:00", "09:00:30")).toBeCloseTo(30 / 3600, 6);
   });
 
+  it("10:00 AM sign-in to 1:30 AM sign-out (the next day) = 15.5 hours — the exact midnight-rollover regression example", () => {
+    // Signing in at 10:00 AM on one day and out at 1:30 AM the next is
+    // exactly the scenario that used to break: useTodayShift stopped
+    // finding this shift once "today" rolled over, so it never even
+    // reached this calculation. Pinned here as the concrete number from
+    // that bug report (15 hours 30 minutes = 15.50).
+    expect(computeHours("10:00", "01:30")).toBe(15.5);
+  });
+
   it("an overnight shift's hours belong entirely to its starting date, not split across two days", () => {
     // computeHours itself is date-agnostic (it only ever sees two times),
     // which is exactly the point: there's nowhere in this calculation for

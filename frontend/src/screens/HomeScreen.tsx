@@ -6,6 +6,7 @@ import {
   computeStreak,
   groupByDate,
   groupExpensesByDate,
+  isDateInWeek,
   weekExtraFor,
   weekTotals,
 } from "../lib/aggregate";
@@ -49,9 +50,18 @@ export function HomeScreen() {
   // climb in real time instead of jumping only once the shift is signed out.
   // Resets with the week itself since `days`/`weekDays` are already scoped to
   // the user's weekStartsOn setting.
+  //
+  // Gated on the open shift's *own* date actually being in this week: an
+  // overnight shift that started the night before a week boundary belongs
+  // entirely to the previous week once it's saved (see isDateInWeek), so
+  // counting its live hours here too would show them in the new week first
+  // and then have the total visibly jump backward the moment it's signed
+  // out and the real, previous-week-dated total takes over.
   const liveHours = useLiveElapsedHours(active, last?.signIn ?? null);
-  const totalHours = savedHours + liveHours;
-  const totalEarnings = savedEarnings + liveHours * rate;
+  const activeShiftInThisWeek = !!last && isDateInWeek(last.date, weekDays);
+  const effectiveLiveHours = activeShiftInThisWeek ? liveHours : 0;
+  const totalHours = savedHours + effectiveLiveHours;
+  const totalEarnings = savedEarnings + effectiveLiveHours * rate;
 
   const history = buildWeeklyHistory(shifts, today, weekStartsOn, rate, 7, new Date(createdAt), dayExpenses, weekExtras);
   const lastWeek = history[history.length - 1];
@@ -92,10 +102,17 @@ export function HomeScreen() {
     }
   }
 
-  // Week-at-a-glance bar heights, scaled to the tallest day. Today's bar
-  // includes the live-ticking elapsed hours so it visibly grows while a
-  // shift is in progress instead of only jumping once it's signed out.
-  const glanceDays = days.map((d) => ({ ...d, displayHours: d.hours + (d.isToday ? liveHours : 0) }));
+  // Week-at-a-glance bar heights, scaled to the tallest day. The open
+  // shift's live hours go on the bar for the date it actually *started* on
+  // (last?.date) rather than always on "today"'s bar — the two differ
+  // exactly when a shift is still running after midnight, and attributing
+  // it to today's bar would show it in the wrong place (and, across a week
+  // boundary, potentially not on this screen's week at all — see
+  // activeShiftInThisWeek above) compared to where it lands once saved.
+  const glanceDays = days.map((d) => ({
+    ...d,
+    displayHours: d.hours + (activeShiftInThisWeek && d.dateISO === last?.date ? liveHours : 0),
+  }));
   const maxGlanceHours = Math.max(...glanceDays.map((d) => d.displayHours), 1);
 
   if (!user) return null;

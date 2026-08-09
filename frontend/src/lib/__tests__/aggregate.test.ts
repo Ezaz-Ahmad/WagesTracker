@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildDayComputed, buildWeekDaysComputed, weekExtraFor, weekTotals } from "../aggregate";
-import { isoDate, startOfWeek } from "../date";
+import { buildDayComputed, buildWeekDaysComputed, findOpenShift, isDateInWeek, weekExtraFor, weekTotals } from "../aggregate";
+import { buildWeekDays, isoDate, startOfWeek } from "../date";
 import type { Shift, WeekExtra } from "../types";
 
 const CURRENCY = "$";
@@ -51,6 +51,69 @@ describe("buildDayComputed", () => {
     // to be added on top separately and live (see useLiveElapsedHours), never
     // baked into this saved total, or the UI would double-count them.
     expect(day.hours).toBe(4);
+  });
+});
+
+describe("findOpenShift (midnight-rollover regression)", () => {
+  it("finds a shift with a sign-in but no sign-out, regardless of its date relative to any 'today'", () => {
+    const shifts: Shift[] = [
+      { id: "closed", date: "2026-08-07", location: "", signIn: "09:00", signOut: "17:00" },
+      { id: "open", date: "2026-08-08", location: "", signIn: "10:00", signOut: null },
+    ];
+    // This is the core of the bug fix: the old lookup filtered shifts down
+    // to `date === todayISO` first, so once the calendar date moved past
+    // 2026-08-08 this shift would never even be considered. findOpenShift
+    // has no such filter — it looks at every loaded shift.
+    expect(findOpenShift(shifts)?.id).toBe("open");
+  });
+
+  it("returns null when nothing is open", () => {
+    const shifts: Shift[] = [{ id: "1", date: "2026-08-07", location: "", signIn: "09:00", signOut: "17:00" }];
+    expect(findOpenShift(shifts)).toBeNull();
+  });
+
+  it("returns null for an empty shift list", () => {
+    expect(findOpenShift([])).toBeNull();
+  });
+
+  it("picks the most recent open shift by date if more than one is somehow open", () => {
+    // Not the expected steady state (the backend now enforces at most one —
+    // see backend/src/routes/shifts.ts) but a defensive tie-break in case
+    // older data ever has more than one, rather than picking arbitrarily.
+    const shifts: Shift[] = [
+      { id: "older", date: "2026-08-05", location: "", signIn: "09:00", signOut: null },
+      { id: "newer", date: "2026-08-08", location: "", signIn: "10:00", signOut: null },
+    ];
+    expect(findOpenShift(shifts)?.id).toBe("newer");
+  });
+});
+
+describe("isDateInWeek (week-boundary attribution)", () => {
+  it("is true for every day actually inside the week", () => {
+    const weekDays = buildWeekDays(new Date(2026, 0, 5), "Monday"); // Mon Jan 5 - Sun Jan 11
+    for (const d of weekDays) {
+      expect(isDateInWeek(isoDate(d), weekDays)).toBe(true);
+    }
+  });
+
+  it("is false for a date in the previous week, even the day right before the boundary", () => {
+    const weekDays = buildWeekDays(new Date(2026, 0, 5), "Monday"); // starts Monday Jan 5
+    expect(isDateInWeek("2026-01-04", weekDays)).toBe(false); // the Sunday before
+  });
+
+  it("is false for a date in the following week", () => {
+    const weekDays = buildWeekDays(new Date(2026, 0, 5), "Monday");
+    expect(isDateInWeek("2026-01-12", weekDays)).toBe(false); // the Monday after
+  });
+
+  it("correctly separates a Sunday-ending week from the Monday-starting week right after it", () => {
+    // The exact scenario from the midnight-rollover bug report: a shift
+    // that starts Sunday night and is still open when the calendar rolls
+    // into Monday of a Monday-start week.
+    const sundayWeek = buildWeekDays(new Date(2026, 0, 4), "Monday"); // Dec29 - Jan4 (contains the Sunday)
+    const mondayWeek = buildWeekDays(new Date(2026, 0, 5), "Monday"); // Jan5 - Jan11
+    expect(isDateInWeek("2026-01-04", sundayWeek)).toBe(true);
+    expect(isDateInWeek("2026-01-04", mondayWeek)).toBe(false);
   });
 });
 

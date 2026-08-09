@@ -53,6 +53,57 @@ export interface LocationBreakdown {
 }
 
 /**
+ * The shift that's currently "open" (signed in, no sign-out yet) across
+ * *every* loaded shift — not just today's. Replaces a previous today-only
+ * lookup (`shifts.filter(s => s.date === todayISO)`) that stopped finding an
+ * overnight shift the instant the calendar date rolled over at midnight:
+ * the shift itself never changed, but "today" did, so a same-day filter
+ * lost track of it — the UI flipped back to "Sign in," the timer stopped,
+ * and pressing the button again started a *second* shift instead of ending
+ * the original one.
+ *
+ * In ordinary use there's at most one open shift at a time (the backend
+ * now enforces this — see routes/shifts.ts), so this mostly just needs to
+ * find it regardless of what today's date is. The tie-break by date/sign-in
+ * when more than one somehow exists (e.g. old data from before that
+ * enforcement existed) is a defensive fallback, not the expected case.
+ */
+export function findOpenShift(shifts: Shift[]): Shift | null {
+  let open: Shift | null = null;
+  for (const s of shifts) {
+    if (!s.signIn || s.signOut) continue;
+    if (!open || s.date > open.date || (s.date === open.date && (s.signIn ?? "") > (open.signIn ?? ""))) {
+      open = s;
+    }
+  }
+  return open;
+}
+
+/**
+ * Whether `dateISO` falls within the 7 consecutive days in `weekDays` (as
+ * produced by `buildWeekDays`). ISO date strings (`YYYY-MM-DD`) sort the
+ * same lexicographically as chronologically, so a plain range check against
+ * the first/last day is exact and doesn't need to loop or parse dates.
+ *
+ * Used to decide whether an *open* overnight shift's live, still-ticking
+ * hours belong in the week currently being displayed. Without this check,
+ * a shift that started the night before a week boundary (e.g. Sunday night
+ * into Monday morning, with the week starting Monday) would show its live
+ * hours in the *new* week the moment midnight passed, then — once signed
+ * out — have those same hours actually save under the *previous* week (its
+ * real start date), making the total visibly jump backward. Gating the live
+ * contribution on "does this shift's date actually belong to the week I'm
+ * showing" keeps the displayed and saved totals consistent throughout,
+ * rather than agreeing only before midnight and after sign-out.
+ */
+export function isDateInWeek(dateISO: string, weekDays: Date[]): boolean {
+  if (weekDays.length === 0) return false;
+  const startISO = isoDate(weekDays[0]);
+  const endISO = isoDate(weekDays[weekDays.length - 1]);
+  return dateISO >= startISO && dateISO <= endISO;
+}
+
+/**
  * Buckets shifts by their single `date` field — which is also the *only*
  * place an overnight shift's calendar date lives. A shift has no separate
  * end-date: `date` is always the day it started (sign-in), so a 10:00 PM ->

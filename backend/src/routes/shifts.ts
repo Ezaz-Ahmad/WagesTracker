@@ -27,6 +27,34 @@ function isNonZeroDuration(signIn: string, signOut: string): boolean {
 }
 const ZERO_LENGTH_MESSAGE = "Sign-in and sign-out can't be the same time.";
 
+// A shift is "open" — signed in, not yet signed out — for exactly as long
+// as it's still in progress. At most one of these should ever exist per
+// user; without enforcing that, two tabs or devices (or a slow retry after
+// a dropped response) could each create their own open shift, and the
+// frontend's "one active shift" model (see useTodayShift.ts) would have no
+// well-defined shift to actually act on.
+const OPEN_SHIFT_CONFLICT_MESSAGE = "You already have an open shift. Sign out of it before starting another.";
+
+async function hasOpenShift(userId: string, excludeId?: string): Promise<boolean> {
+  const sql = excludeId
+    ? "SELECT 1 FROM shifts WHERE user_id = ? AND sign_in IS NOT NULL AND sign_out IS NULL AND id != ? LIMIT 1"
+    : "SELECT 1 FROM shifts WHERE user_id = ? AND sign_in IS NOT NULL AND sign_out IS NULL LIMIT 1";
+  const args = excludeId ? [userId, excludeId] : [userId];
+  const result = await db.execute({ sql, args });
+  return result.rows.length > 0;
+}
+
+// The partial unique index in db.ts (idx_shifts_one_open_per_user) is what
+// actually stops a race between two near-simultaneous requests — the
+// hasOpenShift() check above this can't, since both could read "no open
+// shift" before either has committed. This is what turns that index's raw
+// constraint-violation error into the same clean 409 response the upfront
+// check produces in the non-race case, rather than a generic 500.
+function isUniqueConstraintError(e: unknown): boolean {
+  const message = e instanceof Error ? e.message : String(e);
+  return /unique constraint|sqlite_constraint|constraint failed/i.test(message);
+}
+
 shiftsRouter.get(
   "/",
   asyncHandler<AuthedRequest>(async (req, res) => {
@@ -80,13 +108,30 @@ shiftsRouter.post(
       return;
     }
     const { date, location, signIn, signOut } = parsed.data;
+
+    // Only a shift that would itself be "open" needs this check — a
+    // complete shift (both times set, or neither) can never conflict with
+    // an already-open one.
+    if (signIn && !signOut && (await hasOpenShift(req.userId!))) {
+      res.status(409).json({ error: OPEN_SHIFT_CONFLICT_MESSAGE });
+      return;
+    }
+
     const id = randomUUID();
     const now = new Date().toISOString();
-    await db.execute({
-      sql: `INSERT INTO shifts (id, user_id, date, location, sign_in, sign_out, created_at, updated_at)
-            VALUES (@id, @userId, @date, @location, @signIn, @signOut, @now, @now)`,
-      args: { id, userId: req.userId!, date, location, signIn, signOut, now },
-    });
+    try {
+      await db.execute({
+        sql: `INSERT INTO shifts (id, user_id, date, location, sign_in, sign_out, created_at, updated_at)
+              VALUES (@id, @userId, @date, @location, @signIn, @signOut, @now, @now)`,
+        args: { id, userId: req.userId!, date, location, signIn, signOut, now },
+      });
+    } catch (e) {
+      if (isUniqueConstraintError(e)) {
+        res.status(409).json({ error: OPEN_SHIFT_CONFLICT_MESSAGE });
+        return;
+      }
+      throw e;
+    }
 
     const result = await db.execute({ sql: "SELECT * FROM shifts WHERE id = ?", args: [id] });
     const row = result.rows[0] as unknown as ShiftRow;
@@ -135,12 +180,31 @@ shiftsRouter.patch(
       return;
     }
 
+    // Same one-open-shift-per-user rule as creation (see hasOpenShift above)
+    // — this mostly guards against re-opening a previously-completed shift
+    // (clearing signOut) while a different shift is already open. The
+    // ordinary sign-out PATCH (setting signOut on the one open shift) never
+    // trips this: it makes mergedSignOut non-null, so the shift being
+    // patched is no longer "open" after the update.
+    if (mergedSignIn && !mergedSignOut && (await hasOpenShift(req.userId!, existing.id))) {
+      res.status(409).json({ error: OPEN_SHIFT_CONFLICT_MESSAGE });
+      return;
+    }
+
     const columnFor: Record<string, string> = { location: "location", signIn: "sign_in", signOut: "sign_out" };
     const setClauses = keys.map((k) => `${columnFor[k]} = @${k}`);
     const params: Record<string, InValue> = { id: req.params.id, updatedAt: new Date().toISOString() };
     for (const k of keys) params[k] = updates[k] as InValue;
 
-    await db.execute({ sql: `UPDATE shifts SET ${setClauses.join(", ")}, updated_at = @updatedAt WHERE id = @id`, args: params });
+    try {
+      await db.execute({ sql: `UPDATE shifts SET ${setClauses.join(", ")}, updated_at = @updatedAt WHERE id = @id`, args: params });
+    } catch (e) {
+      if (isUniqueConstraintError(e)) {
+        res.status(409).json({ error: OPEN_SHIFT_CONFLICT_MESSAGE });
+        return;
+      }
+      throw e;
+    }
     const result = await db.execute({ sql: "SELECT * FROM shifts WHERE id = ?", args: [req.params.id] });
     const row = result.rows[0] as unknown as ShiftRow;
     res.json({ shift: toPublicShift(row) });

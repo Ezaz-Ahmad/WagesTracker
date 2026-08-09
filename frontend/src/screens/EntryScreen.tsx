@@ -4,6 +4,7 @@ import {
   buildWeekDaysComputed,
   groupByDate,
   groupExpensesByDate,
+  isDateInWeek,
   weekExtraFor,
   weekTotals,
   type DayComputed,
@@ -85,9 +86,18 @@ export function EntryScreen() {
 
   // Same live-total treatment as the Home screen: the open shift's elapsed
   // time counts toward this week's total immediately, on top of what's saved.
+  // Only counted here if the open shift's *own* starting date actually falls
+  // in the week currently on screen — an overnight shift that started the
+  // night before a week boundary (e.g. Sunday into a Monday-start week)
+  // belongs entirely to the previous week (see isDateInWeek/computeHours),
+  // so without this check its live hours would show up in this week first
+  // and then visibly jump back to the previous week the moment it's signed
+  // out and actually saved under its real date.
   const liveHours = useLiveElapsedHours(active, last?.signIn ?? null);
-  const totalHours = savedHours + liveHours;
-  const totalEarnings = savedEarnings + liveHours * rate;
+  const activeShiftInThisWeek = !!last && isDateInWeek(last.date, weekDays);
+  const effectiveLiveHours = activeShiftInThisWeek ? liveHours : 0;
+  const totalHours = savedHours + effectiveLiveHours;
+  const totalEarnings = savedEarnings + effectiveLiveHours * rate;
   // Show the exact live value every tick instead of easing toward it while a
   // shift is active — an ongoing eased chase toward a moving target reads as
   // "stuck," not live.

@@ -135,6 +135,34 @@ try {
   // already migrated
 }
 
+// Guards against two tabs/devices both creating an "open" shift (signed in,
+// no sign-out yet) for the same user at nearly the same instant — the
+// application-level check in routes/shifts.ts handles the ordinary case and
+// returns a clean 409, but two requests landing close enough together could
+// both pass that check before either commits. A partial unique index makes
+// the *second* INSERT/UPDATE fail at the database level regardless of which
+// of the two wins the race, which routes/shifts.ts catches and turns into
+// the same 409 response.
+//
+// Run separately from the main executeMultiple schema block above (and
+// wrapped in try/catch like the ALTER TABLE migrations here) because on a
+// database that already has more than one open shift for some user — e.g.
+// from before this fix existed — creating this index fails outright. That's
+// a real data conflict this migration deliberately doesn't try to silently
+// resolve (it would mean guessing which of two genuinely-open shifts to
+// force-close). If it fails, the app keeps running on the application-level
+// check alone rather than refusing to start.
+try {
+  await db.execute(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_shifts_one_open_per_user ON shifts(user_id) WHERE sign_in IS NOT NULL AND sign_out IS NULL"
+  );
+} catch (e) {
+  console.warn(
+    "Could not create idx_shifts_one_open_per_user — at least one user likely already has more than one open shift. Falling back to the application-level check in routes/shifts.ts only.",
+    e instanceof Error ? e.message : e
+  );
+}
+
 export const RETENTION_YEARS = 5;
 
 export async function pruneExpiredShifts(): Promise<void> {
