@@ -1,7 +1,7 @@
 node_modules/
 dist/
 dist_bak*/
-dist_verify_tmp/
+dist_verify*/
 build/
 *.log
 .env
