@@ -102,19 +102,35 @@ button { font-family: inherit; }
    (confirmed across the login-transition case and on input blur, e.g. the
    fuel-cost field) — a smaller, transient problem than a permanent gap.
    The mobile background-color match below (see shell.css) stays regardless
-   of unit, since it softens whichever residual sliver shows up either way. */
+   of unit, since it softens whichever residual sliver shows up either way.
+
+   `dvh` is now only the *fallback*, though. Its remaining problem is that
+   it's the browser's number, resolved on the browser's schedule, and on an
+   installed iOS PWA WebKit defers that resolution after the keyboard closes
+   — so the shell kept a keyboard-era height until the user's first scroll
+   forced a relayout (the post-login gap under the bottom nav). The real
+   height now comes from `--app-viewport-height`, measured from
+   `visualViewport.height` in JS and kept in sync by lib/viewportHeight.ts,
+   which can't go stale that way. `100dvh` still covers first paint before
+   the script runs, and any environment where it never does. */
 .app-shell {
   height: 100vh; height: 100dvh;
   overflow: hidden;
   background: var(--color-neutral-300);
   display: flex; justify-content: center;
-  /* Fades in right after mount (see App.tsx) instead of appearing instantly —
-     forces iOS to recomposite every frame of the transition, so by the time
-     it's fully visible it's guaranteed to be painted against settled layout,
-     sidestepping a stale-paint bug where the bottom nav briefly shows a gap
-     right after login that only otherwise clears on the user's first scroll. */
+  /* Cosmetic entrance only. This used to be the attempted fix for the gap
+     described above — an opacity animation recomposites every frame, which
+     turns out not to help, because compositing a box that was laid out at
+     the wrong height still shows the wrong height. Correctness lives in the
+     measured height, not here. */
   opacity: 0;
   transition: opacity 380ms var(--ease-out, ease);
+}
+/* Inside @supports so browsers without `dvh` keep the plain `100vh` above:
+   a var() fallback of `100dvh` would otherwise be invalid at computed-value
+   time there and leave the shell auto-height. */
+@supports (height: 100dvh) {
+  .app-shell { height: var(--app-viewport-height, 100dvh); }
 }
 .app-shell.is-entered { opacity: 1; }
 .app-frame {

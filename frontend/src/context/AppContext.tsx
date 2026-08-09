@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
 import { addDays, isoDate, startOfWeek } from "../lib/date";
+import { settleViewportBeforeAuth } from "../lib/viewportHeight";
 import type { SessionInfo } from "../lib/api";
 import type { DayExpense, Shift, User, WeekExtra } from "../lib/types";
 
@@ -35,36 +36,15 @@ const IDLE_LOGOUT_MESSAGE =
 const EARNINGS_REVEAL_MS = 20 * 60 * 1000;
 
 // On mobile, submitting the login/signup form happens while the on-screen
-// keyboard is still open. If we flip straight to the authed shell at that
-// instant, iOS Safari paints the `100dvh` app shell against the viewport as
-// it looks *with the keyboard still closing* — leaving a gap under the
-// bottom nav until the next real scroll nudges Safari into recomputing it.
-// Blurring the field and waiting one real keyboard-close cycle (via
-// `visualViewport`'s resize event, since that's what actually fires when
-// the keyboard animates away) means the shell only ever mounts against the
-// settled viewport. Skipped entirely when no keyboard is open (desktop, or
-// a fast auto-login) so it never adds latency where there's nothing to wait
-// for.
-async function settleKeyboardBeforeAuth(): Promise<void> {
-  const active = document.activeElement as HTMLElement | null;
-  active?.blur();
-  const vv = window.visualViewport;
-  if (!vv) return;
-  const keyboardLikelyOpen = window.innerHeight - vv.height > 80;
-  if (!keyboardLikelyOpen) return;
-  await new Promise<void>((resolve) => {
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      vv.removeEventListener("resize", finish);
-      clearTimeout(timer);
-      resolve();
-    };
-    vv.addEventListener("resize", finish);
-    const timer = setTimeout(finish, 400);
-  });
-}
+// keyboard is still open, so the authenticated shell would otherwise mount
+// against a viewport that is still mid-animation. `settleViewportBeforeAuth`
+// (lib/viewportHeight.ts) blurs the field, waits for the visual viewport to
+// stop moving — a quiet period, not the first resize event, which on iOS is
+// only an intermediate frame of the keyboard animation — and publishes the
+// settled height before we flip status. It returns immediately when there's
+// no software keyboard in play (desktop, or a token auto-login), so neither
+// of those pays any delay for it. Both login and signup use it: they are the
+// same transition and hit the same bug.
 
 type Status = "loading" | "loggedOut" | "loggedIn";
 
@@ -246,7 +226,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       else api.clearRememberedEmail();
       setUser(user);
       hideEarningsNow();
-      await settleKeyboardBeforeAuth();
+      await settleViewportBeforeAuth();
       setStatus("loggedIn");
     } catch (e) {
       setAuthError(e instanceof Error ? e.message : "Could not log in");
@@ -264,7 +244,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       api.recordActivity();
       setUser(user);
       hideEarningsNow();
-      await settleKeyboardBeforeAuth();
+      await settleViewportBeforeAuth();
       setStatus("loggedIn");
     } catch (e) {
       setAuthError(e instanceof Error ? e.message : "Could not create account");

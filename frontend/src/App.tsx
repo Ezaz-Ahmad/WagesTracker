@@ -15,6 +15,7 @@ import { HistoryScreen } from "./screens/HistoryScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { useSwipeNav } from "./lib/useSwipeNav";
 import { usePullToRefresh } from "./lib/usePullToRefresh";
+import { useViewportHeight } from "./lib/useViewportHeight";
 import { reloadIfNewVersionDeployed } from "./lib/checkForUpdate";
 import type { Screen } from "./lib/types";
 
@@ -51,17 +52,15 @@ function AuthedApp() {
   }, [activeIndex]);
   const screenTransitionClass = `screen-transition${direction === 1 ? " dir-fwd" : direction === -1 ? " dir-back" : ""}`;
 
-  // Both a JS scroll nudge and a forced display-toggle repaint failed to
-  // fix this (confirmed on-device) and the scroll nudge actively made
-  // things worse — it seems to trigger iOS's own toolbar hide/show
-  // heuristic, which then keeps oscillating on its own for a couple of
-  // seconds instead of settling once. Fighting the browser's compositor
-  // directly isn't working, so instead of forcing an instantaneous repaint,
-  // fade the shell in over a real CSS transition. An opacity animation
-  // forces a fresh composite on every frame it runs, so whatever the state
-  // is by the time the fade finishes (layout is confirmed to settle within
-  // well under a second on its own), that's what gets painted — no scroll
-  // tricks, nothing that can destabilize the toolbar.
+  // Purely cosmetic: the shell fades in rather than snapping in. This used
+  // to double as the (unsuccessful) fix for the post-login bottom-nav gap —
+  // the theory being that an opacity animation forces a fresh composite
+  // every frame, so the shell would end up painted against settled layout.
+  // It doesn't work, because re-compositing is not re-laying-out: a box laid
+  // out at the wrong height just gets repainted at the wrong height. The
+  // height is now measured directly instead (lib/viewportHeight.ts), and
+  // correctness no longer depends on this transition in any way — removing
+  // it would change how the entrance looks and nothing else.
   const [entered, setEntered] = useState(false);
   useEffect(() => {
     let raf2 = 0;
@@ -179,6 +178,13 @@ function Root() {
 }
 
 export default function App() {
+  // Measures the real visible viewport into `--app-viewport-height` for the
+  // whole session (see lib/viewportHeight.ts). Mounted here, outside
+  // AppProvider's auth gate, so the value is already published before the
+  // authenticated shell ever renders — the shell never has to wait on
+  // WebKit re-resolving `dvh` for itself.
+  useViewportHeight();
+
   return (
     <AppProvider>
       <ConfirmProvider>

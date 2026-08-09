@@ -32,6 +32,21 @@
   .app-shell { background: var(--color-bg); }
 }
 
+/* — installed phone PWA: carry that same background all the way out to the
+   root surfaces. Nothing should normally be visible behind the shell (it's
+   sized to the measured viewport — see lib/viewportHeight.ts), but iOS can
+   still expose a sliver of <html> during its own rubber-band overscroll, and
+   the default neutral-300 body background reads as a grey strip when it
+   does. This is cosmetic insurance for that one frame only — the shell being
+   the right height is what actually fixes the bug. */
+@media (display-mode: standalone) and (max-width: 719px) {
+  html,
+  body,
+  #root {
+    background: var(--color-bg);
+  }
+}
+
 /* — tablet: wider card, bottom nav stays (still a touch device) — */
 @media (min-width: 720px) {
   .app-frame { max-width: 640px; }
