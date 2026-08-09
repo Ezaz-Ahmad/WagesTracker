@@ -1,7 +1,15 @@
+import type { ComponentType } from "react";
+import { ChevronRightIcon } from "../components/icons";
+
 export interface SettingsCategory {
   id: string;
   label: string;
   hint: string;
+  /** Small glyph shown at the start of this category's row — one of the
+   * icon components from components/icons.tsx, kept generic here (rather
+   * than importing each icon by name) so SettingsNav doesn't need to know
+   * the full list of categories or their meanings, only how to lay one out. */
+  icon: ComponentType<{ size?: number }>;
 }
 
 interface SettingsNavProps {
@@ -24,6 +32,7 @@ export function SettingsNav({ categories, activeCategory, onSelect, onButtonRef 
       <ul className="settings-nav-list">
         {categories.map((c) => {
           const isActive = c.id === activeCategory;
+          const Icon = c.icon;
           return (
             <li key={c.id}>
               <button
@@ -33,8 +42,16 @@ export function SettingsNav({ categories, activeCategory, onSelect, onButtonRef 
                 onClick={() => onSelect(c.id)}
                 aria-current={isActive ? "page" : undefined}
               >
-                <span className="settings-nav-item-label">{c.label}</span>
-                <span className="settings-nav-item-hint">{c.hint}</span>
+                <span className="settings-nav-item-icon" aria-hidden="true">
+                  <Icon size={18} />
+                </span>
+                <span className="settings-nav-item-text">
+                  <span className="settings-nav-item-label">{c.label}</span>
+                  <span className="settings-nav-item-hint">{c.hint}</span>
+                </span>
+                <span className="settings-nav-item-chevron" aria-hidden="true">
+                  <ChevronRightIcon size={16} />
+                </span>
               </button>
             </li>
           );

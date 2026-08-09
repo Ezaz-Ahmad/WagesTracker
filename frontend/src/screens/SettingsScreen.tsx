@@ -7,13 +7,14 @@ import { WorkPaySettings } from "../settings/WorkPaySettings";
 import { GoalSettings } from "../settings/GoalSettings";
 import { SecuritySettings } from "../settings/SecuritySettings";
 import { DataAccountSettings } from "../settings/DataAccountSettings";
+import { BriefcaseIcon, DatabaseIcon, LockIcon, TargetIcon, UserIcon } from "../components/icons";
 
 const SETTINGS_CATEGORIES: readonly SettingsCategory[] = [
-  { id: "profile", label: "Profile & preferences", hint: "Name, address, week start" },
-  { id: "workpay", label: "Work & pay", hint: "Location, address, hourly rate" },
-  { id: "goals", label: "Weekly goals", hint: "Hours and earnings targets" },
-  { id: "security", label: "Security", hint: "Password and active sessions" },
-  { id: "data", label: "Data & account", hint: "Retention, version, delete account" },
+  { id: "profile", label: "Profile & preferences", hint: "Name, address, week start", icon: UserIcon },
+  { id: "workpay", label: "Work & pay", hint: "Location, address, hourly rate", icon: BriefcaseIcon },
+  { id: "goals", label: "Weekly goals", hint: "Hours and earnings targets", icon: TargetIcon },
+  { id: "security", label: "Security", hint: "Password and active sessions", icon: LockIcon },
+  { id: "data", label: "Data & account", hint: "Retention, version, delete account", icon: DatabaseIcon },
 ];
 
 /**

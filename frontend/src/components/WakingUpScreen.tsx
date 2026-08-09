@@ -1,87 +1,134 @@
-import { useEffect, useRef, useState } from "react";
-import { pingHealth } from "../lib/api";
-import { GoalRing } from "./GoalRing";
+import { useEffect, useRef } from "react";
+import { AlertTriangleIcon, CheckIcon } from "./icons";
 import { Logo } from "./Logo";
+import { StableLabel } from "./StableLabel";
+import { useHealthWakeup, type HealthWakeupPhase } from "../lib/useHealthWakeup";
+import { useMatchMedia } from "../lib/useMatchMedia";
 
-/** How long the eased progress takes to visually settle near its cap — tuned
- * to roughly match a typical Render free-tier cold start (well under a
- * minute), so the bar's pace feels honest rather than either racing ahead of
- * reality or crawling long after the server's actually back. */
-const EASE_SECONDS = 35;
-/** The eased fill never claims 100% on its own — only a real successful ping
- * does that. This cap is how close it's allowed to get while still waiting. */
-const EASE_CAP = 96;
-/** After this long, swap in a message acknowledging it's taking a while,
- * rather than silently sitting at ~96% with no explanation. */
-const SLOW_AFTER_SECONDS = 75;
+const RING_SIZE = 96;
+const RING_STROKE = 8;
+/** The indeterminate arc covers roughly a quarter of the ring — long enough
+ * to read clearly as "in motion" while spinning, short enough not to look
+ * like a stalled, nearly-complete determinate bar. */
+const INDETERMINATE_ARC_FRACTION = 0.26;
 
-/** Shown in place of a blank screen while we wait to find out whether the
- * user is logged in — the one moment that can otherwise be a real, multi-
- * minute wait if Render's free-tier instance has spun down. The percentage
- * is a genuine signal, not just decoration: it only reaches 100 once a
- * real ping to /api/health succeeds, at which point the parent's own
- * session check (already in flight) is expected to resolve moments later
- * and swap this screen out for the real one. */
+const RETRY_PHASES: ReadonlySet<HealthWakeupPhase> = new Set(["offline", "failed"]);
+
+function formatElapsed(sec: number): string {
+  const whole = Math.max(0, Math.floor(sec));
+  return `${whole} second${whole === 1 ? "" : "s"} elapsed`;
+}
+
+/** The ring's own visual center piece — an indeterminate spinning arc while
+ * trying, a completed ring + checkmark once genuinely connected, and a
+ * dimmed static ring for the two "stopped trying" states. Never a
+ * determinate percentage while waiting: there is nothing honest to compute
+ * one from (see useHealthWakeup's own docs). Purely decorative — the real
+ * accessible status lives in the text region below, so this whole thing is
+ * `aria-hidden`. */
+function ConnectionRing({ phase, reducedMotion }: { phase: HealthWakeupPhase; reducedMotion: boolean }) {
+  const r = (RING_SIZE - RING_STROKE) / 2;
+  const c = 2 * Math.PI * r;
+  const isConnected = phase === "connected";
+  const isStopped = phase === "offline" || phase === "failed";
+  const arcLength = isConnected ? c : c * INDETERMINATE_ARC_FRACTION;
+
+  return (
+    <div
+      className={`connection-ring connection-ring--${phase}${reducedMotion ? " is-static" : ""}`}
+      style={{ width: RING_SIZE, height: RING_SIZE }}
+      aria-hidden="true"
+    >
+      <svg width={RING_SIZE} height={RING_SIZE} viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`} className="connection-ring-svg">
+        <circle
+          cx={RING_SIZE / 2}
+          cy={RING_SIZE / 2}
+          r={r}
+          fill="none"
+          stroke="var(--color-neutral-200)"
+          strokeWidth={RING_STROKE}
+        />
+        <circle
+          cx={RING_SIZE / 2}
+          cy={RING_SIZE / 2}
+          r={r}
+          fill="none"
+          strokeWidth={RING_STROKE}
+          strokeLinecap="round"
+          strokeDasharray={`${arcLength} ${c}`}
+          className="connection-ring-arc"
+        />
+      </svg>
+      {isConnected && (
+        <span className="connection-ring-check">
+          <CheckIcon size={30} />
+        </span>
+      )}
+      {isStopped && (
+        <span className="connection-ring-dot">
+          <AlertTriangleIcon size={26} />
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Shown instead of a blank screen while we wait to learn whether the user
+ * is logged in, or while an explicit login/signup submission is in flight —
+ * the one moment that can otherwise be a real, multi-minute wait if a
+ * cold-started backend has spun down (see App.tsx's Root component).
+ *
+ * IMPORTANT — no fake percentage: a `/api/health` response only ever tells
+ * us "hasn't answered yet" or "just answered successfully." There is no
+ * genuine in-between number, so this screen never shows one. Every value on
+ * screen while waiting is something we actually know: which attempt is in
+ * flight and how long we've really been waiting (see useHealthWakeup). The
+ * ring only ever completes and shows 100% once a real success arrives.
+ */
 export function WakingUpScreen() {
-  const [percent, setPercent] = useState(0);
-  const [elapsedSec, setElapsedSec] = useState(0);
-  const [ready, setReady] = useState(false);
-  const startRef = useRef(Date.now());
+  const { phase, attempt, elapsedSec, retryBusy, retry } = useHealthWakeup();
+  const reducedMotion = useMatchMedia("(prefers-reduced-motion: reduce)");
 
-  // Eased fill — a smooth, ever-slowing climb toward (but never reaching)
-  // the cap, purely to give a sense of real motion between actual pings.
+  const retryBtnRef = useRef<HTMLButtonElement>(null);
+  // Starts at `null` (never a real phase) rather than the initial phase
+  // itself, so a mount that begins *already* offline or failed still counts
+  // as "just arrived at a failure state" and gets focus — not only a later
+  // transition into one.
+  const prevPhaseRef = useRef<HealthWakeupPhase | null>(null);
   useEffect(() => {
-    const id = setInterval(() => {
-      const elapsed = (Date.now() - startRef.current) / 1000;
-      setElapsedSec(elapsed);
-      const eased = EASE_CAP * (1 - Math.exp(-elapsed / EASE_SECONDS));
-      setPercent((prev) => (prev >= 100 ? prev : Math.max(prev, Math.min(EASE_CAP, eased))));
-    }, 200);
-    return () => clearInterval(id);
-  }, []);
+    const enteredFailureState = (phase === "offline" || phase === "failed") && prevPhaseRef.current !== phase;
+    if (enteredFailureState) retryBtnRef.current?.focus({ preventScroll: true });
+    prevPhaseRef.current = phase;
+  }, [phase]);
 
-  // The real signal: keep pinging /api/health until it actually answers.
-  // Each attempt gets its own timeout so a stalled connection doesn't hang
-  // the whole loop — a fresh attempt starts right after, still reaching the
-  // same waking-up server.
-  useEffect(() => {
-    let cancelled = false;
-    let retryTimer: ReturnType<typeof setTimeout>;
+  const heading =
+    phase === "offline" ? "No internet connection" : phase === "failed" ? "Unable to connect" : "Getting Wage Tracker ready";
 
-    async function loop() {
-      while (!cancelled) {
-        const ok = await pingHealth(10000);
-        if (cancelled) return;
-        if (ok) {
-          setPercent(100);
-          setReady(true);
-          return;
-        }
-        await new Promise<void>((resolve) => {
-          retryTimer = setTimeout(resolve, 2500);
-        });
-      }
-    }
+  const caption =
+    phase === "connecting"
+      ? "Connecting…"
+      : phase === "waking"
+        ? "Waking the server…"
+        : phase === "slow"
+          ? "Taking a little longer…"
+          : phase === "connected"
+            ? "Connected — loading your account…"
+            : phase === "offline"
+              ? "Check your connection and try again."
+              : "We couldn't reach the server. Check your connection and try again.";
 
-    void loop();
-    return () => {
-      cancelled = true;
-      clearTimeout(retryTimer);
-    };
-  }, []);
+  const meta =
+    phase === "connecting"
+      ? "Connection attempt 1"
+      : phase === "waking" || phase === "slow"
+        ? `Attempt ${attempt} · ${formatElapsed(elapsedSec)}`
+        : phase === "connected"
+          ? "100%"
+          : "";
 
-  // Kept deliberately generic — this screen covers both a silent auto-login
-  // check and an explicit login/signup submission, so it never assumes
-  // which one is in flight.
-  const caption = ready
-    ? "Connected — just a moment…"
-    : elapsedSec > SLOW_AFTER_SECONDS
-      ? "Still going — a cold start can occasionally take a couple of minutes."
-      : elapsedSec < 8
-        ? "Connecting…"
-        : percent < 80
-          ? "Waking up the server — this can take a minute if it's been idle."
-          : "Almost there…";
+  const showSlowHint = phase === "slow";
+  const showRetry = RETRY_PHASES.has(phase);
 
   return (
     <div className="wakeup-shell">
@@ -91,12 +138,40 @@ export function WakingUpScreen() {
           <span className="wakeup-logo-halo" aria-hidden="true" />
           <Logo size={34} />
         </div>
-        <GoalRing pct={percent} value={`${Math.round(percent)}%`} size={148} strokeWidth={10} />
-        {/* Keyed so each distinct message crossfades in on its own, instead
-            of the text silently jumping mid-sentence. */}
-        <p className="wakeup-caption" key={caption}>
-          {caption}
-        </p>
+
+        <ConnectionRing phase={phase} reducedMotion={reducedMotion} />
+
+        <div className="wakeup-text" role="status" aria-live="polite" aria-label="Connecting to the Wage Tracker server">
+          <h1 className="wakeup-heading">{heading}</h1>
+          {/* Keyed so each distinct caption crossfades in on its own, instead
+              of the text silently jumping mid-sentence. */}
+          <p className="wakeup-caption" key={caption}>
+            {caption}
+          </p>
+          {/* Always mounted (rather than conditionally rendered) and its box
+              given a reserved min-height in CSS, so the one moment this
+              text actually has something to say (the "slow" phase) doesn't
+              grow the card or nudge anything below it — only its opacity
+              changes. */}
+          <p className={`wakeup-slow-hint${showSlowHint ? " is-visible" : ""}`} aria-hidden={showSlowHint ? undefined : true}>
+            The server may have been idle. You can keep this screen open.
+          </p>
+          {/* Visually shows the real attempt/elapsed figures (and, only once
+              truly connected, "100%") but is deliberately excluded from the
+              accessibility tree — the meaningful phase change above is
+              already announced via the live region; re-announcing an
+              elapsed-seconds counter every tick would be noise, not signal. */}
+          <p className="wakeup-meta" aria-hidden="true">
+            {meta}
+          </p>
+        </div>
+
+        {showRetry && (
+          <button ref={retryBtnRef} type="button" className="btn btn-primary wakeup-retry-btn" onClick={retry} disabled={retryBusy}>
+            {retryBusy && <span className="wakeup-spinner" aria-hidden="true" />}
+            <StableLabel current={retryBusy ? "Retrying…" : "Retry"} longest="Retrying…" />
+          </button>
+        )}
       </div>
     </div>
   );

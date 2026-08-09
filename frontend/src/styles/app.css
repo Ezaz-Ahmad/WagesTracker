@@ -311,51 +311,136 @@ button { font-family: inherit; }
 .progress-fill { height: 100%; background: var(--color-accent); }
 
 /* — waking up (cold-start) screen — shown instead of a blank page while we
-   wait to learn if there's a valid session; see WakingUpScreen.tsx. Built
-   as its own floating, glowing moment (like the confirm popup and wheel
-   picker) rather than a plain flat card, since it can be the only thing on
-   screen for a while — worth making it feel alive, not just functional. */
-.wakeup-shell { position: relative; min-height: 100dvh; display: grid; place-items: center; padding: var(--space-4); overflow: hidden; }
+   wait to learn if there's a valid session; see WakingUpScreen.tsx and
+   useHealthWakeup.ts. Built as its own floating card (like the confirm
+   popup and wheel picker) rather than a plain flat block, since it can be
+   the only thing on screen for a while — but kept restrained rather than
+   loud: a soft glow and a gentle ring, no bouncing or aggressive pulsing,
+   since a genuine multi-second-to-multi-minute wait is exactly the moment a
+   busy, attention-grabbing screen would start to feel obnoxious. */
+.wakeup-shell {
+  position: relative; min-height: 100dvh; display: grid; place-items: center; overflow: hidden;
+  /* Safe-area-aware padding — never lets the card sit under a notch/home
+     indicator on mobile, while still keeping the normal space token as the
+     floor on devices with no inset at all. */
+  padding: max(var(--space-4), env(safe-area-inset-top)) max(var(--space-4), env(safe-area-inset-right))
+    max(var(--space-4), env(safe-area-inset-bottom)) max(var(--space-4), env(safe-area-inset-left));
+}
 .wakeup-glow {
-  position: absolute; width: 440px; height: 440px; max-width: 120vw; border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--color-accent) 24%, transparent), transparent 68%);
-  filter: blur(6px); pointer-events: none;
-  animation: wakeup-glow-pulse 3.6s var(--ease-standard) infinite;
+  position: absolute; width: 340px; height: 340px; max-width: 100vw; border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--color-accent) 12%, transparent), transparent 70%);
+  filter: blur(10px); pointer-events: none;
+  animation: wakeup-glow-pulse 5.5s var(--ease-standard) infinite;
 }
 @keyframes wakeup-glow-pulse {
-  0%, 100% { transform: scale(0.9); opacity: 0.5; }
-  50% { transform: scale(1.08); opacity: 0.85; }
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 0.85; }
 }
 .wakeup-card {
-  position: relative; width: min(300px, 100%);
+  position: relative; width: min(380px, calc(100vw - 32px));
   display: flex; flex-direction: column; align-items: center; gap: var(--space-4);
   padding: var(--space-6) var(--space-5);
-  background: color-mix(in srgb, var(--color-bg) 88%, white 12%);
-  border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
-  border-radius: 26px;
+  background: color-mix(in srgb, var(--color-bg) 92%, white 8%);
+  border: 1px solid color-mix(in srgb, var(--color-text) 9%, transparent);
+  border-radius: 22px;
   box-shadow:
-    0 30px 70px -14px color-mix(in srgb, #000 32%, transparent),
-    0 3px 14px color-mix(in srgb, #000 10%, transparent),
-    inset 0 1px 0 color-mix(in srgb, white 55%, transparent);
-  animation: wakeup-card-in 520ms var(--ease-emphasized) both;
+    0 16px 40px -18px color-mix(in srgb, #000 26%, transparent),
+    0 2px 8px color-mix(in srgb, #000 8%, transparent);
+  animation: wakeup-card-in 420ms var(--ease-emphasized) both;
 }
 @keyframes wakeup-card-in {
-  from { opacity: 0; transform: translateY(14px) scale(0.96); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .wakeup-logo-wrap { position: relative; display: grid; place-items: center; }
 .wakeup-logo-halo {
-  position: absolute; width: 58px; height: 58px; border-radius: 50%;
-  background: color-mix(in srgb, var(--color-accent) 38%, transparent);
-  filter: blur(11px);
-  animation: timer-breathe 2.2s var(--ease-standard) infinite;
+  position: absolute; width: 52px; height: 52px; border-radius: 50%;
+  background: color-mix(in srgb, var(--color-accent) 28%, transparent);
+  filter: blur(10px);
+  animation: timer-breathe 2.6s var(--ease-standard) infinite;
 }
-.wakeup-logo-wrap svg { position: relative; filter: drop-shadow(0 4px 10px color-mix(in srgb, var(--color-accent) 45%, transparent)); }
-.wakeup-caption {
-  margin: 0; font-size: 13px; text-align: center; min-height: 2.6em;
-  color: color-mix(in srgb, var(--color-text) 62%, transparent);
+.wakeup-logo-wrap svg { position: relative; filter: drop-shadow(0 3px 8px color-mix(in srgb, var(--color-accent) 35%, transparent)); }
+
+/* — indeterminate connection ring — a spinning partial arc while trying,
+   never a determinate fill: there is no genuine number to compute one from
+   until a real health check actually succeeds (see useHealthWakeup.ts).
+   Entirely decorative (aria-hidden in the component) — the real accessible
+   status lives in .wakeup-text below. */
+.connection-ring { position: relative; flex: none; display: grid; place-items: center; }
+.connection-ring-svg { display: block; }
+.connection-ring-arc {
+  stroke: var(--color-accent);
+  transform-origin: 50% 50%;
+  transform: rotate(-90deg);
+  transition: stroke var(--dur-base) var(--ease-standard);
+  animation: connection-ring-spin 1.3s linear infinite;
+}
+@keyframes connection-ring-spin {
+  from { transform: rotate(-90deg); }
+  to { transform: rotate(270deg); }
+}
+.connection-ring--connected .connection-ring-arc { stroke: var(--color-success); animation: none; }
+.connection-ring--offline .connection-ring-arc,
+.connection-ring--failed .connection-ring-arc {
+  stroke: var(--color-neutral-400);
+  animation: none;
+}
+/* Reduced motion (or the component's own matchMedia check, applied as
+   .is-static): the arc stops spinning and simply sits still — still visible
+   as a partial ring, not hidden — while the surrounding text keeps
+   delivering every real update. */
+.connection-ring.is-static .connection-ring-arc { animation: none; }
+.connection-ring-check {
+  position: absolute; inset: 0; display: grid; place-items: center; color: var(--color-success);
+  animation: connection-ring-check-in 260ms var(--ease-emphasized) both;
+}
+@keyframes connection-ring-check-in {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+.connection-ring-dot {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  color: var(--color-neutral-500);
   animation: fade-in var(--dur-base) var(--ease-standard) both;
 }
+
+.wakeup-text {
+  width: 100%; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  text-align: center;
+  /* Reserves room for the tallest realistic combination (heading + caption
+     + the slow-hint line, which is always mounted — see the component —
+     rather than inserted/removed) so no phase transition ever grows or
+     shrinks the card. */
+  min-height: 118px;
+}
+.wakeup-heading {
+  margin: 0; font-size: 18px; letter-spacing: -0.01em;
+}
+.wakeup-caption {
+  margin: 0; font-size: 13.5px; min-height: 1.4em;
+  color: color-mix(in srgb, var(--color-text) 66%, transparent);
+  animation: fade-in var(--dur-base) var(--ease-standard) both;
+}
+.wakeup-slow-hint {
+  margin: 2px 0 0; font-size: 11.5px; line-height: 1.4; max-width: 30ch;
+  min-height: 2.6em;
+  color: color-mix(in srgb, var(--color-text) 56%, transparent);
+  opacity: 0; transition: opacity var(--dur-base) var(--ease-standard);
+}
+.wakeup-slow-hint.is-visible { opacity: 1; }
+.wakeup-meta {
+  margin: 2px 0 0; font-size: 11px; letter-spacing: 0.02em;
+  min-height: 1.4em;
+  color: color-mix(in srgb, var(--color-text) 50%, transparent);
+}
+.wakeup-retry-btn { margin-top: 2px; min-width: 128px; min-height: 44px; }
+.wakeup-spinner {
+  width: 14px; height: 14px; border-radius: 50%; flex: none;
+  border: 2px solid color-mix(in srgb, white 40%, transparent);
+  border-top-color: #fff;
+  animation: wakeup-spinner-spin 0.7s linear infinite;
+}
+@keyframes wakeup-spinner-spin { to { transform: rotate(360deg); } }
 /* — circular CTA — the sign-in/sign-out button, in whichever color
    ShiftButton sets inline; the glow/highlight here works with either since
    it's built from shadow layers rather than a fixed tint. */

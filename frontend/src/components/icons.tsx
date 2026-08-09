@@ -224,3 +224,60 @@ export function GlobeIcon({ size = 14 }: IconProps) {
     </svg>
   );
 }
+
+/** Simple person silhouette — used on the "Profile & preferences" Settings
+ * category row. */
+export function UserIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4.5 20c1.2-3.8 4.3-6 7.5-6s6.3 2.2 7.5 6" />
+    </svg>
+  );
+}
+
+/** Briefcase — used on the "Work & pay" Settings category row. */
+export function BriefcaseIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <rect x="3" y="8" width="18" height="11" rx="2" />
+      <path d="M8 8V6a2 2 0 012-2h4a2 2 0 012 2v2" />
+      <path d="M3 13h18" />
+    </svg>
+  );
+}
+
+/** Padlock — used on the "Security" Settings category row. */
+export function LockIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <rect x="4.5" y="10.5" width="15" height="10" rx="2" />
+      <path d="M7.5 10.5V7a4.5 4.5 0 019 0v3.5" />
+      <circle cx="12" cy="15.2" r="1.3" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+/** Stacked database cylinder — used on the "Data & account" Settings
+ * category row. */
+export function DatabaseIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <ellipse cx="12" cy="6" rx="7.5" ry="3" />
+      <path d="M4.5 6v6c0 1.66 3.36 3 7.5 3s7.5-1.34 7.5-3V6" />
+      <path d="M4.5 12v6c0 1.66 3.36 3 7.5 3s7.5-1.34 7.5-3v-6" />
+    </svg>
+  );
+}
+
+/** Simple right-pointing chevron — used as the navigation affordance on
+ * Settings category rows. Built as its own icon (rather than rotating
+ * ChevronDownIcon via CSS like the Settings back button does) so its
+ * "chevron" identity is explicit at the call site. */
+export function ChevronRightIcon({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <path d="M9 6l6 6-6 6" />
+    </svg>
+  );
+}

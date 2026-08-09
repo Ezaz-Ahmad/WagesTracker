@@ -71,13 +71,27 @@ export function clearRememberedEmail(): void {
 
 /** Pings the backend's lightweight health endpoint directly — no auth header,
  * no JSON error parsing, just "did it answer." Used by the "waking up"
- * screen to show real progress while a cold Render instance spins back up.
+ * screen to know when a cold Render instance has actually spun back up.
  * Deliberately separate from `fetchMe` (the actual session check that
  * decides whether the user is logged in): this just answers "is the server
- * up yet," which resolves slightly sooner since it skips the DB lookup. */
-export async function pingHealth(timeoutMs: number = 10000): Promise<boolean> {
+ * up yet," which resolves slightly sooner since it skips the DB lookup.
+ *
+ * A health response only ever carries two facts — "not answered yet" and
+ * "answered successfully" — so callers should treat this as a boolean
+ * readiness signal only, never as a basis for a percentage.
+ *
+ * `externalSignal` lets the caller cancel this specific request from
+ * outside (component unmount, or the user pressing Retry) in addition to
+ * this function's own `timeoutMs` abort — both are wired to the same
+ * underlying AbortController, so whichever fires first wins. */
+export async function pingHealth(timeoutMs: number = 10000, externalSignal?: AbortSignal): Promise<boolean> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const onExternalAbort = () => controller.abort();
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort();
+    else externalSignal.addEventListener("abort", onExternalAbort);
+  }
   try {
     const res = await fetch(`${API_ORIGIN}/api/health`, { signal: controller.signal });
     return res.ok;
@@ -85,6 +99,7 @@ export async function pingHealth(timeoutMs: number = 10000): Promise<boolean> {
     return false;
   } finally {
     clearTimeout(timer);
+    externalSignal?.removeEventListener("abort", onExternalAbort);
   }
 }
 
