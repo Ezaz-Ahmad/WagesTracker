@@ -13,6 +13,8 @@ import { describe, expect, it } from "vitest";
 const stylesDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const appCss = readFileSync(resolve(stylesDir, "app.css"), "utf8");
 const shellCss = readFileSync(resolve(stylesDir, "shell.css"), "utf8");
+const animationsCss = readFileSync(resolve(stylesDir, "animations.css"), "utf8");
+const allCss = [appCss, shellCss, animationsCss].join("\n");
 
 /** Body of a top-level rule, e.g. block(appCss, ".app-bottomnav"). */
 function block(css: string, selector: string): string {
@@ -69,6 +71,40 @@ describe("home-indicator safe area", () => {
     const chain = [".app-shell", ".app-frame", ".app-main", ".app-bottomnav"];
     const uses = chain.filter((selector) => block(appCss, selector).includes("safe-area-inset-bottom"));
     expect(uses).toEqual([".app-bottomnav"]);
+  });
+});
+
+describe("no device-specific or hardcoded escape hatches", () => {
+  it("anchors the nav with the safe area and flex order, not a magic pixel offset", () => {
+    const nav = block(appCss, ".app-bottomnav");
+    // A hardcoded bottom offset would make one screenshot look right and
+    // break every other iPhone, Android, and landscape.
+    expect(nav).not.toMatch(/margin-bottom:\s*\d+px/);
+    expect(nav).not.toMatch(/bottom:\s*\d+px/);
+    expect(nav).not.toMatch(/transform:\s*translateY/);
+  });
+
+  it("contains no device-targeted media queries", () => {
+    // e.g. `@media (device-height: 852px)` — an iPhone 15 Pro-only rule.
+    expect(allCss).not.toMatch(/@media[^{]*device-height/);
+    expect(allCss).not.toMatch(/@media[^{]*device-width/);
+    expect(allCss).not.toMatch(/-webkit-device-pixel-ratio[^)]*\)\s*and[^{]*height/);
+  });
+});
+
+describe("reduced motion", () => {
+  it("still collapses every transition and animation for prefers-reduced-motion", () => {
+    // The shell's fade-in is cosmetic, but it is a transition, so the
+    // reduced-motion block must keep covering it.
+    expect(animationsCss).toContain("@media (prefers-reduced-motion: reduce)");
+    expect(animationsCss).toMatch(/transition-duration:\s*0\.01ms\s*!important/);
+    expect(animationsCss).toMatch(/animation-duration:\s*0\.01ms\s*!important/);
+  });
+
+  it("does not make the shell's height depend on any animation", () => {
+    const shell = block(appCss, ".app-shell");
+    expect(shell).not.toMatch(/transition:[^;]*height/);
+    expect(shell).not.toMatch(/animation:/);
   });
 });
 

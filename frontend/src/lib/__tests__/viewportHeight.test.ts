@@ -1,33 +1,43 @@
 // @vitest-environment jsdom
 //
-// Tests for the visual-viewport manager (lib/viewportHeight.ts) — the fix
-// for the installed-iPhone-PWA bug where the app shell mounted at the
-// keyboard-era height after login and only corrected itself on the user's
-// first swipe.
+// Tests for the visual-viewport manager (lib/viewportHeight.ts).
 //
-// Everything here runs against a mocked `window.visualViewport`, because
-// that is the API the real bug lives in and jsdom doesn't implement it. The
-// cases that matter most are the ones the *previous* workaround got wrong:
-// a keyboard close emits several resize events, and the first one is an
-// intermediate frame — so "the first resize event" must never count as
-// settled, and a quiet period must.
+// The case that matters most, and the one the first fix missed, is the
+// installed standalone PWA: iOS shrinks `window.innerHeight` and
+// `visualViewport.height` *together*, so the computed keyboard inset is ~0.
+// With the login field blurred there is no focused editable either, so every
+// signal claims "unobstructed" and the shortened height gets published as the
+// app height. `standalonePwa()` below models exactly that; `safariBrowser()`
+// models the classic case where only the visual viewport shrinks. Both must
+// end up with the full height published.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  KEYBOARD_INSET_THRESHOLD_PX,
+  BASELINE_TOLERANCE_PX,
+  GUARD_MAX_HOLD_MS,
+  GUARD_STABLE_ACCEPT_MS,
+  ORIENTATION_SETTLE_MS,
   SETTLE_MAX_WAIT_MS,
   SETTLE_QUIET_MS,
   VIEWPORT_HEIGHT_VAR,
   VIEWPORT_OFFSET_TOP_VAR,
+  armKeyboardRecovery,
+  evaluatePublish,
+  getPublishedHeightPx,
+  getUnobstructedBaseline,
+  getViewportDiagnostics,
+  isKeyboardRecoveryActive,
   isSoftKeyboardCapable,
+  isStandalonePWA,
   readViewportMetrics,
+  resetViewportState,
   settleViewportBeforeAuth,
   startViewportSync,
   syncViewportHeight,
   waitForViewportSettle,
 } from "../viewportHeight";
 
-/** Minimal stand-in for the real thing: an EventTarget with height/offsetTop
- * we can move around, exactly like iOS moves it while the keyboard animates. */
+/* ── device simulation ────────────────────────────────────────────────── */
+
 class MockVisualViewport extends EventTarget {
   height: number;
   offsetTop = 0;
@@ -35,7 +45,6 @@ class MockVisualViewport extends EventTarget {
     super();
     this.height = height;
   }
-  /** Move the viewport and fire the event iOS would fire. */
   moveTo(height: number, offsetTop = 0): void {
     this.height = height;
     this.offsetTop = offsetTop;
@@ -43,44 +52,108 @@ class MockVisualViewport extends EventTarget {
   }
 }
 
-let vv: MockVisualViewport | null = null;
+let vv: MockVisualViewport;
 
-function setInnerHeight(value: number): void {
-  Object.defineProperty(window, "innerHeight", { value, configurable: true, writable: true });
-}
-
-function installVisualViewport(height: number): MockVisualViewport {
-  const mock = new MockVisualViewport(height);
-  Object.defineProperty(window, "visualViewport", { value: mock, configurable: true, writable: true });
-  vv = mock;
-  return mock;
-}
-
-function removeVisualViewport(): void {
-  Object.defineProperty(window, "visualViewport", { value: undefined, configurable: true, writable: true });
-  vv = null;
+function setInner(height: number, width = 393): void {
+  Object.defineProperty(window, "innerHeight", { value: height, configurable: true, writable: true });
+  Object.defineProperty(window, "innerWidth", { value: width, configurable: true, writable: true });
+  Object.defineProperty(document.documentElement, "clientHeight", {
+    value: height,
+    configurable: true,
+  });
 }
 
 function setMaxTouchPoints(value: number): void {
   Object.defineProperty(window.navigator, "maxTouchPoints", { value, configurable: true });
 }
 
-function publishedHeight(): string {
-  return document.documentElement.style.getPropertyValue(VIEWPORT_HEIGHT_VAR);
+function setDisplayMode(standalone: boolean): void {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: (query: string) => ({
+      matches: query.includes("display-mode: standalone") ? standalone : query.includes("pointer: coarse") ? standalone : false,
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+      addListener() {},
+      removeListener() {},
+      onchange: null,
+      dispatchEvent: () => false,
+    }),
+  });
 }
 
-/** Resolve-tracker for promises we want to assert are *not* yet resolved. */
-function track(promise: Promise<void>): { done: boolean } {
-  const state = { done: false };
-  void promise.then(() => {
+/** iPhone installed from the Home Screen: touch device, standalone. */
+function standalonePwa(height = 900, width = 393): void {
+  setMaxTouchPoints(5);
+  setDisplayMode(true);
+  setInner(height, width);
+  vv.height = height;
+  vv.offsetTop = 0;
+}
+
+/** Same phone, but running inside Safari's browser UI. */
+function safariBrowser(height = 900, width = 393): void {
+  setMaxTouchPoints(5);
+  setDisplayMode(false);
+  setInner(height, width);
+  vv.height = height;
+  vv.offsetTop = 0;
+}
+
+/** Laptop: no touch, no standalone. */
+function desktopBrowser(height = 900, width = 1440): void {
+  setMaxTouchPoints(0);
+  setDisplayMode(false);
+  setInner(height, width);
+  vv.height = height;
+  vv.offsetTop = 0;
+}
+
+/**
+ * The standalone-PWA keyboard behaviour: BOTH values shrink together, so the
+ * inset arithmetic reads zero. This is the shape the first fix couldn't see.
+ */
+function shrinkBothTo(height: number): void {
+  setInner(height);
+  vv.moveTo(height);
+  window.dispatchEvent(new Event("resize"));
+}
+
+/** The Safari-browser keyboard behaviour: only the visual viewport shrinks. */
+function shrinkVisualOnlyTo(height: number): void {
+  vv.moveTo(height);
+}
+
+function focusField(type = "password"): HTMLInputElement {
+  const input = document.createElement("input");
+  input.type = type;
+  document.body.appendChild(input);
+  input.focus();
+  window.dispatchEvent(new Event("focusin"));
+  return input;
+}
+
+function blurField(input: HTMLInputElement): void {
+  input.blur();
+  window.dispatchEvent(new Event("focusout"));
+}
+
+function published(): number | null {
+  return getPublishedHeightPx();
+}
+
+function track<T>(promise: Promise<T>): { done: boolean; value: T | null } {
+  const state: { done: boolean; value: T | null } = { done: false, value: null };
+  void promise.then((value) => {
     state.done = true;
+    state.value = value;
   });
   return state;
 }
 
-/** Flushes pending microtasks plus one animation frame — enough for a
- * rAF-batched style write to land, short enough not to disturb any settle
- * window (which is measured in hundreds of ms). */
+/** Microtasks plus one animation frame — enough for a rAF-batched write. */
 async function flush(): Promise<void> {
   await vi.advanceTimersByTimeAsync(20);
 }
@@ -97,163 +170,565 @@ beforeEach(() => {
       "cancelAnimationFrame",
     ],
   });
-  document.documentElement.style.removeProperty(VIEWPORT_HEIGHT_VAR);
-  document.documentElement.style.removeProperty(VIEWPORT_OFFSET_TOP_VAR);
   document.body.innerHTML = "";
-  setInnerHeight(900);
-  setMaxTouchPoints(0);
-  installVisualViewport(900);
+  vv = new MockVisualViewport(900);
+  Object.defineProperty(window, "visualViewport", { value: vv, configurable: true, writable: true });
+  Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+  resetViewportState();
+  standalonePwa();
 });
 
 afterEach(() => {
-  removeVisualViewport();
+  resetViewportState();
+  Object.defineProperty(window, "visualViewport", { value: undefined, configurable: true, writable: true });
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
+/* ── measurement ──────────────────────────────────────────────────────── */
+
 describe("readViewportMetrics", () => {
-  it("uses visualViewport.height when the API is available", () => {
-    vv!.height = 640;
-    const metrics = readViewportMetrics();
-    expect(metrics.height).toBe(640);
-    // 900 (layout) - 640 (visible) = the keyboard's share of the screen.
-    expect(metrics.keyboardInset).toBe(260);
+  it("uses visualViewport.height when available", () => {
+    vv.height = 640;
+    expect(readViewportMetrics().height).toBe(640);
   });
 
   it("falls back to window.innerHeight when visualViewport is unavailable", () => {
-    removeVisualViewport();
+    Object.defineProperty(window, "visualViewport", { value: undefined, configurable: true, writable: true });
+    expect(readViewportMetrics().height).toBe(900);
+  });
+
+  it("reports a zero keyboard inset when both values shrink together", () => {
+    // The heart of the standalone bug: this number cannot be used to prove
+    // that no keyboard is present.
+    shrinkBothTo(760);
     const metrics = readViewportMetrics();
-    expect(metrics.height).toBe(900);
+    expect(metrics.height).toBe(760);
+    expect(metrics.innerHeight).toBe(760);
     expect(metrics.keyboardInset).toBe(0);
   });
 
-  it("reports the visual viewport's offsetTop while it is displaced", () => {
-    vv!.height = 640;
-    vv!.offsetTop = 120;
-    expect(readViewportMetrics().offsetTop).toBe(120);
+  it("reports a real inset when only the visual viewport shrinks", () => {
+    safariBrowser();
+    shrinkVisualOnlyTo(500);
+    expect(readViewportMetrics().keyboardInset).toBe(400);
   });
 });
 
-describe("startViewportSync — publishing the CSS variable", () => {
-  it("sets the height variable on initial mount", () => {
-    const stop = startViewportSync();
-    expect(publishedHeight()).toBe("900px");
-    stop();
+describe("environment probes", () => {
+  it("detects standalone display mode", () => {
+    standalonePwa();
+    expect(isStandalonePWA()).toBe(true);
+    desktopBrowser();
+    expect(isStandalonePWA()).toBe(false);
   });
 
-  it("publishes the offsetTop variable too", () => {
-    vv!.offsetTop = 24;
-    const stop = startViewportSync();
-    expect(document.documentElement.style.getPropertyValue(VIEWPORT_OFFSET_TOP_VAR)).toBe("24px");
-    stop();
+  it("treats a laptop as having no software keyboard", () => {
+    desktopBrowser();
+    expect(isSoftKeyboardCapable()).toBe(false);
   });
 
-  it("updates after a visual-viewport resize", async () => {
+  it("treats a touch device as having a software keyboard", () => {
+    standalonePwa();
+    expect(isSoftKeyboardCapable()).toBe(true);
+  });
+});
+
+/* ── the exact reported failure ───────────────────────────────────────── */
+
+describe("installed iPhone PWA — the exact reported login sequence", () => {
+  it("keeps the full height published throughout, and never paints the shortened one", async () => {
+    // 1-4. Standalone, 900/900, published and retained as the baseline.
     const stop = startViewportSync();
-    setInnerHeight(760);
-    vv!.moveTo(760);
+    expect(published()).toBe(900);
+    expect(getUnobstructedBaseline()).toBe(900);
+
+    // 5. Focus the login input.
+    const input = focusField("password");
     await flush();
-    expect(publishedHeight()).toBe("760px");
-    stop();
-  });
 
-  it("updates after a window resize", async () => {
-    const stop = startViewportSync();
-    setInnerHeight(700);
-    vv!.height = 700;
+    // 6. iOS shrinks BOTH innerHeight and visualViewport.height to 760.
+    shrinkBothTo(760);
+    await flush();
+    expect(readViewportMetrics().keyboardInset).toBe(0); // no inset to detect
+    expect(published()).toBe(900); // ...and yet the shell height is untouched
+
+    // 7-8. Submit: the guard is armed before the blur, then the field blurs.
+    const settle = track(
+      settleViewportBeforeAuth().then((result) => {
+        blurField(input);
+        return result;
+      })
+    );
+    // settleViewportBeforeAuth blurs internally; mirror the browser's event.
+    window.dispatchEvent(new Event("focusout"));
+    expect(isKeyboardRecoveryActive()).toBe(true);
+
+    // 9. Every event and delayed timer iOS might fire while still reporting
+    //    the shortened viewport.
+    vv.moveTo(760);
+    vv.dispatchEvent(new Event("scroll"));
     window.dispatchEvent(new Event("resize"));
     await flush();
-    expect(publishedHeight()).toBe("700px");
+
+    // 10-11. Past the quiet period, and past the maximum recovery timeout.
+    await vi.advanceTimersByTimeAsync(SETTLE_QUIET_MS + SETTLE_MAX_WAIT_MS + 200);
+
+    // 12. Authentication is allowed to continue...
+    expect(settle.done).toBe(true);
+    expect(settle.value?.reason).toBe("timed-out");
+
+    // 13-14. ...and nothing published 760. Not the focusout timers, not the
+    // settle step's final immediate sync.
+    expect(published()).toBe(900);
+    expect(getUnobstructedBaseline()).toBe(900);
+
+    // 15-16. iOS finally restores the real viewport.
+    setInner(900);
+    vv.moveTo(900);
+    await flush();
+
+    // 17. The guard releases and the height is unchanged — which is the
+    // acceptance criterion: identical before and after.
+    expect(published()).toBe(900);
+    expect(isKeyboardRecoveryActive()).toBe(false);
+
     stop();
   });
 
-  it("updates after an orientation change, including the deferred re-measure iOS needs", async () => {
+  it("still protects the transition when login is submitted with the on-screen button", async () => {
+    // Tapping the Login button moves focus off the field first, so by the
+    // time auth runs there is no focused editable AND no inset — the login
+    // path must rely on the baseline comparison alone.
     const stop = startViewportSync();
-    // Rotation: iOS still reports the old size during the event turn itself,
-    // and only lands on the new one a couple of hundred ms later.
-    window.dispatchEvent(new Event("orientationchange"));
-    setInnerHeight(430);
-    vv!.height = 430;
-    await vi.advanceTimersByTimeAsync(400);
-    expect(publishedHeight()).toBe("430px");
+    const input = focusField("password");
+    shrinkBothTo(760);
+    await flush();
+
+    blurField(input); // focus moves to the button
+    expect(published()).toBe(900);
+
+    const settle = track(settleViewportBeforeAuth());
+    await flush();
+    expect(settle.done).toBe(false); // it did decide to wait
+    expect(isKeyboardRecoveryActive()).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(SETTLE_MAX_WAIT_MS + 100);
+    expect(published()).toBe(900);
     stop();
   });
 
-  it("updates after pageshow (restored from the back/forward cache)", async () => {
+  it("survives ten consecutive login/keyboard cycles without drifting", async () => {
     const stop = startViewportSync();
-    setInnerHeight(812);
-    vv!.height = 812;
+    for (let i = 0; i < 10; i += 1) {
+      const input = focusField("password");
+      shrinkBothTo(760);
+      await flush();
+
+      const settle = track(settleViewportBeforeAuth());
+      window.dispatchEvent(new Event("focusout"));
+      blurField(input);
+      await vi.advanceTimersByTimeAsync(SETTLE_MAX_WAIT_MS + 100);
+      expect(settle.done).toBe(true);
+      expect(published()).toBe(900);
+
+      // iOS restores the viewport after the transition.
+      setInner(900);
+      vv.moveTo(900);
+      await vi.advanceTimersByTimeAsync(800);
+      expect(published()).toBe(900);
+      expect(isKeyboardRecoveryActive()).toBe(false);
+      input.remove();
+    }
+    stop();
+  });
+});
+
+/* ── the guard's own rules ────────────────────────────────────────────── */
+
+describe("keyboard-recovery guard", () => {
+  it("refuses a shortened measurement even though nothing is focused and the inset is zero", async () => {
+    const stop = startViewportSync();
+    armKeyboardRecovery("test");
+    shrinkBothTo(760);
+    await flush();
+    const decision = evaluatePublish();
+    expect(decision.publish).toBe(false);
+    expect(decision.reason).toBe("recovery-holding-baseline");
+    expect(published()).toBe(900);
+    stop();
+  });
+
+  it("accepts a measurement back at the baseline and releases", async () => {
+    const stop = startViewportSync();
+    armKeyboardRecovery("test");
+    shrinkBothTo(760);
+    await flush();
+    setInner(900);
+    vv.moveTo(900);
+    await flush();
+    expect(published()).toBe(900);
+    expect(isKeyboardRecoveryActive()).toBe(false);
+    stop();
+  });
+
+  it("tolerates sub-pixel rounding around the baseline", async () => {
+    const stop = startViewportSync();
+    armKeyboardRecovery("test");
+    const nearlyFull = 900 - (BASELINE_TOLERANCE_PX - 1);
+    setInner(nearlyFull);
+    vv.moveTo(nearlyFull);
+    await flush();
+    expect(published()).toBe(nearlyFull);
+    expect(isKeyboardRecoveryActive()).toBe(false);
+    stop();
+  });
+
+  it("will not hold a genuinely-shorter viewport hostage forever", async () => {
+    const stop = startViewportSync();
+    armKeyboardRecovery("test");
+    shrinkBothTo(760);
+    await vi.advanceTimersByTimeAsync(GUARD_MAX_HOLD_MS + GUARD_STABLE_ACCEPT_MS + 200);
+    // Nothing came back; the shorter viewport is evidently the real one now.
+    syncViewportHeight({ immediate: true });
+    expect(published()).toBe(760);
+    expect(getUnobstructedBaseline()).toBe(760);
+    stop();
+  });
+
+  it("does not release while the visual viewport is still displaced", async () => {
+    const stop = startViewportSync();
+    armKeyboardRecovery("test");
+    setInner(900);
+    vv.moveTo(900, 40); // full height but still sliding
+    await flush();
+    expect(evaluatePublish().reason).toBe("recovery-offset-nonzero");
+    expect(isKeyboardRecoveryActive()).toBe(true);
+    vv.moveTo(900, 0);
+    await flush();
+    expect(isKeyboardRecoveryActive()).toBe(false);
+    stop();
+  });
+
+  it("arms itself on any blur, so Entry and Settings fields get the same protection", async () => {
+    const stop = startViewportSync();
+    const input = focusField("number"); // Entry's fuel-cost style field
+    shrinkBothTo(760);
+    await flush();
+    expect(published()).toBe(900);
+
+    blurField(input);
+    expect(isKeyboardRecoveryActive()).toBe(true);
+    // Every deferred re-measure fires while iOS still reports 760.
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(published()).toBe(900);
+
+    setInner(900);
+    vv.moveTo(900);
+    await flush();
+    expect(published()).toBe(900);
+    stop();
+  });
+
+  it("holds through a Settings text field open/close cycle", async () => {
+    const stop = startViewportSync();
+    const input = focusField("text");
+    shrinkVisualOnlyTo(520); // Settings in Safari mode: classic inset
+    await flush();
+    expect(published()).toBe(900);
+    blurField(input);
+    vv.moveTo(900);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(published()).toBe(900);
+    stop();
+  });
+});
+
+/* ── publish paths ────────────────────────────────────────────────────── */
+
+describe("every publish path goes through the same decision", () => {
+  it("publishes on initial mount", () => {
+    const stop = startViewportSync();
+    expect(published()).toBe(900);
+    expect(document.documentElement.style.getPropertyValue(VIEWPORT_OFFSET_TOP_VAR)).toBe("0px");
+    stop();
+  });
+
+  it("publishes a legitimate non-keyboard resize", async () => {
+    const stop = startViewportSync();
+    setInner(700);
+    vv.moveTo(700);
+    window.dispatchEvent(new Event("resize"));
+    await flush();
+    expect(published()).toBe(700);
+    stop();
+  });
+
+  it("holds while an editable element is focused", async () => {
+    const stop = startViewportSync();
+    focusField();
+    shrinkBothTo(600);
+    await flush();
+    expect(evaluatePublish().reason).toBe("editable-focused");
+    expect(published()).toBe(900);
+    stop();
+  });
+
+  it("holds while a measurable keyboard inset is present", async () => {
+    const stop = startViewportSync();
+    safariBrowser();
+    shrinkVisualOnlyTo(500);
+    await flush();
+    expect(evaluatePublish().reason).toBe("keyboard-inset");
+    expect(published()).toBe(900);
+    stop();
+  });
+
+  it("does not let the deferred focusout timers bypass the guard", async () => {
+    const stop = startViewportSync();
+    const input = focusField();
+    shrinkBothTo(760);
+    await flush();
+    blurField(input);
+    // Walk right through every deferred re-measure.
+    for (let t = 0; t < 1200; t += 100) {
+      await vi.advanceTimersByTimeAsync(100);
+      expect(published()).toBe(900);
+    }
+    stop();
+  });
+
+  it("updates after pageshow once the viewport is trustworthy", async () => {
+    const stop = startViewportSync();
+    setInner(812);
+    vv.height = 812;
     window.dispatchEvent(new Event("pageshow"));
-    await vi.advanceTimersByTimeAsync(400);
-    expect(publishedHeight()).toBe("812px");
+    await vi.advanceTimersByTimeAsync(800);
+    expect(published()).toBe(812);
     stop();
   });
 
-  it("updates when the app becomes visible again after being backgrounded", async () => {
+  it("updates when the app is restored from the background", async () => {
     const stop = startViewportSync();
-    setInnerHeight(844);
-    vv!.height = 844;
-    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+    setInner(844);
+    vv.height = 844;
     document.dispatchEvent(new Event("visibilitychange"));
-    await vi.advanceTimersByTimeAsync(400);
-    expect(publishedHeight()).toBe("844px");
+    await vi.advanceTimersByTimeAsync(800);
+    expect(published()).toBe(844);
     stop();
   });
 
   it("ignores a visibilitychange that hides the app", async () => {
     const stop = startViewportSync();
-    setInnerHeight(500);
-    vv!.height = 500;
     Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+    setInner(500);
+    vv.height = 500;
     document.dispatchEvent(new Event("visibilitychange"));
-    await vi.advanceTimersByTimeAsync(400);
-    expect(publishedHeight()).toBe("900px");
+    await vi.advanceTimersByTimeAsync(800);
+    expect(published()).toBe(900);
     Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
-    stop();
-  });
-
-  it("holds the published height while a keyboard is covering the viewport", async () => {
-    const stop = startViewportSync();
-    expect(publishedHeight()).toBe("900px");
-    // Keyboard opens: the bottom nav must not jump up to sit on top of it.
-    vv!.moveTo(900 - KEYBOARD_INSET_THRESHOLD_PX - 200);
-    await flush();
-    expect(publishedHeight()).toBe("900px");
-    // ...and it comes back down to the same value once the keyboard closes.
-    vv!.moveTo(900);
-    await flush();
-    expect(publishedHeight()).toBe("900px");
-    stop();
-  });
-
-  it("holds the published height while an editable field has focus, even with no measurable inset", async () => {
-    const stop = startViewportSync();
-    const input = document.createElement("input");
-    document.body.appendChild(input);
-    input.focus();
-    // Standalone iOS has been seen to shrink the window itself, which makes
-    // the inset heuristic read ~0 — the focus check is what catches it.
-    setInnerHeight(600);
-    vv!.moveTo(600);
-    await flush();
-    expect(publishedHeight()).toBe("900px");
-
-    input.blur();
-    setInnerHeight(900);
-    vv!.height = 900;
-    await vi.advanceTimersByTimeAsync(400);
-    expect(publishedHeight()).toBe("900px");
     stop();
   });
 });
 
-describe("startViewportSync — teardown", () => {
+/* ── orientation ──────────────────────────────────────────────────────── */
+
+describe("orientation", () => {
+  it("drops the portrait baseline on a real rotation and adopts the landscape height", async () => {
+    const stop = startViewportSync();
+    expect(getUnobstructedBaseline()).toBe(900);
+
+    // Rotate: width and height swap.
+    window.dispatchEvent(new Event("orientationchange"));
+    setInner(393, 852);
+    vv.moveTo(393);
+    await vi.advanceTimersByTimeAsync(ORIENTATION_SETTLE_MS + 300);
+
+    expect(published()).toBe(393);
+    expect(getUnobstructedBaseline()).toBe(393);
+    stop();
+  });
+
+  it("ignores measurements taken mid-rotation", async () => {
+    const stop = startViewportSync();
+    window.dispatchEvent(new Event("orientationchange"));
+    setInner(120, 852); // nonsense intermediate frame
+    vv.moveTo(120);
+    await flush();
+    expect(evaluatePublish().reason).toBe("orientation-in-flux");
+    stop();
+  });
+
+  it("releases a recovery guard left over from before the rotation", async () => {
+    const stop = startViewportSync();
+    armKeyboardRecovery("test");
+    window.dispatchEvent(new Event("orientationchange"));
+    expect(isKeyboardRecoveryActive()).toBe(false);
+    stop();
+  });
+
+  it("does not reuse a portrait baseline after rotating back and forth", async () => {
+    const stop = startViewportSync();
+    window.dispatchEvent(new Event("orientationchange"));
+    setInner(393, 852);
+    vv.moveTo(393);
+    await vi.advanceTimersByTimeAsync(ORIENTATION_SETTLE_MS + 300);
+    expect(getUnobstructedBaseline()).toBe(393);
+
+    window.dispatchEvent(new Event("orientationchange"));
+    setInner(900, 393);
+    vv.moveTo(900);
+    await vi.advanceTimersByTimeAsync(ORIENTATION_SETTLE_MS + 300);
+    expect(getUnobstructedBaseline()).toBe(900);
+    expect(published()).toBe(900);
+    stop();
+  });
+});
+
+/* ── settle ───────────────────────────────────────────────────────────── */
+
+describe("waitForViewportSettle", () => {
+  it("does not treat the first resize as settled", async () => {
+    safariBrowser();
+    shrinkVisualOnlyTo(500);
+    const settled = track(waitForViewportSettle());
+
+    vv.moveTo(560);
+    await flush();
+    expect(settled.done).toBe(false);
+
+    for (const height of [620, 700, 780, 850]) {
+      await vi.advanceTimersByTimeAsync(SETTLE_QUIET_MS / 2);
+      vv.moveTo(height);
+      expect(settled.done).toBe(false);
+    }
+  });
+
+  it("resolves once the viewport has held still through the quiet period", async () => {
+    safariBrowser();
+    const stop = startViewportSync();
+    shrinkVisualOnlyTo(500);
+    const settled = track(waitForViewportSettle());
+    vv.moveTo(900);
+    await vi.advanceTimersByTimeAsync(SETTLE_QUIET_MS + 60);
+    expect(settled.done).toBe(true);
+    expect(settled.value?.reason).toBe("stable");
+    stop();
+  });
+
+  it("times out without publishing the stale height", async () => {
+    const stop = startViewportSync();
+    armKeyboardRecovery("test");
+    shrinkBothTo(760);
+    const settled = track(waitForViewportSettle());
+    await vi.advanceTimersByTimeAsync(SETTLE_MAX_WAIT_MS + 60);
+    expect(settled.value?.reason).toBe("timed-out");
+    expect(settled.value?.publishedHeight).toBe(900);
+    expect(published()).toBe(900);
+    stop();
+  });
+
+  it("keeps listening after a timeout and accepts a late recovery", async () => {
+    const stop = startViewportSync();
+    armKeyboardRecovery("test");
+    shrinkBothTo(760);
+    await vi.advanceTimersByTimeAsync(SETTLE_MAX_WAIT_MS + 60);
+    expect(isKeyboardRecoveryActive()).toBe(true);
+
+    // Two seconds later, iOS finally reports the restored viewport.
+    await vi.advanceTimersByTimeAsync(2000);
+    setInner(900);
+    vv.moveTo(900);
+    await flush();
+    expect(published()).toBe(900);
+    expect(isKeyboardRecoveryActive()).toBe(false);
+    stop();
+  });
+
+  it("resolves immediately when there is no visualViewport to watch", async () => {
+    Object.defineProperty(window, "visualViewport", { value: undefined, configurable: true, writable: true });
+    const settled = track(waitForViewportSettle());
+    await flush();
+    expect(settled.done).toBe(true);
+    expect(settled.value?.reason).toBe("no-viewport-api");
+  });
+});
+
+describe("settleViewportBeforeAuth", () => {
+  it("adds no delay to a desktop login", async () => {
+    desktopBrowser();
+    const stop = startViewportSync();
+    focusField();
+    const settled = track(settleViewportBeforeAuth());
+    await flush();
+    expect(settled.done).toBe(true);
+    expect(settled.value?.reason).toBe("nothing-to-wait-for");
+    stop();
+  });
+
+  it("adds no delay to an auto-login with nothing focused", async () => {
+    const stop = startViewportSync();
+    const settled = track(settleViewportBeforeAuth());
+    await flush();
+    expect(settled.done).toBe(true);
+    expect(settled.value?.reason).toBe("nothing-to-wait-for");
+    stop();
+  });
+
+  it("blurs the focused field so the keyboard starts closing", async () => {
+    const stop = startViewportSync();
+    const input = focusField();
+    expect(document.activeElement).toBe(input);
+    const settled = track(settleViewportBeforeAuth());
+    await vi.advanceTimersByTimeAsync(SETTLE_MAX_WAIT_MS + 60);
+    expect(document.activeElement).not.toBe(input);
+    expect(settled.done).toBe(true);
+    stop();
+  });
+
+  it("arms the guard before blurring, not after", async () => {
+    const stop = startViewportSync();
+    const input = focusField();
+    shrinkBothTo(760);
+    await flush();
+
+    // Capture the guard state at the first moment the blur can be observed.
+    let armedAtBlur: boolean | null = null;
+    input.addEventListener("blur", () => {
+      armedAtBlur = isKeyboardRecoveryActive();
+    });
+
+    const settled = track(settleViewportBeforeAuth());
+    await vi.advanceTimersByTimeAsync(SETTLE_MAX_WAIT_MS + 60);
+    expect(armedAtBlur).toBe(true);
+    expect(settled.done).toBe(true);
+    stop();
+  });
+
+  it("handles the classic Safari case where only the visual viewport shrinks", async () => {
+    safariBrowser();
+    const stop = startViewportSync();
+    const input = focusField();
+    shrinkVisualOnlyTo(500);
+    await flush();
+    expect(published()).toBe(900);
+
+    const settled = track(settleViewportBeforeAuth());
+    blurField(input);
+    vv.moveTo(900);
+    await vi.advanceTimersByTimeAsync(SETTLE_QUIET_MS + 80);
+    expect(settled.done).toBe(true);
+    expect(published()).toBe(900);
+    stop();
+  });
+});
+
+/* ── teardown and hygiene ─────────────────────────────────────────────── */
+
+describe("teardown", () => {
   it("removes every listener it added", () => {
     const added: string[] = [];
     const removed: string[] = [];
-    // Spies that call through, so this test observes the real registration
-    // rather than replacing it (a no-op mock here would leak into the tests
-    // that follow).
     const watch = (target: EventTarget, label: string) => {
       const realAdd = target.addEventListener.bind(target);
       const realRemove = target.removeEventListener.bind(target);
@@ -268,7 +743,7 @@ describe("startViewportSync — teardown", () => {
     };
     watch(window, "window");
     watch(document, "document");
-    watch(vv!, "vv");
+    watch(vv, "vv");
 
     const stop = startViewportSync();
     expect(added.length).toBeGreaterThan(0);
@@ -276,9 +751,7 @@ describe("startViewportSync — teardown", () => {
     expect([...removed].sort()).toEqual([...added].sort());
   });
 
-  it("leaves no timers of its own behind", async () => {
-    // Relative to a baseline: jsdom keeps timers of its own, so the absolute
-    // count is not ours to assert on.
+  it("leaves no timers of its own behind", () => {
     const baseline = vi.getTimerCount();
     const stop = startViewportSync();
     window.dispatchEvent(new Event("orientationchange"));
@@ -290,192 +763,81 @@ describe("startViewportSync — teardown", () => {
   it("does not write to the DOM after teardown", async () => {
     const stop = startViewportSync();
     stop();
-    setInnerHeight(400);
-    vv!.moveTo(400);
+    setInner(400);
+    vv.moveTo(400);
     window.dispatchEvent(new Event("resize"));
     window.dispatchEvent(new Event("orientationchange"));
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(publishedHeight()).toBe("900px");
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(published()).toBe(900);
   });
 
-  it("does not apply a frame that was already queued when teardown ran", async () => {
+  it("does not apply a frame queued before teardown", async () => {
     const stop = startViewportSync();
-    setInnerHeight(500);
-    vv!.moveTo(500); // schedules a rAF write
-    stop(); // ...cancelled before it can run
-    await vi.advanceTimersByTimeAsync(100);
-    expect(publishedHeight()).toBe("900px");
+    setInner(500);
+    vv.moveTo(500);
+    stop();
+    await vi.advanceTimersByTimeAsync(120);
+    expect(published()).toBe(900);
   });
 });
 
-describe("waitForViewportSettle", () => {
-  it("does not treat the first resize as settled while more are still coming", async () => {
-    // The keyboard is open; it will animate away over several frames.
-    setInnerHeight(900);
-    vv!.height = 500;
-    const settled = track(waitForViewportSettle());
-
-    // First intermediate frame — this is exactly what the old code resolved on.
-    vv!.moveTo(560);
-    await flush();
-    expect(settled.done).toBe(false);
-
-    // More intermediate frames, each well inside the quiet window.
-    for (const height of [620, 700, 780, 850]) {
-      await vi.advanceTimersByTimeAsync(SETTLE_QUIET_MS / 2);
-      vv!.moveTo(height);
-      expect(settled.done).toBe(false);
-    }
-  });
-
-  it("resolves once the viewport has stayed unchanged for the quiet period", async () => {
-    setInnerHeight(900);
-    vv!.height = 500;
-    const settled = track(waitForViewportSettle());
-
-    vv!.moveTo(700);
-    await vi.advanceTimersByTimeAsync(SETTLE_QUIET_MS / 2);
-    vv!.moveTo(900); // keyboard fully closed
-    expect(settled.done).toBe(false);
-
-    await vi.advanceTimersByTimeAsync(SETTLE_QUIET_MS + 50);
-    expect(settled.done).toBe(true);
-    expect(publishedHeight()).toBe("900px");
-  });
-
-  it("keeps waiting while the keyboard is still measurably covering the viewport, even if the numbers hold still", async () => {
-    setInnerHeight(900);
-    vv!.height = 500; // 400px inset — nowhere near closed
-    const settled = track(waitForViewportSettle());
-    await vi.advanceTimersByTimeAsync(SETTLE_QUIET_MS * 2);
-    expect(settled.done).toBe(false);
-    await vi.advanceTimersByTimeAsync(SETTLE_MAX_WAIT_MS);
-    expect(settled.done).toBe(true); // ...but the ceiling still releases it
-  });
-
-  it("treats a moving offsetTop as 'still moving' even when height is constant", async () => {
-    setInnerHeight(900);
-    vv!.height = 900;
-    const settled = track(waitForViewportSettle());
-    for (let i = 0; i < 4; i += 1) {
-      await vi.advanceTimersByTimeAsync(SETTLE_QUIET_MS / 2);
-      vv!.moveTo(900, 40 - i * 10);
-      expect(settled.done).toBe(false);
-    }
-    await vi.advanceTimersByTimeAsync(SETTLE_QUIET_MS + 50);
-    expect(settled.done).toBe(true);
-  });
-
-  it("never waits longer than the maximum, even if the viewport never stops moving", async () => {
-    setInnerHeight(900);
-    vv!.height = 500;
-    const settled = track(waitForViewportSettle());
-    // Something is emitting resizes forever — iOS occasionally does exactly
-    // this when its toolbar heuristic starts oscillating.
-    const churn = setInterval(() => vv!.moveTo(500 + Math.round(Math.random() * 50)), 20);
-    await vi.advanceTimersByTimeAsync(SETTLE_MAX_WAIT_MS + 100);
-    clearInterval(churn);
-    expect(settled.done).toBe(true);
-  });
-
-  it("resolves immediately when there is no visualViewport to watch", async () => {
-    removeVisualViewport();
-    const settled = track(waitForViewportSettle());
-    await flush();
-    expect(settled.done).toBe(true);
-    expect(publishedHeight()).toBe("900px");
-  });
-});
-
-describe("settleViewportBeforeAuth", () => {
-  it("adds no delay to a desktop login, where no software keyboard exists", async () => {
-    setMaxTouchPoints(0);
-    expect(isSoftKeyboardCapable()).toBe(false);
-    const input = document.createElement("input");
-    document.body.appendChild(input);
-    input.focus(); // a focused password field, but on a laptop
-
-    const baseline = vi.getTimerCount();
-    const settled = track(settleViewportBeforeAuth());
-    await flush();
-    expect(settled.done).toBe(true);
-    // No settle monitor was started: no poll interval, no deadline timer.
-    expect(vi.getTimerCount()).toBeLessThanOrEqual(baseline);
-  });
-
-  it("adds no delay to an auto-login, where nothing is focused at all", async () => {
-    setMaxTouchPoints(5); // touch device — but no field in play
-    const baseline = vi.getTimerCount();
-    const settled = track(settleViewportBeforeAuth());
-    await flush();
-    expect(settled.done).toBe(true);
-    expect(vi.getTimerCount()).toBeLessThanOrEqual(baseline);
-  });
-
-  it("blurs the focused field so the keyboard actually starts closing", async () => {
-    const input = document.createElement("input");
-    document.body.appendChild(input);
-    input.focus();
-    expect(document.activeElement).toBe(input);
-    await settleViewportBeforeAuth();
-    expect(document.activeElement).not.toBe(input);
-  });
-
-  it("waits for the settled viewport on a touch device with a field focused", async () => {
-    setMaxTouchPoints(5);
-    const input = document.createElement("input");
-    document.body.appendChild(input);
-    input.focus();
-    setInnerHeight(900);
-    vv!.height = 500;
-
-    const settled = track(settleViewportBeforeAuth());
-    await flush();
-    expect(settled.done).toBe(false);
-
-    vv!.moveTo(700);
-    await vi.advanceTimersByTimeAsync(SETTLE_QUIET_MS / 2);
-    expect(settled.done).toBe(false);
-
-    vv!.moveTo(900);
-    await vi.advanceTimersByTimeAsync(SETTLE_QUIET_MS + 50);
-    expect(settled.done).toBe(true);
-    // The whole point: the height the shell is about to mount against is
-    // the settled one, published before the promise resolved.
-    expect(publishedHeight()).toBe("900px");
-  });
-
-  it("waits when a keyboard is measurably open even with nothing focused", async () => {
-    setInnerHeight(900);
-    vv!.height = 500;
-    const settled = track(settleViewportBeforeAuth());
-    await flush();
-    expect(settled.done).toBe(false);
-    vv!.moveTo(900);
-    await vi.advanceTimersByTimeAsync(SETTLE_QUIET_MS + 50);
-    expect(settled.done).toBe(true);
-  });
-});
-
-describe("syncViewportHeight", () => {
-  it("batches bursts of events into a single frame", async () => {
+describe("syncViewportHeight batching", () => {
+  it("coalesces a burst of events into one frame", async () => {
+    startViewportSync()();
     const setProperty = vi.spyOn(document.documentElement.style, "setProperty");
     for (let i = 0; i < 10; i += 1) syncViewportHeight();
     expect(setProperty).not.toHaveBeenCalled();
     await flush();
-    // One frame → at most the two variables, not twenty writes.
     expect(setProperty.mock.calls.length).toBeLessThanOrEqual(2);
   });
 
-  it("writes synchronously when asked to be immediate", () => {
-    syncViewportHeight({ immediate: true });
-    expect(publishedHeight()).toBe("900px");
-  });
-
-  it("does not rewrite a value that has not changed", async () => {
+  it("does not rewrite an unchanged value", () => {
     syncViewportHeight({ immediate: true });
     const setProperty = vi.spyOn(document.documentElement.style, "setProperty");
     syncViewportHeight({ immediate: true });
     expect(setProperty).not.toHaveBeenCalled();
+  });
+
+  it("writes the height variable in px", () => {
+    syncViewportHeight({ immediate: true });
+    expect(document.documentElement.style.getPropertyValue(VIEWPORT_HEIGHT_VAR)).toBe("900px");
+  });
+});
+
+/* ── diagnostics ──────────────────────────────────────────────────────── */
+
+describe("diagnostics", () => {
+  it("reports the values needed to debug an on-device failure", async () => {
+    const stop = startViewportSync();
+    focusField("password");
+    shrinkBothTo(760);
+    await flush();
+
+    const d = getViewportDiagnostics();
+    expect(d.innerHeight).toBe(760);
+    expect(d.visualViewportHeight).toBe(760);
+    expect(d.publishedHeight).toBe(900);
+    expect(d.baseline).toBe(900);
+    expect(d.candidateHeight).toBe(760);
+    expect(d.keyboardInset).toBe(0);
+    expect(d.editableFocused).toBe(true);
+    expect(d.standalone).toBe(true);
+    expect(d.events.length).toBeGreaterThan(0);
+    stop();
+  });
+
+  it("identifies the focused element by type only, never by value", async () => {
+    const stop = startViewportSync();
+    const input = focusField("password");
+    input.value = "hunter2";
+    input.name = "password";
+    input.id = "login-password";
+
+    const d = getViewportDiagnostics();
+    expect(d.focusedElement).toBe("input[type=password]");
+    const serialised = JSON.stringify(d);
+    expect(serialised).not.toContain("hunter2");
+    expect(serialised).not.toContain("login-password");
+    stop();
   });
 });

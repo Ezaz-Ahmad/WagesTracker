@@ -16,8 +16,16 @@ import { SettingsScreen } from "./screens/SettingsScreen";
 import { useSwipeNav } from "./lib/useSwipeNav";
 import { usePullToRefresh } from "./lib/usePullToRefresh";
 import { useViewportHeight } from "./lib/useViewportHeight";
+import { ViewportDebugOverlay } from "./components/ViewportDebugOverlay";
 import { reloadIfNewVersionDeployed } from "./lib/checkForUpdate";
 import type { Screen } from "./lib/types";
+
+// Build-time constant. Vite inlines `import.meta.env.VITE_VIEWPORT_DEBUG`, so
+// in every normal build this folds to `false`, the JSX branch below is dead
+// code, and ViewportDebugOverlay is tree-shaken out of the bundle. It is only
+// ever true in the temporary diagnostic build made for on-device testing:
+//   VITE_VIEWPORT_DEBUG=true npm run build -w frontend
+const VIEWPORT_DEBUG = import.meta.env.VITE_VIEWPORT_DEBUG === "true";
 
 function AuthedApp() {
   const { today, user, actionError, clearActionError, logout, refresh, earningsHidden, revealEarnings, hideEarningsNow } = useApp();
@@ -189,6 +197,7 @@ export default function App() {
     <AppProvider>
       <ConfirmProvider>
         <Root />
+        {VIEWPORT_DEBUG && <ViewportDebugOverlay />}
       </ConfirmProvider>
     </AppProvider>
   );

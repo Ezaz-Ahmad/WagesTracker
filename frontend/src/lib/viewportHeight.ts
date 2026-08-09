@@ -1,100 +1,263 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   Visual-viewport manager — one place that measures how tall the visible
-   viewport actually is and publishes it as a CSS custom property
-   (`--app-viewport-height`) for the app shell to size itself from.
+   Visual-viewport manager — measures how tall the visible viewport actually
+   is and publishes it as `--app-viewport-height` for the app shell to size
+   itself from.
 
-   Why this exists at all: `.app-shell` used to be sized purely with
-   `100dvh`. `dvh` is resolved by the browser, not by us, and on an
-   installed iOS PWA WebKit defers that resolution — after the on-screen
-   keyboard closes (most visibly right after a login submitted from the
-   keyboard) the shell keeps the *keyboard-era* height until some later
-   layout pass forces a recompute, which in practice is the user's first
-   scroll/swipe. That's the bug: a short shell leaves a strip of the
-   underlying background exposed below the floating bottom nav, and the nav
-   snaps down to its correct place on first touch.
+   ── Why measuring at all ────────────────────────────────────────────────
+   `.app-shell` used to be sized purely with `100dvh`, a unit the browser
+   resolves on its own schedule. In an installed iOS PWA that resolution is
+   deferred after the keyboard closes, so the shell kept a keyboard-era
+   height until some later layout pass — in practice the user's first swipe.
+   A JS measurement published as a custom property can't go stale that way.
 
-   Timing the mount around WebKit's recalculation (blur → wait one resize →
-   400ms fallback → fade the shell in) was the previous attempt. It can't
-   work in general, for two reasons:
-     1. iOS emits a *stream* of `visualViewport.resize` events while the
-        keyboard animates away — the first one fires within a frame or two,
-        with the keyboard barely moved, so "wait for one resize" resolves
-        against an intermediate viewport.
-     2. Even with perfect timing, the height still comes from a unit the
-        browser owns. An opacity fade forces re-*composite*, not re-*layout*
-        — recompositing a box that was laid out at the wrong height just
-        repaints the same wrong height, which is why the fade never fixed it.
+   ── Why a *baseline*, and not just a measurement ────────────────────────
+   The first attempt measured correctly but trusted the wrong moment. It
+   decided "is a keyboard covering the viewport?" from
 
-   So: measure it ourselves. `visualViewport.height` is a number we read at
-   the moment we choose, and a CSS variable set from JS can never be stale
-   in the way a browser-resolved unit can. `100dvh` stays as the CSS
-   fallback for the very first paint and for anything that never runs JS.
+       window.innerHeight - visualViewport.height > threshold
 
-   On `offsetTop`: the visual viewport is also *offset* within the layout
-   viewport while iOS scrolls a focused field into view, and it moves during
-   the keyboard animation. We deliberately do not translate the shell by it
-   — the root document never scrolls here (`.app-main` is the only scroller,
-   `.app-shell` is exactly viewport-height with `overflow: hidden`), so in
-   the settled state it is 0, and compensating for it during rubber-band
-   would mean fighting the compositor again. It *is* however read as part of
-   the settle signature below: a viewport whose offset is still changing is
-   still moving, even if its height momentarily isn't. It's also published
-   as `--app-viewport-offset-top` so a future layout can use it without
-   re-deriving any of this.
+   which is right in Safari's browser mode, where the keyboard shrinks the
+   visual viewport only. In an installed standalone PWA iOS shrinks *both*
+   together:
+
+       before keyboard:  innerHeight 900, visualViewport.height 900
+       during/after:     innerHeight 760, visualViewport.height 760
+
+   The computed inset is then ~0. With the login field already blurred there
+   is no focused editable either, so every signal said "unobstructed" and the
+   shortened 760 was published as the app height — including by the settle
+   step's final immediate sync and by the deferred focus-out re-measures. The
+   shell was then 140px short, the bottom nav sat that far too high, and the
+   first swipe made iOS emit fresh viewport information that finally
+   corrected it.
+
+   The fix is to stop treating any single measurement as authoritative.
+   We retain the last height measured while the viewport was *known* to be
+   unobstructed (the baseline), arm a recovery guard before the login field
+   is blurred (before, because focus state is itself one of the signals), and
+   while that guard is up we refuse to publish anything materially shorter
+   than the baseline no matter what the inset arithmetic says. Every path
+   that can write the variable goes through one decision function, so there
+   is no back door: not the deferred focus-out timers, not the settle
+   step's finalisation, not the timeout path.
+
+   A guard that never released would be its own bug, so it releases on real
+   evidence (height back at the baseline, offsetTop back at zero, held still
+   for a quiet period), on a genuine geometry change (orientation/width), or
+   — as a last resort so a legitimately-shorter viewport can't be held
+   hostage forever — after GUARD_MAX_HOLD_MS with a long stable measurement,
+   which then becomes the new baseline.
+
+   ── On offsetTop ────────────────────────────────────────────────────────
+   Nothing translates by it: the root never scrolls here (`.app-main` is the
+   only scroller, `.app-shell` is exactly viewport-height with `overflow:
+   hidden`), so at rest it is 0, and compensating during rubber-band would
+   mean fighting the compositor. It is used as *evidence* — a non-zero
+   offset means iOS is still moving the viewport, so a measurement taken
+   then is not trustworthy — and published as `--app-viewport-offset-top`.
    ══════════════════════════════════════════════════════════════════════ */
 
 /** Set on `<html>`; consumed by `.app-shell` (see styles/app.css). */
 export const VIEWPORT_HEIGHT_VAR = "--app-viewport-height";
-/** Published for completeness/diagnostics — nothing positions off it today. */
+/** Published for diagnostics — nothing positions off it today. */
 export const VIEWPORT_OFFSET_TOP_VAR = "--app-viewport-offset-top";
 
-/** `innerHeight - visualViewport.height` above this many px is taken as "an
- * on-screen keyboard (or similar inset UI) is currently covering part of the
- * viewport". Small values are just toolbar/rubber-band noise. */
+/** `innerHeight - visualViewport.height` above this many px means a keyboard
+ * (or similar inset UI) is covering part of the viewport. Only ever *adds*
+ * confidence that something is obstructing: an inset of ~0 proves nothing,
+ * which is precisely what the standalone-PWA bug taught us. */
 export const KEYBOARD_INSET_THRESHOLD_PX = 80;
+
+/** Rounding slack when comparing a measurement against the baseline. Small:
+ * the real failure is off by >100px, and a large tolerance would let a
+ * genuinely shortened viewport slip through as "recovered". */
+export const BASELINE_TOLERANCE_PX = 4;
+
+/** How close to zero `offsetTop` must be to count as "not moving". */
+export const OFFSET_TOLERANCE_PX = 2;
 
 /** How long the viewport must stop changing before it counts as settled. */
 export const SETTLE_QUIET_MS = 160;
 /** Hard ceiling on a settle wait, so authentication can never hang waiting
- * on an iOS event that (for whatever reason) never arrives. */
+ * on an iOS event that never arrives. Timing out does NOT publish whatever
+ * happened to be measured at that moment — the baseline stands. */
 export const SETTLE_MAX_WAIT_MS = 900;
-/** Polling cadence during a settle wait — iOS does not always emit an event
- * for the final step of the keyboard animation, so events alone aren't
- * enough to notice that things have gone quiet. */
+/** Polling cadence during a settle wait: iOS does not always emit an event
+ * for the last step of the keyboard animation, so events alone can't tell us
+ * that things have gone quiet. */
 export const SETTLE_POLL_MS = 40;
 
-/** Re-measure this long after events that change geometry *after* they fire
+/** Longest the recovery guard will hold the baseline against a shorter
+ * measurement. Past this, a measurement that has been stable for
+ * GUARD_STABLE_ACCEPT_MS is accepted as a real change and becomes the new
+ * baseline — otherwise a viewport that legitimately got shorter (and never
+ * returns) would be held wrong indefinitely. Deliberately far longer than
+ * the keyboard animation (~300ms) plus the settle ceiling. */
+export const GUARD_MAX_HOLD_MS = 6000;
+/** How long a shorter-than-baseline measurement must hold still before the
+ * long-hold escape hatch above will accept it. */
+export const GUARD_STABLE_ACCEPT_MS = 500;
+
+/** A rotation isn't instantaneous; treat this window after an
+ * orientationchange as "geometry in flux". */
+export const ORIENTATION_SETTLE_MS = 700;
+
+/** Re-measure this long after events whose effect lands *after* they fire
  * (rotation, restore from background, keyboard-closing blur) — iOS reports
  * pre-change numbers during the event turn itself. */
-const DEFERRED_RESYNC_MS = [120, 340];
+const DEFERRED_RESYNC_MS = [120, 340, 700];
+
+/* ── types ────────────────────────────────────────────────────────────── */
 
 export interface ViewportMetrics {
   /** Visible height in CSS px — `visualViewport.height`, else `innerHeight`. */
   height: number;
   /** Visual viewport's vertical offset inside the layout viewport. */
   offsetTop: number;
-  /** How much of the layout viewport is currently covered (keyboard, etc.). */
+  /** Layout viewport height (`window.innerHeight`). */
+  innerHeight: number;
+  /** `documentElement.clientHeight` — diagnostic only, never a source. */
+  clientHeight: number;
+  /** How much of the layout viewport is covered. ~0 tells us nothing. */
   keyboardInset: number;
+  /** Layout viewport width — the baseline is keyed to this. */
+  width: number;
 }
+
+export type PublishReason =
+  | "forced"
+  | "unobstructed"
+  | "recovered"
+  | "recovery-long-hold-accepted"
+  | "geometry-changed"
+  | "no-measurement"
+  | "keyboard-inset"
+  | "editable-focused"
+  | "orientation-in-flux"
+  | "recovery-holding-baseline"
+  | "recovery-offset-nonzero";
+
+export interface PublishDecision {
+  publish: boolean;
+  height: number;
+  reason: PublishReason;
+}
+
+export type SettleReason =
+  | "no-viewport-api"
+  | "nothing-to-wait-for"
+  | "recovered"
+  | "stable"
+  | "timed-out"
+  | "geometry-changed";
+
+export interface SettleResult {
+  reason: SettleReason;
+  /** The height that ended up published (i.e. what the shell will use). */
+  publishedHeight: number | null;
+  baseline: number | null;
+  elapsedMs: number;
+}
+
+interface Baseline {
+  height: number;
+  /** Baselines don't survive a rotation — a portrait height is meaningless
+   * in landscape. Keyed by layout width, which changes on rotation. */
+  width: number;
+}
+
+interface RecoveryState {
+  armedAt: number;
+  source: string;
+  lastSignature: string;
+  lastChangeAt: number;
+}
+
+/* ── module state ─────────────────────────────────────────────────────── */
+
+let baseline: Baseline | null = null;
+let recovery: RecoveryState | null = null;
+let orientationInFluxUntil = 0;
+let pendingFrame: number | null = null;
+let lastDecision: PublishDecision | null = null;
+let lastSettle: SettleResult | null = null;
+
+/** Full reset — used by tests, and by nothing else. */
+export function resetViewportState(): void {
+  baseline = null;
+  recovery = null;
+  orientationInFluxUntil = 0;
+  lastDecision = null;
+  lastSettle = null;
+  cancelPendingFrame();
+  clearEventLog();
+  if (typeof document !== "undefined" && document.documentElement) {
+    document.documentElement.style.removeProperty(VIEWPORT_HEIGHT_VAR);
+    document.documentElement.style.removeProperty(VIEWPORT_OFFSET_TOP_VAR);
+  }
+}
+
+/* ── diagnostics event log (tiny, always on, never holds user data) ───── */
+
+export interface ViewportEvent {
+  at: number;
+  kind: string;
+  detail: string;
+}
+
+const EVENT_LOG_LIMIT = 60;
+let eventLog: ViewportEvent[] = [];
+const eventListeners = new Set<() => void>();
+
+function logEvent(kind: string, detail: string): void {
+  eventLog.push({ at: Date.now(), kind, detail });
+  if (eventLog.length > EVENT_LOG_LIMIT) eventLog = eventLog.slice(-EVENT_LOG_LIMIT);
+  for (const listener of eventListeners) listener();
+}
+
+function clearEventLog(): void {
+  eventLog = [];
+  for (const listener of eventListeners) listener();
+}
+
+export function getViewportEventLog(): readonly ViewportEvent[] {
+  return eventLog;
+}
+
+/** Subscribe to state changes (the debug overlay's only data source). */
+export function subscribeViewportDiagnostics(listener: () => void): () => void {
+  eventListeners.add(listener);
+  return () => {
+    eventListeners.delete(listener);
+  };
+}
+
+/* ── environment probes ───────────────────────────────────────────────── */
 
 function hasWindow(): boolean {
   return typeof window !== "undefined" && typeof document !== "undefined";
 }
 
-/**
- * The single measurement point. `visualViewport.height` is the real visible
- * height on iOS (it, and only it, shrinks for the keyboard); `innerHeight`
- * is the fallback for browsers without the API — and for jsdom, where the
- * API is absent unless a test installs it.
- */
+/** The single measurement point. */
 export function readViewportMetrics(): ViewportMetrics {
-  if (!hasWindow()) return { height: 0, offsetTop: 0, keyboardInset: 0 };
+  if (!hasWindow()) {
+    return { height: 0, offsetTop: 0, innerHeight: 0, clientHeight: 0, keyboardInset: 0, width: 0 };
+  }
   const innerHeight = typeof window.innerHeight === "number" ? window.innerHeight : 0;
+  const width = typeof window.innerWidth === "number" ? window.innerWidth : 0;
+  const clientHeight = document.documentElement?.clientHeight ?? 0;
   const vv = window.visualViewport;
   const vvHeight = vv && typeof vv.height === "number" ? vv.height : 0;
   const height = vvHeight > 0 ? vvHeight : innerHeight;
   const offsetTop = vv && typeof vv.offsetTop === "number" ? vv.offsetTop : 0;
-  return { height, offsetTop, keyboardInset: Math.max(0, innerHeight - height) };
+  return {
+    height,
+    offsetTop,
+    innerHeight,
+    clientHeight,
+    keyboardInset: Math.max(0, innerHeight - height),
+    width,
+  };
 }
 
 /** True when focus is somewhere that would raise an on-screen keyboard. */
@@ -105,15 +268,26 @@ export function isEditableElementFocused(): boolean {
   if (el.isContentEditable) return true;
   const tag = el.tagName;
   if (tag !== "INPUT" && tag !== "TEXTAREA" && tag !== "SELECT") return false;
-  // A read-only field can still take focus but raises no keyboard on iOS.
-  // (Disabled fields can't be focused at all, so there's nothing to check.)
-  const field = el as HTMLInputElement;
-  return field.readOnly !== true;
+  // A read-only field can take focus but raises no keyboard on iOS.
+  return (el as HTMLInputElement).readOnly !== true;
 }
 
-/** Does this device plausibly have a *software* keyboard at all? Used to
- * keep desktop logins on the zero-delay path: a focused password field on a
- * laptop is not a keyboard that has to animate away. */
+/** Element type only — never its value, name, or contents. */
+export function describeFocusedElement(): string {
+  if (!hasWindow()) return "none";
+  const el = document.activeElement as HTMLElement | null;
+  if (!el || el === document.body) return "none";
+  const tag = el.tagName.toLowerCase();
+  if (tag === "input") {
+    const type = (el as HTMLInputElement).type || "text";
+    return `input[type=${type}]`;
+  }
+  if (el.isContentEditable) return "contenteditable";
+  return tag;
+}
+
+/** Does this device plausibly have a *software* keyboard at all? Keeps
+ * desktop logins on the zero-delay path. */
 export function isSoftKeyboardCapable(): boolean {
   if (!hasWindow()) return false;
   const nav = window.navigator;
@@ -128,39 +302,153 @@ export function isSoftKeyboardCapable(): boolean {
   return false;
 }
 
-/** Measurably true: part of the viewport is currently covered. */
+/** Installed / standalone launch, by either the standard or the iOS API. */
+export function isStandalonePWA(): boolean {
+  if (!hasWindow()) return false;
+  const iosStandalone = (window.navigator as Navigator & { standalone?: boolean }).standalone;
+  if (iosStandalone === true) return true;
+  if (typeof window.matchMedia === "function") {
+    try {
+      return window.matchMedia("(display-mode: standalone)").matches;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+/** Measurably true — never used as proof of the *absence* of a keyboard. */
 export function isKeyboardMeasurablyOpen(): boolean {
   return readViewportMetrics().keyboardInset > KEYBOARD_INSET_THRESHOLD_PX;
 }
 
-/**
- * Whether the published height should be *held* at its last value rather
- * than following the current measurement.
- *
- * Both signals matter. In Safari's browser mode the keyboard shrinks the
- * visual viewport only, so the measured inset catches it. In an installed
- * PWA iOS has been observed to resize the window itself, which makes that
- * inset ~0 — there the focus check is what catches it. Holding in either
- * case is what keeps the bottom nav from jumping upward the moment a field
- * in Entry or Settings is tapped.
- */
-export function shouldHoldPublishedHeight(): boolean {
-  return isKeyboardMeasurablyOpen() || isEditableElementFocused();
+/* ── the recovery guard ───────────────────────────────────────────────── */
+
+export function isKeyboardRecoveryActive(): boolean {
+  return recovery !== null;
+}
+
+export function getUnobstructedBaseline(): number | null {
+  return baseline?.height ?? null;
 }
 
 /**
- * Whether an auth transition needs to wait for the viewport to settle.
- * A measured keyboard always counts; a focused field only counts on a
- * touch-capable device (see isSoftKeyboardCapable).
+ * Arm the keyboard-closing guard. Must be called *before* `blur()`, because
+ * focus is one of the signals used to decide whether a measurement is
+ * trustworthy — arming afterwards would leave the exact window this exists
+ * to protect (blurred field, zero computed inset, shortened viewport)
+ * unguarded.
  */
-export function shouldWaitForKeyboardClose(): boolean {
-  if (isKeyboardMeasurablyOpen()) return true;
-  return isEditableElementFocused() && isSoftKeyboardCapable();
+export function armKeyboardRecovery(source: string = "keyboard-close"): void {
+  if (!hasWindow()) return;
+  const metrics = readViewportMetrics();
+  const now = Date.now();
+  if (recovery) {
+    recovery.source = source;
+    logEvent("guard", `re-armed (${source})`);
+    return;
+  }
+  recovery = {
+    armedAt: now,
+    source,
+    lastSignature: signatureOf(metrics),
+    lastChangeAt: now,
+  };
+  logEvent("guard", `armed (${source}) baseline=${baseline ? Math.round(baseline.height) : "none"}`);
 }
 
-/* ── CSS variable writing ─────────────────────────────────────────────── */
+function releaseKeyboardRecovery(reason: string): void {
+  if (!recovery) return;
+  recovery = null;
+  logEvent("guard", `released (${reason})`);
+}
 
-let pendingFrame: number | null = null;
+function signatureOf(metrics: ViewportMetrics): string {
+  return `${Math.round(metrics.height)}:${Math.round(metrics.offsetTop)}:${Math.round(metrics.width)}`;
+}
+
+/* ── the one decision function ────────────────────────────────────────── */
+
+/**
+ * Decide whether a measurement may become the published app height. Every
+ * write path calls this — initial mount, window resize, visualViewport
+ * resize/scroll, focusin, focusout, the deferred focus-out timers, the
+ * settle step's finalisation, pageshow, visibility restore, orientation.
+ * There is intentionally no way to publish that bypasses it except an
+ * explicit `force`, which only the confirmed-geometry-change path uses.
+ */
+export function evaluatePublish(
+  metrics: ViewportMetrics = readViewportMetrics(),
+  options: { force?: boolean } = {}
+): PublishDecision {
+  const now = Date.now();
+
+  // A width change means a different viewport entirely (rotation, or a
+  // desktop window resize). The old baseline describes something that no
+  // longer exists, so it is discarded rather than defended.
+  if (baseline && metrics.width > 0 && baseline.width !== metrics.width) {
+    baseline = null;
+    releaseKeyboardRecovery("geometry-changed");
+    logEvent("baseline", `dropped (width ${metrics.width})`);
+  }
+
+  if (options.force) {
+    return { publish: true, height: metrics.height, reason: "forced" };
+  }
+  if (!(metrics.height > 0)) {
+    return { publish: false, height: metrics.height, reason: "no-measurement" };
+  }
+
+  // Mid-rotation numbers are not to be trusted in either direction.
+  if (now < orientationInFluxUntil) {
+    return { publish: false, height: metrics.height, reason: "orientation-in-flux" };
+  }
+
+  // Positive evidence of an obstruction: hold whatever is published so the
+  // bottom nav doesn't hop up on top of the keyboard.
+  if (metrics.keyboardInset > KEYBOARD_INSET_THRESHOLD_PX) {
+    return { publish: false, height: metrics.height, reason: "keyboard-inset" };
+  }
+  if (isEditableElementFocused()) {
+    return { publish: false, height: metrics.height, reason: "editable-focused" };
+  }
+
+  if (recovery) {
+    const signature = signatureOf(metrics);
+    if (signature !== recovery.lastSignature) {
+      recovery.lastSignature = signature;
+      recovery.lastChangeAt = now;
+    }
+
+    const base = baseline?.height ?? null;
+
+    // THE bug: with both innerHeight and visualViewport.height shortened
+    // together the inset is ~0 and nothing is focused, so every other signal
+    // says "safe to publish". The baseline is the only thing that knows
+    // better.
+    if (base !== null && metrics.height < base - BASELINE_TOLERANCE_PX) {
+      const heldFor = now - recovery.armedAt;
+      const stableFor = now - recovery.lastChangeAt;
+      if (heldFor >= GUARD_MAX_HOLD_MS && stableFor >= GUARD_STABLE_ACCEPT_MS) {
+        // Escape hatch: the viewport really is shorter now and isn't coming
+        // back. Accept it rather than defending a baseline forever.
+        return { publish: true, height: metrics.height, reason: "recovery-long-hold-accepted" };
+      }
+      return { publish: false, height: metrics.height, reason: "recovery-holding-baseline" };
+    }
+
+    // Still moving — a displaced visual viewport is not a settled one.
+    if (Math.abs(metrics.offsetTop) > OFFSET_TOLERANCE_PX) {
+      return { publish: false, height: metrics.height, reason: "recovery-offset-nonzero" };
+    }
+
+    return { publish: true, height: metrics.height, reason: "recovered" };
+  }
+
+  return { publish: true, height: metrics.height, reason: "unobstructed" };
+}
+
+/* ── writing ──────────────────────────────────────────────────────────── */
 
 function cancelPendingFrame(): void {
   if (pendingFrame === null) return;
@@ -172,56 +460,76 @@ function px(value: number): string {
   return `${Math.round(value * 100) / 100}px`;
 }
 
-/** Inline-style read, so there is no module-level cache to go stale (or to
- * leak between tests) and no layout flush — and no redundant style write
- * when the value hasn't actually moved. */
+/** Inline-style read, so there's no module cache to go stale and no layout
+ * flush — and no redundant write when the value hasn't moved. */
 function setVar(root: HTMLElement, name: string, value: string): void {
   if (root.style.getPropertyValue(name) === value) return;
   root.style.setProperty(name, value);
 }
 
-function writeViewportMetrics(force: boolean): void {
-  if (!hasWindow()) return;
+export function getPublishedHeightPx(): number | null {
+  if (!hasWindow() || !document.documentElement) return null;
+  const raw = document.documentElement.style.getPropertyValue(VIEWPORT_HEIGHT_VAR);
+  if (!raw) return null;
+  const parsed = Number.parseFloat(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function applyDecision(force: boolean): PublishDecision {
+  const metrics = readViewportMetrics();
+  const decision = evaluatePublish(metrics, { force });
+  lastDecision = decision;
+
   const root = document.documentElement;
-  if (!root) return;
-  const { height, offsetTop } = readViewportMetrics();
-  if (height > 0 && (force || !shouldHoldPublishedHeight())) {
-    setVar(root, VIEWPORT_HEIGHT_VAR, px(height));
+  if (root) {
+    if (decision.publish) {
+      setVar(root, VIEWPORT_HEIGHT_VAR, px(decision.height));
+      baseline = { height: decision.height, width: metrics.width };
+      if (decision.reason === "recovered" || decision.reason === "recovery-long-hold-accepted") {
+        releaseKeyboardRecovery(decision.reason);
+      }
+    }
+    setVar(root, VIEWPORT_OFFSET_TOP_VAR, px(metrics.offsetTop));
   }
-  setVar(root, VIEWPORT_OFFSET_TOP_VAR, px(offsetTop));
+
+  logEvent(
+    "publish",
+    `${decision.publish ? "set" : "hold"} ${Math.round(decision.height)} (${decision.reason})` +
+      ` vv=${Math.round(metrics.height)} inner=${Math.round(metrics.innerHeight)}`
+  );
+  return decision;
 }
 
 /**
- * Publish the current measurement. Batched into one animation frame by
- * default so a burst of resize/scroll events costs a single style write and
- * zero React renders; `immediate` skips the frame for the cases that must
- * be correct *before* the next paint (initial mount, and the moment just
- * before the authed shell is allowed to appear).
- *
- * `force` publishes even while a keyboard is open — only used where the
- * geometry genuinely changed underneath us (orientation), so that a held
- * portrait height can't survive into landscape.
+ * Publish the current measurement, subject to `evaluatePublish`. Batched
+ * into one animation frame by default so a burst of events costs a single
+ * style write and zero React renders; `immediate` skips the frame for cases
+ * that must be correct before the next paint. `force` is for a confirmed
+ * geometry change only.
  */
 export function syncViewportHeight(options: { immediate?: boolean; force?: boolean } = {}): void {
   if (!hasWindow()) return;
   const force = options.force === true;
   if (options.immediate || typeof requestAnimationFrame !== "function") {
     cancelPendingFrame();
-    writeViewportMetrics(force);
+    applyDecision(force);
     return;
   }
   if (pendingFrame !== null) return;
   pendingFrame = requestAnimationFrame(() => {
     pendingFrame = null;
-    writeViewportMetrics(force);
+    applyDecision(force);
   });
 }
 
+/* ── listener lifecycle ───────────────────────────────────────────────── */
+
 /**
  * Attach every listener that can indicate the visible height changed, and
- * keep `--app-viewport-height` in step with all of them. Returns a cleanup
- * that removes the listeners, clears the deferred timers, and drops the
- * pending frame — after which nothing here writes to the DOM again.
+ * keep the variable in step with all of them — each one going through the
+ * same decision function, including the deferred timers. Returns a cleanup
+ * that removes the listeners, clears the timers and drops the pending frame,
+ * after which nothing here writes to the DOM again.
  */
 export function startViewportSync(): () => void {
   if (!hasWindow()) return () => {};
@@ -229,155 +537,287 @@ export function startViewportSync(): () => void {
   let disposed = false;
   const timers = new Set<ReturnType<typeof setTimeout>>();
 
-  const handle = (): void => {
-    if (!disposed) syncViewportHeight();
+  const handle = (kind: string) => (): void => {
+    if (disposed) return;
+    logEvent("event", kind);
+    syncViewportHeight();
   };
 
-  /** For events whose effect lands *after* the event turn. */
-  const handleDeferred = (force = false): void => {
+  /** For events whose effect lands after the event turn. */
+  const handleDeferred = (kind: string, force = false) => (): void => {
     if (disposed) return;
+    logEvent("event", kind);
     syncViewportHeight({ force });
     for (const delay of DEFERRED_RESYNC_MS) {
       const timer = setTimeout(() => {
         timers.delete(timer);
-        if (!disposed) syncViewportHeight({ immediate: true, force });
+        if (disposed) return;
+        // Deliberately NOT forced: the deferred re-measures were one of the
+        // paths that published the stale shortened height, so they get the
+        // same scrutiny as everything else.
+        syncViewportHeight({ immediate: true });
       }, delay);
       timers.add(timer);
     }
   };
 
-  const handleOrientation = (): void => handleDeferred(true);
-  const handleRestore = (): void => handleDeferred(false);
-  const handleVisibility = (): void => {
-    if (document.visibilityState === "visible") handleDeferred(false);
+  const handleOrientation = (): void => {
+    if (disposed) return;
+    orientationInFluxUntil = Date.now() + ORIENTATION_SETTLE_MS;
+    baseline = null;
+    releaseKeyboardRecovery("orientation");
+    logEvent("event", "orientationchange");
+    for (const delay of [...DEFERRED_RESYNC_MS, ORIENTATION_SETTLE_MS + 60]) {
+      const timer = setTimeout(() => {
+        timers.delete(timer);
+        if (!disposed) syncViewportHeight({ immediate: true });
+      }, delay);
+      timers.add(timer);
+    }
   };
 
+  const handleFocusOut = (): void => {
+    if (disposed) return;
+    // A blur is a keyboard starting to close — the same situation the login
+    // transition arms explicitly. Arming here covers every other field in
+    // the app (Entry's numeric inputs, Settings' forms) with no per-screen
+    // wiring.
+    armKeyboardRecovery("focusout");
+    handleDeferred("focusout")();
+  };
+
+  const handleVisibility = (): void => {
+    if (disposed) return;
+    if (document.visibilityState === "visible") handleDeferred("visible")();
+  };
+
+  const onVvResize = handle("visualViewport.resize");
+  const onVvScroll = handle("visualViewport.scroll");
+  const onResize = handle("window.resize");
+  const onFocusIn = handle("focusin");
+  const onPageShow = handleDeferred("pageshow");
+
   const vv = window.visualViewport;
-  vv?.addEventListener("resize", handle);
-  vv?.addEventListener("scroll", handle);
-  window.addEventListener("resize", handle);
+  vv?.addEventListener("resize", onVvResize);
+  vv?.addEventListener("scroll", onVvScroll);
+  window.addEventListener("resize", onResize);
   window.addEventListener("orientationchange", handleOrientation);
-  window.addEventListener("pageshow", handleRestore);
-  window.addEventListener("focusin", handle);
-  // Blur is when a keyboard starts closing — the deferred re-measures are
-  // what catch the height it lands on (the long-standing "gap after blurring
-  // the fuel-cost field" case, same root cause as the login one).
-  window.addEventListener("focusout", handleRestore);
+  window.addEventListener("pageshow", onPageShow);
+  window.addEventListener("focusin", onFocusIn);
+  window.addEventListener("focusout", handleFocusOut);
   document.addEventListener("visibilitychange", handleVisibility);
 
+  logEvent("lifecycle", `sync started standalone=${isStandalonePWA()}`);
   syncViewportHeight({ immediate: true });
 
   return () => {
     disposed = true;
-    vv?.removeEventListener("resize", handle);
-    vv?.removeEventListener("scroll", handle);
-    window.removeEventListener("resize", handle);
+    vv?.removeEventListener("resize", onVvResize);
+    vv?.removeEventListener("scroll", onVvScroll);
+    window.removeEventListener("resize", onResize);
     window.removeEventListener("orientationchange", handleOrientation);
-    window.removeEventListener("pageshow", handleRestore);
-    window.removeEventListener("focusin", handle);
-    window.removeEventListener("focusout", handleRestore);
+    window.removeEventListener("pageshow", onPageShow);
+    window.removeEventListener("focusin", onFocusIn);
+    window.removeEventListener("focusout", handleFocusOut);
     document.removeEventListener("visibilitychange", handleVisibility);
     for (const timer of timers) clearTimeout(timer);
     timers.clear();
     cancelPendingFrame();
+    logEvent("lifecycle", "sync stopped");
   };
 }
 
 /* ── settle detection ─────────────────────────────────────────────────── */
 
+function finishSettle(reason: SettleReason, startedAt: number): SettleResult {
+  // Guarded, never forced: if the viewport is still reporting the shortened
+  // height at this point, the baseline stays published and the guard stays
+  // up to catch the real recovery whenever it arrives.
+  syncViewportHeight({ immediate: true });
+  const result: SettleResult = {
+    reason,
+    publishedHeight: getPublishedHeightPx(),
+    baseline: getUnobstructedBaseline(),
+    elapsedMs: Date.now() - startedAt,
+  };
+  lastSettle = result;
+  logEvent("settle", `${reason} published=${result.publishedHeight ?? "none"} in ${result.elapsedMs}ms`);
+  return result;
+}
+
 /**
- * Resolve once the visual viewport has stopped moving — height *and*
- * offsetTop unchanged for `quietMs` — rather than on the first change event.
- * That distinction is the whole point: iOS fires several resizes while the
- * keyboard animates, and the first is an intermediate frame.
+ * Resolve once the viewport is trustworthy again — not on the first resize
+ * event, which on iOS is only an intermediate frame of the keyboard
+ * animation.
  *
- * Guards, in order of importance:
- *  - a still-measurably-open keyboard never counts as settled, however
- *    steady its numbers look for a moment;
- *  - `maxWaitMs` always resolves, so a missing event can't strand the
- *    caller;
- *  - the final measurement is published synchronously before resolving, so
- *    whatever mounts next is laid out against it.
+ * With the recovery guard up, "trustworthy" means the decision function is
+ * willing to publish (height back at the baseline, offsetTop back to zero)
+ * *and* it has held still for the quiet period. Without the guard it's the
+ * plain stability check.
+ *
+ * The ceiling always resolves, so authentication can never be stranded — and
+ * timing out publishes nothing new, which is what keeps the shell on the
+ * correct baseline height rather than the stale short one.
  */
 export function waitForViewportSettle(
   options: { quietMs?: number; maxWaitMs?: number; pollMs?: number } = {}
-): Promise<void> {
+): Promise<SettleResult> {
   const quietMs = options.quietMs ?? SETTLE_QUIET_MS;
   const maxWaitMs = options.maxWaitMs ?? SETTLE_MAX_WAIT_MS;
   const pollMs = options.pollMs ?? SETTLE_POLL_MS;
+  const startedAt = Date.now();
 
-  if (!hasWindow()) return Promise.resolve();
+  if (!hasWindow()) {
+    return Promise.resolve({ reason: "no-viewport-api", publishedHeight: null, baseline: null, elapsedMs: 0 });
+  }
 
   const vv = window.visualViewport;
   if (!vv) {
-    // No API to watch: nothing meaningful to wait for, so don't invent a
-    // delay — just make sure the fallback measurement is published.
-    syncViewportHeight({ immediate: true });
-    return Promise.resolve();
+    return Promise.resolve(finishSettle("no-viewport-api", startedAt));
   }
 
-  return new Promise<void>((resolve) => {
-    const signature = (): string => {
-      const { height, offsetTop } = readViewportMetrics();
-      return `${Math.round(height)}:${Math.round(offsetTop)}`;
-    };
-
+  return new Promise<SettleResult>((resolve) => {
     let done = false;
-    let last = signature();
+    let last = signatureOf(readViewportMetrics());
     let lastChangeAt = Date.now();
 
-    const finish = (): void => {
+    const finish = (reason: SettleReason): void => {
       if (done) return;
       done = true;
       clearInterval(poll);
       clearTimeout(deadline);
       vv.removeEventListener("resize", check);
       vv.removeEventListener("scroll", check);
-      syncViewportHeight({ immediate: true });
-      resolve();
+      resolve(finishSettle(reason, startedAt));
     };
 
     function check(): void {
       if (done) return;
-      const current = signature();
-      if (current !== last) {
-        last = current;
+      const metrics = readViewportMetrics();
+      const signature = signatureOf(metrics);
+      if (signature !== last) {
+        last = signature;
         lastChangeAt = Date.now();
         return;
       }
-      // Steady numbers with the keyboard still visibly covering the viewport
-      // means the animation hasn't started/finished, not that we're done.
-      if (isKeyboardMeasurablyOpen()) return;
-      if (Date.now() - lastChangeAt >= quietMs) finish();
+      if (Date.now() - lastChangeAt < quietMs) return;
+
+      const decision = evaluatePublish(metrics);
+      if (!decision.publish) return; // still obstructed / still holding
+      finish(recovery ? "recovered" : "stable");
     }
 
     vv.addEventListener("resize", check);
     vv.addEventListener("scroll", check);
     const poll = setInterval(check, pollMs);
-    const deadline = setTimeout(finish, maxWaitMs);
+    const deadline = setTimeout(() => finish("timed-out"), maxWaitMs);
   });
 }
 
 /**
- * The auth transition's viewport step: blur whatever is focused (which is
- * what starts the keyboard closing), wait for the viewport to actually
- * settle, then publish the settled height — so the authenticated shell is
- * only ever mounted against a measurement that is already correct.
+ * The auth transition's viewport step, in the order that matters:
  *
- * Skipped entirely when there is no software keyboard in play (desktop, or
- * a token auto-login with nothing focused), where it costs nothing.
+ *     retain the unobstructed baseline
+ *   → arm the recovery guard          (before blur — focus is a signal)
+ *   → blur the login field
+ *   → wait for the viewport to recover
+ *   → continue the authentication transition
+ *
+ * Skipped entirely when there's no software keyboard in play (desktop, or a
+ * token auto-login), where it costs nothing.
  */
 export async function settleViewportBeforeAuth(options?: {
   quietMs?: number;
   maxWaitMs?: number;
   pollMs?: number;
-}): Promise<void> {
-  if (!hasWindow()) return;
-  const mustWait = shouldWaitForKeyboardClose();
+}): Promise<SettleResult> {
+  if (!hasWindow()) {
+    return { reason: "no-viewport-api", publishedHeight: null, baseline: null, elapsedMs: 0 };
+  }
+
+  // Decided before the blur, while focus still tells us the truth — and not
+  // from focus alone. Submitting with the on-screen Login button moves focus
+  // to the button, so on iOS the field is already blurred by the time we get
+  // here; in standalone mode the inset is ~0 as well, which is how the
+  // original fix ended up with no signal at all. A measurement materially
+  // below the retained baseline is that missing signal: whatever iOS is
+  // doing, the viewport is currently smaller than we know it can be.
+  const metricsBeforeBlur = readViewportMetrics();
+  const base = getUnobstructedBaseline();
+  const shorterThanBaseline = base !== null && metricsBeforeBlur.height < base - BASELINE_TOLERANCE_PX;
+  const mustWait =
+    isKeyboardMeasurablyOpen() ||
+    shorterThanBaseline ||
+    (isEditableElementFocused() && isSoftKeyboardCapable());
+  logEvent(
+    "auth",
+    `settle requested mustWait=${mustWait} short=${shorterThanBaseline} focus=${describeFocusedElement()}`
+  );
+
+  if (mustWait) armKeyboardRecovery("auth");
   (document.activeElement as HTMLElement | null)?.blur?.();
+
   if (!mustWait) {
     syncViewportHeight({ immediate: true });
-    return;
+    const result: SettleResult = {
+      reason: "nothing-to-wait-for",
+      publishedHeight: getPublishedHeightPx(),
+      baseline: getUnobstructedBaseline(),
+      elapsedMs: 0,
+    };
+    lastSettle = result;
+    return result;
   }
-  await waitForViewportSettle(options);
+
+  return waitForViewportSettle(options);
+}
+
+/* ── diagnostics snapshot (used by the debug overlay) ─────────────────── */
+
+export interface ViewportDiagnostics {
+  innerHeight: number;
+  clientHeight: number;
+  visualViewportHeight: number | null;
+  visualViewportOffsetTop: number | null;
+  publishedHeight: number | null;
+  baseline: number | null;
+  candidateHeight: number;
+  keyboardInset: number;
+  editableFocused: boolean;
+  focusedElement: string;
+  standalone: boolean;
+  softKeyboardCapable: boolean;
+  recoveryActive: boolean;
+  recoverySource: string | null;
+  recoveryHeldMs: number | null;
+  orientationInFlux: boolean;
+  lastDecision: PublishDecision | null;
+  lastSettle: SettleResult | null;
+  events: readonly ViewportEvent[];
+}
+
+export function getViewportDiagnostics(): ViewportDiagnostics {
+  const metrics = readViewportMetrics();
+  const vv = hasWindow() ? window.visualViewport : undefined;
+  return {
+    innerHeight: metrics.innerHeight,
+    clientHeight: metrics.clientHeight,
+    visualViewportHeight: vv ? vv.height : null,
+    visualViewportOffsetTop: vv ? vv.offsetTop : null,
+    publishedHeight: getPublishedHeightPx(),
+    baseline: getUnobstructedBaseline(),
+    candidateHeight: metrics.height,
+    keyboardInset: metrics.keyboardInset,
+    editableFocused: isEditableElementFocused(),
+    focusedElement: describeFocusedElement(),
+    standalone: isStandalonePWA(),
+    softKeyboardCapable: isSoftKeyboardCapable(),
+    recoveryActive: recovery !== null,
+    recoverySource: recovery?.source ?? null,
+    recoveryHeldMs: recovery ? Date.now() - recovery.armedAt : null,
+    orientationInFlux: Date.now() < orientationInFluxUntil,
+    lastDecision,
+    lastSettle,
+    events: eventLog,
+  };
 }

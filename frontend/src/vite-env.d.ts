@@ -2,6 +2,11 @@
 
 interface ImportMetaEnv {
   readonly VITE_API_URL?: string;
+  /** "true" builds the temporary on-device viewport diagnostics overlay into
+   * the bundle (see components/ViewportDebugOverlay.tsx). Unset in every
+   * normal build, which folds the flag to false and tree-shakes the overlay
+   * away entirely. */
+  readonly VITE_VIEWPORT_DEBUG?: string;
 }
 
 interface ImportMeta {
