@@ -2,6 +2,7 @@ import type { DayComputed } from "../lib/aggregate";
 import type { WeekReportData } from "../lib/reportData";
 import { fmt2 } from "../lib/date";
 import { VERSION_SHORT } from "../lib/appVersion";
+import { svgPathToJsPdfOps } from "./svgPathToJsPdf";
 
 const ACCENT = "#ec3013";
 const ACCENT_DARK = "#ae1800";
@@ -23,20 +24,41 @@ function dayLocations(d: DayComputed): string {
   return locs.length ? locs.join(", ") : "—";
 }
 
-/** Small drawn "cat" silhouette standing in for the GitHub mark — three
- * circles read as a head + ears at footer scale, next to a "GitHub" label
- * there's no ambiguity about what it links to. */
-function drawGithubMark(doc: import("jspdf").jsPDF, cx: number, cy: number, r: number, color: string): void {
+/** The real GitHub "octocat" mark (24x24 viewBox) — kept identical to
+ * `GithubIcon` in `components/icons.tsx` so the PDF and the web app show
+ * the same logo, not a second, different approximation of it. Traced as an
+ * SVG path rather than drawn from circles/rects (the previous footer's
+ * three-circle "cat silhouette" placeholder) so it reads as an actual,
+ * recognizable brand mark instead of an abstract blob at footer scale.
+ * Duplicated here (rather than imported) because this file has no React/JSX
+ * dependency and generates the PDF from a plain async function — if this
+ * path is ever intentionally changed, update the copy in `icons.tsx` too. */
+const GITHUB_MARK_PATH_24 =
+  "M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405 1.02 0 2.04.135 3 .405 2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z";
+
+/** Draws the GitHub mark `h` mm tall with its top-left corner at (`x`, `y`) —
+ * a real filled vector path, sharp at any zoom/print resolution, not a
+ * rasterized bitmap. */
+function drawGithubMark(doc: import("jspdf").jsPDF, x: number, y: number, h: number, color: string): void {
+  const ops = svgPathToJsPdfOps(GITHUB_MARK_PATH_24, h / 24, x, y);
   doc.setFillColor(color);
-  doc.circle(cx - r * 0.55, cy - r * 0.5, r * 0.4, "F");
-  doc.circle(cx + r * 0.55, cy - r * 0.5, r * 0.4, "F");
-  doc.circle(cx, cy + r * 0.1, r * 0.78, "F");
+  doc.path(ops);
+  doc.fill();
 }
 
-/** Small drawn globe standing in for a "portfolio / website" mark. */
-function drawGlobeMark(doc: import("jspdf").jsPDF, cx: number, cy: number, r: number, color: string): void {
+/** A simple globe standing in for a "portfolio / website" mark — the same
+ * circle+ellipse+line construction as `GlobeIcon` in `components/icons.tsx`,
+ * just drawn with jsPDF's own vector primitives (already sharp at any zoom;
+ * no path tracing needed for a shape this simple). Takes the same
+ * (x, y, h) bounding-box footprint as `drawGithubMark` so the two icons
+ * line up in the footer layout without each needing its own coordinate
+ * convention. */
+function drawPortfolioMark(doc: import("jspdf").jsPDF, x: number, y: number, h: number, color: string): void {
+  const r = h / 2;
+  const cx = x + r;
+  const cy = y + r;
   doc.setDrawColor(color);
-  doc.setLineWidth(0.22);
+  doc.setLineWidth(0.26);
   doc.circle(cx, cy, r, "S");
   doc.ellipse(cx, cy, r * 0.45, r, "S");
   doc.line(cx - r, cy, cx + r, cy);
@@ -132,7 +154,7 @@ export async function generateReportPdf(data: WeekReportData): Promise<void> {
   const pageH = doc.internal.pageSize.getHeight();
   const marginX = 14;
   const contentW = pageW - marginX * 2;
-  const footerH = 16;
+  const footerH = 18;
   // Bottom of usable content on any page — leaves room for the footer band
   // so nothing can ever get silently drawn underneath it (the old layout had
   // no page-break handling at all, so a busy week — several shifts a day,
@@ -140,6 +162,13 @@ export async function generateReportPdf(data: WeekReportData): Promise<void> {
   // bottom of the page and just disappear under the footer).
   const footerLimit = pageH - footerH - 3;
   let y = 0;
+
+  // Developer signature row layout — pulled into one place so the icon
+  // size, baseline, and separators all share the same numbers instead of
+  // several independently-eyeballed offsets drifting out of alignment.
+  const SIGNATURE_ICON_H = 3.6;
+  const SIGNATURE_FONT_SIZE = 8.3;
+  const SIGNATURE_LINK_FONT_SIZE = 8;
 
   function drawFooter(): void {
     doc.setFillColor(NEUTRAL_LIGHT);
@@ -151,36 +180,57 @@ export async function generateReportPdf(data: WeekReportData): Promise<void> {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
     doc.setTextColor(MUTED);
-    doc.text(`Generated by Wage Tracker ${VERSION_SHORT} · ${data.generatedOnLabel}`, marginX, pageH - 10);
+    doc.text(`Generated by Wage Tracker ${VERSION_SHORT} · ${data.generatedOnLabel}`, marginX, pageH - 12.2);
 
-    const creditY = pageH - 4.5;
-    const badgeR = 1.4;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.5);
-    doc.setTextColor(TEXT);
+    // — developer signature: name, a subtle separator, then the GitHub and
+    // Portfolio marks — each icon+label pair is one clickable region (a
+    // real PDF link annotation, not just colored text) so clicking the icon
+    // works exactly like clicking its label. Baseline-aligned: both icons
+    // share one height and sit at the same offset above the text baseline,
+    // and the vertical separators span the same distance around it, so
+    // nothing looks like it was independently eyeballed into place.
+    const creditY = pageH - 5.5;
+    const iconY = creditY - SIGNATURE_ICON_H + 0.7;
+
     let cx = marginX;
-    const namePrefix = "Built by Ezaz Ahmad";
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(SIGNATURE_FONT_SIZE);
+    doc.setTextColor(TEXT);
+    const namePrefix = "Developed by Ezaz Ahmad";
     doc.text(namePrefix, cx, creditY);
-    cx += doc.getTextWidth(namePrefix) + 4.5;
+    cx += doc.getTextWidth(namePrefix) + 3.4;
 
-    // GitHub badge + label, both clickable
+    function drawSeparator(): void {
+      doc.setDrawColor(DIVIDER);
+      doc.setLineWidth(0.35);
+      doc.line(cx, creditY - 2.6, cx, creditY + 0.6);
+      cx += 3.4;
+    }
+
+    drawSeparator();
+
+    // GitHub mark + label, one clickable region
     const ghStart = cx;
-    drawGithubMark(doc, cx + badgeR, creditY - 1, badgeR, DARK_AVATAR);
-    cx += badgeR * 2 + 1.6;
+    drawGithubMark(doc, cx, iconY, SIGNATURE_ICON_H, TEXT);
+    cx += SIGNATURE_ICON_H + 1.8;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(SIGNATURE_LINK_FONT_SIZE);
     doc.setTextColor(ACCENT_DARK);
     doc.text("GitHub", cx, creditY);
     const ghLabelW = doc.getTextWidth("GitHub");
-    doc.link(ghStart - 0.6, creditY - 3, cx - ghStart + ghLabelW + 1.2, 4, { url: "https://github.com/Ezaz-Ahmad" });
+    doc.link(ghStart - 0.8, creditY - 3.3, cx - ghStart + ghLabelW + 1.6, 4.4, { url: "https://github.com/Ezaz-Ahmad" });
     cx += ghLabelW + 5;
 
-    // Portfolio badge + label, both clickable
+    drawSeparator();
+
+    // Portfolio mark + label, one clickable region
     const pfStart = cx;
-    drawGlobeMark(doc, cx + badgeR, creditY - 1, badgeR, ACCENT_DARK);
-    cx += badgeR * 2 + 1.6;
+    drawPortfolioMark(doc, cx, iconY, SIGNATURE_ICON_H, ACCENT_DARK);
+    cx += SIGNATURE_ICON_H + 1.8;
     doc.setTextColor(ACCENT_DARK);
     doc.text("Portfolio", cx, creditY);
     const pfLabelW = doc.getTextWidth("Portfolio");
-    doc.link(pfStart - 0.6, creditY - 3, cx - pfStart + pfLabelW + 1.2, 4, { url: "https://ezazahmad.com" });
+    doc.link(pfStart - 0.8, creditY - 3.3, cx - pfStart + pfLabelW + 1.6, 4.4, { url: "https://www.ezazahmad.com/" });
   }
 
   // Call before drawing anything `min` mm tall — if it won't fit above the
@@ -284,10 +334,20 @@ export async function generateReportPdf(data: WeekReportData): Promise<void> {
   y += 5;
   drawDivider(doc, marginX, pageW - marginX, y);
 
-  // — hours & earnings by day (bar chart) —
-  ensureSpace(9 + 26 + 6 + 3.2 + 8);
+  // — hours & daily pay by day (bar chart) — bar height is proportional to
+  // hours worked that day, but the number printed above each bar is that
+  // day's *total* pay, which includes fuel cost on top of hours × rate (see
+  // buildDayComputed) — the heading and subtitle both say so explicitly, so
+  // a day with fuel logged doesn't look like a miscalculated earnings figure
+  // just because it's higher than hours × rate alone would suggest.
+  ensureSpace(9 + 4 + 4 + 26 + 6 + 3.2 + 8);
   y += 9;
-  drawSectionLabel(doc, "Hours & earnings by day", marginX, y);
+  drawSectionLabel(doc, "Hours & daily pay — earnings + fuel", marginX, y);
+  y += 4;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6.6);
+  doc.setTextColor(MUTED);
+  doc.text("Daily total includes shift earnings plus any reimbursed fuel cost, where recorded.", marginX, y);
   y += 4;
   const chartH = 26;
   doc.setFillColor(NEUTRAL_LIGHT);
