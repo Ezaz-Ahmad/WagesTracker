@@ -39,6 +39,15 @@
 }
 .settings-nav-item.is-active .settings-nav-item-label { color: var(--color-accent-text); }
 .settings-nav-item:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+/* Overrides the zero-specificity universal press-scale rule in
+   animations.css (:where(button, [role="button"]):active). A Settings
+   category row is a large, full-width navigation item, not a small
+   tappable control — shrinking the whole row on press reads as a snap or
+   shake rather than tactile feedback. This row already communicates
+   press/selection state entirely through background, border and text
+   colour (see the transition above and .is-active below), so pressing it
+   should change those alone, with no size change, slide or bounce. */
+.settings-nav-item:active { transform: none; }
 
 .settings-back-btn {
   display: inline-flex; align-items: center; gap: 6px; min-height: 44px;
