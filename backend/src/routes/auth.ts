@@ -7,9 +7,28 @@ import { requireAuth, signToken, type AuthedRequest } from "../auth.js";
 import { hashPassword, needsRehash, verifyPassword } from "../security/passwordHashing.js";
 import { validatePassword } from "../security/passwordPolicy.js";
 import { createSession, extractClientInfo, revokeSessionById } from "../security/sessions.js";
+import { DEVICE_INSTALLATION_ID_MAX_LENGTH, MAX_ACTIVE_INSTALLATIONS, isValidDeviceInstallationId } from "../security/sessionPolicy.js";
 import { toPublicUser, type UserRow } from "../types.js";
 
 export const authRouter = Router();
+
+
+/**
+ * The client's per-installation identifier (see the frontend's
+ * lib/deviceInstallation.ts). Optional so a client that doesn't send one
+ * still logs in — it just gets an undeduplicated session, exactly as before.
+ *
+ * Rejected outright rather than trimmed or ignored when present but
+ * malformed: this value is stored and used as a lookup key, and silently
+ * accepting "whatever the client sent" is how a lookup key stops meaning
+ * anything. It is not a secret and grants nothing on its own — every query
+ * using it is scoped to the already-authenticated user.
+ */
+const deviceInstallationIdSchema = z
+  .string()
+  .max(DEVICE_INSTALLATION_ID_MAX_LENGTH, "Invalid device installation id")
+  .refine(isValidDeviceInstallationId, "Invalid device installation id")
+  .optional();
 
 const signupSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),
@@ -33,6 +52,7 @@ const signupSchema = z.object({
   // falls back to the same 18.50 default the app used before this was
   // exposed on the signup form, rather than rejecting the request.
   rate: z.coerce.number().min(0).max(1000).optional(),
+  deviceInstallationId: deviceInstallationIdSchema,
 });
 
 authRouter.post(
@@ -43,7 +63,7 @@ authRouter.post(
       res.status(400).json({ error: parsed.error.issues[0]?.message || "Invalid input" });
       return;
     }
-    const { name, email, password, address, workLocationName, workAddress, multipleLocations, otherLocations, rate: rateInput } =
+    const { name, email, password, address, workLocationName, workAddress, multipleLocations, otherLocations, rate: rateInput, deviceInstallationId } =
       parsed.data;
 
     const existing = await db.execute({ sql: "SELECT id FROM users WHERE email = ?", args: [email] });
@@ -82,7 +102,7 @@ authRouter.post(
     const row = result.rows[0] as unknown as UserRow;
 
     const { userAgent, ipAddress } = extractClientInfo(req);
-    const sessionId = await createSession({ userId: id, userAgent, ipAddress });
+    const { sessionId } = await createSession({ userId: id, userAgent, ipAddress, deviceInstallationId });
 
     res.status(201).json({ token: signToken(id, row.token_version, sessionId), user: toPublicUser(row) });
   })
@@ -96,6 +116,7 @@ authRouter.post(
 const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email"),
   password: z.string().min(1, "Password is required"),
+  deviceInstallationId: deviceInstallationIdSchema,
 });
 
 authRouter.post(
@@ -106,7 +127,7 @@ authRouter.post(
       res.status(400).json({ error: parsed.error.issues[0]?.message || "Invalid input" });
       return;
     }
-    const { email, password } = parsed.data;
+    const { email, password, deviceInstallationId } = parsed.data;
     const result = await db.execute({ sql: "SELECT * FROM users WHERE email = ?", args: [email] });
     const row = result.rows[0] as unknown as UserRow | undefined;
     // Generic "incorrect email or password" for both a nonexistent email and a
@@ -131,9 +152,31 @@ authRouter.post(
     }
 
     const { userAgent, ipAddress } = extractClientInfo(req);
-    const sessionId = await createSession({ userId: row.id, userAgent, ipAddress });
+    // Signing in from an installation that already has a session rotates it:
+    // the old session is revoked as the new one is created, in one
+    // transaction, so this device shows up once in Settings rather than once
+    // per login. See createSession in ../security/sessions.ts.
+    const { sessionId, evictedForLimit } = await createSession({
+      userId: row.id,
+      userAgent,
+      ipAddress,
+      deviceInstallationId,
+    });
 
-    res.json({ token: signToken(row.id, row.token_version, sessionId), user: toPublicUser(row) });
+    res.json({
+      token: signToken(row.id, row.token_version, sessionId),
+      user: toPublicUser(row),
+      // Told, not hidden: hitting the device limit signs out the device that
+      // has gone longest without being used, and the user deserves to know
+      // that happened rather than discovering it later.
+      ...(evictedForLimit > 0
+        ? {
+            notice: `You were signed in on more than ${MAX_ACTIVE_INSTALLATIONS} devices, so the ${
+              evictedForLimit === 1 ? "least recently used one was" : `${evictedForLimit} least recently used were`
+            } signed out.`,
+          }
+        : {}),
+    });
   })
 );
 

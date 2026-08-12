@@ -1,3 +1,4 @@
+import { getDeviceInstallationId } from "./deviceInstallation";
 import type { DayExpense, Shift, User, WeekExtra, WeekStart } from "./types";
 
 // In local dev this is left unset and Vite's dev-server proxy forwards "/api" to the backend
@@ -146,12 +147,34 @@ export interface SignupInput {
   rate: number;
 }
 
+/**
+ * `deviceInstallationId` identifies this installation of the app so the
+ * server can rotate its existing session instead of adding another one — the
+ * reason one phone no longer accumulates an "Safari on iOS" entry per login.
+ * Omitted entirely (rather than sent as null) when storage is unavailable,
+ * since the server treats a missing id as "an older client" and logs in
+ * normally. See lib/deviceInstallation.ts.
+ */
 export function signup(input: SignupInput): Promise<{ token: string; user: User }> {
-  return request("/auth/signup", { method: "POST", body: JSON.stringify(input) });
+  const deviceInstallationId = getDeviceInstallationId();
+  return request("/auth/signup", {
+    method: "POST",
+    body: JSON.stringify({ ...input, ...(deviceInstallationId ? { deviceInstallationId } : {}) }),
+  });
 }
 
-export function login(email: string, password: string): Promise<{ token: string; user: User }> {
-  return request("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+/** `notice` carries a server-side explanation the user needs to see — today
+ * only "you were signed in on too many devices, so the least recently used
+ * was signed out". Optional, and absent on an ordinary login. */
+export function login(
+  email: string,
+  password: string
+): Promise<{ token: string; user: User; notice?: string }> {
+  const deviceInstallationId = getDeviceInstallationId();
+  return request("/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password, ...(deviceInstallationId ? { deviceInstallationId } : {}) }),
+  });
 }
 
 export function fetchMe(): Promise<{ user: User }> {
