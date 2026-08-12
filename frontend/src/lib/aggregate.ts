@@ -309,6 +309,48 @@ function sumWeekExtras(weekExtras: WeekExtra[]): number {
  * skipped entirely — history should start the week the user actually signed up,
  * not stretch back to an arbitrary fixed count of empty weeks.
  */
+/**
+ * Total earnings for the single week beginning `weekStart`, from stored data
+ * only (no live/in-progress shift).
+ *
+ * This is THE weekly-earnings formula — hours x rate, plus fuel
+ * reimbursement, plus that week's "other earnings" entry. `weekTotals` +
+ * `weekExtraFor` compute the same thing for the current week from
+ * already-built day rows, and `buildWeeklyHistory` calls this for each
+ * historical week, so there is exactly one definition of what a week earns.
+ * That matters more than it looks: the Home headline and the "vs prior week"
+ * comparison used to be derived separately, and could disagree.
+ *
+ * `hasRecords` distinguishes "that week earned nothing" from "there is no
+ * data for that week at all" — a week before the account existed is not a
+ * week with zero earnings, and the two deserve different wording.
+ */
+export function weekEarningsFor(
+  weekStart: Date,
+  shifts: Shift[],
+  expenses: DayExpense[],
+  weekExtras: WeekExtra[],
+  rate: number
+): { earnings: number; hours: number; fuelCost: number; extra: number; hasRecords: boolean } {
+  const startISO = isoDate(weekStart);
+  const endISO = isoDate(addDays(weekStart, 6));
+  const weekShifts = shiftsInRange(shifts, startISO, endISO);
+  const weekExpenses = expensesInRange(expenses, startISO, endISO);
+  const extraEntry = weekExtraFor(startISO, weekExtras);
+
+  const hours = sumHours(weekShifts);
+  const fuelCost = sumFuelCost(weekExpenses);
+  const extra = extraEntry?.amount ?? 0;
+
+  return {
+    hours,
+    fuelCost,
+    extra,
+    earnings: Math.round((hours * rate + fuelCost + extra) * 100) / 100,
+    hasRecords: weekShifts.length > 0 || weekExpenses.length > 0 || extraEntry !== undefined,
+  };
+}
+
 export function buildWeeklyHistory(
   allShifts: Shift[],
   today: Date,
