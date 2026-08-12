@@ -87,12 +87,20 @@ export const SETTLE_MAX_WAIT_MS = 900;
  * that things have gone quiet. */
 export const SETTLE_POLL_MS = 40;
 
-/** Longest the recovery guard will hold the baseline against a shorter
- * measurement. Past this, a measurement that has been stable for
+/** Longest a *normal* recovery guard will hold the baseline against a
+ * shorter measurement. Past this, a measurement that has been stable for
  * GUARD_STABLE_ACCEPT_MS is accepted as a real change and becomes the new
  * baseline — otherwise a viewport that legitimately got shorter (and never
- * returns) would be held wrong indefinitely. Deliberately far longer than
- * the keyboard animation (~300ms) plus the settle ceiling. */
+ * returns) would be held wrong indefinitely.
+ *
+ * This escape hatch does NOT apply to a `strict-auth` guard. That exclusion
+ * is the fix for the second on-device failure: `focusout` arms a guard the
+ * moment the Login button is tapped, and this backend cold-starts, so the
+ * request routinely takes longer than six seconds (that's what
+ * WakingUpScreen exists for). The guard would age past this limit while the
+ * request was still in flight, and the first evaluation after it landed
+ * would take the escape hatch and adopt the keyboard-era height as the new
+ * baseline — the exact value being guarded against. */
 export const GUARD_MAX_HOLD_MS = 6000;
 /** How long a shorter-than-baseline measurement must hold still before the
  * long-hold escape hatch above will accept it. */
@@ -122,7 +130,27 @@ export interface ViewportMetrics {
   keyboardInset: number;
   /** Layout viewport width — the baseline is keyed to this. */
   width: number;
+  /** `visualViewport.scale` — 1 unless the user (or iOS input auto-zoom) has
+   * zoomed. Evidence, not geometry: nothing positions off it. It is used for
+   * exactly one decision — a zoomed viewport reports a smaller visible
+   * height, which is a measurement about the zoom, not about the app, so it
+   * must not be published. */
+  scale: number;
 }
+
+/**
+ * `normal` — the everyday keyboard-close guard (any blur, any mode). It can
+ * eventually concede that a shorter viewport is the real one.
+ *
+ * `strict-auth` — the installed-PWA login/signup transition. It never
+ * concedes: on this path a shorter same-width viewport is always iOS
+ * reporting a stale keyboard-era height, and adopting it is the bug. It
+ * releases only on genuine evidence (height back at the baseline with the
+ * offset back at zero) or a real width/orientation change. Scoped to
+ * standalone mode so Safari's legitimately-variable toolbar height is
+ * unaffected.
+ */
+export type RecoveryMode = "normal" | "strict-auth";
 
 export type PublishReason =
   | "forced"
@@ -135,7 +163,8 @@ export type PublishReason =
   | "editable-focused"
   | "orientation-in-flux"
   | "recovery-holding-baseline"
-  | "recovery-offset-nonzero";
+  | "recovery-offset-nonzero"
+  | "viewport-zoomed";
 
 export interface PublishDecision {
   publish: boolean;
@@ -169,6 +198,7 @@ interface Baseline {
 interface RecoveryState {
   armedAt: number;
   source: string;
+  mode: RecoveryMode;
   lastSignature: string;
   lastChangeAt: number;
 }
@@ -241,7 +271,7 @@ function hasWindow(): boolean {
 /** The single measurement point. */
 export function readViewportMetrics(): ViewportMetrics {
   if (!hasWindow()) {
-    return { height: 0, offsetTop: 0, innerHeight: 0, clientHeight: 0, keyboardInset: 0, width: 0 };
+    return { height: 0, offsetTop: 0, innerHeight: 0, clientHeight: 0, keyboardInset: 0, width: 0, scale: 1 };
   }
   const innerHeight = typeof window.innerHeight === "number" ? window.innerHeight : 0;
   const width = typeof window.innerWidth === "number" ? window.innerWidth : 0;
@@ -250,6 +280,7 @@ export function readViewportMetrics(): ViewportMetrics {
   const vvHeight = vv && typeof vv.height === "number" ? vv.height : 0;
   const height = vvHeight > 0 ? vvHeight : innerHeight;
   const offsetTop = vv && typeof vv.offsetTop === "number" ? vv.offsetTop : 0;
+  const scale = vv && typeof vv.scale === "number" && vv.scale > 0 ? vv.scale : 1;
   return {
     height,
     offsetTop,
@@ -257,6 +288,7 @@ export function readViewportMetrics(): ViewportMetrics {
     clientHeight,
     keyboardInset: Math.max(0, innerHeight - height),
     width,
+    scale,
   };
 }
 
@@ -339,22 +371,45 @@ export function getUnobstructedBaseline(): number | null {
  * to protect (blurred field, zero computed inset, shortened viewport)
  * unguarded.
  */
-export function armKeyboardRecovery(source: string = "keyboard-close"): void {
+export function armKeyboardRecovery(source: string = "keyboard-close", mode: RecoveryMode = "normal"): void {
   if (!hasWindow()) return;
   const metrics = readViewportMetrics();
   const now = Date.now();
+
   if (recovery) {
+    // Re-arming RESETS the clock — it does not merely relabel the existing
+    // guard. `focusout` arms one the instant the Login button is tapped, and
+    // this backend cold-starts, so by the time the auth path re-arms, the
+    // original guard can already be older than GUARD_MAX_HOLD_MS. Inheriting
+    // that age handed the long-hold escape hatch the stale keyboard-era
+    // height on the very next evaluation.
+    recovery.armedAt = now;
+    recovery.lastChangeAt = now;
+    recovery.lastSignature = signatureOf(metrics);
     recovery.source = source;
-    logEvent("guard", `re-armed (${source})`);
+    // Modes only ever escalate: once a transition is strict it stays strict
+    // until the guard is released, so a stray `focusout` can't downgrade it.
+    if (mode === "strict-auth") recovery.mode = "strict-auth";
+    logEvent("guard", `re-armed (${source}, ${recovery.mode}) — clock reset`);
     return;
   }
+
   recovery = {
     armedAt: now,
     source,
+    mode,
     lastSignature: signatureOf(metrics),
     lastChangeAt: now,
   };
-  logEvent("guard", `armed (${source}) baseline=${baseline ? Math.round(baseline.height) : "none"}`);
+  logEvent(
+    "guard",
+    `armed (${source}, ${mode}) baseline=${baseline ? Math.round(baseline.height) : "none"}`
+  );
+}
+
+/** Which mode the live guard is in, if any. */
+export function getRecoveryMode(): RecoveryMode | null {
+  return recovery?.mode ?? null;
 }
 
 function releaseKeyboardRecovery(reason: string): void {
@@ -404,6 +459,16 @@ export function evaluatePublish(
     return { publish: false, height: metrics.height, reason: "orientation-in-flux" };
   }
 
+  // While the page is zoomed (pinch, or iOS auto-zooming a sub-16px field),
+  // `visualViewport.height` describes the zoom, not the app. Publishing it
+  // would shrink the shell to whatever fraction is currently on screen. This
+  // is the only decision `scale` takes part in — nothing is positioned from
+  // it, and pinch-zoom itself stays available (see index.html's viewport
+  // meta, deliberately left without user-scalable=no).
+  if (Math.abs(metrics.scale - 1) > 0.01) {
+    return { publish: false, height: metrics.height, reason: "viewport-zoomed" };
+  }
+
   // Positive evidence of an obstruction: hold whatever is published so the
   // bottom nav doesn't hop up on top of the keyboard.
   if (metrics.keyboardInset > KEYBOARD_INSET_THRESHOLD_PX) {
@@ -429,9 +494,16 @@ export function evaluatePublish(
     if (base !== null && metrics.height < base - BASELINE_TOLERANCE_PX) {
       const heldFor = now - recovery.armedAt;
       const stableFor = now - recovery.lastChangeAt;
-      if (heldFor >= GUARD_MAX_HOLD_MS && stableFor >= GUARD_STABLE_ACCEPT_MS) {
-        // Escape hatch: the viewport really is shorter now and isn't coming
-        // back. Accept it rather than defending a baseline forever.
+      // The escape hatch exists for a viewport that legitimately got shorter
+      // and isn't coming back — Safari's toolbar expanding, say. It must NOT
+      // apply to a strict standalone-PWA auth transition, where a shorter
+      // same-width viewport is only ever iOS still reporting the keyboard-era
+      // height. There, a slow login simply waits; it never concedes.
+      if (
+        recovery.mode !== "strict-auth" &&
+        heldFor >= GUARD_MAX_HOLD_MS &&
+        stableFor >= GUARD_STABLE_ACCEPT_MS
+      ) {
         return { publish: true, height: metrics.height, reason: "recovery-long-hold-accepted" };
       }
       return { publish: false, height: metrics.height, reason: "recovery-holding-baseline" };
@@ -754,7 +826,11 @@ export async function settleViewportBeforeAuth(options?: {
     `settle requested mustWait=${mustWait} short=${shorterThanBaseline} focus=${describeFocusedElement()}`
   );
 
-  if (mustWait) armKeyboardRecovery("auth");
+  // Strict only in standalone mode: that's where a shorter same-width
+  // viewport is unambiguously a stale keyboard-era reading. In Safari's
+  // browser mode the toolbar can genuinely change the height, so that path
+  // keeps the ordinary guard (and its escape hatch).
+  if (mustWait) armKeyboardRecovery("auth", isStandalonePWA() ? "strict-auth" : "normal");
   (document.activeElement as HTMLElement | null)?.blur?.();
 
   if (!mustWait) {
@@ -779,6 +855,9 @@ export interface ViewportDiagnostics {
   clientHeight: number;
   visualViewportHeight: number | null;
   visualViewportOffsetTop: number | null;
+  /** `visualViewport.scale` — confirms whether iOS input auto-zoom is in
+   * play. Evidence only; the bottom nav is never positioned from it. */
+  visualViewportScale: number | null;
   publishedHeight: number | null;
   baseline: number | null;
   candidateHeight: number;
@@ -789,6 +868,7 @@ export interface ViewportDiagnostics {
   softKeyboardCapable: boolean;
   recoveryActive: boolean;
   recoverySource: string | null;
+  recoveryMode: RecoveryMode | null;
   recoveryHeldMs: number | null;
   orientationInFlux: boolean;
   lastDecision: PublishDecision | null;
@@ -804,6 +884,7 @@ export function getViewportDiagnostics(): ViewportDiagnostics {
     clientHeight: metrics.clientHeight,
     visualViewportHeight: vv ? vv.height : null,
     visualViewportOffsetTop: vv ? vv.offsetTop : null,
+    visualViewportScale: vv ? (vv.scale ?? null) : null,
     publishedHeight: getPublishedHeightPx(),
     baseline: getUnobstructedBaseline(),
     candidateHeight: metrics.height,
@@ -814,6 +895,7 @@ export function getViewportDiagnostics(): ViewportDiagnostics {
     softKeyboardCapable: isSoftKeyboardCapable(),
     recoveryActive: recovery !== null,
     recoverySource: recovery?.source ?? null,
+    recoveryMode: recovery?.mode ?? null,
     recoveryHeldMs: recovery ? Date.now() - recovery.armedAt : null,
     orientationInFlux: Date.now() < orientationInFluxUntil,
     lastDecision,

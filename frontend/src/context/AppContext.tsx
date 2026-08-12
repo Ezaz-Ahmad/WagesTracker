@@ -218,6 +218,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string, remember: boolean = true) => {
     setAuthBusy(true);
     setAuthError(null);
+    // Started BEFORE the request, deliberately, and run alongside it. This
+    // backend cold-starts, so a login can easily take longer than the
+    // viewport guard's maximum hold; kicking the transition off only after
+    // the response arrived meant the keyboard had been closing, unwatched,
+    // for the whole wait. Now the blur and the guard happen immediately and
+    // the two run concurrently, so a slow response costs nothing extra and
+    // the guard is never older than the request it's protecting.
+    const viewportReady = settleViewportBeforeAuth();
     try {
       const { token, user } = await api.login(email, password);
       api.setToken(token, remember);
@@ -226,9 +234,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       else api.clearRememberedEmail();
       setUser(user);
       hideEarningsNow();
-      await settleViewportBeforeAuth();
+      await viewportReady;
       setStatus("loggedIn");
     } catch (e) {
+      // Nothing to clean up on the viewport side: the promise always
+      // resolves, and the guard releases itself once iOS reports the real
+      // viewport again (or on the next orientation change).
+      await viewportReady;
       setAuthError(e instanceof Error ? e.message : "Could not log in");
     } finally {
       setAuthBusy(false);
@@ -238,15 +250,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const signup = useCallback(async (input: api.SignupInput) => {
     setAuthBusy(true);
     setAuthError(null);
+    // Same ordering as login above, and for the same reason.
+    const viewportReady = settleViewportBeforeAuth();
     try {
       const { token, user } = await api.signup(input);
       api.setToken(token, true);
       api.recordActivity();
       setUser(user);
       hideEarningsNow();
-      await settleViewportBeforeAuth();
+      await viewportReady;
       setStatus("loggedIn");
     } catch (e) {
+      await viewportReady;
       setAuthError(e instanceof Error ? e.message : "Could not create account");
     } finally {
       setAuthBusy(false);

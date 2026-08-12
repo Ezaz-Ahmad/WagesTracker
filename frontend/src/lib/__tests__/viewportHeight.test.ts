@@ -23,6 +23,7 @@ import {
   armKeyboardRecovery,
   evaluatePublish,
   getPublishedHeightPx,
+  getRecoveryMode,
   getUnobstructedBaseline,
   getViewportDiagnostics,
   isKeyboardRecoveryActive,
@@ -41,6 +42,9 @@ import {
 class MockVisualViewport extends EventTarget {
   height: number;
   offsetTop = 0;
+  /** 1 unless the page is zoomed — iOS auto-zooms any focused field whose
+   * text is under 16px, which is why tokens.css pins mobile inputs to 16px. */
+  scale = 1;
   constructor(height: number) {
     super();
     this.height = height;
@@ -344,6 +348,174 @@ describe("installed iPhone PWA — the exact reported login sequence", () => {
   });
 });
 
+/* ── slow / cold-start authentication ─────────────────────────────────── */
+
+describe("cold-start login — the guard must outlive a slow API request", () => {
+  it("keeps the full height through a login that takes far longer than GUARD_MAX_HOLD_MS", async () => {
+    // 1-2. Standalone at full height; baseline retained.
+    const stop = startViewportSync();
+    expect(published()).toBe(900);
+    expect(getUnobstructedBaseline()).toBe(900);
+
+    // 3-4. Focus the password field; iOS shrinks BOTH values together.
+    const input = focusField("password");
+    shrinkBothTo(760);
+    await flush();
+    expect(published()).toBe(900);
+
+    // 5. Login is submitted. The viewport transition starts NOW, alongside
+    //    the request — not after it — exactly as AppContext orders it.
+    const viewportReady = track(settleViewportBeforeAuth());
+    blurField(input); // focusout also arms a guard, as the browser would
+    expect(getRecoveryMode()).toBe("strict-auth");
+
+    // 6-7. The backend is cold. Ten seconds pass with the request unresolved,
+    //      well past GUARD_MAX_HOLD_MS, while iOS still reports 760.
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    // 8-9. The request finally lands and authentication completes.
+    expect(viewportReady.done).toBe(true);
+
+    // 10-11. The shell is still sized from the real viewport...
+    expect(published()).toBe(900);
+    expect(getUnobstructedBaseline()).toBe(900);
+    // 12. ...and the escape hatch was never taken.
+    expect(evaluatePublish().reason).toBe("recovery-holding-baseline");
+
+    // 13-14. A scroll event while still measuring 760 changes nothing.
+    vv.dispatchEvent(new Event("scroll"));
+    await flush();
+    expect(published()).toBe(900);
+
+    // 15-16. iOS restores the viewport; the guard releases normally.
+    setInner(900);
+    vv.moveTo(900);
+    await flush();
+    expect(published()).toBe(900);
+    expect(isKeyboardRecoveryActive()).toBe(false);
+    stop();
+  });
+
+  it("handles a fast login (under six seconds) identically", async () => {
+    const stop = startViewportSync();
+    const input = focusField("password");
+    shrinkBothTo(760);
+    await flush();
+
+    const viewportReady = track(settleViewportBeforeAuth());
+    blurField(input);
+    await vi.advanceTimersByTimeAsync(1200); // request answered quickly
+    expect(viewportReady.done).toBe(true);
+    expect(published()).toBe(900);
+
+    setInner(900);
+    vv.moveTo(900);
+    await flush();
+    expect(published()).toBe(900);
+    expect(isKeyboardRecoveryActive()).toBe(false);
+    stop();
+  });
+
+  it("leaves the height correct after a failed login", async () => {
+    const stop = startViewportSync();
+    const input = focusField("password");
+    shrinkBothTo(760);
+    await flush();
+
+    // The transition starts before the request, so a rejection doesn't skip
+    // it — the guard must still resolve and still hold the baseline.
+    const viewportReady = track(settleViewportBeforeAuth());
+    blurField(input);
+    await vi.advanceTimersByTimeAsync(8000); // request eventually 401s
+    expect(viewportReady.done).toBe(true);
+    expect(published()).toBe(900);
+
+    // The user retries: focus comes back, keyboard reopens, still 900.
+    const retry = focusField("password");
+    await flush();
+    expect(published()).toBe(900);
+    retry.remove();
+    stop();
+  });
+
+  it("gives a slow signup the same protection as a slow login", async () => {
+    const stop = startViewportSync();
+    const input = focusField("password");
+    shrinkBothTo(760);
+    await flush();
+
+    const viewportReady = track(settleViewportBeforeAuth());
+    blurField(input);
+    await vi.advanceTimersByTimeAsync(12_000);
+    expect(viewportReady.done).toBe(true);
+    expect(published()).toBe(900);
+    expect(getRecoveryMode()).toBe("strict-auth");
+    stop();
+  });
+
+  it("accepts a late recovery long after the authenticated shell has mounted", async () => {
+    const stop = startViewportSync();
+    const input = focusField("password");
+    shrinkBothTo(760);
+    await flush();
+    const viewportReady = track(settleViewportBeforeAuth());
+    blurField(input);
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(viewportReady.done).toBe(true);
+    expect(published()).toBe(900);
+
+    // Thirty seconds after the shell mounted, iOS finally emits the restore.
+    await vi.advanceTimersByTimeAsync(30_000);
+    setInner(900);
+    vv.moveTo(900);
+    await flush();
+    expect(published()).toBe(900);
+    expect(isKeyboardRecoveryActive()).toBe(false);
+    stop();
+  });
+
+  it("survives repeated login / logout cycles with slow responses", async () => {
+    const stop = startViewportSync();
+    for (let i = 0; i < 5; i += 1) {
+      const input = focusField("password");
+      shrinkBothTo(760);
+      await flush();
+
+      const viewportReady = track(settleViewportBeforeAuth());
+      blurField(input);
+      await vi.advanceTimersByTimeAsync(9000);
+      expect(viewportReady.done).toBe(true);
+      expect(published()).toBe(900);
+
+      setInner(900);
+      vv.moveTo(900);
+      await vi.advanceTimersByTimeAsync(900);
+      expect(published()).toBe(900);
+      expect(isKeyboardRecoveryActive()).toBe(false);
+      input.remove();
+    }
+    stop();
+  });
+
+  it("keeps the ordinary escape hatch for a slow auth in Safari browser mode", async () => {
+    // Safari's toolbar can legitimately change the height, so that path is
+    // not strict — the guard must still be able to concede eventually.
+    safariBrowser();
+    const stop = startViewportSync();
+    const input = focusField("password");
+    shrinkVisualOnlyTo(500);
+    await flush();
+
+    const viewportReady = track(settleViewportBeforeAuth());
+    blurField(input);
+    expect(getRecoveryMode()).toBe("normal");
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(viewportReady.done).toBe(true);
+    input.remove();
+    stop();
+  });
+});
+
 /* ── the guard's own rules ────────────────────────────────────────────── */
 
 describe("keyboard-recovery guard", () => {
@@ -384,16 +556,77 @@ describe("keyboard-recovery guard", () => {
     stop();
   });
 
-  it("will not hold a genuinely-shorter viewport hostage forever", async () => {
+  it("will not hold a genuinely-shorter viewport hostage forever — NORMAL recovery only", async () => {
+    // Scoped deliberately: this escape hatch exists for e.g. Safari's toolbar
+    // legitimately changing the height. The strict-auth test below asserts it
+    // must NOT apply during an installed-PWA login.
     const stop = startViewportSync();
-    armKeyboardRecovery("test");
+    armKeyboardRecovery("test", "normal");
     shrinkBothTo(760);
     await vi.advanceTimersByTimeAsync(GUARD_MAX_HOLD_MS + GUARD_STABLE_ACCEPT_MS + 200);
-    // Nothing came back; the shorter viewport is evidently the real one now.
     syncViewportHeight({ immediate: true });
     expect(published()).toBe(760);
     expect(getUnobstructedBaseline()).toBe(760);
     stop();
+  });
+
+  it("never takes the long-hold escape hatch during a strict auth recovery", async () => {
+    const stop = startViewportSync();
+    armKeyboardRecovery("auth", "strict-auth");
+    shrinkBothTo(760);
+    await vi.advanceTimersByTimeAsync(GUARD_MAX_HOLD_MS * 3);
+    syncViewportHeight({ immediate: true });
+    expect(evaluatePublish().reason).toBe("recovery-holding-baseline");
+    expect(published()).toBe(900);
+    expect(getUnobstructedBaseline()).toBe(900);
+    stop();
+  });
+
+  it("resets the guard's clock on re-arm rather than only relabelling it", async () => {
+    // Isolated from strict mode on purpose: BOTH mechanisms have to work.
+    // Strict mode alone would mask a missing reset here, and the reset alone
+    // would mask a missing strict exclusion in the tests above.
+    const stop = startViewportSync();
+    // The Login button is tapped: focusout arms a guard...
+    armKeyboardRecovery("focusout", "normal");
+    shrinkBothTo(760);
+    // ...and the cold-starting backend runs past the guard's ceiling, so the
+    // escape hatch is now primed.
+    await vi.advanceTimersByTimeAsync(GUARD_MAX_HOLD_MS + GUARD_STABLE_ACCEPT_MS + 500);
+    expect(evaluatePublish().reason).toBe("recovery-long-hold-accepted");
+
+    // The auth path re-arms. Resetting armedAt/lastChangeAt puts the guard
+    // back to full strength; merely updating `source` would leave the next
+    // evaluation free to adopt the stale 760.
+    armKeyboardRecovery("auth", "normal");
+    expect(evaluatePublish().reason).toBe("recovery-holding-baseline");
+    syncViewportHeight({ immediate: true });
+    expect(published()).toBe(900);
+    expect(getUnobstructedBaseline()).toBe(900);
+    stop();
+  });
+
+  it("escalates a re-armed guard to strict for the auth path", async () => {
+    const stop = startViewportSync();
+    armKeyboardRecovery("focusout", "normal");
+    shrinkBothTo(760);
+    await vi.advanceTimersByTimeAsync(GUARD_MAX_HOLD_MS + 1000);
+    armKeyboardRecovery("auth", "strict-auth");
+    expect(getRecoveryMode()).toBe("strict-auth");
+    // ...and from here even another full ceiling can't shake it loose.
+    await vi.advanceTimersByTimeAsync(GUARD_MAX_HOLD_MS * 2);
+    expect(evaluatePublish().reason).toBe("recovery-holding-baseline");
+    expect(published()).toBe(900);
+    stop();
+  });
+
+  it("lets a strict guard escalate from a normal one, and never the reverse", () => {
+    armKeyboardRecovery("focusout", "normal");
+    expect(getRecoveryMode()).toBe("normal");
+    armKeyboardRecovery("auth", "strict-auth");
+    expect(getRecoveryMode()).toBe("strict-auth");
+    armKeyboardRecovery("focusout", "normal");
+    expect(getRecoveryMode()).toBe("strict-auth");
   });
 
   it("does not release while the visual viewport is still displaced", async () => {
@@ -823,6 +1056,34 @@ describe("diagnostics", () => {
     expect(d.editableFocused).toBe(true);
     expect(d.standalone).toBe(true);
     expect(d.events.length).toBeGreaterThan(0);
+    stop();
+  });
+
+  it("reports visualViewport.scale so input auto-zoom can be ruled in or out", async () => {
+    const stop = startViewportSync();
+    expect(getViewportDiagnostics().visualViewportScale).toBe(1);
+    expect(readViewportMetrics().scale).toBe(1);
+
+    // iOS auto-zooming a sub-16px field, or a pinch.
+    (vv as MockVisualViewport & { scale: number }).scale = 1.32;
+    expect(getViewportDiagnostics().visualViewportScale).toBeCloseTo(1.32);
+    expect(readViewportMetrics().scale).toBeCloseTo(1.32);
+    stop();
+  });
+
+  it("refuses to publish a height measured while the page is zoomed", async () => {
+    const stop = startViewportSync();
+    (vv as MockVisualViewport & { scale: number }).scale = 1.4;
+    setInner(900);
+    vv.moveTo(640); // what a zoomed viewport reports
+    await flush();
+    expect(evaluatePublish().reason).toBe("viewport-zoomed");
+    expect(published()).toBe(900);
+
+    (vv as MockVisualViewport & { scale: number }).scale = 1;
+    vv.moveTo(900);
+    await flush();
+    expect(published()).toBe(900);
     stop();
   });
 

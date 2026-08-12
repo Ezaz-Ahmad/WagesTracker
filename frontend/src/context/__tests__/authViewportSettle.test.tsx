@@ -161,7 +161,8 @@ describe("auth transitions wait for the settled viewport", () => {
     expect(status()).toBe("loggedIn");
   });
 
-  it("never runs the settle step when the credentials were rejected", async () => {
+  it("stays logged out when the credentials were rejected", async () => {
+    settleSpy.mockResolvedValue(undefined);
     apiLogin.mockRejectedValue(new Error("Invalid email or password"));
 
     render(
@@ -173,7 +174,6 @@ describe("auth transitions wait for the settled viewport", () => {
       screen.getByText("login").click();
     });
 
-    expect(settleSpy).not.toHaveBeenCalled();
     expect(status()).toBe("loggedOut");
   });
 
@@ -190,5 +190,101 @@ describe("auth transitions wait for the settled viewport", () => {
       screen.getByText("login").click();
     });
     expect(status()).toBe("loggedIn");
+  });
+});
+
+describe("the viewport transition starts before the request, not after it", () => {
+  // This is the cold-start fix. The backend sleeps on the free tier, so a
+  // login regularly takes many seconds; starting the viewport transition only
+  // after the response arrived left the keyboard closing unwatched for that
+  // whole window, and the recovery guard aged out before it was needed.
+  it("calls the settle step before the login request has resolved", async () => {
+    const request = deferred();
+    apiLogin.mockReturnValue(request.promise.then(() => ({ token: "t", user: USER })));
+    settleSpy.mockResolvedValue(undefined);
+
+    render(
+      <AppProvider>
+        <Harness />
+      </AppProvider>
+    );
+    await act(async () => {
+      screen.getByText("login").click();
+    });
+
+    // Request still in flight...
+    expect(settleSpy).toHaveBeenCalledTimes(1); // ...and the viewport work has already begun
+    expect(status()).toBe("loggedOut");
+
+    await act(async () => {
+      request.resolve();
+    });
+    expect(status()).toBe("loggedIn");
+  });
+
+  it("calls the settle step before the signup request has resolved", async () => {
+    const request = deferred();
+    apiSignup.mockReturnValue(request.promise.then(() => ({ token: "t", user: USER })));
+    settleSpy.mockResolvedValue(undefined);
+
+    render(
+      <AppProvider>
+        <Harness />
+      </AppProvider>
+    );
+    await act(async () => {
+      screen.getByText("signup").click();
+    });
+    expect(settleSpy).toHaveBeenCalledTimes(1);
+    expect(status()).toBe("loggedOut");
+
+    await act(async () => {
+      request.resolve();
+    });
+    expect(status()).toBe("loggedIn");
+  });
+
+  it("waits for whichever finishes last — slow viewport, fast request", async () => {
+    const viewport = deferred();
+    settleSpy.mockReturnValue(viewport.promise);
+    apiLogin.mockResolvedValue({ token: "t", user: USER });
+
+    render(
+      <AppProvider>
+        <Harness />
+      </AppProvider>
+    );
+    await act(async () => {
+      screen.getByText("login").click();
+    });
+    expect(status()).toBe("loggedOut"); // request done, viewport still settling
+
+    await act(async () => {
+      viewport.resolve();
+    });
+    expect(status()).toBe("loggedIn");
+  });
+
+  it("still runs the viewport transition when the login is rejected", async () => {
+    // The blur and the guard happen up front now, so a rejection must not
+    // leave the transition half-done or the promise unhandled.
+    const viewport = deferred();
+    settleSpy.mockReturnValue(viewport.promise);
+    apiLogin.mockRejectedValue(new Error("Invalid email or password"));
+
+    render(
+      <AppProvider>
+        <Harness />
+      </AppProvider>
+    );
+    await act(async () => {
+      screen.getByText("login").click();
+    });
+    expect(settleSpy).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      viewport.resolve();
+    });
+    expect(status()).toBe("loggedOut");
   });
 });

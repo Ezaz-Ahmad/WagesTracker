@@ -277,6 +277,24 @@ figcaption {
 }
 .input:focus-visible::placeholder { color: color-mix(in srgb, var(--color-text) 48%, transparent); }
 textarea.input { min-height: 90px; resize: vertical; }
+
+/* iOS auto-zooms the page when a focused field's text is smaller than 16px,
+   which shifts the visual viewport and layers a second, unrelated source of
+   viewport instability on top of the keyboard transition (see
+   lib/viewportHeight.ts). 16px on phones removes the trigger entirely.
+   Deliberately NOT solved with `maximum-scale=1` / `user-scalable=no` in the
+   viewport meta: those disable pinch-zoom for everyone, which low-vision
+   users depend on. `touch-action: manipulation` on body already suppresses
+   the double-tap zoom that would otherwise be the annoying part.
+   Applies to every field sharing the .input class — login, signup, Entry,
+   Settings — plus native selects, which auto-zoom on the same rule. */
+@media (max-width: 719px) {
+  .input,
+  select.input,
+  textarea.input {
+    font-size: 16px;
+  }
+}
 /* The native time-picker glyph inside <input type="time"> (shift sign-in/
    sign-out) — dimmed to sit quietly until you actually want it, accent-tinted
    on hover so it reads as the same tappable-affordance language as the rest

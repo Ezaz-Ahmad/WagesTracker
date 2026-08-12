@@ -5,16 +5,43 @@
 // survive, it must be applied exactly once (double-counting it puts the gap
 // back by a different route), and the shell must size itself from the
 // measured viewport rather than from `dvh` alone.
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const stylesDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const appCss = readFileSync(resolve(stylesDir, "app.css"), "utf8");
 const shellCss = readFileSync(resolve(stylesDir, "shell.css"), "utf8");
 const animationsCss = readFileSync(resolve(stylesDir, "animations.css"), "utf8");
-const allCss = [appCss, shellCss, animationsCss].join("\n");
+const tokensCss = readFileSync(resolve(stylesDir, "tokens.css"), "utf8");
+const settingsCss = readFileSync(resolve(stylesDir, "settings.css"), "utf8");
+const allCss = [appCss, shellCss, animationsCss, tokensCss, settingsCss].join("\n");
+
+/** Blanks out comments while preserving every character offset, so index
+ * arithmetic against the original string still lines up. */
+function stripComments(css: string): string {
+  return css.replace(/\/\*[\s\S]*?\*\//g, (match) => " ".repeat(match.length));
+}
+
+/** The `@media` preludes enclosing a given offset, outermost first. Real
+ * brace tracking rather than "search backwards for @media", which happily
+ * finds an unrelated block that closed long ago. */
+function enclosingMediaQueries(css: string, index: number): string[] {
+  const source = stripComments(css);
+  const stack: (string | null)[] = [];
+  for (let i = 0; i < index && i < source.length; i += 1) {
+    const ch = source[i];
+    if (ch === "{") {
+      const preludeStart = Math.max(source.lastIndexOf("}", i - 1), source.lastIndexOf("{", i - 1)) + 1;
+      const prelude = source.slice(preludeStart, i).trim();
+      stack.push(prelude.startsWith("@media") ? prelude : null);
+    } else if (ch === "}") {
+      stack.pop();
+    }
+  }
+  return stack.filter((entry): entry is string => entry !== null);
+}
 
 /** Body of a top-level rule, e.g. block(appCss, ".app-bottomnav"). */
 function block(css: string, selector: string): string {
@@ -89,6 +116,69 @@ describe("no device-specific or hardcoded escape hatches", () => {
     expect(allCss).not.toMatch(/@media[^{]*device-height/);
     expect(allCss).not.toMatch(/@media[^{]*device-width/);
     expect(allCss).not.toMatch(/-webkit-device-pixel-ratio[^)]*\)\s*and[^{]*height/);
+  });
+});
+
+describe("mobile inputs never trigger iOS auto-zoom", () => {
+  const MIN_MOBILE_FONT_PX = 16;
+
+  it("sets editable fields to at least 16px below the tablet breakpoint", () => {
+    const mobileBlock = tokensCss.slice(tokensCss.indexOf("@media (max-width: 719px)"));
+    expect(mobileBlock).toMatch(/\.input[^}]*font-size:\s*(1[6-9]|[2-9]\d)px/s);
+  });
+
+  it("does not disable pinch zoom to work around it", () => {
+    // Killing user-scalable is the tempting shortcut and an accessibility
+    // regression: low-vision users rely on pinch zoom. The 16px rule removes
+    // the auto-zoom trigger without taking anything away.
+    const indexHtml = readFileSync(resolve(stylesDir, "..", "..", "index.html"), "utf8");
+    // Read the meta tag's own content, not the whole file — the surrounding
+    // comment legitimately names the things we're asserting aren't set.
+    const meta = indexHtml.match(/<meta\s+name="viewport"\s+content="([^"]*)"/);
+    expect(meta, "no viewport meta tag found").not.toBeNull();
+    const content = meta![1];
+    expect(content).not.toContain("user-scalable=no");
+    expect(content).not.toMatch(/maximum-scale/);
+    expect(content).toBe("width=device-width, initial-scale=1, viewport-fit=cover");
+  });
+
+  it("has no later rule that shrinks an .input companion class back under 16px on mobile", () => {
+    // Derived from the source rather than hardcoded, so a new field with its
+    // own class can't quietly reintroduce the auto-zoom trigger.
+    const companions = new Set<string>();
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry);
+        if (statSync(full).isDirectory()) {
+          walk(full);
+        } else if (full.endsWith(".tsx")) {
+          const source = readFileSync(full, "utf8");
+          for (const match of source.matchAll(/className=(?:"|\{`)input ([^"`]+)(?:"|`\})/g)) {
+            for (const cls of match[1].trim().split(/\s+/)) {
+              if (cls && !cls.includes("$") && !cls.includes("{")) companions.add(cls);
+            }
+          }
+        }
+      }
+    };
+    walk(resolve(stylesDir, ".."));
+    expect(companions.size).toBeGreaterThan(0);
+
+    const offenders: string[] = [];
+    for (const cls of companions) {
+      // Any declaration of a sub-16px font-size for this class that is not
+      // inside a desktop-only (min-width) media query.
+      for (const css of [appCss, settingsCss, tokensCss]) {
+        const pattern = new RegExp(`\\.${cls}\\b[^{}]*\\{[^}]*font-size:\\s*(\\d+)px`, "g");
+        for (const match of stripComments(css).matchAll(pattern)) {
+          const size = Number(match[1]);
+          if (size >= MIN_MOBILE_FONT_PX) continue;
+          const guarded = enclosingMediaQueries(css, match.index ?? 0).some((q) => q.includes("min-width"));
+          if (!guarded) offenders.push(`${cls}: ${size}px`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
   });
 });
 

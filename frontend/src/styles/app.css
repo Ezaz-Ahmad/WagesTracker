@@ -866,7 +866,13 @@ button { font-family: inherit; }
   transition: opacity 220ms var(--ease-emphasized) 70ms;
 }
 .other-earning-collapse.is-open .other-earning-form { opacity: 1; }
-.other-reason-input { resize: vertical; min-height: 44px; font-size: 13px; }
+/* Font size is left to `.input` on phones (16px — see tokens.css: anything
+   smaller makes iOS auto-zoom on focus and drags the viewport around). The
+   tighter 13px is a desktop-only refinement. */
+.other-reason-input { resize: vertical; min-height: 44px; }
+@media (min-width: 720px) {
+  .other-reason-input { font-size: 13px; }
+}
 .other-earning-actions { display: flex; align-items: center; gap: var(--space-3); }
 .other-earning-hint { font-size: 12px; color: var(--color-accent-700); }
 /* The fuel-cost/other-earnings amount is now *chosen*, not typed — this
