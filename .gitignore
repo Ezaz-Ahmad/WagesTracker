@@ -12,3 +12,10 @@ backend/data/
 
 # Local-only design conversation transcript — never pushed to GitHub.
 chats/
+
+# Added by the Vercel CLI. Its `.env*` also matched the tracked
+# frontend/.env.example, which documents the required variables and is
+# meant to be in the repo — hence the negation.
+.vercel
+.env*
+!.env.example
