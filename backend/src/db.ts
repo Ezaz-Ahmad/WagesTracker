@@ -163,6 +163,108 @@ try {
   );
 }
 
+// — Session device-installation migrations —
+//
+// Before these, every successful login inserted a fresh `user_sessions` row
+// with nothing tying it to the device it came from, so logging in ten times
+// from one installed PWA produced ten identical "Safari on iOS" entries in
+// Settings. `device_installation_id` is a random UUID the client generates
+// once per installation (see the frontend's lib/deviceInstallation.ts) and
+// sends with login/signup; it is not a secret and not a credential, it just
+// lets the server recognise "this is the same installation signing in
+// again" and retire the previous session for it.
+//
+// Nullable on purpose: rows created before this existed have no installation
+// id and must not be guessed at retroactively — inferring device identity
+// from IP address and user-agent would happily merge two different phones on
+// one home Wi-Fi.
+try {
+  await db.execute("ALTER TABLE user_sessions ADD COLUMN device_installation_id TEXT");
+} catch {
+  // already migrated
+}
+try {
+  await db.execute("ALTER TABLE user_sessions ADD COLUMN device_name TEXT NOT NULL DEFAULT ''");
+} catch {
+  // already migrated
+}
+
+// Supports the one lookup the login path does on every sign-in: "the active
+// sessions for this user and this installation".
+try {
+  await db.execute(
+    "CREATE INDEX IF NOT EXISTS idx_user_sessions_installation ON user_sessions(user_id, device_installation_id, revoked_at)"
+  );
+} catch (e) {
+  console.warn("Could not create idx_user_sessions_installation.", e instanceof Error ? e.message : e);
+}
+
+// One-time cleanup of the duplicates the old behaviour accumulated. Keeps
+// the most recently active session per (user, installation) — and for legacy
+// rows, which all share a NULL installation id, the most recently active per
+// user — so nobody is signed out of the device they are currently holding,
+// then revokes the rest. Absolutely-expired rows are swept at the same time.
+//
+// Deliberately conservative: legacy rows are grouped only by user, never by
+// IP address or user-agent. Two of the user's real devices might collapse
+// into one entry here, and they will separate again the moment each of them
+// signs in under the new scheme. Idle expiry is NOT applied as a revocation
+// here — it's enforced at validation time instead, so deploying this doesn't
+// sign everyone out of a session they were about to come back to.
+try {
+  const nowIso = new Date().toISOString();
+  await db.execute({
+    sql: `UPDATE user_sessions SET revoked_at = ? WHERE revoked_at IS NULL AND expires_at <= ?`,
+    args: [nowIso, nowIso],
+  });
+  await db.execute({
+    sql: `UPDATE user_sessions
+          SET revoked_at = ?
+          WHERE revoked_at IS NULL
+            AND id NOT IN (
+              SELECT id FROM (
+                SELECT id, ROW_NUMBER() OVER (
+                  PARTITION BY user_id, COALESCE(device_installation_id, '')
+                  ORDER BY last_seen_at DESC, created_at DESC, id DESC
+                ) AS rn
+                FROM user_sessions
+                WHERE revoked_at IS NULL
+              ) ranked WHERE ranked.rn = 1
+            )`,
+    args: [nowIso],
+  });
+} catch (e) {
+  console.warn(
+    "Could not run the one-time duplicate-session cleanup. The app still works; the sessions list may show historical duplicates until they expire.",
+    e instanceof Error ? e.message : e
+  );
+}
+
+// "At most one active session per installation" as a database constraint, so
+// two logins racing from the same installation cannot both end up inserting
+// a row — whichever loses the race fails here and retries (see
+// createSession in security/sessions.ts) rather than quietly leaving a
+// duplicate behind. Application-level revoke-then-insert alone can't
+// guarantee that, however carefully it's written.
+//
+// Runs after the cleanup above, which is what makes it able to build. NULL
+// installation ids are exempt (SQLite treats NULLs as distinct in a unique
+// index, and the predicate says so explicitly) so legacy rows never collide.
+// Same fallback posture as idx_shifts_one_open_per_user above: if it can't
+// be created, the app keeps running on the transactional path alone.
+try {
+  await db.execute(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_user_sessions_one_active_per_installation
+     ON user_sessions(user_id, device_installation_id)
+     WHERE revoked_at IS NULL AND device_installation_id IS NOT NULL`
+  );
+} catch (e) {
+  console.warn(
+    "Could not create idx_user_sessions_one_active_per_installation — some user likely still has two active sessions for one installation. Falling back to the transactional revoke-then-insert in security/sessions.ts only.",
+    e instanceof Error ? e.message : e
+  );
+}
+
 export const RETENTION_YEARS = 5;
 
 export async function pruneExpiredShifts(): Promise<void> {

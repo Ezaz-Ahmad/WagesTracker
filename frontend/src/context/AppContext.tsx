@@ -25,9 +25,17 @@ export const CURRENCY = "$";
 // and it logs out and asks for credentials immediately — no silent
 // auto-login, no waiting on the server — even though nothing was "counting"
 // while it was closed.
-const IDLE_LOGOUT_MS = 15 * 60 * 1000;
+// Matches SESSION_IDLE_TIMEOUT_MS on the server (see
+// backend/src/security/sessionPolicy.ts). The server is now the one that
+// actually enforces this — an idle session stops authenticating there, so a
+// stolen token is no longer protected only by the honour system of a
+// cooperative browser. This client-side copy still exists so the app can log
+// itself out cleanly and explain why, rather than waiting for the next
+// request to fail with a bare 401. Keep the two numbers in step: a longer
+// value here just means the user meets an unexplained 401 first.
+const IDLE_LOGOUT_MS = 10 * 60 * 1000;
 const IDLE_LOGOUT_MESSAGE =
-  "You were logged out after 15 minutes of inactivity. Any shift in progress kept counting — log back in to see it.";
+  "You were logged out after 10 minutes of inactivity. Any shift in progress kept counting — log back in to see it.";
 
 // How long a manual "reveal" of the earnings-privacy toggle lasts before it
 // auto-hides again — a flat window from the moment of reveal, not an idle

@@ -133,6 +133,11 @@ export interface UserSessionRow {
   last_seen_at: string;
   expires_at: string;
   revoked_at: string | null;
+  /** Null for rows created before installations were tracked, and for
+   * clients that don't send one. Never leaves the backend — see
+   * toPublicSession below. */
+  device_installation_id: string | null;
+  device_name: string;
 }
 
 export interface PublicSession {

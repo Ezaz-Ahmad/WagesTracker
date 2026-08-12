@@ -45,7 +45,14 @@ meRouter.get(
   "/sessions",
   asyncHandler<AuthedRequest>(async (req, res) => {
     const sessions = await listSessionsForUser(req.userId!);
-    res.json({ sessions: sessions.map((s) => toPublicSession(s, req.sessionId!)) });
+    // Current device first, then everything else newest-active first (the
+    // query already returns that order). Sorted here rather than in SQL
+    // because "current" isn't a property of the row — it's whichever session
+    // this particular request authenticated with.
+    const publicSessions = sessions
+      .map((s) => toPublicSession(s, req.sessionId!))
+      .sort((a, b) => Number(b.isCurrent) - Number(a.isCurrent));
+    res.json({ sessions: publicSessions });
   })
 );
 
@@ -203,6 +210,19 @@ meRouter.patch(
     const nowIso = new Date().toISOString();
     const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
 
+    // The replacement session inherits this device's installation id. It is
+    // the same physical installation — only the password changed — so
+    // dropping the id here would leave a session nothing can match against,
+    // and the next login from this device would start a duplicate entry in
+    // the sessions list rather than rotating this one.
+    const currentSession = await db.execute({
+      sql: "SELECT device_installation_id FROM user_sessions WHERE id = ? AND user_id = ?",
+      args: [req.sessionId!, req.userId!],
+    });
+    const deviceInstallationId =
+      (currentSession.rows[0] as unknown as { device_installation_id: string | null } | undefined)
+        ?.device_installation_id ?? null;
+
     await db.batch(
       [
         {
@@ -217,9 +237,10 @@ meRouter.patch(
           args: [nowIso, req.userId!],
         },
         {
-          sql: `INSERT INTO user_sessions (id, user_id, user_agent, ip_address, created_at, last_seen_at, expires_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          args: [newSessionId, req.userId!, userAgent, ipAddress, nowIso, nowIso, expiresAt],
+          sql: `INSERT INTO user_sessions
+                  (id, user_id, user_agent, ip_address, created_at, last_seen_at, expires_at, device_installation_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          args: [newSessionId, req.userId!, userAgent, ipAddress, nowIso, nowIso, expiresAt, deviceInstallationId],
         },
       ],
       "write"

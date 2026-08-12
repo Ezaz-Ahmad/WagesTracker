@@ -187,3 +187,154 @@
   .settings-back-btn { display: none; }
   .settings-nav-panel { position: sticky; top: 0; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   All-active-sessions dialog (settings/SessionsDrawer.tsx)
+
+   One component, two shapes: a bottom sheet on phones (thumb-reachable, and
+   the idiom iOS users already expect) and a centred modal from the tablet
+   breakpoint up, where a full-width sheet would just be a stretched phone
+   layout. The list scrolls inside `.sessions-drawer-body` only — the title
+   and the destructive action stay put regardless of how many devices there
+   are, which is the whole reason this exists rather than a longer list in
+   the Settings panel.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.sessions-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: color-mix(in srgb, #000 46%, transparent);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  animation: sessions-drawer-fade-in var(--dur-base, 200ms) var(--ease-out, ease);
+}
+.sessions-drawer-backdrop.is-closing { animation: sessions-drawer-fade-out var(--dur-base, 200ms) var(--ease-standard, ease) forwards; }
+
+.sessions-drawer {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  /* Capped so the sheet can never grow taller than the visible viewport —
+     `--app-viewport-height` is the measured value the app shell uses too
+     (see lib/viewportHeight.ts), so this stays correct while an iOS keyboard
+     is closing rather than only after the next repaint. */
+  max-height: min(86vh, calc(var(--app-viewport-height, 100dvh) - 24px));
+  background: var(--color-bg);
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -18px 48px -20px color-mix(in srgb, #000 55%, transparent);
+  animation: sessions-drawer-up var(--dur-slow, 280ms) var(--ease-out, ease);
+  overflow: hidden;
+}
+.sessions-drawer.is-closing { animation: sessions-drawer-down var(--dur-base, 220ms) var(--ease-standard, ease) forwards; }
+
+.sessions-drawer-grabber {
+  width: 38px;
+  height: 4px;
+  border-radius: 999px;
+  margin: 8px auto 0;
+  background: color-mix(in srgb, var(--color-text) 18%, transparent);
+  flex: none;
+}
+
+.sessions-drawer-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-2);
+  border-bottom: 1px solid var(--color-divider);
+  flex: none;
+}
+.sessions-drawer-heading { flex: 1; min-width: 0; }
+.sessions-drawer-title {
+  margin: 0 0 2px;
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 17px;
+}
+/* 44x44 minimum touch target (WCAG 2.5.5) even though the glyph is 16px. */
+.sessions-drawer-icon-btn {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.sessions-drawer-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain; /* keeps the flick from reaching the page behind */
+  -webkit-overflow-scrolling: touch;
+  padding: var(--space-3) var(--space-4);
+}
+.sessions-drawer-state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-3) 0;
+}
+
+.sessions-drawer-actions {
+  flex: none;
+  padding: var(--space-3) var(--space-4);
+  /* The app's floating bottom nav sits above the Home indicator; this sheet
+     covers it, so the safe-area inset has to be honoured here instead or the
+     destructive action would sit under the indicator. */
+  padding-bottom: max(var(--space-3), calc(env(safe-area-inset-bottom) + var(--space-2)));
+  border-top: 1px solid var(--color-divider);
+  background: var(--color-bg);
+}
+
+.session-list-compact { margin: 0; }
+.session-card.is-compact { padding: var(--space-3); }
+.session-view-all { margin-top: var(--space-2); }
+.session-list-state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+@keyframes sessions-drawer-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sessions-drawer-fade-out { to { opacity: 0; } }
+@keyframes sessions-drawer-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes sessions-drawer-down { to { transform: translateY(100%); } }
+
+/* Tablet and up: a centred modal rather than a sheet pinned to the bottom of
+   a wide screen. */
+@media (min-width: 720px) {
+  .sessions-drawer-backdrop { align-items: center; padding: var(--space-4); }
+  .sessions-drawer {
+    border-radius: 20px;
+    max-height: min(76vh, calc(var(--app-viewport-height, 100dvh) - 64px));
+    animation: sessions-drawer-zoom var(--dur-base, 220ms) var(--ease-out, ease);
+  }
+  .sessions-drawer.is-closing { animation: sessions-drawer-fade-out var(--dur-fast, 160ms) var(--ease-standard, ease) forwards; }
+  .sessions-drawer-grabber { display: none; }
+  .sessions-drawer-actions { padding-bottom: var(--space-3); }
+  @keyframes sessions-drawer-zoom {
+    from { opacity: 0; transform: scale(0.97); }
+    to { opacity: 1; transform: scale(1); }
+  }
+}
+
+/* animations.css already collapses every transition/animation duration under
+   prefers-reduced-motion; this additionally removes the slide's *distance*,
+   so the sheet appears in place rather than travelling a screen height in
+   0.01ms — which reads as a flicker rather than as no motion. */
+@media (prefers-reduced-motion: reduce) {
+  .sessions-drawer,
+  .sessions-drawer.is-closing,
+  .sessions-drawer-backdrop,
+  .sessions-drawer-backdrop.is-closing { animation: none; }
+}
