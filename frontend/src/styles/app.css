@@ -501,7 +501,15 @@ button { font-family: inherit; }
 /* — home — */
 .week-card-top { display: flex; align-items: baseline; justify-content: space-between; }
 .week-amount { font-family: var(--font-heading); font-weight: 800; font-size: 38px; line-height: 1; }
-.week-trend { font-size: 12px; font-weight: 600; }
+/* Colour follows the *direction*, not the sign of a number — a flat week,
+   a first week, and "no prior data" are all neutral, and none of them should
+   read as an alert. The old version coloured any non-negative value accent
+   red, which made an unchanged week look like a warning. */
+.week-trend { font-size: 12px; font-weight: 600; color: var(--color-text); }
+.week-trend.is-up { color: var(--color-accent-700); }
+.week-trend.is-down { color: color-mix(in srgb, var(--color-text) 78%, transparent); }
+.week-trend.is-none { color: color-mix(in srgb, var(--color-text) 62%, transparent); font-weight: 500; }
+.week-trend.is-muted { color: color-mix(in srgb, var(--color-text) 45%, transparent); font-weight: 500; }
 .today-card-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .today-headline { font-size: 16px; }
 .today-subline { margin: 2px 0 0; }

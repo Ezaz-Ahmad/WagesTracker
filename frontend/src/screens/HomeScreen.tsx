@@ -11,6 +11,7 @@ import {
   weekTotals,
 } from "../lib/aggregate";
 import { buildWeekDays, fmt2, formatTime12, isoDate } from "../lib/date";
+import { compareWeekEarnings } from "../lib/weekComparison";
 import { useTodayShift } from "../lib/useTodayShift";
 import { useCountUp } from "../lib/useCountUp";
 import { useLiveElapsedHours } from "../lib/useLiveElapsedHours";
@@ -64,11 +65,24 @@ export function HomeScreen() {
   const totalEarnings = savedEarnings + effectiveLiveHours * rate;
 
   const history = buildWeeklyHistory(shifts, today, weekStartsOn, rate, 7, new Date(createdAt), dayExpenses, weekExtras);
-  const lastWeek = history[history.length - 1];
-  const prevWeek = history[history.length - 2];
-  const trendPct = prevWeek && prevWeek.earnings > 0 ? Math.round(((lastWeek.earnings - prevWeek.earnings) / prevWeek.earnings) * 100) : 0;
-  const trendUp = trendPct >= 0;
   const metGoalCount = history.filter((w) => w.earnings >= goalEarnings).length;
+
+  // Derived here, in render, from the same context state the headline uses —
+  // so it re-computes on every change that can move it (a shift saved or
+  // deleted, sign-in/out, fuel or other-earnings edits, a rate change, the
+  // week-start preference, a manual refresh, and the day/week rollover that
+  // `today` picks up from AppContext's minute timer) without needing a single
+  // explicit subscription. The live shift's earnings are passed in so the
+  // comparison counts exactly what the headline above it counts.
+  const weekComparison = compareWeekEarnings({
+    today,
+    weekStartsOn,
+    shifts,
+    dayExpenses,
+    weekExtras,
+    rate,
+    liveEarnings: effectiveLiveHours * rate,
+  });
 
   const progressPct = goalHours > 0 ? Math.min(100, Math.round((totalHours / goalHours) * 100)) : 0;
   const todayDay = days.find((d) => d.isToday);
@@ -166,10 +180,21 @@ export function HomeScreen() {
             <div className="week-amount count-value">
               <Amount>{CURRENCY}{fmt2(earningsAnim)}</Amount>
             </div>
-            <div className="week-trend" style={{ color: trendUp ? "var(--color-accent-700)" : "var(--color-text)" }}>
-              {trendUp ? "▲ " : "▼ "}
-              {Math.abs(trendPct)}% vs prior week
-            </div>
+            {/* Hidden entirely while earnings are masked: a percentage change
+                is financial information too, and blurring the dollar amount
+                while announcing "up 20%" would defeat the point. */}
+            {earningsHidden ? (
+              <div className="week-trend is-muted">Earnings hidden</div>
+            ) : (
+              <div
+                className={`week-trend is-${weekComparison.direction}`}
+                title={weekComparison.isEstimate ? "Includes the shift currently in progress" : undefined}
+              >
+                {weekComparison.direction === "up" ? "▲ " : weekComparison.direction === "down" ? "▼ " : ""}
+                {weekComparison.label}
+                {weekComparison.isEstimate && weekComparison.direction !== "none" ? " (est.)" : ""}
+              </div>
+            )}
           </div>
           <EarningsHiddenHint />
           <div className="card-meta" style={{ marginTop: 2 }}>
