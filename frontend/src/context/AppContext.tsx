@@ -100,6 +100,7 @@ interface AppContextValue {
 
   dayExpenses: DayExpense[];
   setFuelCost: (date: string, fuelCost: number | null) => Promise<void>;
+  setFuelCostOrThrow: (date: string, fuelCost: number | null) => Promise<void>;
 
   weekExtras: WeekExtra[];
   setWeekExtra: (weekStart: string, amount: number | null, reason: string) => Promise<boolean>;
@@ -593,7 +594,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Optimistic — the amount box is meant to feel instant like everything else on
   // this screen. Rolls back to the previous value if the request fails.
-  const setFuelCost = useCallback(
+  const setFuelCostOrThrow = useCallback(
     async (date: string, fuelCost: number | null) => {
       const prev = dayExpenses;
       setDayExpenses((cur) => {
@@ -604,10 +605,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
         await api.setDayExpense(date, fuelCost);
       } catch (e) {
         setDayExpenses(prev);
+        throw e;
+      }
+    },
+    [dayExpenses]
+  );
+
+  const setFuelCost = useCallback(
+    async (date: string, fuelCost: number | null) => {
+      try {
+        await setFuelCostOrThrow(date, fuelCost);
+      } catch (e) {
         handleActionError(e, "Couldn't save fuel cost");
       }
     },
-    [dayExpenses, handleActionError]
+    [setFuelCostOrThrow, handleActionError]
   );
 
   // Same optimistic pattern as fuel cost, but keyed by week start rather than
@@ -672,6 +684,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       removeShiftOrThrow,
       dayExpenses,
       setFuelCost,
+      setFuelCostOrThrow,
       weekExtras,
       setWeekExtra,
       refresh,
@@ -710,6 +723,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       removeShiftOrThrow,
       dayExpenses,
       setFuelCost,
+      setFuelCostOrThrow,
       weekExtras,
       setWeekExtra,
       refresh,

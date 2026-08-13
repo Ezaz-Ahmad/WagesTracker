@@ -21,7 +21,7 @@ import { DayEditorSheet, type DayEditorTarget } from "../history/DayEditorSheet"
  * `shifts` array in context, so they cannot disagree with each other.
  */
 export function HistoryScreen() {
-  const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras, createShiftOrThrow, updateShiftOrThrow, removeShiftOrThrow } =
+  const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras, createShiftOrThrow, updateShiftOrThrow, removeShiftOrThrow, setFuelCostOrThrow } =
     useApp();
   const [editing, setEditing] = useState<DayEditorTarget | null>(null);
 
@@ -30,19 +30,20 @@ export function HistoryScreen() {
   // separate History cache to invalidate — the recalculation happens because
   // there is only one source, not because something remembered to refresh.
   const handleSave = useCallback(
-    async (shiftId: string | null, values: { signIn: string; signOut: string; location: string }) => {
+    async (shiftId: string | null, values: { signIn: string; signOut: string; location: string; fuelCost: number | null; shiftChanged: boolean; fuelChanged: boolean }) => {
       if (!editing) return;
       // The throwing variants: the editor shows the failure next to the
       // values that caused it. The swallowing versions would route it to the
       // global banner behind the modal, where it would be invisible — the
       // same mistake the sessions drawer made before PR 3 fixed it.
-      if (shiftId) {
-        await updateShiftOrThrow(shiftId, values);
-        return;
+      if (values.shiftChanged) {
+        const shiftValues = { signIn: values.signIn, signOut: values.signOut, location: values.location };
+        if (shiftId) await updateShiftOrThrow(shiftId, shiftValues);
+        else await createShiftOrThrow({ date: editing.dateISO, ...shiftValues });
       }
-      await createShiftOrThrow({ date: editing.dateISO, ...values });
+      if (values.fuelChanged) await setFuelCostOrThrow(editing.dateISO, values.fuelCost);
     },
-    [editing, updateShiftOrThrow, createShiftOrThrow]
+    [editing, updateShiftOrThrow, createShiftOrThrow, setFuelCostOrThrow]
   );
 
   const handleDelete = useCallback(

@@ -63,6 +63,9 @@ vi.mock("../../lib/api", async (importOriginal) => {
     listSessions: vi.fn(async () => ({ sessions: [] })),
     listShifts: vi.fn(async () => ({ shifts: serverShifts })),
     listDayExpenses: vi.fn(async () => ({ expenses: [] })),
+    setDayExpense: vi.fn(async (date: string, fuelCost: number | null) => ({
+      expense: fuelCost && fuelCost > 0 ? { date, fuelCost } : null,
+    })),
     listWeekExtras: vi.fn(async () => ({ extras: [] })),
     patchShift: vi.fn(async (id: string, patch: Partial<Shift>) => ({ shift: await patchImpl(id, patch) })),
     createShift: vi.fn(async (input: Omit<Shift, "id">) => ({ shift: await createImpl(input) })),
@@ -105,6 +108,7 @@ async function openEditor(user: ReturnType<typeof userEvent.setup>, dayLabel: Re
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   vi.useFakeTimers({ shouldAdvanceTime: true, now: TODAY.getTime() });
   serverShifts = [{ id: "s1", date: LAST_MONDAY, location: "Downtown Store", signIn: "09:00", signOut: "13:00" }];
   patchImpl = async (id, patch) => {
@@ -149,6 +153,22 @@ describe("opening the editor", () => {
     expect((within(dialog).getByLabelText("Sign in") as HTMLInputElement).value).toBe("");
     // Nothing to remove yet, so no destructive action is offered.
     expect(within(dialog).queryByRole("button", { name: /Remove this entry/ })).toBeNull();
+  });
+
+  it("saves a forgotten fuel charge without requiring hours", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderHistory();
+    const dialog = await openEditor(user, /Add hours for Tue/);
+    const api = await import("../../lib/api");
+
+    await user.type(within(dialog).getByLabelText("Fuel charge"), "24.50");
+    const save = within(dialog).getByRole("button", { name: /^Save/ });
+    expect((save as HTMLButtonElement).disabled).toBe(false);
+    await user.click(save);
+
+    await within(dialog).findByText("Saved");
+    expect(api.setDayExpense).toHaveBeenCalledWith("2026-01-27", 24.5);
+    expect(api.createShift).not.toHaveBeenCalled();
   });
 
   it("names each day's action so the seven buttons are distinguishable", async () => {

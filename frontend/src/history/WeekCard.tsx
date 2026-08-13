@@ -131,6 +131,9 @@ export function WeekCard({ week, metGoal, onEditDay }: WeekCardProps) {
                     {day.dayAbbr} {day.dateLabel}
                   </span>
                   <span className={`history-day-hours${day.hours > 0 ? "" : " is-empty"}`}>{day.hoursLabel}</span>
+                  {day.fuelCost > 0 && (
+                    <span className="history-day-fuel">Fuel <Amount>{CURRENCY}{fmt2(day.fuelCost)}</Amount></span>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -138,10 +141,11 @@ export function WeekCard({ week, metGoal, onEditDay }: WeekCardProps) {
                   onClick={() => onEditDay({ dateISO: day.dateISO })}
                   // The visible label is two words; the accessible name has
                   // to name the day too, or a screen-reader user hears
-                  // "Edit hours" seven times with nothing to tell them apart.
+                  // Keep the established action name while making fuel
+                  // discoverable in its description inside the editor.
                   aria-label={`${hasEntry ? "Edit" : "Add"} hours for ${day.dayAbbr} ${day.dateLabel}`}
                 >
-                  {hasEntry ? "Edit hours" : "Add hours"}
+                  {hasEntry || day.fuelCost > 0 ? "Edit day" : "Add details"}
                 </button>
               </li>
             );

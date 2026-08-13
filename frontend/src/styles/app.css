@@ -1117,18 +1117,28 @@ button { font-family: inherit; }
    ══════════════════════════════════════════════════════════════════════ */
 
 .history-week-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
-.history-week { gap: var(--space-2); }
+.history-week {
+  position: relative; gap: var(--space-3); overflow: hidden;
+  padding: var(--space-4); border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 10%, var(--color-divider));
+  background: linear-gradient(145deg, var(--color-bg) 0%, color-mix(in srgb, var(--color-accent) 3%, var(--color-bg)) 100%);
+  box-shadow: 0 12px 32px -24px color-mix(in srgb, var(--color-text) 45%, transparent);
+}
+.history-week::before {
+  content: ""; position: absolute; inset: 0 auto 0 0; width: 4px;
+  background: linear-gradient(180deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 35%, transparent));
+}
 .history-week-head { display: flex; align-items: flex-start; gap: var(--space-2); }
 .history-week-heading { flex: 1; min-width: 0; }
 .history-week-range {
   margin: 0; font-family: var(--font-heading); font-weight: var(--font-heading-weight);
   font-size: 16px; line-height: 1.2;
 }
-.history-week-summary { margin: 2px 0 0; font-size: 13px; }
+.history-week-summary { margin: 5px 0 0; font-size: 13px; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--color-text) 74%, transparent); }
 .history-week-tag { flex: none; }
 
-.history-week-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
-.history-week-actions .btn { flex: 1 1 auto; justify-content: center; min-height: 44px; }
+.history-week-actions { display: flex; justify-content: flex-end; gap: var(--space-2); flex-wrap: wrap; }
+.history-week-actions .btn { flex: 0 1 auto; justify-content: center; min-width: 132px; min-height: 44px; border-radius: 999px; }
 .history-week-chevron { transition: transform var(--dur-base) var(--ease-standard); }
 .history-week-chevron.is-open { transform: rotate(180deg); }
 @media (prefers-reduced-motion: reduce) {
@@ -1138,7 +1148,7 @@ button { font-family: inherit; }
    it reads as part of the sentence rather than as a second primary action. */
 .history-retry { padding: 0 4px; min-height: 0; font-size: inherit; text-decoration: underline; }
 
-.history-week-days { margin-top: var(--space-2); border-top: 1px solid var(--color-divider); padding-top: var(--space-2); }
+.history-week-days { margin: 0 calc(-1 * var(--space-1)) calc(-1 * var(--space-1)); border-top: 1px solid var(--color-divider); padding: var(--space-3) var(--space-1) var(--space-1); }
 .history-week-empty { margin: 0 0 var(--space-2); }
 .history-day-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .history-day {
@@ -1146,11 +1156,17 @@ button { font-family: inherit; }
   padding: 2px 0; min-height: 44px;
   border-bottom: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
 }
+.history-day:hover { background: color-mix(in srgb, var(--color-accent) 3%, transparent); }
 .history-day:last-child { border-bottom: none; }
 .history-day-main { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: var(--space-2); }
 .history-day-name { font-size: 13px; }
 .history-day-hours { font-size: 13px; font-variant-numeric: tabular-nums; }
 .history-day-hours.is-empty { color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+.history-day-fuel {
+  padding: 3px 8px; border-radius: 999px; font-size: 11px; white-space: nowrap;
+  color: color-mix(in srgb, var(--color-text) 72%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 7%, var(--color-bg));
+}
 /* 44px minimum without making a text button look like a block. */
 .history-day-edit { flex: none; min-height: 44px; white-space: nowrap; }
 
@@ -1208,6 +1224,19 @@ button { font-family: inherit; }
 .day-editor-seg { flex-wrap: wrap; }
 .day-editor-times { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin-bottom: var(--space-3); }
 .day-editor-location-field { margin-bottom: var(--space-3); }
+.day-editor-fuel-field { margin-bottom: var(--space-3); }
+.day-editor-money-input { position: relative; }
+.day-editor-money-input > span {
+  position: absolute; left: 14px; top: 50%; z-index: 1; transform: translateY(-50%);
+  font-weight: 700; color: color-mix(in srgb, var(--color-text) 68%, transparent); pointer-events: none;
+}
+.day-editor-money-input .input { padding-left: 30px; }
+
+@media (max-width: 719px) {
+  .history-week { padding: var(--space-3); border-radius: 18px; }
+  .history-week-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .history-week-actions .btn { width: 100%; min-width: 0; }
+}
 /* The derived figure, presented as a readout rather than a field — it is
    never typed into, and looking like an input would suggest it could be. */
 .day-editor-hours {
