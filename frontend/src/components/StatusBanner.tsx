@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { AlertTriangleIcon, CheckCircleIcon, CloseIcon, InfoIcon } from "./icons";
 
 export type StatusTone = "success" | "warning" | "danger" | "info";
@@ -21,6 +21,8 @@ interface StatusBannerProps {
   /** Overrides the tone's default live-region role. Use sparingly — the
    * defaults are right almost always. */
   role?: "alert" | "status";
+  /** Auto-dismiss transient notices. Zero keeps the message persistent. */
+  autoDismissMs?: number;
 }
 
 /**
@@ -48,12 +50,39 @@ interface StatusBannerProps {
  *    tucked back into the banner's padding so honouring that minimum
  *    doesn't make every banner taller.
  */
-export function StatusBanner({ tone, children, onDismiss, dismissLabel = "Dismiss", className, role }: StatusBannerProps) {
+export function StatusBanner({ tone, children, onDismiss, dismissLabel = "Dismiss", className, role, autoDismissMs }: StatusBannerProps) {
   const Icon = TONE_ICON[tone];
   const resolvedRole = role ?? (tone === "danger" ? "alert" : "status");
+  const duration = autoDismissMs ?? (onDismiss ? 8000 : 0);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const stopTimer = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
+  const startTimer = () => {
+    stopTimer();
+    if (duration > 0 && onDismiss) timer.current = setTimeout(onDismiss, duration);
+  };
+
+  useEffect(() => {
+    startTimer();
+    return stopTimer;
+    // The visible message changing represents a new notification and should
+    // receive a fresh reading interval.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [children, duration, onDismiss]);
 
   return (
-    <div className={`banner banner-${tone}${className ? ` ${className}` : ""}`} role={resolvedRole}>
+    <div
+      className={`banner banner-${tone}${duration > 0 ? " banner-timed" : ""}${className ? ` ${className}` : ""}`}
+      role={resolvedRole}
+      onMouseEnter={stopTimer}
+      onMouseLeave={startTimer}
+      onFocusCapture={stopTimer}
+      onBlurCapture={startTimer}
+      style={duration > 0 ? { ["--banner-duration" as string]: `${duration}ms` } : undefined}
+    >
       <Icon size={16} />
       <span className="banner-text">{children}</span>
       {onDismiss && (

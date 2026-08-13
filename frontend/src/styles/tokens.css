@@ -2,6 +2,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap');
 
 :root {
+  --banner-duration: 8000ms;
   --color-bg: #f3f2f2;
   --color-surface: #eae9e9;
   --color-text: #201e1d;
@@ -226,6 +227,15 @@ figcaption {
 .banner-warning { color: var(--color-warning-700); background: var(--color-warning-100); }
 .banner-danger { color: var(--color-danger-700); background: var(--color-danger-100); }
 .banner-info { color: var(--color-info-700); background: var(--color-info-100); }
+.banner-timed { position: relative; overflow: hidden; }
+.banner-timed::after {
+  content: ""; position: absolute; left: 0; bottom: 0; width: 100%; height: 3px;
+  background: currentColor; opacity: 0.28;
+  transform-origin: left; animation: banner-countdown var(--banner-duration) linear forwards;
+}
+.banner-timed:hover::after, .banner-timed:focus-within::after { animation-play-state: paused; }
+@keyframes banner-countdown { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) { .banner-timed::after { animation: none; display: none; } }
 /* A real <button>, so dismissing is reachable by keyboard and announced as
    a control. Previously these banners were dismissed by an onClick handler
    on the <div> itself: no role, no label, no keyboard path, and no visible
@@ -573,4 +583,3 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 }
 .confirm-modal.is-danger .confirm-action-confirm:hover { background: var(--color-accent-800); }
 .confirm-modal.is-danger .confirm-action-confirm:active { background: var(--color-accent-900); }
-

@@ -141,21 +141,18 @@ function AuthedApp() {
             login succeeded, and dressing it in red would read as a failure.
             Shown once and dismissible; nothing re-sets it, so switching tabs
             or re-rendering can't bring it back (AppContext.sessionNotice). */}
-        {sessionNotice && (
-          <div className="app-shell-banner">
+        {(sessionNotice || actionError) && (
+          <div className="app-shell-banner" aria-label="Notifications">
+            {sessionNotice && (
             <StatusBanner tone="info" onDismiss={dismissSessionNotice} dismissLabel="Dismiss this notice">
               {sessionNotice}
             </StatusBanner>
-          </div>
-        )}
-
-        {/* Same fix as the PDF error on Report: a real dismiss button
-            instead of a click handler on an unlabelled div. */}
-        {actionError && (
-          <div className="app-shell-banner">
+            )}
+            {actionError && (
             <StatusBanner tone="danger" onDismiss={clearActionError} dismissLabel="Dismiss this error">
               {actionError}
             </StatusBanner>
+            )}
           </div>
         )}
 

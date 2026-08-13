@@ -173,7 +173,11 @@ export function AuthScreen() {
                 failed login announced nothing at all to a screen reader, so
                 submitting and hearing silence was indistinguishable from
                 the request still being in flight. */}
-            {authError && <StatusBanner tone="danger">{authError}</StatusBanner>}
+            {authError && (
+              <StatusBanner tone="danger" onDismiss={clearAuthError} dismissLabel="Dismiss this message">
+                {authError}
+              </StatusBanner>
+            )}
 
             {mode === "login" ? (
               <form key="login" className="anim-rise" onSubmit={handleLogin}>

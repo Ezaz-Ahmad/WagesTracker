@@ -343,7 +343,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         logout();
-        setActionError("Your session expired. Please log in again.");
+        setAuthError("Your session expired. Please log in again.");
       }
     }
   }, [user, today, reloadShifts, logout]);
@@ -420,7 +420,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (e: unknown, fallback: string) => {
       if (e instanceof ApiError && e.status === 401) {
         logout();
-        setActionError("Your session expired. Please log in again.");
+        setAuthError("Your session expired. Please log in again.");
         return;
       }
       setActionError(e instanceof Error ? e.message : fallback);
@@ -445,7 +445,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) {
           logout();
-          setActionError("Your session expired. Please log in again.");
+          setAuthError("Your session expired. Please log in again.");
         }
         throw e;
       }
@@ -473,7 +473,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         logout();
-        setActionError("Your session expired. Please log in again.");
+        setAuthError("Your session expired. Please log in again.");
         return;
       }
       setSessionsError(e instanceof Error ? e.message : "Couldn't load sessions");
@@ -515,7 +515,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) {
           logout();
-          setActionError("Your session expired. Please log in again.");
+          setAuthError("Your session expired. Please log in again.");
         }
         throw e;
       }
