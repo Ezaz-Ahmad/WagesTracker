@@ -16,7 +16,8 @@ const shellCss = readFileSync(resolve(stylesDir, "shell.css"), "utf8");
 const animationsCss = readFileSync(resolve(stylesDir, "animations.css"), "utf8");
 const tokensCss = readFileSync(resolve(stylesDir, "tokens.css"), "utf8");
 const settingsCss = readFileSync(resolve(stylesDir, "settings.css"), "utf8");
-const allCss = [appCss, shellCss, animationsCss, tokensCss, settingsCss].join("\n");
+const landingCss = readFileSync(resolve(stylesDir, "landing.css"), "utf8");
+const allCss = [appCss, shellCss, animationsCss, tokensCss, settingsCss, landingCss].join("\n");
 
 /** Blanks out comments while preserving every character offset, so index
  * arithmetic against the original string still lines up. */
@@ -329,5 +330,85 @@ describe("looping animation restraint", () => {
       /\.refresh-glyph\.is-spinning\s*\{\s*animation:\s*none/.test(m[1])
     );
     expect(stopped).toBe(true);
+  });
+});
+
+describe("history day editor", () => {
+  // The editor is a second modal alongside the sessions drawer, and the two
+  // are easy to let drift apart. Each of these pins something the drawer
+  // already got right and that a new dialog has to match rather than
+  // rediscover.
+  it("removes the sheet's travel distance under prefers-reduced-motion, not just its duration", () => {
+    // animations.css already collapses every duration to 0.01ms. On its own
+    // that makes a sheet cross a screen height instantaneously, which reads
+    // as a flicker rather than as no motion.
+    const source = stripComments(appCss);
+    const stopped = [...source.matchAll(/@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?)\n\}/g)].some((m) =>
+      /\.day-editor[^{]*\{[^}]*animation:\s*none/.test(m[1])
+    );
+    expect(stopped).toBe(true);
+  });
+
+  it("honours the Home-indicator inset on its pinned action bar", () => {
+    // The sheet covers the floating bottom nav, so the safe-area inset the
+    // nav normally provides has to be honoured here instead or Save sits
+    // under the indicator.
+    expect(block(appCss, ".day-editor-actions")).toMatch(/env\(safe-area-inset-bottom\)/);
+  });
+
+  it("caps its height against the measured viewport, not just vh", () => {
+    // `--app-viewport-height` is the measured value the shell uses; vh alone
+    // is stale while an iOS keyboard is closing.
+    expect(block(appCss, ".day-editor")).toMatch(/--app-viewport-height/);
+  });
+
+  it("scrolls its own body rather than growing the sheet", () => {
+    const body = block(appCss, ".day-editor-body");
+    expect(body).toMatch(/overflow-y:\s*auto/);
+    // Contained, so flicking past the end of the list doesn't drag the page
+    // behind the sheet.
+    expect(body).toMatch(/overscroll-behavior:\s*contain/);
+  });
+
+  it("stacks above the sessions drawer rather than sharing its z-index", () => {
+    const editor = Number(block(appCss, ".day-editor-backdrop").match(/z-index:\s*(\d+)/)?.[1]);
+    const drawer = Number(block(settingsCss, ".sessions-drawer-backdrop").match(/z-index:\s*(\d+)/)?.[1]);
+    expect(Number.isFinite(editor)).toBe(true);
+    expect(Number.isFinite(drawer)).toBe(true);
+    expect(editor).toBeGreaterThan(drawer);
+  });
+
+  it("keeps the week chevron's rotation out of reduced motion", () => {
+    const source = stripComments(appCss);
+    const stopped = [...source.matchAll(/@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?)\n\}/g)].some((m) =>
+      /\.history-week-chevron\s*\{\s*transition:\s*none/.test(m[1])
+    );
+    expect(stopped).toBe(true);
+  });
+});
+
+describe("history touch targets", () => {
+  // Every interactive row in History is reachable on a phone. The day rows
+  // are the risk: a text button in a dense list is exactly what gets shrunk
+  // to fit "just one more row on screen".
+  for (const selector of [".history-day-edit", ".history-week-actions .btn", ".day-editor-icon-btn", ".day-editor-actions-main .btn"]) {
+    it(`${selector} keeps a 44px minimum`, () => {
+      expect(block(appCss, selector)).toMatch(/(min-height:\s*44px|height:\s*44px)/);
+    });
+  }
+
+  it("gives the auth footer links a 44px hit area without a 44px chip", () => {
+    const link = block(landingCss, ".auth-footer-link");
+    expect(link).toMatch(/min-height:\s*44px/);
+    // Pulled back with a negative margin so honouring the minimum doesn't
+    // make the footer tall enough to compete with the form above it.
+    expect(link).toMatch(/margin:\s*-?\d+px/);
+  });
+});
+
+describe("auth footer placement", () => {
+  it("is never positioned, so it cannot overlap the form on a short screen", () => {
+    const footer = block(landingCss, ".auth-footer");
+    expect(footer).not.toMatch(/position:\s*(absolute|fixed|sticky)/);
   });
 });
