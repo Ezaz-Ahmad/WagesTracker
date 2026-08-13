@@ -27,6 +27,13 @@ export interface DayComputed {
 
 export interface WeekSummary {
   startISO: string;
+  /** Last day of the week, ISO. Additive: the end date was previously
+   * computed here and then thrown away, surviving only inside the display
+   * `label` ("Aug 3 – 9"), which omits the year and cannot be parsed back.
+   * History needs the real date to name a PDF and to rebuild the week's
+   * days, and re-deriving it at the call site would mean a second place that
+   * has to agree about how long a week is. */
+  endISO: string;
   label: string;
   short: string;
   hours: number;
@@ -372,6 +379,7 @@ export function buildWeeklyHistory(
     const extra = weekExtraFor(isoDate(start), allWeekExtras)?.amount ?? 0;
     weeks.push({
       startISO: isoDate(start),
+      endISO: isoDate(end),
       label: `${shortLabel(start)} – ${end.getMonth() === start.getMonth() ? end.getDate() : shortLabel(end)}`,
       short: shortLabel(start),
       hours,
@@ -396,7 +404,13 @@ export function buildChartSource(
   currentHours: number,
   currentEarnings: number
 ): WeekSummary[] {
-  return [...history, { startISO: "current", label: "This week", short: "Now", hours: currentHours, earnings: currentEarnings, inProgress: true }];
+  // "current" is a sentinel, not a date — this point represents the week in
+  // progress and is never addressed by date. endISO matches it rather than
+  // inventing a real-looking date nothing should parse.
+  return [
+    ...history,
+    { startISO: "current", endISO: "current", label: "This week", short: "Now", hours: currentHours, earnings: currentEarnings, inProgress: true },
+  ];
 }
 
 export function buildChart(chartSource: WeekSummary[], metric: "earnings" | "hours", currency: string) {
@@ -469,6 +483,7 @@ export function buildMonthlyItems(
     const extras = sumWeekExtras(weekExtrasInRange(allWeekExtras, start, end));
     items.push({
       startISO: start,
+      endISO: end,
       label: MONTH_NAMES[d.getMonth()],
       short: MONTH_NAMES[d.getMonth()].slice(0, 3),
       hours,
@@ -497,6 +512,7 @@ export function buildYearlyItems(
     const extras = sumWeekExtras(weekExtrasInRange(allWeekExtras, start, end));
     items.push({
       startISO: start,
+      endISO: end,
       label: i === 0 ? `${year} (YTD)` : String(year),
       short: i === 0 ? `${year} (YTD)` : String(year),
       hours,

@@ -1104,3 +1104,163 @@ button { font-family: inherit; }
   letter-spacing: normal; text-transform: none; color: inherit;
   padding: var(--space-2); border-bottom: 1px solid var(--color-divider);
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   History — week cards, day rows, and the day editor.
+
+   History used to be a four-column table of totals with nothing to click.
+   Each week is now a card that expands to its seven days, carries its own
+   PDF download, and offers a per-day edit action. The card stays a summary
+   at rest: the days are behind an explicit control rather than always on
+   screen, because seven rows per week over twenty weeks is not something
+   anyone can scan.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.history-week-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.history-week { gap: var(--space-2); }
+.history-week-head { display: flex; align-items: flex-start; gap: var(--space-2); }
+.history-week-heading { flex: 1; min-width: 0; }
+.history-week-range {
+  margin: 0; font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 16px; line-height: 1.2;
+}
+.history-week-summary { margin: 2px 0 0; font-size: 13px; }
+.history-week-tag { flex: none; }
+
+.history-week-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.history-week-actions .btn { flex: 1 1 auto; justify-content: center; min-height: 44px; }
+.history-week-chevron { transition: transform var(--dur-base) var(--ease-standard); }
+.history-week-chevron.is-open { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) {
+  .history-week-chevron { transition: none; }
+}
+/* Inline retry inside the download error banner — a link-weight control, so
+   it reads as part of the sentence rather than as a second primary action. */
+.history-retry { padding: 0 4px; min-height: 0; font-size: inherit; text-decoration: underline; }
+
+.history-week-days { margin-top: var(--space-2); border-top: 1px solid var(--color-divider); padding-top: var(--space-2); }
+.history-week-empty { margin: 0 0 var(--space-2); }
+.history-day-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.history-day {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: 2px 0; min-height: 44px;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+}
+.history-day:last-child { border-bottom: none; }
+.history-day-main { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: var(--space-2); }
+.history-day-name { font-size: 13px; }
+.history-day-hours { font-size: 13px; font-variant-numeric: tabular-nums; }
+.history-day-hours.is-empty { color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+/* 44px minimum without making a text button look like a block. */
+.history-day-edit { flex: none; min-height: 44px; white-space: nowrap; }
+
+.skeleton-week-card { height: 132px; border-radius: var(--radius-md); margin-bottom: var(--space-3); }
+
+/* — the day editor — a bottom sheet on phones, a centred modal from tablet
+   up. Same two-shapes-one-component arrangement as the sessions drawer, and
+   the same reason for going through <Overlay>: a fixed-position dialog
+   rendered inside .swipe-track's transform is contained by the track rather
+   than the viewport. */
+.day-editor-backdrop {
+  position: fixed; inset: 0; z-index: 70;
+  display: flex; align-items: flex-end; justify-content: center;
+  background: color-mix(in srgb, #000 46%, transparent);
+  -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+  animation: day-editor-fade-in var(--dur-base, 200ms) var(--ease-out, ease);
+}
+.day-editor-backdrop.is-closing { animation: day-editor-fade-out var(--dur-base, 200ms) var(--ease-standard, ease) forwards; }
+.day-editor {
+  width: 100%; max-width: 520px;
+  display: flex; flex-direction: column;
+  max-height: min(90vh, calc(var(--app-viewport-height, 100dvh) - 24px));
+  background: var(--color-bg);
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -18px 48px -20px color-mix(in srgb, #000 55%, transparent);
+  animation: day-editor-up var(--dur-slow, 280ms) var(--ease-out, ease);
+  overflow: hidden;
+}
+.day-editor.is-closing { animation: day-editor-down var(--dur-base, 220ms) var(--ease-standard, ease) forwards; }
+.day-editor-grabber {
+  width: 38px; height: 4px; border-radius: 999px; margin: 8px auto 0; flex: none;
+  background: color-mix(in srgb, var(--color-text) 18%, transparent);
+}
+.day-editor-head {
+  display: flex; align-items: flex-start; gap: var(--space-2); flex: none;
+  padding: var(--space-3) var(--space-4) var(--space-2);
+  border-bottom: 1px solid var(--color-divider);
+}
+.day-editor-heading { flex: 1; min-width: 0; }
+.day-editor-title {
+  margin: 0 0 2px; font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 17px;
+}
+.day-editor-date { margin: 0; }
+.day-editor-icon-btn {
+  flex: none; width: 44px; height: 44px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center; border-radius: 50%;
+}
+.day-editor-body {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--space-3) var(--space-4);
+}
+.day-editor-picker { margin-bottom: var(--space-3); }
+.day-editor-picker-legend { font-size: 12px; margin-bottom: 6px; color: color-mix(in srgb, var(--color-text) 70%, transparent); }
+.day-editor-seg { flex-wrap: wrap; }
+.day-editor-times { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin-bottom: var(--space-3); }
+.day-editor-location-field { margin-bottom: var(--space-3); }
+/* The derived figure, presented as a readout rather than a field — it is
+   never typed into, and looking like an input would suggest it could be. */
+.day-editor-hours {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-text) 4%, var(--color-bg));
+}
+.day-editor-hours-label { font-size: 12px; color: color-mix(in srgb, var(--color-text) 70%, transparent); }
+.day-editor-hours-value { font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 20px; font-variant-numeric: tabular-nums; }
+.day-editor-validation { margin-top: var(--space-2); }
+.day-editor-overnight { margin-top: var(--space-2); }
+.day-editor-actions {
+  flex: none; padding: var(--space-3) var(--space-4);
+  padding-bottom: max(var(--space-3), calc(env(safe-area-inset-bottom) + var(--space-2)));
+  border-top: 1px solid var(--color-divider); background: var(--color-bg);
+  display: flex; flex-direction: column; gap: var(--space-2);
+}
+.day-editor-actions-main { display: flex; gap: var(--space-2); }
+.day-editor-actions-main .btn { flex: 1; justify-content: center; min-height: 44px; }
+/* Kept apart from Save/Cancel by a rule — removing a day's record is not a
+   variation on saving it, and it must never sit adjacent to the primary. */
+.day-editor-delete {
+  width: 100%; justify-content: center; min-height: 44px;
+  margin-top: var(--space-1); padding-top: var(--space-3);
+  border-top: 1px solid var(--color-divider);
+  border-radius: 0 0 var(--radius-btn) var(--radius-btn);
+}
+
+@keyframes day-editor-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes day-editor-fade-out { to { opacity: 0; } }
+@keyframes day-editor-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes day-editor-down { to { transform: translateY(100%); } }
+
+@media (min-width: 720px) {
+  .day-editor-backdrop { align-items: center; padding: var(--space-4); }
+  .day-editor {
+    border-radius: 20px;
+    max-height: min(84vh, calc(var(--app-viewport-height, 100dvh) - 64px));
+    animation: day-editor-zoom var(--dur-base, 220ms) var(--ease-out, ease);
+  }
+  .day-editor.is-closing { animation: day-editor-fade-out var(--dur-fast, 160ms) var(--ease-standard, ease) forwards; }
+  .day-editor-grabber { display: none; }
+  .day-editor-actions { padding-bottom: var(--space-3); }
+  @keyframes day-editor-zoom {
+    from { opacity: 0; transform: scale(0.97); }
+    to { opacity: 1; transform: scale(1); }
+  }
+}
+
+/* Distance removed as well as duration — a sheet travelling a screen height
+   in 0.01ms reads as a flicker rather than as no motion. */
+@media (prefers-reduced-motion: reduce) {
+  .day-editor, .day-editor.is-closing,
+  .day-editor-backdrop, .day-editor-backdrop.is-closing { animation: none; }
+}
