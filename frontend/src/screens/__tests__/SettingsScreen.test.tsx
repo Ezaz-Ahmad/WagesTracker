@@ -226,7 +226,7 @@ describe("SettingsScreen — session list refresh after password change", () => 
     await fillAndSubmitPasswordChangeForm();
 
     // Password change itself is reported as successful...
-    await waitFor(() => expect(screen.getByText("Password changed ✓")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Password changed")).toBeTruthy());
     expect(screen.queryByText("Couldn't change password")).toBeNull();
 
     // ...even though the session-list refresh that followed it failed — that

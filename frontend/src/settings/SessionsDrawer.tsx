@@ -1,7 +1,9 @@
 import { useEffect, useRef } from "react";
 import type { SessionInfo } from "../lib/api";
-import { AlertTriangleIcon, CloseIcon, RefreshIcon } from "../components/icons";
+import { CloseIcon, RefreshIcon } from "../components/icons";
+import { Skeleton } from "../components/Skeleton";
 import { StableLabel } from "../components/StableLabel";
+import { StatusBanner } from "../components/StatusBanner";
 import { useDismissTransition } from "../lib/useDismissTransition";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { SessionCard } from "./SessionCard";
@@ -31,6 +33,8 @@ export function SessionsDrawer({
   sessions,
   loading,
   error,
+  actionError,
+  actionMessage,
   revokingSessionId,
   revokingOthers,
   onRefresh,
@@ -41,6 +45,11 @@ export function SessionsDrawer({
   sessions: SessionInfo[];
   loading: boolean;
   error: string | null;
+  /** Result of a revoke started from inside this dialog. Owned by
+   * SessionList (which performs the request) but rendered here, because
+   * while this dialog is open its backdrop hides everything else. */
+  actionError: string | null;
+  actionMessage: string | null;
   revokingSessionId: string | null;
   revokingOthers: boolean;
   onRefresh: () => void;
@@ -72,6 +81,10 @@ export function SessionsDrawer({
 
   const others = sessions.filter((s) => !s.isCurrent);
   const hasOthers = others.length > 0;
+  // A refresh with the list already populated keeps the list on screen and
+  // animates the glyph, instead of tearing the list down and letting the
+  // sheet's height collapse and snap back.
+  const refreshing = loading && sessions.length > 0;
 
   return (
     <div className={`sessions-drawer-backdrop${closing ? " is-closing" : ""}`} onClick={dismiss}>
@@ -102,10 +115,13 @@ export function SessionsDrawer({
             className="btn btn-ghost sessions-drawer-icon-btn"
             onClick={onRefresh}
             disabled={loading}
-            aria-label="Refresh the session list"
+            aria-label={refreshing ? "Refreshing the session list" : "Refresh the session list"}
+            aria-busy={refreshing || undefined}
             title="Refresh"
           >
-            <RefreshIcon size={16} />
+            <span className={`refresh-glyph${refreshing ? " is-spinning" : ""}`} aria-hidden="true">
+              <RefreshIcon size={16} />
+            </span>
           </button>
           <button
             ref={closeButtonRef}
@@ -119,19 +135,21 @@ export function SessionsDrawer({
         </div>
 
         <div className="sessions-drawer-body">
+          {actionError && <StatusBanner tone="danger">{actionError}</StatusBanner>}
+          {actionMessage && <StatusBanner tone="success">{actionMessage}</StatusBanner>}
+
           {error ? (
             <div className="sessions-drawer-state">
-              <div className="banner banner-danger" role="alert">
-                <AlertTriangleIcon size={16} />
-                <span>{error}</span>
-              </div>
+              <StatusBanner tone="danger">{error}</StatusBanner>
               <button type="button" className="btn btn-secondary" onClick={onRefresh} disabled={loading}>
                 <StableLabel current={loading ? "Retrying…" : "Try again"} longest="Retrying…" />
               </button>
             </div>
           ) : loading && sessions.length === 0 ? (
-            <div className="sessions-drawer-state section-hint" role="status">
-              Loading sessions…
+            <div className="session-list-skeleton" role="status" aria-label="Loading your active sessions">
+              <Skeleton className="session-card-skeleton" />
+              <Skeleton className="session-card-skeleton" />
+              <Skeleton className="session-card-skeleton" />
             </div>
           ) : sessions.length === 0 ? (
             <div className="sessions-drawer-state section-hint">No active sessions found.</div>

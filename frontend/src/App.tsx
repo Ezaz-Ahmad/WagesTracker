@@ -29,7 +29,8 @@ import type { Screen } from "./lib/types";
 const VIEWPORT_DEBUG = import.meta.env.VITE_VIEWPORT_DEBUG === "true";
 
 function AuthedApp() {
-  const { today, user, actionError, clearActionError, logout, refresh, earningsHidden, revealEarnings, hideEarningsNow } = useApp();
+  const { today, user, actionError, clearActionError, sessionNotice, dismissSessionNotice, logout, refresh, earningsHidden, revealEarnings, hideEarningsNow } =
+    useApp();
   const [screen, setScreen] = useState<Screen>("home");
 
   const todayLabel = today.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
@@ -127,6 +128,22 @@ function AuthedApp() {
             <span className="app-nav-logout-label">Log out</span>
           </button>
         </div>
+
+        {/* The device-limit notice. The backend has sent this on the login
+            response ever since per-installation sessions landed, but the
+            client destructured it away, so the one thing it exists to
+            explain — "your oldest unused device was signed out" — was never
+            said. Informational tone and role="status", not an error: the
+            login succeeded, and dressing it in red would read as a failure.
+            Shown once and dismissible; nothing re-sets it, so switching tabs
+            or re-rendering can't bring it back (AppContext.sessionNotice). */}
+        {sessionNotice && (
+          <div className="app-shell-banner">
+            <StatusBanner tone="info" onDismiss={dismissSessionNotice} dismissLabel="Dismiss this notice">
+              {sessionNotice}
+            </StatusBanner>
+          </div>
+        )}
 
         {/* Same fix as the PDF error on Report: a real dismiss button
             instead of a click handler on an unlabelled div. */}

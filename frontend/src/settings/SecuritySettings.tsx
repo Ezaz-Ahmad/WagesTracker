@@ -2,8 +2,8 @@ import { useState, type FormEvent } from "react";
 import { useApp } from "../context/AppContext";
 import { PasswordInput } from "../components/PasswordInput";
 import { validatePassword } from "../lib/passwordPolicy";
-import { CheckCircleIcon } from "../components/icons";
 import { StableLabel } from "../components/StableLabel";
+import { StatusBanner } from "../components/StatusBanner";
 import { SessionList } from "./SessionList";
 
 export function SecuritySettings() {
@@ -58,11 +58,9 @@ export function SecuritySettings() {
         symbols or numbers, but common or app-related passwords are rejected.
       </div>
       <form onSubmit={handleChangePassword} autoComplete="on">
-        {passwordError && (
-          <div className="banner banner-danger" role="alert">
-            <span>{passwordError}</span>
-          </div>
-        )}
+        {/* Was the one .banner in the app rendered without its icon, so this
+            single message conveyed "error" by colour alone. */}
+        {passwordError && <StatusBanner tone="danger">{passwordError}</StatusBanner>}
         <div className="field field-spaced">
           <label htmlFor="settings-current-password">Current password</label>
           <PasswordInput
@@ -79,6 +77,7 @@ export function SecuritySettings() {
             autoComplete="new-password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
+            aria-invalid={newPasswordCheck && !newPasswordCheck.valid ? true : undefined}
             aria-describedby={newPasswordCheck && !newPasswordCheck.valid ? "settings-new-password-hint" : undefined}
           />
           {newPasswordCheck && !newPasswordCheck.valid && (
@@ -94,6 +93,7 @@ export function SecuritySettings() {
             autoComplete="new-password"
             value={confirmNewPassword}
             onChange={(e) => setConfirmNewPassword(e.target.value)}
+            aria-invalid={confirmMismatch || undefined}
             aria-describedby={confirmMismatch ? "settings-confirm-new-password-hint" : undefined}
           />
           {confirmMismatch && (
@@ -102,12 +102,9 @@ export function SecuritySettings() {
             </div>
           )}
         </div>
-        {passwordFlash && (
-          <div className="banner banner-success" role="status">
-            <CheckCircleIcon size={16} />
-            <span>Password changed ✓</span>
-          </div>
-        )}
+        {/* The trailing "✓" duplicated the banner's own icon; one tick is
+            enough, and a screen reader announced the character too. */}
+        {passwordFlash && <StatusBanner tone="success">Password changed</StatusBanner>}
         <button
           className="btn btn-secondary btn-block"
           type="submit"
