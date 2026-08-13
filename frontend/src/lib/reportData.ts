@@ -14,6 +14,11 @@ import { buildWeekDays, fmt2, isoDate, weekRangeLabel } from "./date";
 import type { DayExpense, Shift, User, WeekExtra } from "./types";
 
 export interface WeekReportData {
+  /** First and last day of the week this report covers, ISO. Carried on the
+   * data rather than recomputed at save time so the filename can never
+   * disagree with the contents — the two are built from one source. */
+  weekStartISO: string;
+  weekEndISO: string;
   weekRangeLabel: string;
   generatedOnLabel: string;
   employeeName: string;
@@ -38,15 +43,34 @@ export interface WeekReportData {
   multiLocation: boolean;
 }
 
+export interface BuildWeekReportOptions {
+  /** Any date inside the week to report on. Defaults to `today`, i.e. the
+   * current week. History passes the target week's start date. */
+  weekAnchor?: Date;
+}
+
 export function buildWeekReportData(
   user: User,
   shifts: Shift[],
   today: Date,
   currency: string,
   dayExpenses: DayExpense[] = [],
-  weekExtras: WeekExtra[] = []
+  weekExtras: WeekExtra[] = [],
+  options: BuildWeekReportOptions = {}
 ): WeekReportData {
-  const weekDays = buildWeekDays(today, user.weekStartsOn);
+  // `today` used to do three unrelated jobs at once: pick the week, decide
+  // which day is "today" for the day-strip highlight, and stamp the
+  // generated-on date. That was fine while the only caller reported the
+  // current week, but downloading a past week by passing a past date as
+  // `today` would also have back-dated the "Generated" line — claiming the
+  // document was produced weeks ago.
+  //
+  // `weekAnchor` now selects the week and nothing else. `today` keeps the
+  // other two jobs, which are both genuinely about now: the report is
+  // generated now, and for a past week no day matches today, so nothing is
+  // highlighted — which is correct.
+  const weekAnchor = options.weekAnchor ?? today;
+  const weekDays = buildWeekDays(weekAnchor, user.weekStartsOn);
   const shiftsByDate = groupByDate(shifts);
   const expensesByDate = groupExpensesByDate(dayExpenses);
   const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, currency, user.rate, expensesByDate);
@@ -68,6 +92,8 @@ export function buildWeekReportData(
       .toUpperCase() || "—";
 
   return {
+    weekStartISO: isoDate(weekDays[0]),
+    weekEndISO: isoDate(weekDays[6]),
     weekRangeLabel: weekRangeLabel(weekDays[0], weekDays[6]),
     generatedOnLabel: today.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
     employeeName: user.name,

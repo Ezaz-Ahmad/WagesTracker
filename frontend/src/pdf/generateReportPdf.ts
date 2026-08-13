@@ -1,4 +1,5 @@
 import type { DayComputed } from "../lib/aggregate";
+import { weeklyPdfFilename } from "../lib/pdfFilename";
 import type { WeekReportData } from "../lib/reportData";
 import { fmt2 } from "../lib/date";
 import { VERSION_SHORT } from "../lib/appVersion";
@@ -614,11 +615,10 @@ export async function generateReportPdf(data: WeekReportData): Promise<void> {
   // earlier page got its own footer already, right before its page break.
   drawFooter();
 
-  const namePart = (data.employeeName || "employee")
-    .replace(/[^a-z0-9]+/gi, "-")
-    .toLowerCase()
-    .replace(/^-+|-+$/g, "");
-  const rangePart = data.weekRangeLabel.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
-  const filename = `${namePart}-wages-report-${rangePart}.pdf`;
-  doc.save(filename);
+  // One shared rule for every weekly PDF, current week or historical — see
+  // lib/pdfFilename.ts. It replaces a local scheme that lower-cased and
+  // hyphenated the name (dropping capitalisation and every non-ASCII
+  // character) and used the prose date range, which sorts alphabetically by
+  // month name rather than chronologically.
+  doc.save(weeklyPdfFilename(data.employeeName, data.weekStartISO, data.weekEndISO));
 }

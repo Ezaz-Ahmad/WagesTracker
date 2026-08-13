@@ -28,9 +28,14 @@ vi.mock("../../lib/appVersion", () => ({
 // on the prototype), so the plugin object itself is what needs patching for
 // the override to reach instances created *inside* generateReportPdf.
 let lastBuffer: Buffer | null = null;
+/** The filename `save()` was called with. Captured because the filename is
+ * part of the deliverable, not an implementation detail — a unit test of the
+ * filename helper proves the helper works, not that the generator calls it. */
+let lastFilename: string | null = null;
 beforeAll(() => {
-  (jsPDF as unknown as { API: Record<string, unknown> }).API.save = function (this: jsPDF) {
+  (jsPDF as unknown as { API: Record<string, unknown> }).API.save = function (this: jsPDF, filename?: string) {
     lastBuffer = Buffer.from(this.output("arraybuffer") as ArrayBuffer);
+    lastFilename = filename ?? null;
   };
 });
 
@@ -235,5 +240,129 @@ describe("generateReportPdf", () => {
     // No literal "vX.Y.Z"-shaped string anywhere outside of that import.
     const withoutImportLine = source.replace(/^import.*appVersion.*$/m, "");
     expect(withoutImportLine).not.toMatch(/["'`]v\d+\.\d+\.\d+/);
+  });
+});
+
+
+// ── filename and week selection ────────────────────────────────────────────
+//
+// The filename is what the user actually files away, so it is asserted on the
+// real generator output rather than only on the helper that builds it.
+describe("weekly PDF filename", () => {
+  async function filenameFor(data: Awaited<ReturnType<typeof buildWeekReportData>>): Promise<string> {
+    const { generateReportPdf } = await import("../generateReportPdf");
+    await generateReportPdf(data);
+    if (!lastFilename) throw new Error("doc.save() was called without a filename");
+    return lastFilename;
+  }
+
+  const shifts: Shift[] = [
+    { id: "s1", date: "2026-08-03", location: "Downtown Store", signIn: "09:00", signOut: "17:00" },
+    { id: "s2", date: "2026-07-27", location: "Downtown Store", signIn: "09:00", signOut: "15:00" },
+  ];
+
+  it("names a current-week download after the profile name and that week's dates", async () => {
+    const user = makeUser({ name: "Ezaz Ahmad" });
+    const today = new Date(2026, 7, 5); // Wednesday of the Aug 3-9 week
+    const data = buildWeekReportData(user, shifts, today, CURRENCY);
+    expect(await filenameFor(data)).toBe("Ezaz Ahmad-2026-08-03-to-2026-08-09.pdf");
+  });
+
+  it("names a historical download after the requested week, not the current one", async () => {
+    // The whole point of the weekAnchor option: same `today`, different week.
+    const user = makeUser({ name: "Ezaz Ahmad" });
+    const today = new Date(2026, 7, 5);
+    const data = buildWeekReportData(user, shifts, today, CURRENCY, [], [], { weekAnchor: new Date(2026, 6, 27) });
+    expect(await filenameFor(data)).toBe("Ezaz Ahmad-2026-07-27-to-2026-08-02.pdf");
+  });
+
+  it("uses one rule for both, so Report and History cannot drift apart", async () => {
+    const user = makeUser({ name: "Ezaz Ahmad" });
+    const today = new Date(2026, 7, 5);
+    const fromReport = await filenameFor(buildWeekReportData(user, shifts, today, CURRENCY));
+    const fromHistory = await filenameFor(
+      buildWeekReportData(user, shifts, today, CURRENCY, [], [], { weekAnchor: new Date(2026, 7, 3) })
+    );
+    expect(fromHistory).toBe(fromReport);
+  });
+
+  it("respects a Sunday week-start preference", async () => {
+    const user = makeUser({ name: "Ezaz Ahmad", weekStartsOn: "Sunday" });
+    const today = new Date(2026, 7, 5);
+    expect(await filenameFor(buildWeekReportData(user, shifts, today, CURRENCY))).toBe(
+      "Ezaz Ahmad-2026-08-02-to-2026-08-08.pdf"
+    );
+  });
+
+  it("takes the name from the authenticated profile", async () => {
+    // Not from a parameter a caller could vary — the only source is the User
+    // record the app already holds.
+    const today = new Date(2026, 7, 5);
+    expect(await filenameFor(buildWeekReportData(makeUser({ name: "Zoë Müller" }), shifts, today, CURRENCY))).toBe(
+      "Zoë Müller-2026-08-03-to-2026-08-09.pdf"
+    );
+  });
+
+  it("falls back to User when the profile name is empty", async () => {
+    const today = new Date(2026, 7, 5);
+    expect(await filenameFor(buildWeekReportData(makeUser({ name: "" }), shifts, today, CURRENCY))).toBe(
+      "User-2026-08-03-to-2026-08-09.pdf"
+    );
+  });
+
+  it("neutralises a hostile display name", async () => {
+    // The name is user-editable free text in Settings.
+    const today = new Date(2026, 7, 5);
+    const name = await filenameFor(buildWeekReportData(makeUser({ name: "../../etc/passwd" }), shifts, today, CURRENCY));
+    expect(name).not.toContain("/");
+    expect(name).not.toContain("..");
+    expect(name.endsWith("-2026-08-03-to-2026-08-09.pdf")).toBe(true);
+  });
+
+  it("no longer uses the old wages-report scheme", async () => {
+    const today = new Date(2026, 7, 5);
+    const name = await filenameFor(buildWeekReportData(makeUser({ name: "Sam Lee" }), shifts, today, CURRENCY));
+    expect(name).not.toContain("wages-report");
+    expect(name).not.toContain("wage-tracker");
+    // And capitalisation survives, where the old scheme lower-cased it.
+    expect(name).toContain("Sam Lee");
+  });
+});
+
+describe("historical week selection", () => {
+  const shifts: Shift[] = [
+    { id: "cur", date: "2026-08-03", location: "A", signIn: "09:00", signOut: "17:00" },
+    { id: "old", date: "2026-07-27", location: "B", signIn: "09:00", signOut: "12:00" },
+  ];
+
+  it("reports the anchored week's hours, not the current week's", async () => {
+    const user = makeUser({ name: "Sam Lee", rate: 10 });
+    const today = new Date(2026, 7, 5);
+
+    const current = buildWeekReportData(user, shifts, today, CURRENCY);
+    expect(current.totalHours).toBe(8);
+
+    const historical = buildWeekReportData(user, shifts, today, CURRENCY, [], [], { weekAnchor: new Date(2026, 6, 27) });
+    expect(historical.totalHours).toBe(3);
+    expect(historical.weekStartISO).toBe("2026-07-27");
+    expect(historical.weekEndISO).toBe("2026-08-02");
+  });
+
+  it("stamps the generated date as now, not as the reported week", async () => {
+    // Passing a past date as `today` to select a past week would also have
+    // back-dated this line, claiming the document was produced weeks ago.
+    const user = makeUser({ name: "Sam Lee" });
+    const today = new Date(2026, 7, 5);
+    const historical = buildWeekReportData(user, shifts, today, CURRENCY, [], [], { weekAnchor: new Date(2026, 6, 27) });
+    expect(historical.generatedOnLabel).toBe("Aug 5, 2026");
+  });
+
+  it("marks no day as today in a past week", async () => {
+    const user = makeUser({ name: "Sam Lee" });
+    const today = new Date(2026, 7, 5);
+    const historical = buildWeekReportData(user, shifts, today, CURRENCY, [], [], { weekAnchor: new Date(2026, 6, 27) });
+    expect(historical.days.some((d) => d.isToday)).toBe(false);
+    // ...while the current week still highlights the real one.
+    expect(buildWeekReportData(user, shifts, today, CURRENCY).days.some((d) => d.isToday)).toBe(true);
   });
 });
