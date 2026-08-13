@@ -493,7 +493,11 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 
 /* — dialog — */
 .dialog-backdrop {
-  position: fixed; inset: 0; display: grid; place-items: center;
+  /* z-index was missing entirely, while .confirm-backdrop uses 1000 and the
+     sessions sheet 60 — so this dialog's stacking depended purely on
+     document order. It sits above the app shell and below the confirm popup
+     (which can legitimately open on top of a dialog). */
+  position: fixed; inset: 0; z-index: 200; display: grid; place-items: center;
   padding: var(--space-4);
   background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
 }
