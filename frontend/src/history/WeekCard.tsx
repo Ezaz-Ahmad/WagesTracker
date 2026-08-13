@@ -2,7 +2,6 @@ import { useState } from "react";
 import { CURRENCY, useApp } from "../context/AppContext";
 import { buildWeekDays, fmt2, parseIsoDate } from "../lib/date";
 import { buildWeekDaysComputed, groupByDate, groupExpensesByDate, type WeekSummary } from "../lib/aggregate";
-import { buildWeekReportData } from "../lib/reportData";
 import { usePdfDownload } from "../lib/usePdfDownload";
 import { Amount } from "../components/Amount";
 import { BubbleLoader } from "../components/BubbleLoader";
@@ -32,7 +31,7 @@ interface WeekCardProps {
  * error on one would appear on all of them.
  */
 export function WeekCard({ week, metGoal, onEditDay }: WeekCardProps) {
-  const { user, shifts, dayExpenses, weekExtras, today } = useApp();
+  const { user, shifts, dayExpenses, today } = useApp();
   const [expanded, setExpanded] = useState(false);
   const { download, downloading, justDownloaded, error, clearError } = usePdfDownload();
 
@@ -44,12 +43,9 @@ export function WeekCard({ week, metGoal, onEditDay }: WeekCardProps) {
   const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, CURRENCY, user.rate, groupExpensesByDate(dayExpenses));
 
   function handleDownload() {
-    // Built at click time from current context state, never from anything
-    // captured when the card first rendered — so a PDF downloaded after an
-    // edit contains the edit.
-    void download(
-      buildWeekReportData(user!, shifts, today, CURRENCY, dayExpenses, weekExtras, { weekAnchor: weekStart })
-    );
+    // The shared pipeline refetches this exact week's shifts, fuel, and
+    // extras before generation, so stale screen state cannot enter the PDF.
+    void download({ user: user!, today, currency: CURRENCY, weekAnchor: weekStart });
   }
 
   const panelId = `history-week-${week.startISO}`;

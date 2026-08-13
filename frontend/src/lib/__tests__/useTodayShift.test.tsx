@@ -19,6 +19,7 @@ import type { useApp } from "../../context/AppContext";
 import type { Shift, User } from "../../lib/types";
 import { ElapsedTimer, ShiftButton } from "../../components/ShiftButton";
 import { useTodayShift } from "../useTodayShift";
+import { ConfirmProvider } from "../../components/ConfirmProvider";
 
 type AppCtx = ReturnType<typeof useApp>;
 
@@ -99,6 +100,22 @@ afterEach(() => {
 });
 
 describe("useTodayShift across a midnight rollover", () => {
+  it("requires confirmation before clocking out a 16-hour-40-minute shift", async () => {
+    const user = userEvent.setup();
+    shifts = [{ ...openShift, signIn: "08:50:00" }];
+    render(<ConfirmProvider><Harness /></ConfirmProvider>);
+
+    await user.click(screen.getByRole("button", { name: /sign out/i }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toMatch(/unusually long/i);
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(updateShift).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: /sign out/i }));
+    await user.click(await screen.findByRole("button", { name: "Confirm" }));
+    await waitFor(() => expect(updateShift).toHaveBeenCalledWith("shift-aug8", { signOut: "01:30:00" }));
+  });
   it("keeps a shift signed in before midnight active after the date rolls over", () => {
     render(<Harness />);
     expect(screen.getByTestId("active").textContent).toBe("true");

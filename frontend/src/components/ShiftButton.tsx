@@ -42,7 +42,6 @@ export function ShiftButton({
       className={`btn cta-circle${active ? " is-active" : ""}${justConfirmed ? " is-confirmed" : ""}`}
       disabled={busy}
       onClick={active ? onEnd : onStart}
-      data-confirm={active ? "End this shift? This stops the clock." : "Start your shift now?"}
       style={{ background: active ? ACTIVE_COLOR : INACTIVE_COLOR }}
     >
       <span className="cta-circle-check" aria-hidden="true">

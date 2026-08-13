@@ -6,10 +6,8 @@ import { computeHours, isoDate, parseIsoDate } from "./date";
  *
  * The server is what actually enforces these — it re-validates every write
  * and is the only thing a determined client can't bypass. This copy exists
- * so the historical editor can say "that's longer than 16 hours" while you
- * are still looking at the field, instead of after a round trip on a
- * cold-starting backend. Same arrangement as the password policy, which is
- * mirrored for the same reason (see lib/passwordPolicy.ts).
+ * so forms can catch actual validation errors immediately. Long shifts use
+ * a separate warning helper because they are unusual, not invalid.
  *
  * Deliberately NOT mirrored here: overlap detection. Deciding whether a shift
  * overlaps requires the user's other shifts *including ones outside whatever
@@ -17,12 +15,14 @@ import { computeHours, isoDate, parseIsoDate } from "./date";
  * confidently wrong. That one is left to the server, whose 409 the editor
  * surfaces as-is.
  *
- * Keep the two constants in step. If they drift, the client is merely
- * optimistic or pessimistic; the server's answer still wins.
  */
 
-export const MAX_SHIFT_HOURS = 16;
-export const MAX_FUTURE_DAYS = 1;
+export const UNUSUALLY_LONG_SHIFT_HOURS = 16;
+export const LONG_SHIFT_WARNING = "This shift is unusually long. Please confirm that the start and finish times are correct.";
+
+export function isUnusuallyLongShift(signIn: string | null, signOut: string | null): boolean {
+  return !!signIn && !!signOut && signIn !== signOut && computeHours(signIn, signOut) > UNUSUALLY_LONG_SHIFT_HOURS;
+}
 
 /**
  * The first problem with this date/time combination, or null if there is
@@ -32,18 +32,13 @@ export function describeShiftTimes(dateISO: string, signIn: string | null, signO
   const date = parseIsoDate(dateISO);
   if (Number.isNaN(date.getTime())) return "That isn't a valid date.";
 
-  // Local midnight today, plus the same slack the server allows. The client
-  // is in the user's own timezone so it could be stricter, but matching the
-  // server avoids the worse failure: the form saying a value is fine and the
-  // save then being rejected, or vice versa.
+  // The browser is already in the current device timezone. The backend uses
+  // its own clock plus X-Client-Time-Zone as the authoritative equivalent.
   const today = new Date();
-  const latest = new Date(today.getFullYear(), today.getMonth(), today.getDate() + MAX_FUTURE_DAYS);
-  if (isoDate(date) > isoDate(latest)) return "You can't log a shift for a future date.";
+  const localToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  if (isoDate(date) > isoDate(localToday)) return "You can't log a shift for a future date.";
 
   if (!signIn || !signOut) return null;
   if (signIn === signOut) return "Sign-in and sign-out can't be the same time.";
-  if (computeHours(signIn, signOut) > MAX_SHIFT_HOURS) {
-    return `That's longer than ${MAX_SHIFT_HOURS} hours. If this was an overnight shift, check the times aren't the wrong way round.`;
-  }
   return null;
 }
