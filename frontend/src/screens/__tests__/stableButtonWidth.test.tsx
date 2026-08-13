@@ -72,6 +72,16 @@ vi.mock("../../pdf/generateReportPdf", () => ({
   ),
 }));
 
+vi.mock("../../lib/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../lib/api")>();
+  return {
+    ...actual,
+    listShifts: vi.fn(async () => ({ shifts: SHIFTS })),
+    listDayExpenses: vi.fn(async () => ({ expenses: [] })),
+    listWeekExtras: vi.fn(async () => ({ extras: [] })),
+  };
+});
+
 const { ReportScreen } = await import("../ReportScreen");
 
 afterEach(cleanup);

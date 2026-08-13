@@ -9,7 +9,6 @@ import { toPublicShift, type ShiftRow } from "../types.js";
 import {
   FUTURE_DATE_MESSAGE,
   CLIENT_TIME_ZONE_HEADER,
-  MAX_SHIFT_HOURS,
   OVERLAP_MESSAGE,
   TIME_ZONE_REQUIRED_MESSAGE,
   ZERO_LENGTH_MESSAGE as SHARED_ZERO_LENGTH_MESSAGE,
@@ -50,8 +49,8 @@ function requestLocalDate(req: AuthedRequest): string | null {
 /**
  * Loads the caller's other complete shifts near `date`, for the overlap
  * check. One day either side is sufficient and necessary: an overnight shift
- * is filed under its starting day and can run at most MAX_SHIFT_HOURS past
- * midnight, so a shift on day D-1 can reach into D, and one on D can reach
+ * is filed under its starting day and remains under 24 hours, so a shift on
+ * day D-1 can reach into D, and one on D can reach
  * into D+1 — nothing further out can touch D at all.
  */
 async function neighbouringShifts(
@@ -163,7 +162,7 @@ shiftsRouter.post(
     }
     const { date, location, signIn, signOut } = parsed.data;
 
-    // Real-calendar-date, future-date and maximum-duration checks. Applied
+    // Real-calendar-date, future-date and zero-duration checks. Applied
     // to every create, not just historical ones — see security/shiftRules.ts.
     const problem = validateShiftTimes({ date, signIn, signOut }, localToday);
     if (problem) {

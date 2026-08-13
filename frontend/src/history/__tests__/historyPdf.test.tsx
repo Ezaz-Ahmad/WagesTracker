@@ -9,7 +9,7 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Shift, User } from "../../lib/types";
+import type { DayExpense, Shift, User, WeekExtra } from "../../lib/types";
 import type { WeekReportData } from "../../lib/reportData";
 import { AppProvider } from "../../context/AppContext";
 import { ConfirmProvider } from "../../components/ConfirmProvider";
@@ -35,6 +35,8 @@ const USER: User = {
 const TODAY = new Date(2026, 1, 4, 10, 0, 0);
 
 let serverShifts: Shift[];
+let serverDayExpenses: DayExpense[];
+let serverWeekExtras: WeekExtra[];
 /** Every WeekReportData the generator was handed, in order. */
 let generated: WeekReportData[];
 let generateImpl: (data: WeekReportData) => Promise<void>;
@@ -64,8 +66,8 @@ vi.mock("../../lib/api", async (importOriginal) => {
     logout: vi.fn(async () => {}),
     listSessions: vi.fn(async () => ({ sessions: [] })),
     listShifts: vi.fn(async () => ({ shifts: serverShifts })),
-    listDayExpenses: vi.fn(async () => ({ expenses: [] })),
-    listWeekExtras: vi.fn(async () => ({ extras: [] })),
+    listDayExpenses: vi.fn(async () => ({ expenses: serverDayExpenses })),
+    listWeekExtras: vi.fn(async () => ({ extras: serverWeekExtras })),
     patchShift: vi.fn(async (id: string, patch: Partial<Shift>) => {
       const found = serverShifts.find((s) => s.id === id)!;
       const updated = { ...found, ...patch };
@@ -78,6 +80,7 @@ vi.mock("../../lib/api", async (importOriginal) => {
 });
 
 const { HistoryScreen } = await import("../../screens/HistoryScreen");
+const api = await import("../../lib/api");
 
 function renderHistory() {
   return render(
@@ -105,6 +108,8 @@ beforeEach(() => {
     // Jan 12 – 18 week: 2 hours.
     { id: "c", date: "2026-01-14", location: "Downtown Store", signIn: "10:00", signOut: "12:00" },
   ];
+  serverDayExpenses = [];
+  serverWeekExtras = [];
 });
 
 afterEach(() => {
@@ -172,6 +177,36 @@ describe("the per-week download action", () => {
 });
 
 describe("downloading after an edit", () => {
+  it("refetches the selected week's latest shifts, fuel, and extras before generation", async () => {
+    const user = userEvent.setup();
+    renderHistory();
+    await screen.findByRole("heading", { name: /Jan 26/ });
+
+    // The rendered card still shows the original 4-hour server response.
+    // Change the mocked server only, without updating React context, to
+    // reproduce a stale open page (for example after another-device edits).
+    serverShifts = serverShifts.map((shift) =>
+      shift.id === "a" ? { ...shift, signOut: "15:00" } : shift
+    );
+    serverDayExpenses = [{ date: "2026-01-26", fuelCost: 12.5 }];
+    serverWeekExtras = [{ weekStart: "2026-01-26", amount: 25, reason: "Bonus" }];
+
+    await user.click(within(cardFor(/Jan 26/)).getByRole("button", { name: /^Download PDF for / }));
+    await waitFor(() => expect(generated).toHaveLength(1));
+
+    expect(generated[0]).toMatchObject({
+      weekStartISO: "2026-01-26",
+      weekEndISO: "2026-02-01",
+      totalHours: 6,
+      totalFuelCost: 12.5,
+      otherEarningAmount: 25,
+      otherEarningReason: "Bonus",
+      totalEarnings: 97.5,
+    });
+    expect(generated[0].shiftRows).toHaveLength(1);
+    expect(generated[0].shiftRows[0]).toMatchObject({ signIn: "9:00 AM", signOut: "3:00 PM", hours: 6 });
+  });
+
   it("includes the correction, not the figures from when the page loaded", async () => {
     // The other invisible failure: building the report from state captured
     // at render time rather than at click time.
@@ -257,7 +292,7 @@ describe("download states", () => {
     await user.click(within(card).getByRole("button", { name: /^Download PDF for / }));
 
     const alert = await within(card).findByRole("alert");
-    expect(alert.textContent).toMatch(/Couldn't generate the PDF/);
+    expect(alert.textContent).toMatch(/Couldn't prepare the PDF/);
     // The internal message is not on screen — it tells the user nothing they
     // can act on, and would end up in any screenshot they shared.
     expect(alert.textContent).not.toMatch(/undefined/);
@@ -269,6 +304,28 @@ describe("download states", () => {
     await user.click(within(alert).getByRole("button", { name: /Try again/ }));
     await waitFor(() => expect(within(card).queryByRole("alert")).toBeNull());
     expect(generated).toHaveLength(2);
+    consoleSpy.mockRestore();
+  });
+
+  it("shows the same safe retry when the fresh-data request fails", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const user = userEvent.setup();
+    renderHistory();
+    await screen.findByRole("heading", { name: /Jan 26/ });
+
+    const listShifts = api.listShifts as unknown as ReturnType<typeof vi.fn>;
+    listShifts.mockRejectedValueOnce(new Error("private backend detail"));
+    const card = cardFor(/Jan 26/);
+    await user.click(within(card).getByRole("button", { name: /^Download PDF for / }));
+
+    const alert = await within(card).findByRole("alert");
+    expect(alert.textContent).toMatch(/Couldn't prepare the PDF/);
+    expect(alert.textContent).not.toMatch(/private backend detail/);
+    expect(generated).toHaveLength(0);
+
+    await user.click(within(alert).getByRole("button", { name: /Try again/ }));
+    await waitFor(() => expect(generated).toHaveLength(1));
+    expect(within(card).queryByRole("alert")).toBeNull();
     consoleSpy.mockRestore();
   });
 

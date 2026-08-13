@@ -14,7 +14,6 @@ import {
   weekTotals,
 } from "../lib/aggregate";
 import { buildWeekDays, fmt2, isoDate } from "../lib/date";
-import { buildWeekReportData } from "../lib/reportData";
 import { usePdfDownload } from "../lib/usePdfDownload";
 import { useCountUp } from "../lib/useCountUp";
 import { Skeleton } from "../components/Skeleton";
@@ -89,7 +88,7 @@ export function ReportScreen() {
   }
 
   function handleDownloadPdf() {
-    void downloadPdf(buildWeekReportData(user!, shifts, today, CURRENCY, dayExpenses, weekExtras));
+    void downloadPdf({ user: user!, today, currency: CURRENCY });
   }
 
   const metricLabel = metric === "earnings" ? "earnings" : "hours";

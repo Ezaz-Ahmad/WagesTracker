@@ -20,32 +20,8 @@
  * is the enforcement.
  */
 
-/** Sanity bound on a single shift, not a labour-law limit.
- *
- * Its real job is catching the reversed-times slip. Because overnight shifts
- * are supported by wraparound (22:00 -> 06:00 = 8h), *every* pair of distinct
- * times is a "valid" duration somewhere in (0, 24) — so a mistyped 06:00 ->
- * 22:00 when you meant 22:00 -> 06:00 silently records 16 hours instead of 8,
- * and a 09:00 -> 08:00 slip records 23. Neither is rejectable by ordering
- * rules, because for overnight shifts the "wrong" order is the correct one.
- * A ceiling is the only thing that separates them.
- *
- * 16 hours clears any genuine double shift while still catching the
- * near-24-hour results a typo produces. */
-export const MAX_SHIFT_HOURS = 16;
-
-/** How far past the server's own "today" a shift date may be.
- *
- * Not zero, and that's deliberate. The client sends a date derived from the
- * *browser's* local calendar, and this server runs in UTC. For a user in
- * Sydney (UTC+10), 9am on the 14th is 11pm on the 13th here — their perfectly
- * ordinary "today" arrives looking like tomorrow. One day of slack covers
- * every real timezone offset (UTC-12 to UTC+14 spans just over one day either
- * side) without opening the door to the thing this actually guards against,
- * which is a mistyped year or month putting a shift months or years out. */
 export const ZERO_LENGTH_MESSAGE = "Sign-in and sign-out can't be the same time.";
 export const FUTURE_DATE_MESSAGE = "You can't log a shift for a future date.";
-export const MAX_DURATION_MESSAGE = `A shift can't be longer than ${MAX_SHIFT_HOURS} hours. Check the sign-in and sign-out times.`;
 export const OVERLAP_MESSAGE = "That overlaps another shift you've already logged.";
 
 export const CLIENT_TIME_ZONE_HEADER = "X-Client-Time-Zone";
@@ -160,7 +136,6 @@ export function validateShiftTimes(input: ShiftTimesInput, localToday: string): 
   // state — only a complete pair can be measured.
   if (signIn && signOut) {
     if (signIn === signOut) return ZERO_LENGTH_MESSAGE;
-    if (durationSeconds(signIn, signOut) > MAX_SHIFT_HOURS * 3600) return MAX_DURATION_MESSAGE;
   }
 
   return null;
@@ -174,9 +149,9 @@ export function validateShiftTimes(input: ShiftTimesInput, localToday: string): 
  * either side are skipped: they have no measurable interval, and the
  * one-open-shift rule covers the in-progress case separately.
  *
- * Callers only need to supply neighbours within a day either side. An
- * overnight shift can reach at most `MAX_SHIFT_HOURS` past its own midnight,
- * so nothing further out can reach back.
+ * Callers only need to supply neighbours within a day either side. A stored
+ * shift is always shorter than 24 hours (equal times are rejected), so
+ * nothing further out can reach back.
  */
 export function findOverlap(
   candidate: ShiftTimesInput,

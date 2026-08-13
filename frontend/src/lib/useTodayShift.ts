@@ -1,6 +1,8 @@
 import { useApp } from "../context/AppContext";
 import { findOpenShift } from "./aggregate";
 import { isoDate, nowHHMMSS } from "./date";
+import { useConfirm } from "../components/ConfirmProvider";
+import { isUnusuallyLongShift, LONG_SHIFT_WARNING } from "./shiftRules";
 
 /**
  * Tracks the shift the Sign in/Sign out button (and the elapsed-time
@@ -11,6 +13,7 @@ import { isoDate, nowHHMMSS } from "./date";
  * signed out.
  */
 export function useTodayShift() {
+  const confirm = useConfirm();
   const { today, shifts, user, createShift, updateShift } = useApp();
   const todayISO = isoDate(today);
   const last = findOpenShift(shifts);
@@ -34,7 +37,9 @@ export function useTodayShift() {
     // touches its `date`, so an overnight shift stays filed under the day
     // it started regardless of what today's date is by the time this runs.
     if (last && !last.signOut) {
-      await updateShift(last.id, { signOut: nowHHMMSS() });
+      const signOut = nowHHMMSS();
+      if (isUnusuallyLongShift(last.signIn, signOut) && !(await confirm(LONG_SHIFT_WARNING))) return;
+      await updateShift(last.id, { signOut });
     }
   };
 

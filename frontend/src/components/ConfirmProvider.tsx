@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { AlertTriangleIcon, CheckCircleIcon } from "./icons";
 import { useDismissTransition } from "../lib/useDismissTransition";
 import { useFocusTrap } from "../lib/useFocusTrap";
@@ -7,6 +7,14 @@ interface PendingConfirm {
   message: string;
   tone: "default" | "danger";
   resolve: (ok: boolean) => void;
+}
+
+type ConfirmTone = "default" | "danger";
+type ConfirmRequest = (message: string, tone?: ConfirmTone) => Promise<boolean>;
+const ConfirmContext = createContext<ConfirmRequest>(async () => true);
+
+export function useConfirm(): ConfirmRequest {
+  return useContext(ConfirmContext);
 }
 
 /**
@@ -45,6 +53,30 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
 
   pendingRef.current = pending;
 
+  const askConfirm = useCallback<ConfirmRequest>(
+    (message, tone = "default") =>
+      new Promise<boolean>((resolve) => {
+        if (pendingRef.current) {
+          resolve(false);
+          return;
+        }
+        const next: PendingConfirm = {
+          message,
+          tone,
+          resolve: (ok) => {
+            requestClose(() => {
+              pendingRef.current = null;
+              setPending(null);
+              resolve(ok);
+            });
+          },
+        };
+        pendingRef.current = next;
+        setPending(next);
+      }),
+    [requestClose]
+  );
+
   useEffect(() => {
     function onClick(e: MouseEvent) {
       const target = e.target as Element | null;
@@ -66,24 +98,17 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
 
       const tone = btn.getAttribute("data-confirm-tone") === "danger" ? "danger" : "default";
 
-      setPending({
-        message,
-        tone,
-        resolve: (ok) => {
-          requestClose(() => {
-            setPending(null);
-            if (ok) {
-              bypass.current.add(btn);
-              btn.click();
-            }
-          });
-        },
+      void askConfirm(message, tone).then((ok) => {
+        if (ok) {
+          bypass.current.add(btn);
+          btn.click();
+        }
       });
     }
 
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
-  }, []);
+  }, [askConfirm]);
 
   // Focus trapping + restore-on-close for the popup, shared with every other
   // dialog in the app (see the account-deletion dialog in settings/). Escape
@@ -102,7 +127,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
   }, [pending]);
 
   return (
-    <>
+    <ConfirmContext.Provider value={askConfirm}>
       {children}
       {pending && (
         <div className={`confirm-backdrop${closing ? " is-closing" : ""}`} onClick={() => pending.resolve(false)}>
@@ -138,6 +163,6 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       )}
-    </>
+    </ConfirmContext.Provider>
   );
 }

@@ -20,13 +20,14 @@
 // locates the specific day that actually has the real shift by its date
 // label, rather than assuming the first "has-content" card is the
 // meaningful one.
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { useApp } from "../../context/AppContext";
 import type { Shift, User } from "../../lib/types";
 import { isoDate } from "../../lib/date";
 import { EntryScreen } from "../EntryScreen";
+import { ConfirmProvider } from "../../components/ConfirmProvider";
 
 type AppCtx = ReturnType<typeof useApp>;
 
@@ -54,6 +55,7 @@ const testUser: User = {
 const testShift: Shift = { id: "shift-1", date: todayISO, location: "Cafe", signIn: "09:00", signOut: "17:00" };
 
 let removeShift: ReturnType<typeof vi.fn>;
+let updateShift: ReturnType<typeof vi.fn>;
 
 function useFakeApp(): AppCtx {
   return {
@@ -62,7 +64,7 @@ function useFakeApp(): AppCtx {
     shifts: [testShift],
     shiftsLoaded: true,
     createShift: vi.fn().mockResolvedValue(undefined),
-    updateShift: vi.fn().mockResolvedValue(undefined),
+    updateShift,
     removeShift,
     dayExpenses: [],
     setFuelCost: vi.fn().mockResolvedValue(undefined),
@@ -80,6 +82,7 @@ vi.mock("../../context/AppContext", async (importOriginal) => {
 
 beforeEach(() => {
   removeShift = vi.fn().mockResolvedValue(undefined);
+  updateShift = vi.fn().mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -96,6 +99,26 @@ function getShiftDayCard(): HTMLElement {
 }
 
 describe("Entry screen — day accordion structure and keyboard behavior", () => {
+  it("asks before saving an unusually long manual shift and cancellation does not update it", async () => {
+    const user = userEvent.setup();
+    render(<ConfirmProvider><EntryScreen /></ConfirmProvider>);
+    const card = getShiftDayCard();
+    await user.click(card.querySelector(".day-row-toggle") as HTMLButtonElement);
+
+    const signOut = within(card).getByLabelText("Sign-out time") as HTMLInputElement;
+    fireEvent.change(signOut, { target: { value: "01:30" } });
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toMatch(/unusually long/i);
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(updateShift).not.toHaveBeenCalled();
+    expect(signOut.value).toBe("17:00");
+
+    fireEvent.change(signOut, { target: { value: "01:30" } });
+    await user.click(await screen.findByRole("button", { name: "Confirm" }));
+    await waitFor(() => expect(updateShift).toHaveBeenCalledWith("shift-1", { signOut: "01:30" }));
+  });
   it("uses a real <button> trigger (not a div role=button) with Clear as a sibling, not nested inside it", () => {
     render(<EntryScreen />);
     const card = getShiftDayCard();

@@ -20,10 +20,13 @@ import { Skeleton } from "../components/Skeleton";
 import { Amount } from "../components/Amount";
 import { AmountWheelPicker } from "../components/AmountWheelPicker";
 import { EarningsHiddenHint } from "../components/EarningsHiddenHint";
+import { useConfirm } from "../components/ConfirmProvider";
+import { isUnusuallyLongShift, LONG_SHIFT_WARNING } from "../lib/shiftRules";
 
 type Row = ShiftComputed & { tempId?: string };
 
 export function EntryScreen() {
+  const confirm = useConfirm();
   const {
     today,
     user,
@@ -151,11 +154,16 @@ export function EntryScreen() {
     setPending((prev) => ({ ...prev, [dateISO]: (prev[dateISO] ?? []).filter((id) => id !== tempId) }));
   }
 
-  async function handleFieldChange(day: DayComputed, row: Row, field: "location" | "signIn" | "signOut", value: string) {
+  async function handleFieldChange(day: DayComputed, row: Row, field: "location" | "signIn" | "signOut", value: string): Promise<boolean> {
     const normalized = field === "location" ? value : value || null;
+    const mergedSignIn = field === "signIn" ? value || null : row.signIn;
+    const mergedSignOut = field === "signOut" ? value || null : row.signOut;
+    if (field !== "location" && isUnusuallyLongShift(mergedSignIn, mergedSignOut) && !(await confirm(LONG_SHIFT_WARNING))) {
+      return false;
+    }
     if (row.id) {
       await updateShift(row.id, { [field]: normalized } as Partial<{ location: string; signIn: string | null; signOut: string | null }>);
-      return;
+      return true;
     }
     await createShift({
       date: day.dateISO,
@@ -164,6 +172,7 @@ export function EntryScreen() {
       signOut: field === "signOut" ? value || null : row.signOut,
     });
     clearPending(day.dateISO, row.tempId);
+    return true;
   }
 
   function handleAddShift(dateISO: string) {
@@ -395,7 +404,10 @@ export function EntryScreen() {
                       aria-label="Sign-in time"
                       title="Sign-in time"
                       defaultValue={row.signIn ?? ""}
-                      onChange={(e) => handleFieldChange(day, row, "signIn", e.target.value)}
+                      onChange={async (e) => {
+                        const input = e.currentTarget;
+                        if (!(await handleFieldChange(day, row, "signIn", input.value))) input.value = row.signIn ?? "";
+                      }}
                     />
                   </div>
                   <div className="shift-field shift-field-time">
@@ -407,7 +419,10 @@ export function EntryScreen() {
                       aria-label="Sign-out time"
                       title="Sign-out time"
                       defaultValue={row.signOut ?? ""}
-                      onChange={(e) => handleFieldChange(day, row, "signOut", e.target.value)}
+                      onChange={async (e) => {
+                        const input = e.currentTarget;
+                        if (!(await handleFieldChange(day, row, "signOut", input.value))) input.value = row.signOut ?? "";
+                      }}
                     />
                   </div>
                   <div className="shift-hours">{row.hoursLabel}</div>

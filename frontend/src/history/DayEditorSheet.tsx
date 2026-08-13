@@ -8,6 +8,8 @@ import { useFocusTrap } from "../lib/useFocusTrap";
 import { computeHours, fmt2, parseIsoDate } from "../lib/date";
 import { describeShiftTimes } from "../lib/shiftRules";
 import { useApp } from "../context/AppContext";
+import { useConfirm } from "../components/ConfirmProvider";
+import { isUnusuallyLongShift, LONG_SHIFT_WARNING } from "../lib/shiftRules";
 
 export interface DayEditorTarget {
   dateISO: string;
@@ -45,6 +47,7 @@ function weekdayLabel(dateISO: string): string {
  * conflicting source for the same number.
  */
 export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorSheetProps) {
+  const confirm = useConfirm();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const { closing, requestClose } = useDismissTransition(220);
 
@@ -101,6 +104,7 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
     () => ({ signIn: selected?.signIn ?? "", signOut: selected?.signOut ?? "", location: selected?.location ?? "" }),
     [selected]
   );
+  const timeFieldsDirty = signIn !== original.signIn || signOut !== original.signOut;
   const shiftDirty = signIn !== original.signIn || signOut !== original.signOut || location !== original.location;
   const parsedFuelCost = fuelCost.trim() === "" ? null : Number(fuelCost);
   const fuelValid = parsedFuelCost === null || (Number.isFinite(parsedFuelCost) && parsedFuelCost >= 0 && parsedFuelCost <= 10000);
@@ -144,6 +148,7 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
 
   async function handleSave() {
     if (!canSave) return;
+    if (timeFieldsDirty && isUnusuallyLongShift(signIn, signOut) && !(await confirm(LONG_SHIFT_WARNING))) return;
     setSaving(true);
     setError(null);
     setSaved(false);
@@ -319,6 +324,11 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
               <p className="field-hint field-hint-danger day-editor-validation" role="alert">
                 {validation}
               </p>
+            )}
+            {!validation && isUnusuallyLongShift(signIn, signOut) && (
+              <StatusBanner tone="warning" className="day-editor-long-warning">
+                {LONG_SHIFT_WARNING}
+              </StatusBanner>
             )}
             {signIn && signOut && !validation && computeHours(signIn, signOut) > 0 && signOut < signIn && (
               <p className="field-hint day-editor-overnight">

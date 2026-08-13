@@ -14,7 +14,6 @@ import type { Express } from "express";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { cleanupTestDb, createTestApp } from "./testApp.js";
-import { MAX_SHIFT_HOURS } from "../src/security/shiftRules.js";
 
 const TIME_ZONE = "UTC";
 
@@ -84,15 +83,15 @@ describe("shift date and time rules", () => {
     });
   });
 
-  describe("maximum duration", () => {
-    it(`rejects a shift longer than ${MAX_SHIFT_HOURS} hours`, async () => {
-      // 06:00 -> 23:30 is 17.5h — the shape a reversed overnight pair takes.
-      const res = await post({ date: daysAgo(10), signIn: "06:00", signOut: "23:30" });
-      expect(res.status).toBe(400);
-      expect(res.body.error).toMatch(new RegExp(`${MAX_SHIFT_HOURS} hours`));
+  describe("long and overnight durations", () => {
+    it("accepts a legitimate 16-hour-40-minute overnight shift", async () => {
+      const res = await post({ date: daysAgo(10), signIn: "08:50", signOut: "01:30" });
+      expect(res.status).toBe(201);
+      expect(res.body.shift.signIn).toBe("08:50");
+      expect(res.body.shift.signOut).toBe("01:30");
     });
 
-    it("accepts a shift exactly at the limit", async () => {
+    it("accepts a shift exactly at the warning threshold", async () => {
       const res = await post({ date: daysAgo(11), signIn: "06:00", signOut: "22:00" });
       expect(res.status).toBe(201);
     });
@@ -104,13 +103,12 @@ describe("shift date and time rules", () => {
       expect(res.body.shift.signOut).toBe("06:00");
     });
 
-    it("catches the reversed form of that same overnight shift", async () => {
-      // The exact slip the ceiling exists for: the user meant 22:00 -> 06:00
+    it("does not reject a distinct pair solely because it exceeds 16 hours", async () => {
+      // The exact slip the former ceiling tried to catch: the user meant 22:00 -> 06:00
       // and typed it backwards. No ordering rule can reject this, because for
       // an overnight shift 'sign-out before sign-in' is the correct order.
       const res = await post({ date: daysAgo(13), signIn: "06:00", signOut: "22:01" });
-      expect(res.status).toBe(400);
-      expect(res.body.error).toMatch(/hours/i);
+      expect(res.status).toBe(201);
     });
   });
 
@@ -196,43 +194,31 @@ describe("shift date and time rules", () => {
     });
   });
 
-  describe("not re-validating times a request never touched", () => {
-    // Rows predating these rules can violate them. Re-checking an untouched
-    // pair on every PATCH would make those rows permanently uneditable —
-    // including editing the location to help identify them, which is exactly
-    // what someone would try first.
-    let legacyId: string;
+  describe("editing long shifts", () => {
+    let longShiftId: string;
 
-    it("sets up a row that breaks the duration rule, bypassing the API", async () => {
-      const created = await post({ date: daysAgo(50), signIn: "08:00", signOut: "16:00" });
+    it("creates a long shift through the API", async () => {
+      const created = await post({ date: daysAgo(50), signIn: "08:00", signOut: "00:30" });
       expect(created.status).toBe(201);
-      legacyId = created.body.shift.id;
-
-      // 08:00 -> 00:30 wraps past midnight: 16.5 hours, over the ceiling.
-      // (08:00 -> 23:59 would be 15h59m and perfectly legal — worth stating,
-      // because it is the obvious wrong fixture to reach for here.)
-      const { db } = await import("../src/db.js");
-      await db.execute({ sql: "UPDATE shifts SET sign_out = ? WHERE id = ?", args: ["00:30", legacyId] });
+      longShiftId = created.body.shift.id;
     });
 
     it("still allows the location to be corrected", async () => {
-      const res = await patch(legacyId, { location: "Corrected Store" });
+      const res = await patch(longShiftId, { location: "Corrected Store" });
       expect(res.status).toBe(200);
       expect(res.body.shift.location).toBe("Corrected Store");
-      // And the offending times are left exactly as they were.
+      // Updating metadata leaves the intentional times exactly as entered.
       expect(res.body.shift.signOut).toBe("00:30");
     });
 
-    it("but rejects the moment a time is actually changed", async () => {
-      // Still 16h29m — over the limit, so the edit is refused rather than
-      // quietly persisting a value the rules would never have accepted.
-      const res = await patch(legacyId, { signOut: "00:29" });
-      expect(res.status).toBe(400);
-      expect(res.body.error).toMatch(/hours/i);
+    it("allows its times to be corrected to another intentional long duration", async () => {
+      const res = await patch(longShiftId, { signOut: "00:29" });
+      expect(res.status).toBe(200);
+      expect(res.body.shift.signOut).toBe("00:29");
     });
 
     it("and accepts a change that brings it back within the rules", async () => {
-      const res = await patch(legacyId, { signOut: "16:00" });
+      const res = await patch(longShiftId, { signOut: "16:00" });
       expect(res.status).toBe(200);
       expect(res.body.shift.signOut).toBe("16:00");
     });
