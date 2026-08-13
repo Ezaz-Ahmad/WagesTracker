@@ -131,7 +131,7 @@ export function WakingUpScreen() {
   const showRetry = RETRY_PHASES.has(phase);
 
   return (
-    <div className="wakeup-shell">
+    <main className="wakeup-shell">
       <div className="wakeup-glow" aria-hidden="true" />
       <div className="wakeup-card">
         <div className="wakeup-logo-wrap">
@@ -173,6 +173,6 @@ export function WakingUpScreen() {
           </button>
         )}
       </div>
-    </div>
+    </main>
   );
 }

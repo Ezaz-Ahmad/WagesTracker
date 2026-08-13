@@ -85,7 +85,15 @@ export function HomeScreen() {
     liveEarnings: effectiveLiveHours * rate,
   });
 
-  const progressPct = goalHours > 0 ? Math.min(100, Math.round((totalHours / goalHours) * 100)) : 0;
+  // Clamped *and* guarded against a non-finite result. A malformed shift
+  // from the server makes totalHours NaN, which used to surface as a
+  // harmless `width: NaN%` the browser ignored — but the same value now
+  // feeds aria-valuenow, where NaN is an outright invalid ARIA value (axe:
+  // aria-valid-attr-value) rather than something quietly dropped. Falling
+  // back to 0 shows an empty bar, which is the honest reading of "we can't
+  // compute your progress".
+  const rawProgressPct = goalHours > 0 ? Math.round((totalHours / goalHours) * 100) : 0;
+  const progressPct = Number.isFinite(rawProgressPct) ? Math.max(0, Math.min(100, rawProgressPct)) : 0;
   const todayDay = days.find((d) => d.isToday);
 
   // While a shift is active, show the exact live number every tick rather than

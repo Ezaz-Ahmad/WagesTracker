@@ -97,7 +97,11 @@ function AuthedApp() {
   return (
     <div className={`app-shell${entered ? " is-entered" : ""}`}>
       <div className="app-frame">
-        <div className="nav app-nav">
+        {/* A <header> rather than a plain div: this is the app's banner, and
+            with <main> and <nav> already in place it was the one missing
+            landmark. Screen-reader landmark navigation could reach the
+            content and the tabs but not the log-out / privacy controls. */}
+        <header className="nav app-nav">
           <div className="app-nav-identity">
             <span className="nav-brand">
               <Logo size={22} />
@@ -127,7 +131,7 @@ function AuthedApp() {
             <LogoutIcon size={16} />
             <span className="app-nav-logout-label">Log out</span>
           </button>
-        </div>
+        </header>
 
         {/* The device-limit notice. The backend has sent this on the login
             response ever since per-installation sessions landed, but the
