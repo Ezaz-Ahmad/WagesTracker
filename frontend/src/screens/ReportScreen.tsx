@@ -22,6 +22,7 @@ import { GoalRing } from "../components/GoalRing";
 import { Amount } from "../components/Amount";
 import { EarningsHiddenHint } from "../components/EarningsHiddenHint";
 import { BubbleLoader } from "../components/BubbleLoader";
+import { StatusBanner } from "../components/StatusBanner";
 
 type Metric = "earnings" | "hours";
 type Period = "week" | "month" | "year";
@@ -113,10 +114,13 @@ export function ReportScreen() {
         </button>
       </div>
       <div className="section-hint">Last 7 weeks plus this week in progress.</div>
+      {/* Dismissal used to be an onClick on the <div> itself — no button, no
+          label, no keyboard route, and nothing on screen suggesting the
+          message could be cleared at all. */}
       {pdfError && (
-        <div className="form-error" role="alert" onClick={clearPdfError}>
+        <StatusBanner tone="danger" onDismiss={clearPdfError} dismissLabel="Dismiss this error">
           {pdfError}
-        </div>
+        </StatusBanner>
       )}
 
       {/* Headline numbers up front, before any chart — answers "how am I

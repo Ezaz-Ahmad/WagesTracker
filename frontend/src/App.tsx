@@ -7,6 +7,7 @@ import { EyeIcon, EyeOffIcon, LogoutIcon, RefreshIcon } from "./components/icons
 import { AuthScreen } from "./screens/AuthScreen";
 import { WakingUpScreen } from "./components/WakingUpScreen";
 import { ScreenErrorBoundary } from "./components/ScreenErrorBoundary";
+import { StatusBanner } from "./components/StatusBanner";
 import { useDelayedFlag } from "./lib/useDelayedFlag";
 import { HomeScreen } from "./screens/HomeScreen";
 import { EntryScreen } from "./screens/EntryScreen";
@@ -127,9 +128,13 @@ function AuthedApp() {
           </button>
         </div>
 
+        {/* Same fix as the PDF error on Report: a real dismiss button
+            instead of a click handler on an unlabelled div. */}
         {actionError && (
-          <div className="form-error" role="alert" style={{ margin: "0 var(--space-4)" }} onClick={clearActionError}>
-            {actionError}
+          <div className="app-shell-banner">
+            <StatusBanner tone="danger" onDismiss={clearActionError} dismissLabel="Dismiss this error">
+              {actionError}
+            </StatusBanner>
           </div>
         )}
 

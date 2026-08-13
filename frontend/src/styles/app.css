@@ -67,9 +67,16 @@ button { font-family: inherit; }
 .password-toggle-btn:hover { color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
 .password-toggle-btn:active { transform: translateY(-50%) scale(var(--press-scale)); transition-duration: 90ms; transition-timing-function: var(--ease-standard); }
 .password-toggle-btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+/* Retained only for the admin panel (admin/*.tsx), which is out of scope for
+   the user-facing design system but shouldn't visibly regress. It now matches
+   `.banner-danger`'s treatment instead of being a second, squarer, iconless
+   error style. Everything in the main app renders errors through
+   components/StatusBanner.tsx. */
 .form-error {
-  font-size: 12px; color: var(--color-accent-700); background: var(--color-accent-100);
+  font-size: 12.5px; line-height: 1.4;
+  color: var(--color-danger-700); background: var(--color-danger-100);
   padding: var(--space-2) var(--space-3); margin-bottom: var(--space-3);
+  border-radius: 10px;
 }
 
 /* — app shell — */
@@ -251,6 +258,12 @@ button { font-family: inherit; }
 .history-earnings-hint { margin-bottom: var(--space-2); }
 .earnings-hint:hover { background: var(--color-accent-200); }
 .earnings-hint:active { background: var(--color-accent-300); }
+/* The top-level action-error banner sits between the header and the
+   scrolling pane. Inline `style={{ margin: "0 var(--space-4)" }}` before —
+   a one-off inline fix of exactly the kind this pass is meant to remove. */
+.app-shell-banner { flex: none; padding: 0 var(--space-4); }
+.app-shell-banner .banner { margin-bottom: var(--space-2); }
+
 .app-main {
   flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
   -webkit-overflow-scrolling: touch; overscroll-behavior-y: none;

@@ -45,10 +45,18 @@
   --font-heading-weight: 800;
   --font-body: "Archivo", system-ui, sans-serif;
 
+  /* One 4px-based scale. `--space-5` (20px) was referenced in three places
+     before it was ever defined — `.confirm-modal`'s padding, `.wakeup-card`'s
+     padding, and Home's "Week at a glance" heading margin. An undefined
+     custom property makes the *whole* declaration invalid at computed-value
+     time, so each of those three lost its padding/margin entirely rather
+     than falling back to something close. Defining it here is the fix; the
+     scale is contiguous now so the same class of bug can't recur silently. */
   --space-1: 4.0px;
   --space-2: 8.0px;
   --space-3: 12.0px;
   --space-4: 16.0px;
+  --space-5: 20.0px;
   --space-6: 24.0px;
   --space-8: 32.0px;
 
@@ -84,6 +92,17 @@
   --color-danger: var(--color-accent-700);
   --color-danger-700: var(--color-accent-800);
   --color-danger-100: var(--color-accent-100);
+  /* "Informational" — the fourth semantic tone, needed for notices that are
+     neither a failure nor a confirmation of something the user just did
+     (today: "you hit the device limit, so your least-used device was signed
+     out"). Deliberately a blue rather than a tint of the brand accent: the
+     accent is already carrying danger/destructive meaning throughout the
+     app, and reusing it here would make a purely informational message read
+     as a warning. --color-info-700 on --color-info-100 clears WCAG AA for
+     normal text (verified in styles/__tests__/contrast.test.ts). */
+  --color-info: #1258a8;
+  --color-info-700: #0f4b8f;
+  --color-info-100: #e7f0fb;
   /* A text-safe version of the brand accent, for small/normal-weight text
      (links, kickers, section titles) where the raw --color-accent fails
      WCAG AA (~3.8:1 on --color-bg). Buttons/badges that put the accent on a
@@ -140,6 +159,19 @@ figcaption {
 
 :focus { outline: none; }
 :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+/* `tabindex="-1"` marks an element that is NEVER in the Tab order and only
+   ever receives focus programmatically — the Settings detail heading after
+   a category is opened on mobile, a dialog panel when it mounts. Those are
+   headings and containers, not controls, and Chrome still matches
+   :focus-visible on them when focus is moved by script during a keyboard
+   interaction. The result was a full-width accent rectangle drawn around a
+   heading or around the whole confirm dialog, which reads as a rendering
+   fault rather than as focus.
+   Removing it here loses nothing: a screen reader announces the element on
+   focus either way, and every genuinely interactive control (which by
+   definition is not tabindex="-1") keeps the ring above. */
+[tabindex="-1"]:focus,
+[tabindex="-1"]:focus-visible { outline: none; }
 ::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
 
 /* Visually hides content while keeping it in the accessibility tree — for a
@@ -165,17 +197,41 @@ figcaption {
    applies .visually-hidden directly, which is the correct way to hide a
    legend visually while a screen reader can still announce it. */
 
-/* — semantic status banners — success/warning/danger states that pair an
-   icon with real text, so they're never conveyed by color alone. */
+/* — semantic status banners — success/warning/danger/info states that pair
+   an icon with real text, so they're never conveyed by color alone.
+   This is the app's ONE status-message treatment. It used to compete with a
+   second, unrelated `.form-error` style (square corners, no icon, different
+   type size) used on the auth screen, the PDF download error and the
+   top-level action error — three of the most consequential messages in the
+   app rendered in the style that looked least considered. `.form-error` is
+   now an alias of `.banner .banner-danger` rather than a parallel system;
+   see components/StatusBanner.tsx for the component every caller uses. */
 .banner {
   display: flex; align-items: flex-start; gap: 8px;
   font-size: 12.5px; line-height: 1.4; padding: var(--space-2) var(--space-3);
   margin-bottom: var(--space-3); border-radius: 10px;
 }
 .banner svg { flex: none; margin-top: 1px; }
+.banner-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .banner-success { color: var(--color-success-700); background: var(--color-success-100); }
 .banner-warning { color: var(--color-warning-700); background: var(--color-warning-100); }
 .banner-danger { color: var(--color-danger-700); background: var(--color-danger-100); }
+.banner-info { color: var(--color-info-700); background: var(--color-info-100); }
+/* A real <button>, so dismissing is reachable by keyboard and announced as
+   a control. Previously these banners were dismissed by an onClick handler
+   on the <div> itself: no role, no label, no keyboard path, and no visible
+   affordance that clicking would do anything at all.
+   The 44x44 hit area is pulled back into the banner's own padding with
+   negative margins so honouring the touch-target minimum doesn't inflate
+   every banner's height. */
+.banner-dismiss {
+  flex: none; display: inline-grid; place-items: center;
+  width: 44px; height: 44px; margin: -13px -12px -13px 0;
+  padding: 0; border: 0; background: none; cursor: pointer;
+  color: inherit; border-radius: 50%;
+}
+.banner-dismiss:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
+.banner-dismiss:focus-visible { outline: 2px solid currentColor; outline-offset: -6px; }
 .field-hint-danger { color: var(--color-danger-700); }
 
 /* — rules — */

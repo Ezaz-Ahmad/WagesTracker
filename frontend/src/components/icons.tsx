@@ -289,3 +289,49 @@ export function CloseIcon({ size = 16 }: IconProps) {
     </svg>
   );
 }
+
+/** The informational tone's glyph (StatusBanner) — deliberately a distinct
+ * shape from CheckCircleIcon and AlertTriangleIcon so the three tones are
+ * distinguishable without relying on their colours. */
+export function InfoIcon({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5" />
+      <path d="M12 7.75v.5" />
+    </svg>
+  );
+}
+
+/* — device-kind glyphs for the Security → active sessions list. Three
+   silhouettes rather than three labels: at card scale the shape is what the
+   eye actually uses to sort "my phone" from "my laptop", and the written
+   label ("Safari on iOS") is right beside it for anyone who needs the
+   words. All three are aria-hidden at the call site — they repeat
+   information the adjacent text already carries. */
+export function SmartphoneIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <rect x="6.5" y="2.5" width="11" height="19" rx="2.5" />
+      <path d="M10.75 18.5h2.5" />
+    </svg>
+  );
+}
+
+export function TabletIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <rect x="4" y="2.5" width="16" height="19" rx="2.5" />
+      <path d="M10.5 18.5h3" />
+    </svg>
+  );
+}
+
+export function MonitorIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <rect x="2.5" y="4" width="19" height="12.5" rx="2" />
+      <path d="M8.5 20.5h7M12 16.5v4" />
+    </svg>
+  );
+}

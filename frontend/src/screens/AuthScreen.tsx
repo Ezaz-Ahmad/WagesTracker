@@ -8,6 +8,7 @@ import { PasswordInput } from "../components/PasswordInput";
 import { AppCredit } from "../components/AppCredit";
 import { BubbleLoader } from "../components/BubbleLoader";
 import { Logo } from "../components/Logo";
+import { StatusBanner } from "../components/StatusBanner";
 import { MIN_PASSWORD_LENGTH, validatePassword } from "../lib/passwordPolicy";
 
 type Mode = "login" | "signup";
@@ -161,7 +162,11 @@ export function AuthScreen() {
 
             <AppCredit />
 
-            {authError && <div className="form-error">{authError}</div>}
+            {/* Was a bare `<div className="form-error">` with no role: a
+                failed login announced nothing at all to a screen reader, so
+                submitting and hearing silence was indistinguishable from
+                the request still being in flight. */}
+            {authError && <StatusBanner tone="danger">{authError}</StatusBanner>}
 
             {mode === "login" ? (
               <form key="login" className="anim-rise" onSubmit={handleLogin}>
