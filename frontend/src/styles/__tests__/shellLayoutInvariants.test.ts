@@ -294,6 +294,25 @@ describe("touch targets", () => {
       expect(body).toMatch(/height:\s*44px/);
     });
   }
+
+  // Two controls keep a deliberately smaller *visible* box — the header is
+  // dense, and a 44px disc beside the Log out button crowds it — and extend
+  // the hit area with an absolutely-positioned ::before instead. The
+  // technique only works while the host is a positioning context and the
+  // pseudo's insets stay negative, either of which a later tidy-up could
+  // quietly drop. The earnings-privacy toggle was found at a bare 36x36 by
+  // the headless breakpoint check, having been missed when the password
+  // toggle got this treatment.
+  for (const selector of [".password-toggle-btn", ".app-nav-eye-btn"]) {
+    it(`${selector} extends its hit area with a positioned pseudo-element`, () => {
+      expect(block(appCss, selector)).toMatch(/position:\s*relative|position:\s*absolute/);
+      const pseudo = block(appCss, `${selector}::before`);
+      expect(pseudo).toMatch(/position:\s*absolute/);
+      const inset = pseudo.match(/inset:\s*(-?[\d.]+)px/);
+      expect(inset, `${selector}::before needs a negative inset`).not.toBeNull();
+      expect(Number(inset![1])).toBeLessThan(0);
+    });
+  }
 });
 
 describe("looping animation restraint", () => {

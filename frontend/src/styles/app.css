@@ -187,6 +187,7 @@ button { font-family: inherit; }
    utilities. Accent-tinted while earnings are revealed so it's obvious at
    a glance that something is currently un-masked. */
 .app-nav-eye-btn {
+  position: relative;
   display: inline-flex; align-items: center; justify-content: center; flex: none;
   width: 36px; height: 36px; border: 1px solid transparent; border-radius: 50%;
   background: color-mix(in srgb, var(--color-text) 5%, var(--color-bg)); cursor: pointer;
@@ -202,6 +203,16 @@ button { font-family: inherit; }
   box-shadow: 0 0 0 1px var(--color-accent) inset, 0 4px 12px -6px color-mix(in srgb, var(--color-accent) 55%, transparent);
 }
 .app-nav-eye-btn svg { flex: none; }
+/* The visible circle stays 36px — the header is dense and a 44px disc next
+   to the Log out button crowds it — but the *tappable* area has to meet the
+   WCAG 2.5.5 minimum, so an invisible hit box is centred on the same spot.
+   Same technique, and the same reasoning, as .password-toggle-btn above;
+   this control was simply missed when that one was fixed. It appears on
+   every authenticated screen, which made it the most-used undersized target
+   in the app. Measured at 44x44 in the headless breakpoint check. */
+.app-nav-eye-btn::before {
+  content: ""; position: absolute; inset: -4px; border-radius: 50%;
+}
 
 /* — amount masking (see components/Amount.tsx) — a blur + slight dim reads
    as "deliberately hidden" rather than "loading" or "broken", and both
