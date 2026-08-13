@@ -88,6 +88,13 @@ interface AppContextValue {
   shiftsLoading: boolean;
   shiftsLoaded: boolean;
   createShift: (input: api.ShiftInput) => Promise<Shift | undefined>;
+  /** Throwing variants, for callers that show the failure inline next to the
+   * values that failed rather than in the global banner — today the History
+   * day editor. The swallowing versions above are right for Entry, whose
+   * fields autosave on change and have nowhere local to put a message. */
+  createShiftOrThrow: (input: api.ShiftInput) => Promise<Shift>;
+  updateShiftOrThrow: (id: string, patch: Partial<api.ShiftInput>) => Promise<Shift>;
+  removeShiftOrThrow: (id: string) => Promise<void>;
   updateShift: (id: string, patch: Partial<api.ShiftInput>) => Promise<Shift | undefined>;
   removeShift: (id: string) => Promise<void>;
 
@@ -496,6 +503,54 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await loadSessions();
   }, [loadSessions]);
 
+  // Shared 401 handling for the throwing variants: an expired session still
+  // logs out and explains itself globally, exactly as it does everywhere
+  // else, and the error is rethrown so the caller mid-await never mistakes
+  // it for success. Same pattern as updateSettings above.
+  const rethrowingAction = useCallback(
+    async <T,>(run: () => Promise<T>): Promise<T> => {
+      try {
+        return await run();
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 401) {
+          logout();
+          setActionError("Your session expired. Please log in again.");
+        }
+        throw e;
+      }
+    },
+    [logout]
+  );
+
+  const createShiftOrThrow = useCallback(
+    (input: api.ShiftInput) =>
+      rethrowingAction(async () => {
+        const { shift } = await api.createShift(input);
+        setShifts((prev) => [...prev, shift]);
+        return shift;
+      }),
+    [rethrowingAction]
+  );
+
+  const updateShiftOrThrow = useCallback(
+    (id: string, patch: Partial<api.ShiftInput>) =>
+      rethrowingAction(async () => {
+        const { shift } = await api.patchShift(id, patch);
+        setShifts((prev) => prev.map((s) => (s.id === id ? shift : s)));
+        return shift;
+      }),
+    [rethrowingAction]
+  );
+
+  const removeShiftOrThrow = useCallback(
+    (id: string) =>
+      rethrowingAction(async () => {
+        await api.deleteShift(id);
+        setShifts((prev) => prev.filter((s) => s.id !== id));
+      }),
+    [rethrowingAction]
+  );
+
   const createShift = useCallback(
     async (input: api.ShiftInput) => {
       try {
@@ -612,6 +667,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       createShift,
       updateShift,
       removeShift,
+      createShiftOrThrow,
+      updateShiftOrThrow,
+      removeShiftOrThrow,
       dayExpenses,
       setFuelCost,
       weekExtras,
@@ -647,6 +705,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       createShift,
       updateShift,
       removeShift,
+      createShiftOrThrow,
+      updateShiftOrThrow,
+      removeShiftOrThrow,
       dayExpenses,
       setFuelCost,
       weekExtras,

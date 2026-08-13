@@ -145,3 +145,51 @@
    has to come from the class rather than from the heading it used to be. */
 .auth-card-brand { display: flex; align-items: center; gap: 8px; }
 .auth-form-title { margin: 0 0 var(--space-3); }
+
+/* — authentication footer —
+   Attribution used to sit between the mode toggle and the form: above the
+   fields, above the error banner, directly in the path of someone trying to
+   sign in. It is now after the form, behind a hairline rule, smaller and
+   quieter, so it reads as a footnote rather than as content.
+
+   Normal flow, never positioned. Absolute positioning would overlap the form
+   on a short screen, and on a phone with the keyboard open there is very
+   little screen left — flowing means the worst case is that it scrolls out
+   of view, which is what a footer should do. */
+.auth-footer {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
+  text-align: center;
+}
+.auth-footer p { margin: 0; }
+.auth-footer-name {
+  font-size: 11.5px;
+  color: color-mix(in srgb, var(--color-text) 62%, transparent);
+}
+.auth-footer-links {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+  gap: var(--space-1) var(--space-2);
+  margin-top: 6px !important;
+}
+.auth-footer-link {
+  display: inline-flex; align-items: center; gap: 5px;
+  /* 44px of tappable height without a 44px-tall visible chip: the padding
+     does the work and the negative margin keeps the footer compact. */
+  min-height: 44px; padding: 0 var(--space-2); margin: -10px 0;
+  font-size: 11.5px; font-weight: 600; text-decoration: none;
+  color: color-mix(in srgb, var(--color-text) 62%, transparent);
+  border-radius: 8px;
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
+}
+.auth-footer-link svg { flex: none; }
+.auth-footer-link:hover { color: var(--color-accent-text); background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
+.auth-footer-link:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+.auth-footer-version {
+  margin-top: 6px !important;
+  font-size: 10.5px; font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--color-text) 48%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-footer-link { transition: none; }
+}

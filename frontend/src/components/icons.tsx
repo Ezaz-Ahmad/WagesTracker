@@ -335,3 +335,16 @@ export function MonitorIcon({ size = 18 }: IconProps) {
     </svg>
   );
 }
+
+/** Download affordance on History's per-week PDF button. A tray with an
+ * arrow into it, rather than a document glyph — the action is "save this to
+ * your device", and the button's own label already says PDF. */
+export function DownloadIcon({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <path d="M12 3v11" />
+      <path d="M7.5 10.5L12 15l4.5-4.5" />
+      <path d="M4.5 19.5h15" />
+    </svg>
+  );
+}

@@ -45,7 +45,19 @@ export function usePdfDownload() {
       setJustDownloaded(true);
       confirmTimer.current = setTimeout(() => setJustDownloaded(false), CONFIRM_MS);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't generate the PDF. Try again.");
+      // Deliberately NOT `e.message`. Every failure reachable here is
+      // internal to PDF generation — a jsPDF quirk, a blocked download, an
+      // unexpected shape in the data — and those messages are stack-adjacent
+      // implementation detail ("Cannot read properties of undefined
+      // (reading 'x')"). Showing them tells the user nothing they can act on
+      // and exposes internals in a screenshot they might share. The detail
+      // still goes to the console, where it is useful for diagnosis.
+      //
+      // This differs from the shift-editing path on purpose: there the
+      // server's message is genuinely actionable ("that overlaps another
+      // shift you've already logged") and is shown verbatim.
+      console.error("PDF generation failed:", e);
+      setError("Couldn't generate the PDF. Please try again.");
     } finally {
       setDownloading(false);
     }
