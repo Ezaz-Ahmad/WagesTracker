@@ -6,6 +6,14 @@ import { asyncHandler } from "../asyncHandler.js";
 import { db, pruneExpiredShifts } from "../db.js";
 import { requireAuth, type AuthedRequest } from "../auth.js";
 import { toPublicShift, type ShiftRow } from "../types.js";
+import {
+  FUTURE_DATE_MESSAGE,
+  MAX_SHIFT_HOURS,
+  OVERLAP_MESSAGE,
+  ZERO_LENGTH_MESSAGE as SHARED_ZERO_LENGTH_MESSAGE,
+  findOverlap,
+  validateShiftTimes,
+} from "../security/shiftRules.js";
 
 export const shiftsRouter = Router();
 shiftsRouter.use(requireAuth);
@@ -25,7 +33,36 @@ const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
 function isNonZeroDuration(signIn: string, signOut: string): boolean {
   return signOut !== signIn;
 }
-const ZERO_LENGTH_MESSAGE = "Sign-in and sign-out can't be the same time.";
+const ZERO_LENGTH_MESSAGE = SHARED_ZERO_LENGTH_MESSAGE;
+
+/**
+ * Loads the caller's other complete shifts near `date`, for the overlap
+ * check. One day either side is sufficient and necessary: an overnight shift
+ * is filed under its starting day and can run at most MAX_SHIFT_HOURS past
+ * midnight, so a shift on day D-1 can reach into D, and one on D can reach
+ * into D+1 — nothing further out can touch D at all.
+ */
+async function neighbouringShifts(
+  userId: string,
+  date: string,
+  excludeId?: string
+): Promise<{ id: string; date: string; signIn: string | null; signOut: string | null }[]> {
+  const day = Date.parse(`${date}T00:00:00Z`);
+  const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+  const sql = excludeId
+    ? "SELECT id, date, sign_in, sign_out FROM shifts WHERE user_id = ? AND date BETWEEN ? AND ? AND id != ?"
+    : "SELECT id, date, sign_in, sign_out FROM shifts WHERE user_id = ? AND date BETWEEN ? AND ?";
+  const args = excludeId
+    ? [userId, iso(day - 86_400_000), iso(day + 86_400_000), excludeId]
+    : [userId, iso(day - 86_400_000), iso(day + 86_400_000)];
+  const result = await db.execute({ sql, args });
+  return (result.rows as unknown as ShiftRow[]).map((r) => ({
+    id: r.id,
+    date: r.date,
+    signIn: r.sign_in,
+    signOut: r.sign_out,
+  }));
+}
 
 // A shift is "open" — signed in, not yet signed out — for exactly as long
 // as it's still in progress. At most one of these should ever exist per
@@ -109,11 +146,26 @@ shiftsRouter.post(
     }
     const { date, location, signIn, signOut } = parsed.data;
 
+    // Real-calendar-date, future-date and maximum-duration checks. Applied
+    // to every create, not just historical ones — see security/shiftRules.ts.
+    const problem = validateShiftTimes({ date, signIn, signOut }, new Date());
+    if (problem) {
+      res.status(400).json({ error: problem });
+      return;
+    }
+
     // Only a shift that would itself be "open" needs this check — a
     // complete shift (both times set, or neither) can never conflict with
     // an already-open one.
     if (signIn && !signOut && (await hasOpenShift(req.userId!))) {
       res.status(409).json({ error: OPEN_SHIFT_CONFLICT_MESSAGE });
+      return;
+    }
+
+    // 409 rather than 400: the shift itself is well-formed, it conflicts
+    // with existing state — the same distinction the open-shift rule draws.
+    if (findOverlap({ date, signIn, signOut }, await neighbouringShifts(req.userId!, date))) {
+      res.status(409).json({ error: OVERLAP_MESSAGE });
       return;
     }
 
@@ -173,11 +225,32 @@ shiftsRouter.patch(
     // A PATCH can touch just one of signIn/signOut — validate the pair as it
     // will actually end up after this update (falling back to whichever side
     // isn't being changed), not just whatever happens to be in this request.
-    const mergedSignIn = "signIn" in updates ? updates.signIn : existing.sign_in;
-    const mergedSignOut = "signOut" in updates ? updates.signOut : existing.sign_out;
+    // `?? null` normalises the one shape zod's `.nullable().optional()` lets
+    // through that the rule helpers don't accept: the key present with an
+    // explicit `undefined`. Semantically that is "clear this field", the
+    // same as null.
+    const mergedSignIn = ("signIn" in updates ? updates.signIn : existing.sign_in) ?? null;
+    const mergedSignOut = ("signOut" in updates ? updates.signOut : existing.sign_out) ?? null;
     if (mergedSignIn && mergedSignOut && !isNonZeroDuration(mergedSignIn, mergedSignOut)) {
       res.status(400).json({ error: ZERO_LENGTH_MESSAGE });
       return;
+    }
+
+    // The duration and overlap rules run ONLY when this request actually
+    // changes a time. Shifts saved before these rules existed may well
+    // violate them — an 18-hour entry, or a pair that overlaps a neighbour —
+    // and re-checking on an untouched pair would make those rows
+    // permanently uneditable, including editing the location to correct
+    // them, or deleting nothing but a typo. Touch a time and you own the
+    // result; touch the location and the times are left exactly as they
+    // were. The date is not patchable at all, so it never needs re-checking.
+    const timesChanged = "signIn" in updates || "signOut" in updates;
+    if (timesChanged) {
+      const problem = validateShiftTimes({ date: existing.date, signIn: mergedSignIn, signOut: mergedSignOut }, new Date());
+      if (problem) {
+        res.status(400).json({ error: problem });
+        return;
+      }
     }
 
     // Same one-open-shift-per-user rule as creation (see hasOpenShift above)
@@ -188,6 +261,17 @@ shiftsRouter.patch(
     // patched is no longer "open" after the update.
     if (mergedSignIn && !mergedSignOut && (await hasOpenShift(req.userId!, existing.id))) {
       res.status(409).json({ error: OPEN_SHIFT_CONFLICT_MESSAGE });
+      return;
+    }
+
+    if (
+      timesChanged &&
+      findOverlap(
+        { date: existing.date, signIn: mergedSignIn, signOut: mergedSignOut },
+        await neighbouringShifts(req.userId!, existing.date, existing.id)
+      )
+    ) {
+      res.status(409).json({ error: OVERLAP_MESSAGE });
       return;
     }
 
