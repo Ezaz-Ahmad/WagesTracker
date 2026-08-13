@@ -14,7 +14,7 @@ button { font-family: inherit; }
   min-height: 100vh; background: var(--color-neutral-300);
   display: flex; align-items: center; justify-content: center; padding: var(--space-4) 0;
 }
-.auth-card { width: 100%; max-width: 380px; padding: var(--space-4); }
+.auth-card { width: 100%; max-width: 430px; padding: var(--space-4); }
 .auth-footnote { font-size: 12px; margin-top: var(--space-3); text-align: center; }
 .auth-demo-note { font-size: 11px; opacity: 0.68; margin-top: var(--space-2); text-align: center; }
 

@@ -3,7 +3,7 @@ import { CURRENCY, useApp } from "../context/AppContext";
 import { useCountUp } from "../lib/useCountUp";
 import { fmt2 } from "../lib/date";
 import { getRememberedEmail } from "../lib/api";
-import { EntryIcon, ReportIcon, TargetIcon } from "../components/icons";
+import { EntryIcon, LockIcon, ReportIcon, TargetIcon } from "../components/icons";
 import { PasswordInput } from "../components/PasswordInput";
 import { AuthFooter } from "../components/AuthFooter";
 import { BubbleLoader } from "../components/BubbleLoader";
@@ -148,9 +148,12 @@ export function AuthScreen() {
                 heading in the first place — it's the product mark repeated
                 above the form. A div carries the same styling with none of
                 the structural claim. */}
-            <div className="section-title auth-card-brand">
-              <Logo size={20} />
-              Wage Tracker
+            <div className="auth-card-topline">
+              <div className="section-title auth-card-brand">
+                <Logo size={22} />
+                Wage Tracker
+              </div>
+              <span className="auth-secure-badge"><LockIcon size={12} /> Secure</span>
             </div>
 
             <div className="seg landing-mode-toggle">
@@ -181,7 +184,11 @@ export function AuthScreen() {
 
             {mode === "login" ? (
               <form key="login" className="anim-rise" onSubmit={handleLogin}>
-                <h2 className="auth-form-title">Log in</h2>
+                <div className="auth-form-heading">
+                  <span className="auth-form-eyebrow">Welcome back</span>
+                  <h2 className="auth-form-title">Log in to your account</h2>
+                  <p>Continue tracking your hours, earnings, and weekly goals.</p>
+                </div>
                 <div className="field field-spaced">
                   <label htmlFor="login-email">Email</label>
                   <input
@@ -215,7 +222,11 @@ export function AuthScreen() {
               </form>
             ) : (
               <form key="signup" className="anim-rise" onSubmit={handleSignup}>
-                <h2 className="auth-form-title">Create your account</h2>
+                <div className="auth-form-heading">
+                  <span className="auth-form-eyebrow">Get started</span>
+                  <h2 className="auth-form-title">Create your account</h2>
+                  <p>Set up your private workspace for shifts, wages, and reports.</p>
+                </div>
                 <div className="field field-spaced">
                   <label htmlFor="signup-name">Full name</label>
                   <input id="signup-name" className="input" type="text" placeholder="Alex Rivera" value={name} onChange={(e) => setName(e.target.value)} required />
@@ -341,7 +352,10 @@ export function AuthScreen() {
               </form>
             )}
 
-            <div className="auth-demo-note">Your data is private to your account.</div>
+            <div className="auth-trust-note">
+              <span className="auth-trust-icon"><LockIcon size={14} /></span>
+              <span><strong>Private by design</strong>Your wage data is only available in your account.</span>
+            </div>
 
             <AuthFooter />
           </div>

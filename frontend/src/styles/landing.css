@@ -11,6 +11,9 @@
   display: flex;
   flex-direction: column;
   background: var(--color-neutral-300);
+  background-image:
+    radial-gradient(circle at 12% 12%, color-mix(in srgb, var(--color-accent) 9%, transparent), transparent 28%),
+    radial-gradient(circle at 88% 86%, color-mix(in srgb, var(--color-accent-2) 8%, transparent), transparent 30%);
 }
 
 .landing-hero {
@@ -30,6 +33,21 @@
   min-height: 100vh;
   min-height: 100dvh;
   padding: max(var(--space-6), env(safe-area-inset-top)) var(--space-4) max(var(--space-6), env(safe-area-inset-bottom));
+}
+
+.auth-card > .card {
+  position: relative; gap: var(--space-3); padding: clamp(20px, 5vw, 30px);
+  border-radius: 26px;
+  border: 1px solid color-mix(in srgb, var(--color-text) 9%, transparent);
+  background: linear-gradient(155deg, color-mix(in srgb, white 38%, var(--color-surface)), var(--color-surface));
+  box-shadow:
+    0 28px 70px -38px color-mix(in srgb, var(--color-text) 58%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 65%, transparent);
+  overflow: hidden;
+}
+.auth-card > .card::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 4px;
+  background: linear-gradient(90deg, var(--color-accent), var(--color-accent-400), var(--color-accent-2));
 }
 
 @media (min-width: 960px) {
@@ -143,8 +161,42 @@
    one-off-inline-fix pattern this pass is removing everywhere else. The
    brand line is also no longer an <h6> (see AuthScreen.tsx), so its layout
    has to come from the class rather than from the heading it used to be. */
-.auth-card-brand { display: flex; align-items: center; gap: 8px; }
-.auth-form-title { margin: 0 0 var(--space-3); }
+.auth-card-topline { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.auth-card-brand { display: flex; align-items: center; gap: 9px; letter-spacing: 0.08em; font-size: 14px; }
+.auth-secure-badge {
+  display: inline-flex; align-items: center; gap: 4px; padding: 5px 9px;
+  border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--color-success-700); background: var(--color-success-100);
+}
+.auth-form-heading { margin: var(--space-1) 0 var(--space-4); }
+.auth-form-eyebrow {
+  display: block; margin-bottom: 5px; color: var(--color-accent-text);
+  font-size: 10px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase;
+}
+.auth-form-title { margin: 0; font-size: clamp(24px, 6vw, 32px); line-height: 1.08; letter-spacing: -0.025em; }
+.auth-form-heading p {
+  margin: 8px 0 0; max-width: 34ch; font-size: 12.5px; line-height: 1.5;
+  color: color-mix(in srgb, var(--color-text) 66%, transparent);
+}
+.auth-card form .input { min-height: 50px; border-radius: 13px; background: color-mix(in srgb, white 22%, var(--color-bg)); }
+.auth-card form .btn-primary { min-height: 50px; border-radius: 13px; font-size: 14px; box-shadow: 0 14px 28px -16px color-mix(in srgb, var(--color-accent) 72%, transparent); }
+.auth-trust-note {
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  margin-top: var(--space-2); padding: 11px 12px; border-radius: 12px;
+  background: color-mix(in srgb, var(--color-text) 3.5%, transparent);
+  color: color-mix(in srgb, var(--color-text) 60%, transparent); font-size: 10.5px; line-height: 1.35;
+}
+.auth-trust-icon { flex: none; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; color: var(--color-accent-text); background: var(--color-accent-100); }
+.auth-trust-note > span:last-child { display: flex; flex-direction: column; }
+.auth-trust-note strong { color: color-mix(in srgb, var(--color-text) 82%, transparent); font-size: 11px; }
+
+@media (max-width: 719px) {
+  .landing-auth-pane { align-items: flex-start; padding: max(72px, env(safe-area-inset-top)) var(--space-3) max(var(--space-5), env(safe-area-inset-bottom)); }
+  .auth-card { padding: 0; }
+  .auth-card > .card { border-radius: 24px; }
+  .landing-mode-toggle.seg { margin-top: var(--space-1); }
+  .auth-form-heading { margin-bottom: var(--space-3); }
+}
 
 /* — authentication footer —
    Attribution used to sit between the mode toggle and the form: above the
