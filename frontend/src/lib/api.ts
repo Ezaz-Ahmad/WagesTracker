@@ -7,6 +7,8 @@ import type { DayExpense, Shift, User, WeekExtra, WeekStart } from "./types";
 const API_ORIGIN = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
 
 const TOKEN_KEY = "wageTracker.token";
+const CLIENT_TIME_ZONE_HEADER = "X-Client-Time-Zone";
+const TIME_ZONE_FALLBACK_MESSAGE = "We couldn't determine your device time zone. Refresh the app and try again.";
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY);
@@ -130,7 +132,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new ApiError((body as { error?: string }).error || `Request failed (${res.status})`, res.status);
+    const errorBody = body as { error?: string; code?: string };
+    const message = errorBody.code === "INVALID_CLIENT_TIME_ZONE"
+      ? TIME_ZONE_FALLBACK_MESSAGE
+      : errorBody.error || `Request failed (${res.status})`;
+    throw new ApiError(message, res.status);
   }
   return body as T;
 }
@@ -295,12 +301,16 @@ export interface ShiftInput {
   signOut: string | null;
 }
 
+function shiftWriteHeaders(): Record<string, string> {
+  return { [CLIENT_TIME_ZONE_HEADER]: Intl.DateTimeFormat().resolvedOptions().timeZone };
+}
+
 export function createShift(input: ShiftInput): Promise<{ shift: Shift }> {
-  return request("/shifts", { method: "POST", body: JSON.stringify(input) });
+  return request("/shifts", { method: "POST", headers: shiftWriteHeaders(), body: JSON.stringify(input) });
 }
 
 export function patchShift(id: string, patch: Partial<ShiftInput>): Promise<{ shift: Shift }> {
-  return request(`/shifts/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
+  return request(`/shifts/${id}`, { method: "PATCH", headers: shiftWriteHeaders(), body: JSON.stringify(patch) });
 }
 
 export function deleteShift(id: string): Promise<void> {

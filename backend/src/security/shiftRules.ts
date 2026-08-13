@@ -43,12 +43,42 @@ export const MAX_SHIFT_HOURS = 16;
  * every real timezone offset (UTC-12 to UTC+14 spans just over one day either
  * side) without opening the door to the thing this actually guards against,
  * which is a mistyped year or month putting a shift months or years out. */
-export const MAX_FUTURE_DAYS = 1;
-
 export const ZERO_LENGTH_MESSAGE = "Sign-in and sign-out can't be the same time.";
 export const FUTURE_DATE_MESSAGE = "You can't log a shift for a future date.";
 export const MAX_DURATION_MESSAGE = `A shift can't be longer than ${MAX_SHIFT_HOURS} hours. Check the sign-in and sign-out times.`;
 export const OVERLAP_MESSAGE = "That overlaps another shift you've already logged.";
+
+export const CLIENT_TIME_ZONE_HEADER = "X-Client-Time-Zone";
+export const TIME_ZONE_REQUIRED_MESSAGE = "A valid device time zone is required to save a shift.";
+
+/**
+ * Accept only named zones understood by this Node runtime. In particular,
+ * numeric offsets are intentionally rejected: an offset such as +10:00 has
+ * no daylight-saving rules and therefore cannot identify the user's local
+ * calendar date reliably throughout the year.
+ */
+export function isSupportedIanaTimeZone(value: string): boolean {
+  const candidate = value.trim();
+  if (!candidate || /^[+-]\d{2}:?\d{2}$/.test(candidate)) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: candidate }).format();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Derives YYYY-MM-DD in a validated zone from a server-owned instant. */
+export function localDateForTimeZone(now: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value;
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
@@ -113,19 +143,18 @@ export interface ShiftTimesInput {
  * Everything checkable without looking at the user's other shifts.
  * Returns the first problem found, or null when the shift is acceptable.
  *
- * `today` is injected rather than read from the clock so this is testable
- * without freezing time, and so the caller decides which clock is
- * authoritative.
+ * `localToday` is derived by the caller from the backend clock and the
+ * validated request timezone. Keeping that conversion outside this helper
+ * makes the calendar rule deterministic and directly testable.
  */
-export function validateShiftTimes(input: ShiftTimesInput, today: Date): string | null {
+export function validateShiftTimes(input: ShiftTimesInput, localToday: string): string | null {
   const { date, signIn, signOut } = input;
 
   if (!isValidDate(date)) return "date must be a real calendar date in YYYY-MM-DD form";
   if (signIn !== null && !isValidTime(signIn)) return "signIn must be HH:MM";
   if (signOut !== null && !isValidTime(signOut)) return "signOut must be HH:MM";
 
-  const latestAllowed = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()) + MAX_FUTURE_DAYS * 86_400_000;
-  if (Date.parse(`${date}T00:00:00Z`) > latestAllowed) return FUTURE_DATE_MESSAGE;
+  if (date > localToday) return FUTURE_DATE_MESSAGE;
 
   // A part-filled shift (signed in, not yet out) is a legitimate in-progress
   // state — only a complete pair can be measured.

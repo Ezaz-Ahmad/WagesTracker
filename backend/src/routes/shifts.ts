@@ -8,10 +8,14 @@ import { requireAuth, type AuthedRequest } from "../auth.js";
 import { toPublicShift, type ShiftRow } from "../types.js";
 import {
   FUTURE_DATE_MESSAGE,
+  CLIENT_TIME_ZONE_HEADER,
   MAX_SHIFT_HOURS,
   OVERLAP_MESSAGE,
+  TIME_ZONE_REQUIRED_MESSAGE,
   ZERO_LENGTH_MESSAGE as SHARED_ZERO_LENGTH_MESSAGE,
   findOverlap,
+  isSupportedIanaTimeZone,
+  localDateForTimeZone,
   validateShiftTimes,
 } from "../security/shiftRules.js";
 
@@ -34,6 +38,14 @@ function isNonZeroDuration(signIn: string, signOut: string): boolean {
   return signOut !== signIn;
 }
 const ZERO_LENGTH_MESSAGE = SHARED_ZERO_LENGTH_MESSAGE;
+
+function requestLocalDate(req: AuthedRequest): string | null {
+  const raw = req.get(CLIENT_TIME_ZONE_HEADER);
+  if (!raw || !isSupportedIanaTimeZone(raw)) return null;
+  // The instant comes from the backend clock. The browser supplies only the
+  // rules used to view that instant as a local calendar date.
+  return localDateForTimeZone(new Date(), raw.trim());
+}
 
 /**
  * Loads the caller's other complete shifts near `date`, for the overlap
@@ -139,6 +151,11 @@ const createSchema = z
 shiftsRouter.post(
   "/",
   asyncHandler<AuthedRequest>(async (req, res) => {
+    const localToday = requestLocalDate(req);
+    if (!localToday) {
+      res.status(400).json({ error: TIME_ZONE_REQUIRED_MESSAGE, code: "INVALID_CLIENT_TIME_ZONE" });
+      return;
+    }
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.issues[0]?.message || "Invalid input" });
@@ -148,7 +165,7 @@ shiftsRouter.post(
 
     // Real-calendar-date, future-date and maximum-duration checks. Applied
     // to every create, not just historical ones — see security/shiftRules.ts.
-    const problem = validateShiftTimes({ date, signIn, signOut }, new Date());
+    const problem = validateShiftTimes({ date, signIn, signOut }, localToday);
     if (problem) {
       res.status(400).json({ error: problem });
       return;
@@ -200,6 +217,11 @@ const patchSchema = z.object({
 shiftsRouter.patch(
   "/:id",
   asyncHandler<AuthedRequest>(async (req, res) => {
+    const localToday = requestLocalDate(req);
+    if (!localToday) {
+      res.status(400).json({ error: TIME_ZONE_REQUIRED_MESSAGE, code: "INVALID_CLIENT_TIME_ZONE" });
+      return;
+    }
     const parsed = patchSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.issues[0]?.message || "Invalid input" });
@@ -246,7 +268,7 @@ shiftsRouter.patch(
     // were. The date is not patchable at all, so it never needs re-checking.
     const timesChanged = "signIn" in updates || "signOut" in updates;
     if (timesChanged) {
-      const problem = validateShiftTimes({ date: existing.date, signIn: mergedSignIn, signOut: mergedSignOut }, new Date());
+      const problem = validateShiftTimes({ date: existing.date, signIn: mergedSignIn, signOut: mergedSignOut }, localToday);
       if (problem) {
         res.status(400).json({ error: problem });
         return;

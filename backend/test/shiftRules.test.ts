@@ -16,6 +16,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { cleanupTestDb, createTestApp } from "./testApp.js";
 import { MAX_SHIFT_HOURS } from "../src/security/shiftRules.js";
 
+const TIME_ZONE = "UTC";
+
 /** A date `days` before today, in the server's own frame — the same frame
  * the future-date rule compares against. Fixed literals would rot: a date
  * hardcoded as "past" today is a future date next year. */
@@ -48,9 +50,9 @@ describe("shift date and time rules", () => {
   });
   afterAll(() => cleanupTestDb(dbPath));
 
-  const post = (body: unknown, t = token) => request(app).post("/api/shifts").set("Authorization", `Bearer ${t}`).send(body);
+  const post = (body: unknown, t = token) => request(app).post("/api/shifts").set("X-Client-Time-Zone", TIME_ZONE).set("Authorization", `Bearer ${t}`).send(body);
   const patch = (id: string, body: unknown, t = token) =>
-    request(app).patch(`/api/shifts/${id}`).set("Authorization", `Bearer ${t}`).send(body);
+    request(app).patch(`/api/shifts/${id}`).set("X-Client-Time-Zone", TIME_ZONE).set("Authorization", `Bearer ${t}`).send(body);
 
   describe("future dates", () => {
     it("rejects a shift dated well in the future", async () => {
@@ -64,15 +66,10 @@ describe("shift date and time rules", () => {
       expect(res.status).toBe(400);
     });
 
-    it("accepts tomorrow, because the client's calendar day may be ahead of the server's", async () => {
-      // The client sends a date from the browser's local calendar and this
-      // server runs in UTC. For a user in Sydney (UTC+10), 9am on the 14th is
-      // 11pm on the 13th here — their ordinary "today" arrives looking like
-      // tomorrow. Rejecting it would break same-day entry for every user east
-      // of UTC. This is the one day of slack MAX_FUTURE_DAYS buys.
+    it("rejects tomorrow with no one-day allowance", async () => {
       const res = await post({ date: daysAhead(1), signIn: "09:00", signOut: "17:00" });
-      expect(res.status).toBe(201);
-      await request(app).delete(`/api/shifts/${res.body.shift.id}`).set("Authorization", `Bearer ${token}`);
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/future date/i);
     });
 
     it("accepts a past date, which is the entire point of historical editing", async () => {

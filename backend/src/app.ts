@@ -60,6 +60,7 @@ export function createApp(): express.Express {
       // returns in a response header (see routes/me.ts) — browsers hide all
       // non-simple response headers from cross-origin fetch() by default.
       exposedHeaders: ["X-New-Token"],
+      allowedHeaders: ["Authorization", "Content-Type", "X-Client-Time-Zone"],
     })
   );
   app.use(express.json({ limit: "100kb" }));

@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { Express } from "express";
+import express from "express";
 
 /**
  * Spins up a fully isolated instance of the API for one test file: its own
@@ -22,7 +23,7 @@ import type { Express } from "express";
  * dynamically importing app.ts (and, transitively, db.ts) here happens
  * fresh per file — two test files calling this never share a database.
  */
-export async function createTestApp(): Promise<{ app: Express; db: Client; dbPath: string }> {
+export async function createTestApp(defaultShiftTimeZone = true): Promise<{ app: Express; db: Client; dbPath: string }> {
   const dbPath = path.join(os.tmpdir(), `wagetracker-test-${randomUUID()}.sqlite`);
   process.env.DB_PATH = dbPath;
   delete process.env.TURSO_DATABASE_URL;
@@ -34,7 +35,22 @@ export async function createTestApp(): Promise<{ app: Express; db: Client; dbPat
 
   const { createApp } = await import("../src/app.js");
   const { db } = await import("../src/db.js");
-  return { app: createApp(), db, dbPath };
+  const productionApp = createApp();
+  if (!defaultShiftTimeZone) return { app: productionApp, db, dbPath };
+
+  // Existing API tests model a browser making valid shift writes. Keep their
+  // fixtures focused on the behaviour they were written to cover while the
+  // dedicated clientTimeZone suite exercises missing/invalid headers against
+  // the unwrapped production app.
+  const app = express();
+  app.use((req, _res, next) => {
+    if (/^\/api\/shifts(?:\/|$)/.test(req.path) && (req.method === "POST" || req.method === "PATCH")) {
+      req.headers["x-client-time-zone"] ??= "UTC";
+    }
+    next();
+  });
+  app.use(productionApp);
+  return { app, db, dbPath };
 }
 
 /** Best-effort cleanup of a test file's temp SQLite file (plus its WAL/SHM

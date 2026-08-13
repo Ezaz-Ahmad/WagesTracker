@@ -311,3 +311,17 @@ The repo also has `railway.json` (Railway, as a backend alternative to Render) a
 - [x] Backend `/api/health` returns `{"ok": true}`
 - [x] Rate limiting is on by default (300 req/15min general, 20 req/15min on signup+login only, 10 req/15min on `/api/admin/login`) — adjust in `backend/src/app.ts`/`backend/src/routes/admin.ts` if it's too strict/loose for your traffic
 - [ ] `ADMIN_PASSWORD` set on the backend — optional; the admin panel (`/admin`) stays disabled (login always 401s) without it
+
+# Device timezone on shift writes
+
+Shift creation and update requests include `X-Client-Time-Zone`, containing
+the current device's IANA timezone from
+`Intl.DateTimeFormat().resolvedOptions().timeZone`. The backend uses its own
+current timestamp, viewed in that validated timezone, when deciding whether
+a shift starts in the future. Missing, invalid, and numeric-offset values are
+rejected; the timezone is never used for authentication, authorization, or
+record ownership.
+
+A persisted account timezone is not required for this feature. It may be
+useful later if the app gains scheduled reports, payroll cut-offs, or
+account-level timezone preferences.
