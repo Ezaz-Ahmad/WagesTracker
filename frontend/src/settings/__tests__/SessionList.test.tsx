@@ -71,7 +71,10 @@ afterEach(() => {
 describe("SessionList", () => {
   it("shows a loading state, then the current device first with its badge, regardless of backend order", async () => {
     render(<SessionList />);
-    expect(screen.getByText("Loading sessions…")).toBeTruthy();
+    // The first-load placeholder is now a skeleton sized like the real
+    // cards (so the panel doesn't jump when they arrive) rather than a line
+    // of text; the accessible name is what carries the state.
+    expect(screen.getByRole("status", { name: "Loading your active sessions" })).toBeTruthy();
 
     await waitFor(() => expect(screen.getByText("Chrome on macOS")).toBeTruthy());
     const cards = screen.getAllByRole("listitem");
@@ -84,7 +87,7 @@ describe("SessionList", () => {
   it("shows an empty state when there are no sessions", async () => {
     fetchSessionsImpl = vi.fn().mockResolvedValue([]);
     render(<SessionList />);
-    await waitFor(() => expect(screen.getByText("No active sessions found.")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("No devices to show")).toBeTruthy());
   });
 
   it("shows an error state when loading fails", async () => {

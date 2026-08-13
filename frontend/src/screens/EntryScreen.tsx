@@ -317,10 +317,16 @@ export function EntryScreen() {
                 on the inner one). Clear lives in .day-row-actions as a
                 sibling instead, exactly as before visually, but no longer
                 nested inside the toggle. */}
+            {/* aria-expanded said "this thing opens" but nothing said *what*
+                it opens, so a screen-reader user had no way to jump from the
+                toggle to the panel it controls. The panel is always in the
+                DOM (it's collapsed with CSS, not unmounted) so a stable id
+                pair is all that's needed. */}
             <button
               type="button"
               className="day-row-toggle"
               aria-expanded={open}
+              aria-controls={`day-panel-${day.dateISO}`}
               onClick={() => toggleDay(day.dateISO, open)}
             >
               <span className="day-chevron-btn" aria-hidden="true">
@@ -355,7 +361,7 @@ export function EntryScreen() {
             </div>
           </div>
 
-          <div className="day-row-collapse">
+          <div className="day-row-collapse" id={`day-panel-${day.dateISO}`} role="region" aria-label={`${day.dayAbbr} ${day.dateLabel} entries`}>
             <div className="day-row-body">
               {rowsFor(day).map((row) => {
                 const rowKey = `${day.dateISO}-${row.id ?? row.tempId ?? "placeholder"}`;

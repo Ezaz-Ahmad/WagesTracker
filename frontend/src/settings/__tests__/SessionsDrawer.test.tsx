@@ -267,15 +267,21 @@ describe("states", () => {
     let release: (value: SessionInfo[]) => void = () => {};
     fetchSessionsImpl = () => new Promise<SessionInfo[]>((resolve) => (release = resolve));
     renderList();
-    expect(await screen.findByText("Loading sessions…")).toBeTruthy();
+    expect(await screen.findByRole("status", { name: "Loading your active sessions" })).toBeTruthy();
     release(MANY);
     await waitFor(() => expect(cards().length).toBe(SUMMARY_SESSION_LIMIT));
   });
 
+  // With zero sessions there is no "View all sessions" button to open the
+  // drawer with, so what's actually on screen here is the panel's own empty
+  // state. It now says what the situation means and offers a way out,
+  // instead of stating a dead end ("No active sessions found.") that can't
+  // be true while you're reading it — you are a session.
   it("renders the empty state when there are no sessions", async () => {
     fetchSessionsImpl = async () => [];
     renderList();
-    expect(await screen.findByText("No active sessions found.")).toBeTruthy();
+    expect(await screen.findByText("No devices to show")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /View all sessions/ })).toBeNull();
   });
 
   it("renders an error with a working retry", async () => {
@@ -291,5 +297,149 @@ describe("states", () => {
     expect(await screen.findByText("Couldn't reach the server")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: /try again/i }));
     await waitFor(() => expect(cards().length).toBe(SUMMARY_SESSION_LIMIT));
+  });
+});
+
+// ── Additions from the final UI/UX pass ──────────────────────────────────
+//
+// Each of these covers a behaviour that was previously either unspecified
+// or actively wrong, not just a re-assertion of something already proven
+// above.
+
+describe("summary ordering", () => {
+  it("picks the two most recently active others, not whatever order the server sent", async () => {
+    // Deliberately shuffled, and with the freshest sessions buried in the
+    // middle: the component has to sort, not trust the fixture. Previously
+    // this ordering was delegated to the backend's ORDER BY with only a
+    // comment saying so, so a change there would have silently degraded the
+    // summary into "three arbitrary devices" with nothing failing.
+    const stale = makeSession(1, { id: "stale", lastActiveAt: "2026-01-02T00:00:00.000Z" });
+    const freshest = makeSession(2, { id: "freshest", lastActiveAt: "2026-02-20T00:00:00.000Z" });
+    const middling = makeSession(3, { id: "middling", lastActiveAt: "2026-02-10T00:00:00.000Z" });
+    const current = makeSession(4, { id: "current", isCurrent: true, lastActiveAt: "2026-01-01T00:00:00.000Z" });
+    fetchSessionsImpl = async () => [stale, current, freshest, middling];
+
+    renderList();
+    await waitFor(() => expect(cards().length).toBe(SUMMARY_SESSION_LIMIT));
+
+    // Current device first even though it is the *least* recently active.
+    expect(within(cards()[0]).getByText("This device")).toBeTruthy();
+    expect(within(cards()[1]).getByText("Chrome on Windows 2")).toBeTruthy();
+    expect(within(cards()[2]).getByText("Chrome on Windows 3")).toBeTruthy();
+    // The stale one is pushed out of the summary entirely.
+    expect(screen.queryByText("Chrome on Windows 1")).toBeNull();
+  });
+
+  it("sorts a session with an unparseable last-active timestamp last instead of scrambling the list", async () => {
+    const broken = makeSession(1, { id: "broken", lastActiveAt: "not-a-date" });
+    const good = makeSession(2, { id: "good", lastActiveAt: "2026-02-20T00:00:00.000Z" });
+    const current = makeSession(3, { id: "current", isCurrent: true });
+    fetchSessionsImpl = async () => [broken, good, current];
+
+    renderList();
+    await waitFor(() => expect(cards().length).toBe(3));
+    expect(within(cards()[0]).getByText("This device")).toBeTruthy();
+    expect(within(cards()[1]).getByText("Chrome on Windows 2")).toBeTruthy();
+    expect(within(cards()[2]).getByText("Chrome on Windows 1")).toBeTruthy();
+  });
+});
+
+describe("session card content", () => {
+  it("gives each device a kind glyph and demotes the IP below the sign-in time", async () => {
+    fetchSessionsImpl = async () => [
+      makeSession(1, {
+        id: "current",
+        isCurrent: true,
+        userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1",
+        ipAddress: "203.0.113.9",
+      }),
+    ];
+    renderList();
+    await waitFor(() => expect(cards().length).toBe(1));
+    const card = cards()[0];
+
+    // The glyph restates the adjacent label, so it must not be announced.
+    const glyph = card.querySelector(".session-card-icon");
+    expect(glyph).not.toBeNull();
+    expect(glyph!.getAttribute("aria-hidden")).toBe("true");
+
+    // Last active is the primary line; the IP is on its own tertiary line
+    // rather than sharing the sign-in line at the same weight.
+    expect(within(card).getByText(/^Last active /)).toBeTruthy();
+    expect(within(card).getByText(/^First signed in /)).toBeTruthy();
+    const ip = within(card).getByText("IP 203.0.113.9");
+    expect(ip.className).toContain("session-card-tertiary");
+  });
+
+  // SessionInfo types ipAddress as a plain string, so "no address" reaches
+  // the client as "" rather than null — the card has to treat that as absent
+  // instead of rendering a bare "IP" label with nothing after it.
+  it("omits the IP line entirely rather than printing a bare label when there is no address", async () => {
+    fetchSessionsImpl = async () => [makeSession(1, { id: "current", isCurrent: true, ipAddress: "" })];
+    renderList();
+    await waitFor(() => expect(cards().length).toBe(1));
+    expect(cards()[0].querySelector(".session-card-tertiary")).toBeNull();
+  });
+});
+
+describe("revoking from inside the drawer", () => {
+  it("shows the failure inside the dialog, not on the panel hidden behind it", async () => {
+    // The bug: the revoke handler lives on SessionList, so its error banner
+    // rendered *behind* the drawer's own backdrop. From the user's side the
+    // card simply reappeared with no explanation at all.
+    revokeSessionImpl = async () => {
+      throw new Error("Network unavailable");
+    };
+    const user = userEvent.setup();
+    renderList();
+    const dialog = await openDrawer(user);
+
+    const target = within(dialog).getAllByTestId("session-card")[1];
+    await user.click(within(target).getByRole("button", { name: /^Log out / }));
+    await confirmDialog(user);
+
+    const message = await within(dialog).findByText("Network unavailable");
+    expect(message).toBeTruthy();
+    // Exactly once in the whole document: the panel behind suppresses its
+    // copy while the dialog is open, so a screen reader isn't handed the
+    // same text in two live regions.
+    expect(screen.getAllByText("Network unavailable")).toHaveLength(1);
+  });
+
+  it("drops the card and updates the remaining count immediately on success", async () => {
+    const user = userEvent.setup();
+    renderList();
+    const dialog = await openDrawer(user);
+    const before = within(dialog).getAllByTestId("session-card").length;
+
+    const target = within(dialog).getAllByTestId("session-card")[1];
+    await user.click(within(target).getByRole("button", { name: /^Log out / }));
+    await confirmDialog(user);
+
+    await waitFor(() => expect(within(dialog).getAllByTestId("session-card").length).toBe(before - 1));
+    // The dialog's own count sentence tracks it too, rather than going stale
+    // until the next open.
+    expect(within(dialog).getByText(`${before - 1} devices are signed in to your account.`)).toBeTruthy();
+  });
+});
+
+describe("refreshing", () => {
+  it("keeps the list on screen and says it is refreshing, rather than emptying it", async () => {
+    const user = userEvent.setup();
+    renderList();
+    await waitFor(() => expect(cards().length).toBe(SUMMARY_SESSION_LIMIT));
+
+    let release: (value: SessionInfo[]) => void = () => {};
+    fetchSessionsImpl = () => new Promise<SessionInfo[]>((resolve) => (release = resolve));
+    await user.click(screen.getByRole("button", { name: /refresh/i }));
+
+    // Cards stay put while the request is in flight — no teardown, no
+    // reflow of everything below.
+    expect(cards().length).toBe(SUMMARY_SESSION_LIMIT);
+    const refresh = screen.getByRole("button", { name: /refreshing/i });
+    expect(refresh.getAttribute("aria-busy")).toBe("true");
+
+    release(MANY);
+    await waitFor(() => expect(screen.getByRole("button", { name: /^refresh$/i })).toBeTruthy());
   });
 });

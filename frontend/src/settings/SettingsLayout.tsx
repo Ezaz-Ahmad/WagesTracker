@@ -90,9 +90,20 @@ export function SettingsLayout({ categories, activeCategory, effectiveCategory, 
 
   return (
     <div className={`settings-layout settings-layout--${mode}`} ref={containerRef}>
-      <div className="settings-nav-panel">
+      {/* Lifted out of the nav panel. On a phone, CSS hides whichever of the
+          two panels isn't showing — and `display: none` removes a node from
+          the accessibility tree, not just from view. With the page's only
+          <h1> inside the nav panel, opening a category left the screen with
+          no <h1> at all and its headings starting at <h2>, so a screen-reader
+          user navigating by heading landed in the middle of a hierarchy with
+          no top. Out here it is always in the tree; in the mobile detail view
+          it's clipped visually (see .settings-layout--detail in settings.css)
+          rather than removed, and the category's own <h2> is what shows. */}
+      <div className="settings-page-head">
         <h1 className="settings-page-title section-title">Settings</h1>
         <div className="section-hint">Your profile, work details, goals, security, and account.</div>
+      </div>
+      <div className="settings-nav-panel">
         <SettingsNav
           categories={categories}
           activeCategory={effectiveCategory}

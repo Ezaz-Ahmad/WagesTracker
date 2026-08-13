@@ -22,6 +22,9 @@ import { GoalRing } from "../components/GoalRing";
 import { Amount } from "../components/Amount";
 import { EarningsHiddenHint } from "../components/EarningsHiddenHint";
 import { BubbleLoader } from "../components/BubbleLoader";
+import { StatusBanner } from "../components/StatusBanner";
+import { ChartDataTable } from "../components/ChartDataTable";
+import { StableLabel } from "../components/StableLabel";
 
 type Metric = "earnings" | "hours";
 type Period = "week" | "month" | "year";
@@ -90,6 +93,16 @@ export function ReportScreen() {
   }
 
   const metricLabel = metric === "earnings" ? "earnings" : "hours";
+  // The one-line name for the line chart. Deliberately describes the shape
+  // and range rather than reciting every value — the full figures are in
+  // the table beneath it, and an aria-label that reads out eight numbers is
+  // unusable as a graphic's name.
+  const chartSummary =
+    chart.points.length === 0
+      ? `Weekly ${metricLabel} trend — no data yet`
+      : `Line chart of weekly ${metricLabel} over the last ${chart.points.length} weeks, ` +
+        `from ${chart.points[0].short} to ${chart.points[chart.points.length - 1].short}. ` +
+        `Figures follow in the table below.`;
 
   return (
     <div className="screen-wide">
@@ -103,20 +116,40 @@ export function ReportScreen() {
             the same bold heading font as the title above it, read as a
             second oversized heading rather than a tappable button. A short
             label also makes that wrap far less likely to begin with. */}
+        {/* Three states, three different natural widths ("Download PDF" ->
+            a spinner -> "Downloaded ✓"), so the button used to resize twice
+            per download and shove the heading beside it around each time.
+            StableLabel reserves the widest variant's box up front; the
+            spinner is absolutely positioned inside it so it doesn't
+            contribute width either. */}
         <button
-          className={`btn btn-secondary${pdfJustDownloaded ? " btn-save-flash" : ""}`}
+          className={`btn btn-secondary btn-stable${pdfJustDownloaded ? " btn-save-flash" : ""}`}
           onClick={handleDownloadPdf}
           disabled={pdfDownloading}
+          aria-busy={pdfDownloading || undefined}
           style={{ flex: "none" }}
         >
-          {pdfDownloading ? <BubbleLoader label="Preparing PDF" /> : pdfJustDownloaded ? "Downloaded ✓" : "Download PDF"}
+          {pdfDownloading && (
+            <span className="btn-stable-overlay">
+              <BubbleLoader label="Preparing PDF" />
+            </span>
+          )}
+          <span className={pdfDownloading ? "btn-stable-hidden" : undefined}>
+            <StableLabel
+              current={pdfJustDownloaded ? "Downloaded ✓" : "Download PDF"}
+              longest="Downloaded ✓"
+            />
+          </span>
         </button>
       </div>
       <div className="section-hint">Last 7 weeks plus this week in progress.</div>
+      {/* Dismissal used to be an onClick on the <div> itself — no button, no
+          label, no keyboard route, and nothing on screen suggesting the
+          message could be cleared at all. */}
       {pdfError && (
-        <div className="form-error" role="alert" onClick={clearPdfError}>
+        <StatusBanner tone="danger" onDismiss={clearPdfError} dismissLabel="Dismiss this error">
           {pdfError}
-        </div>
+        </StatusBanner>
       )}
 
       {/* Headline numbers up front, before any chart — answers "how am I
@@ -163,7 +196,17 @@ export function ReportScreen() {
             on tablet, 220px on desktop) while width flexed independently,
             which stretched the dots into ellipses and the line out of
             proportion on anything other than a ~320px-wide phone. */}
-        <svg viewBox="0 0 320 150" width="100%" className="chart-svg">
+        {/* The chart carried no accessible information whatsoever: an <svg>
+            with no name, no role, and values living only in <text> nodes
+            positioned by coordinate. To a screen reader it was a run of
+            unlabelled numbers in visual order with nothing saying what they
+            measured or which week each belonged to.
+            Two changes: the graphic names itself and is excluded from the
+            reading order (role="img" + aria-label), and the same data is
+            published once, properly, as a real table for anyone who can't
+            use the picture. The table is the source of truth for assistive
+            tech; the drawing is the enhancement. */}
+        <svg viewBox="0 0 320 150" width="100%" className="chart-svg" role="img" aria-label={chartSummary}>
           <defs>
             <linearGradient id="reportAreaFade" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--color-accent-300)" stopOpacity="0.6" />
@@ -210,13 +253,22 @@ export function ReportScreen() {
             </g>
           ))}
         </svg>
-        <div className="chart-x-labels">
+        <div className="chart-x-labels" aria-hidden="true">
           {chart.points.map((p, i) => (
             <div className="chart-x-label" key={i} style={{ ["--i" as string]: i }}>
               {p.short}
             </div>
           ))}
         </div>
+
+        <ChartDataTable
+          caption={`Weekly ${metricLabel}, oldest first`}
+          valueHeading={metric === "earnings" ? "Earnings" : "Hours"}
+          rows={chart.points.map((p) => ({
+            label: p.short,
+            value: metric === "earnings" && earningsHidden ? "Hidden" : p.valueLabel,
+          }))}
+        />
       </div>
 
       <div className="card elev-sm anim-rise" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 2 }}>
@@ -263,7 +315,11 @@ export function ReportScreen() {
             </label>
           </div>
         </fieldset>
-        <div className="period-bars">
+        {/* Same problem as the line chart above: a row of unlabelled divs
+            whose only textual content was a value and a short period name
+            with nothing tying them together. Hidden from assistive tech and
+            replaced by the table. */}
+        <div className="period-bars" aria-hidden="true">
           {periodBars.map((b, i) => (
             <div className="period-bar-col" key={i} style={{ ["--i" as string]: i }}>
               <div className="period-bar-label">{metric === "earnings" ? <Amount>{b.valueLabel}</Amount> : b.valueLabel}</div>
@@ -272,6 +328,15 @@ export function ReportScreen() {
             </div>
           ))}
         </div>
+        <ChartDataTable
+          caption={`${period === "week" ? "Weekly" : period === "month" ? "Monthly" : "Yearly"} ${metricLabel}, oldest first`}
+          labelHeading={period === "week" ? "Week" : period === "month" ? "Month" : "Year"}
+          valueHeading={metric === "earnings" ? "Earnings" : "Hours"}
+          rows={periodBars.map((b) => ({
+            label: b.short,
+            value: metric === "earnings" && earningsHidden ? "Hidden" : b.valueLabel,
+          }))}
+        />
       </div>
     </div>
   );

@@ -49,3 +49,38 @@ export function parseDeviceLabel(userAgent: string | null | undefined): string {
   if (ua.length > MAX_LABEL_LENGTH) return `${ua.slice(0, MAX_LABEL_LENGTH - 1)}…`;
   return ua;
 }
+
+/** The three device silhouettes the sessions list can draw, plus a fallback.
+ * Coarser than the label on purpose — this only has to answer "phone, tablet
+ * or computer", which is the question the eye is asking when it scans the
+ * list for the device it's holding. */
+export type DeviceKind = "phone" | "tablet" | "desktop" | "unknown";
+
+/**
+ * Classifies a session's `User-Agent` into one of four device shapes, for the
+ * glyph on each session card. Same local-substring approach as
+ * `parseDeviceLabel` above — nothing is sent anywhere.
+ *
+ * Order matters in two places:
+ *  - iPad before iPhone-family and before macOS, since iPadOS 13+ Safari
+ *    ships a desktop Macintosh UA by default. The one thing that still
+ *    distinguishes it is a touch-capable "Macintosh" — which is why the
+ *    macOS branch stays *below* the explicit tablet checks and a plain
+ *    Macintosh UA is correctly read as a desktop.
+ *  - "Android" *with* "Mobile" is a phone; Android without it is a tablet.
+ *    That's Google's own documented convention for the UA string, and it's
+ *    the only signal in there.
+ */
+export function parseDeviceKind(userAgent: string | null | undefined): DeviceKind {
+  const ua = (userAgent ?? "").trim();
+  if (!ua) return "unknown";
+
+  if (/iPad/i.test(ua)) return "tablet";
+  if (/Tablet|Kindle|Silk|PlayBook/i.test(ua)) return "tablet";
+  if (/Android/i.test(ua)) return /Mobile/i.test(ua) ? "phone" : "tablet";
+  if (/iPhone|iPod/i.test(ua)) return "phone";
+  if (/Mobile|Windows Phone/i.test(ua)) return "phone";
+  if (/Windows NT|Macintosh|Mac OS X|CrOS|Linux|X11/i.test(ua)) return "desktop";
+
+  return "unknown";
+}

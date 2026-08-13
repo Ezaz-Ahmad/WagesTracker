@@ -7,6 +7,7 @@ import { EyeIcon, EyeOffIcon, LogoutIcon, RefreshIcon } from "./components/icons
 import { AuthScreen } from "./screens/AuthScreen";
 import { WakingUpScreen } from "./components/WakingUpScreen";
 import { ScreenErrorBoundary } from "./components/ScreenErrorBoundary";
+import { StatusBanner } from "./components/StatusBanner";
 import { useDelayedFlag } from "./lib/useDelayedFlag";
 import { HomeScreen } from "./screens/HomeScreen";
 import { EntryScreen } from "./screens/EntryScreen";
@@ -28,7 +29,8 @@ import type { Screen } from "./lib/types";
 const VIEWPORT_DEBUG = import.meta.env.VITE_VIEWPORT_DEBUG === "true";
 
 function AuthedApp() {
-  const { today, user, actionError, clearActionError, logout, refresh, earningsHidden, revealEarnings, hideEarningsNow } = useApp();
+  const { today, user, actionError, clearActionError, sessionNotice, dismissSessionNotice, logout, refresh, earningsHidden, revealEarnings, hideEarningsNow } =
+    useApp();
   const [screen, setScreen] = useState<Screen>("home");
 
   const todayLabel = today.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
@@ -95,7 +97,11 @@ function AuthedApp() {
   return (
     <div className={`app-shell${entered ? " is-entered" : ""}`}>
       <div className="app-frame">
-        <div className="nav app-nav">
+        {/* A <header> rather than a plain div: this is the app's banner, and
+            with <main> and <nav> already in place it was the one missing
+            landmark. Screen-reader landmark navigation could reach the
+            content and the tabs but not the log-out / privacy controls. */}
+        <header className="nav app-nav">
           <div className="app-nav-identity">
             <span className="nav-brand">
               <Logo size={22} />
@@ -125,11 +131,31 @@ function AuthedApp() {
             <LogoutIcon size={16} />
             <span className="app-nav-logout-label">Log out</span>
           </button>
-        </div>
+        </header>
 
+        {/* The device-limit notice. The backend has sent this on the login
+            response ever since per-installation sessions landed, but the
+            client destructured it away, so the one thing it exists to
+            explain — "your oldest unused device was signed out" — was never
+            said. Informational tone and role="status", not an error: the
+            login succeeded, and dressing it in red would read as a failure.
+            Shown once and dismissible; nothing re-sets it, so switching tabs
+            or re-rendering can't bring it back (AppContext.sessionNotice). */}
+        {sessionNotice && (
+          <div className="app-shell-banner">
+            <StatusBanner tone="info" onDismiss={dismissSessionNotice} dismissLabel="Dismiss this notice">
+              {sessionNotice}
+            </StatusBanner>
+          </div>
+        )}
+
+        {/* Same fix as the PDF error on Report: a real dismiss button
+            instead of a click handler on an unlabelled div. */}
         {actionError && (
-          <div className="form-error" role="alert" style={{ margin: "0 var(--space-4)" }} onClick={clearActionError}>
-            {actionError}
+          <div className="app-shell-banner">
+            <StatusBanner tone="danger" onDismiss={clearActionError} dismissLabel="Dismiss this error">
+              {actionError}
+            </StatusBanner>
           </div>
         )}
 

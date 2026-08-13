@@ -8,6 +8,7 @@ import { PasswordInput } from "../components/PasswordInput";
 import { AppCredit } from "../components/AppCredit";
 import { BubbleLoader } from "../components/BubbleLoader";
 import { Logo } from "../components/Logo";
+import { StatusBanner } from "../components/StatusBanner";
 import { MIN_PASSWORD_LENGTH, validatePassword } from "../lib/passwordPolicy";
 
 type Mode = "login" | "signup";
@@ -135,13 +136,22 @@ export function AuthScreen() {
         </div>
       </div>
 
-      <div className="landing-auth-pane">
+      {/* The auth screen had no landmark at all — no <main>, so "skip to
+          main content" and landmark navigation had nothing to target. The
+          hero beside it is decorative marketing copy; the form is the
+          content. */}
+      <main className="landing-auth-pane">
         <div className="auth-card">
           <div className="card elev-md">
-            <h6 className="section-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {/* Was an <h6>, sitting between the hero's <h1> and the form's
+                <h3>: a level jump in both directions, and not a section
+                heading in the first place — it's the product mark repeated
+                above the form. A div carries the same styling with none of
+                the structural claim. */}
+            <div className="section-title auth-card-brand">
               <Logo size={20} />
               Wage Tracker
-            </h6>
+            </div>
 
             <div className="seg landing-mode-toggle">
               <label className="seg-opt">
@@ -161,11 +171,15 @@ export function AuthScreen() {
 
             <AppCredit />
 
-            {authError && <div className="form-error">{authError}</div>}
+            {/* Was a bare `<div className="form-error">` with no role: a
+                failed login announced nothing at all to a screen reader, so
+                submitting and hearing silence was indistinguishable from
+                the request still being in flight. */}
+            {authError && <StatusBanner tone="danger">{authError}</StatusBanner>}
 
             {mode === "login" ? (
               <form key="login" className="anim-rise" onSubmit={handleLogin}>
-                <h3 style={{ margin: "0 0 var(--space-3)" }}>Log in</h3>
+                <h2 className="auth-form-title">Log in</h2>
                 <div className="field field-spaced">
                   <label htmlFor="login-email">Email</label>
                   <input
@@ -199,7 +213,7 @@ export function AuthScreen() {
               </form>
             ) : (
               <form key="signup" className="anim-rise" onSubmit={handleSignup}>
-                <h3 style={{ margin: "0 0 var(--space-3)" }}>Create your account</h3>
+                <h2 className="auth-form-title">Create your account</h2>
                 <div className="field field-spaced">
                   <label htmlFor="signup-name">Full name</label>
                   <input id="signup-name" className="input" type="text" placeholder="Alex Rivera" value={name} onChange={(e) => setName(e.target.value)} required />
@@ -217,12 +231,23 @@ export function AuthScreen() {
                     onChange={(e) => setPassword(e.target.value)}
                     autoComplete="new-password"
                     minLength={MIN_PASSWORD_LENGTH}
+                    aria-invalid={signupPasswordCheck && !signupPasswordCheck.valid ? true : undefined}
+                    aria-describedby="signup-password-hint"
                     required
                   />
+                  {/* The failure used to render in the same muted grey as the
+                      neutral guidance it replaced, so "your password is not
+                      acceptable" looked identical to "here's what we want".
+                      Now it's the danger hint style, the field is marked
+                      aria-invalid, and both variants share one id so a
+                      screen reader reads the reason with the field rather
+                      than only if the user navigates onto the text. */}
                   {signupPasswordCheck && !signupPasswordCheck.valid ? (
-                    <div className="field-hint">{signupPasswordCheck.error}</div>
+                    <div id="signup-password-hint" className="field-hint field-hint-danger">
+                      {signupPasswordCheck.error}
+                    </div>
                   ) : (
-                    <div className="field-hint">
+                    <div id="signup-password-hint" className="field-hint">
                       At least {MIN_PASSWORD_LENGTH} characters — a short phrase works better than a short
                       complicated password. No symbols or numbers required.
                     </div>
@@ -240,8 +265,9 @@ export function AuthScreen() {
                     placeholder="e.g. 25.00"
                     value={rate}
                     onChange={(e) => setRate(e.target.value)}
+                    aria-describedby="signup-rate-hint"
                   />
-                  <div className="field-hint">Used to calculate your earnings — you can change this any time in Settings.</div>
+                  <div id="signup-rate-hint" className="field-hint">Used to calculate your earnings — you can change this any time in Settings.</div>
                 </div>
                 <div className="field field-spaced">
                   <label htmlFor="signup-address">Your address</label>
@@ -252,8 +278,9 @@ export function AuthScreen() {
                     placeholder="123 Main St, Springfield"
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
+                    aria-describedby="signup-address-hint"
                   />
-                  <div className="field-hint">Shown on your PDF reports, under your name.</div>
+                  <div id="signup-address-hint" className="field-hint">Shown on your PDF reports, under your name.</div>
                 </div>
                 <div className="field field-spaced">
                   <label htmlFor="signup-work-location">Work location name</label>
@@ -315,7 +342,7 @@ export function AuthScreen() {
             <div className="auth-demo-note">Your data is private to your account.</div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

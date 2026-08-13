@@ -67,9 +67,16 @@ button { font-family: inherit; }
 .password-toggle-btn:hover { color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
 .password-toggle-btn:active { transform: translateY(-50%) scale(var(--press-scale)); transition-duration: 90ms; transition-timing-function: var(--ease-standard); }
 .password-toggle-btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+/* Retained only for the admin panel (admin/*.tsx), which is out of scope for
+   the user-facing design system but shouldn't visibly regress. It now matches
+   `.banner-danger`'s treatment instead of being a second, squarer, iconless
+   error style. Everything in the main app renders errors through
+   components/StatusBanner.tsx. */
 .form-error {
-  font-size: 12px; color: var(--color-accent-700); background: var(--color-accent-100);
+  font-size: 12.5px; line-height: 1.4;
+  color: var(--color-danger-700); background: var(--color-danger-100);
   padding: var(--space-2) var(--space-3); margin-bottom: var(--space-3);
+  border-radius: 10px;
 }
 
 /* — app shell — */
@@ -180,6 +187,7 @@ button { font-family: inherit; }
    utilities. Accent-tinted while earnings are revealed so it's obvious at
    a glance that something is currently un-masked. */
 .app-nav-eye-btn {
+  position: relative;
   display: inline-flex; align-items: center; justify-content: center; flex: none;
   width: 36px; height: 36px; border: 1px solid transparent; border-radius: 50%;
   background: color-mix(in srgb, var(--color-text) 5%, var(--color-bg)); cursor: pointer;
@@ -195,6 +203,16 @@ button { font-family: inherit; }
   box-shadow: 0 0 0 1px var(--color-accent) inset, 0 4px 12px -6px color-mix(in srgb, var(--color-accent) 55%, transparent);
 }
 .app-nav-eye-btn svg { flex: none; }
+/* The visible circle stays 36px — the header is dense and a 44px disc next
+   to the Log out button crowds it — but the *tappable* area has to meet the
+   WCAG 2.5.5 minimum, so an invisible hit box is centred on the same spot.
+   Same technique, and the same reasoning, as .password-toggle-btn above;
+   this control was simply missed when that one was fixed. It appears on
+   every authenticated screen, which made it the most-used undersized target
+   in the app. Measured at 44x44 in the headless breakpoint check. */
+.app-nav-eye-btn::before {
+  content: ""; position: absolute; inset: -4px; border-radius: 50%;
+}
 
 /* — amount masking (see components/Amount.tsx) — a blur + slight dim reads
    as "deliberately hidden" rather than "loading" or "broken", and both
@@ -251,6 +269,12 @@ button { font-family: inherit; }
 .history-earnings-hint { margin-bottom: var(--space-2); }
 .earnings-hint:hover { background: var(--color-accent-200); }
 .earnings-hint:active { background: var(--color-accent-300); }
+/* The top-level action-error banner sits between the header and the
+   scrolling pane. Inline `style={{ margin: "0 var(--space-4)" }}` before —
+   a one-off inline fix of exactly the kind this pass is meant to remove. */
+.app-shell-banner { flex: none; padding: 0 var(--space-4); }
+.app-shell-banner .banner { margin-bottom: var(--space-2); }
+
 .app-main {
   flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
   -webkit-overflow-scrolling: touch; overscroll-behavior-y: none;
@@ -1016,6 +1040,11 @@ button { font-family: inherit; }
    in shell.css, and the comment on the <svg> itself in ReportScreen). */
 .chart-svg { width: 100%; aspect-ratio: 320 / 150; height: auto; overflow: visible; display: block; }
 .chart-x-labels { display: flex; gap: 0; padding: 0 var(--space-1); margin-top: 4px; }
+/* Was an inline `style={{ marginTop: "var(--space-5)" }}` on the heading —
+   and --space-5 was undefined, so the declaration was invalid and the
+   margin never applied at all. Both halves of that are fixed: the token
+   exists (tokens.css) and the rule lives with the rest of the styles. */
+.home-glance-title { margin-top: var(--space-5); }
 .chart-x-label { flex: 1; text-align: center; font-size: 10px; opacity: 0.72; }
 /* Headline card at the top of the report — two big numbers side by side,
    split by a plain divider rule, same numeral treatment as Home's "this
@@ -1065,3 +1094,13 @@ button { font-family: inherit; }
 .settings-note { font-size: 11px; opacity: 0.68; margin-top: var(--space-3); }
 .settings-note-static { margin-bottom: 0; }
 .settings-danger-title { color: var(--color-danger-700); }
+
+/* A row header (<th scope="row">) is still a data cell visually — without
+   this it inherits the uppercase, letter-spaced, muted treatment meant for
+   the column headers in <thead>, which would make the week label in every
+   row shout. */
+.table tbody th {
+  text-align: left; font-size: inherit; font-weight: 400;
+  letter-spacing: normal; text-transform: none; color: inherit;
+  padding: var(--space-2); border-bottom: 1px solid var(--color-divider);
+}

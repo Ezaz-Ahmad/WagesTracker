@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "../context/AppContext";
 import type { SessionInfo } from "../lib/api";
 import { parseDeviceLabel } from "../lib/parseUserAgent";
-import { AlertTriangleIcon, CheckCircleIcon, RefreshIcon } from "../components/icons";
+import { RefreshIcon } from "../components/icons";
+import { Skeleton } from "../components/Skeleton";
 import { StableLabel } from "../components/StableLabel";
+import { StatusBanner } from "../components/StatusBanner";
 import { SessionCard } from "./SessionCard";
 import { SessionsDrawer } from "./SessionsDrawer";
 
@@ -12,6 +14,14 @@ import { SessionsDrawer } from "./SessionsDrawer";
  * phone and my laptop" at a glance, which is the question this summary is
  * actually answering. The full audit belongs in the drawer. */
 export const SUMMARY_SESSION_LIMIT = 3;
+
+/** Sort key for "most recently active". A malformed or missing timestamp
+ * sorts last rather than throwing the whole comparator into NaN territory,
+ * where the result would depend on the array's original order. */
+function lastActiveMs(session: SessionInfo): number {
+  const t = new Date(session.lastActiveAt).getTime();
+  return Number.isNaN(t) ? -Infinity : t;
+}
 
 /**
  * The "Active sessions" summary in Settings → Security.
@@ -55,11 +65,25 @@ export function SessionList() {
   }, [sessions]);
 
   const visible = sessions.filter((s) => !pendingRemoval.includes(s.id));
-  // Current device first; the backend already orders the rest newest-active
-  // first, and this keeps that guarantee even if it ever stops.
-  const ordered = [...visible].sort((a, b) => Number(b.isCurrent) - Number(a.isCurrent));
+  // Current device first, then the rest strictly by most recent activity.
+  //
+  // The second half used to be left to the backend's own ORDER BY, with a
+  // comment saying so. That made the *product* requirement — the summary
+  // shows this device plus the two most recently active others — depend on
+  // an ordering guarantee that lives in another repo layer, is invisible
+  // from here, and would degrade silently into "three arbitrary devices" if
+  // that query ever changed. Sorting here as well costs nothing on a list
+  // this size and makes the guarantee testable where it's actually claimed.
+  const ordered = [...visible].sort((a, b) => {
+    if (a.isCurrent !== b.isCurrent) return Number(b.isCurrent) - Number(a.isCurrent);
+    return lastActiveMs(b) - lastActiveMs(a);
+  });
   const summary = ordered.slice(0, SUMMARY_SESSION_LIMIT);
   const hiddenCount = Math.max(0, ordered.length - summary.length);
+  // A refresh with sessions already on screen: the list stays put and the
+  // control says what it's doing, rather than the list emptying and
+  // reflowing everything under it.
+  const refreshing = sessionsLoading && sessions.length > 0;
 
   const handleRefresh = useCallback(async () => {
     setActionError(null);
@@ -116,41 +140,58 @@ export function SessionList() {
         <div className="section-hint session-list-hint">
           Devices currently signed in to your account. If you don't recognize one, log it out.
         </div>
-        <button type="button" className="btn btn-ghost btn-icon-label" onClick={handleRefresh} disabled={sessionsLoading}>
-          <RefreshIcon size={15} />
-          Refresh
+        <button
+          type="button"
+          className="btn btn-ghost btn-icon-label"
+          onClick={handleRefresh}
+          disabled={sessionsLoading}
+          aria-busy={refreshing || undefined}
+        >
+          <span className={`refresh-glyph${refreshing ? " is-spinning" : ""}`} aria-hidden="true">
+            <RefreshIcon size={15} />
+          </span>
+          {/* StableLabel keeps the control exactly as wide in both states, so
+              a refresh never nudges the heading beside it. */}
+          <StableLabel current={refreshing ? "Refreshing…" : "Refresh"} longest="Refreshing…" />
         </button>
       </div>
 
-      {actionError && (
-        <div className="banner banner-danger" role="alert">
-          <AlertTriangleIcon size={16} />
-          <span>{actionError}</span>
-        </div>
-      )}
-      {actionMessage && (
-        <div className="banner banner-success" role="status">
-          <CheckCircleIcon size={16} />
-          <span>{actionMessage}</span>
-        </div>
-      )}
+      {/* Suppressed while the drawer is open — it renders the same two
+          messages itself, and mounting both would put identical text in two
+          live regions at once, which a screen reader announces twice. The
+          drawer owns this feedback for as long as it's covering the panel. */}
+      {!drawerOpen && actionError && <StatusBanner tone="danger">{actionError}</StatusBanner>}
+      {!drawerOpen && actionMessage && <StatusBanner tone="success">{actionMessage}</StatusBanner>}
 
       {sessionsLoading && sessions.length === 0 ? (
-        <div className="section-hint" role="status">
-          Loading sessions…
+        // Skeleton rather than a line of text: the real list is about to
+        // occupy roughly this much space, so the panel doesn't jump when it
+        // arrives.
+        <div className="session-list-skeleton" role="status" aria-label="Loading your active sessions">
+          <Skeleton className="session-card-skeleton" />
+          <Skeleton className="session-card-skeleton" />
         </div>
       ) : sessionsError ? (
         <div className="session-list-state">
-          <div className="banner banner-danger" role="alert">
-            <AlertTriangleIcon size={16} />
-            <span>{sessionsError}</span>
-          </div>
+          <StatusBanner tone="danger">{sessionsError}</StatusBanner>
           <button type="button" className="btn btn-secondary" onClick={handleRefresh} disabled={sessionsLoading}>
             <StableLabel current={sessionsLoading ? "Retrying…" : "Try again"} longest="Retrying…" />
           </button>
         </div>
       ) : ordered.length === 0 ? (
-        <div className="section-hint">No active sessions found.</div>
+        // Reaching this means the request succeeded and came back empty,
+        // which shouldn't be possible while you're reading it — you are a
+        // session. Say so plainly and offer the way out, rather than
+        // presenting a dead end as a normal state.
+        <div className="session-list-empty">
+          <div className="session-list-empty-title">No devices to show</div>
+          <p className="section-hint session-list-empty-body">
+            You're signed in right now, so at least this device should be listed. Refreshing usually sorts it out.
+          </p>
+          <button type="button" className="btn btn-secondary" onClick={handleRefresh} disabled={sessionsLoading}>
+            <StableLabel current={sessionsLoading ? "Refreshing…" : "Refresh"} longest="Refreshing…" />
+          </button>
+        </div>
       ) : (
         <>
           <ul className="session-list">
@@ -200,6 +241,13 @@ export function SessionList() {
           sessions={ordered}
           loading={sessionsLoading}
           error={sessionsError}
+          // Without these two, a revoke that failed *inside* the drawer set
+          // its message on this component — which is behind a modal backdrop
+          // — so the card silently reappeared and nothing explained why. The
+          // drawer is a full modal; while it's open it has to own the
+          // feedback for the actions it offers.
+          actionError={actionError}
+          actionMessage={actionMessage}
           revokingSessionId={revokingSessionId}
           revokingOthers={revokingOthers}
           onRefresh={handleRefresh}

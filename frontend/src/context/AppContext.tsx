@@ -67,6 +67,11 @@ interface AppContextValue {
   signup: (input: api.SignupInput) => Promise<void>;
   logout: () => void;
   clearAuthError: () => void;
+  /** A server-side explanation the user needs to see once after a *successful*
+   * login — today only the device-limit eviction notice. Distinct from
+   * `authError` (a failed login) on purpose: this login worked. */
+  sessionNotice: string | null;
+  dismissSessionNotice: () => void;
   updateSettings: (patch: api.MePatch) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   deleteAccount: (password: string) => Promise<void>;
@@ -106,6 +111,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
+  // Held in provider state rather than in the screen that shows it, for two
+  // reasons. It arrives on the login response, before the authenticated
+  // shell that displays it has mounted. And it must survive tab switches
+  // inside that shell without ever reappearing: it is cleared when the user
+  // dismisses it and on logout, and set nowhere else, so navigating away and
+  // back cannot resurrect it (see the regression test).
+  const [sessionNotice, setSessionNotice] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [dayExpenses, setDayExpenses] = useState<DayExpense[]>([]);
@@ -226,6 +238,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string, remember: boolean = true) => {
     setAuthBusy(true);
     setAuthError(null);
+    // Cleared up front so a notice from an earlier session can never be
+    // mistaken for something this login caused.
+    setSessionNotice(null);
     // Started BEFORE the request, deliberately, and run alongside it. This
     // backend cold-starts, so a login can easily take longer than the
     // viewport guard's maximum hold; kicking the transition off only after
@@ -235,12 +250,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // the guard is never older than the request it's protecting.
     const viewportReady = settleViewportBeforeAuth();
     try {
-      const { token, user } = await api.login(email, password);
+      const { token, user, notice } = await api.login(email, password);
       api.setToken(token, remember);
       api.recordActivity();
       if (remember) api.setRememberedEmail(email);
       else api.clearRememberedEmail();
       setUser(user);
+      // The backend has been sending this since the device-limit feature
+      // landed; the client destructured it away and it never reached a
+      // screen. `?? null` normalises the ordinary-login case (field absent)
+      // so the value is always one of string | null rather than undefined.
+      setSessionNotice(notice ?? null);
       hideEarningsNow();
       await viewportReady;
       setStatus("loggedIn");
@@ -295,6 +315,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setWeekExtras([]);
     setShiftsLoaded(false);
     setSessions([]);
+    setSessionNotice(null);
     setStatus("loggedOut");
     hideEarningsNow();
   }, [hideEarningsNow]);
@@ -573,6 +594,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       signup,
       logout,
       clearAuthError: () => setAuthError(null),
+      sessionNotice,
+      dismissSessionNotice: () => setSessionNotice(null),
       updateSettings,
       changePassword,
       deleteAccount,
@@ -604,6 +627,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       authError,
       authBusy,
       actionError,
+      sessionNotice,
       login,
       signup,
       logout,

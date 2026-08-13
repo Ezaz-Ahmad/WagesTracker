@@ -21,6 +21,7 @@ import { FlameIcon, TrophyIcon } from "../components/icons";
 import { Skeleton } from "../components/Skeleton";
 import { Amount } from "../components/Amount";
 import { EarningsHiddenHint } from "../components/EarningsHiddenHint";
+import { ChartDataTable } from "../components/ChartDataTable";
 
 export function HomeScreen() {
   const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras, earningsHidden } = useApp();
@@ -84,7 +85,15 @@ export function HomeScreen() {
     liveEarnings: effectiveLiveHours * rate,
   });
 
-  const progressPct = goalHours > 0 ? Math.min(100, Math.round((totalHours / goalHours) * 100)) : 0;
+  // Clamped *and* guarded against a non-finite result. A malformed shift
+  // from the server makes totalHours NaN, which used to surface as a
+  // harmless `width: NaN%` the browser ignored — but the same value now
+  // feeds aria-valuenow, where NaN is an outright invalid ARIA value (axe:
+  // aria-valid-attr-value) rather than something quietly dropped. Falling
+  // back to 0 shows an empty bar, which is the honest reading of "we can't
+  // compute your progress".
+  const rawProgressPct = goalHours > 0 ? Math.round((totalHours / goalHours) * 100) : 0;
+  const progressPct = Number.isFinite(rawProgressPct) ? Math.max(0, Math.min(100, rawProgressPct)) : 0;
   const todayDay = days.find((d) => d.isToday);
 
   // While a shift is active, show the exact live number every tick rather than
@@ -201,11 +210,23 @@ export function HomeScreen() {
             {fmt2(totalHours)}h logged · goal {user.goalHours}h
           </div>
           <div className="hr" style={{ margin: "var(--space-3) 0" }} />
-          <div className="progress-label-row">
+          <div className="progress-label-row" id="home-goal-progress-label">
             <span>Hours toward goal</span>
             <span className="count-value">{progressPctAnim}%</span>
           </div>
-          <div className="progress-track">
+          {/* Was a pair of anonymous divs. The percentage beside the label
+              happens to be readable, but nothing connected it to the bar or
+              told assistive tech this was a progress indicator at all.
+              aria-valuenow uses the settled figure, not the count-up
+              animation value, so it never announces an intermediate frame. */}
+          <div
+            className="progress-track"
+            role="progressbar"
+            aria-valuenow={progressPct}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-labelledby="home-goal-progress-label"
+          >
             <div className="progress-fill" style={{ width: `${progressPct}%` }} />
           </div>
         </div>
@@ -222,10 +243,15 @@ export function HomeScreen() {
         </div>
       </div>
 
-      <h2 className="section-title" style={{ marginTop: "var(--space-5)" }}>Week at a glance</h2>
+      <h2 className="section-title home-glance-title">Week at a glance</h2>
       <div className="section-hint">How this week's hours are spread out, day by day.</div>
       <div className="card elev-sm anim-rise glance-card" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 2 }}>
-        <div className="glance-bars">
+        {/* The bars carried their information in `title` attributes on
+            <div>s — a tooltip, which is unreachable by touch, unreliable
+            for screen readers, and never shown on keyboard focus. The
+            drawing is hidden from assistive tech and the same day-by-day
+            figures are published as a table below it. */}
+        <div className="glance-bars" aria-hidden="true">
           {glanceDays.map((d, i) => {
             const pct = Math.max(4, Math.round((d.displayHours / maxGlanceHours) * 100));
             const worked = d.displayHours > 0;
@@ -246,6 +272,15 @@ export function HomeScreen() {
             );
           })}
         </div>
+        <ChartDataTable
+          caption="Hours worked each day this week"
+          labelHeading="Day"
+          valueHeading="Hours"
+          rows={glanceDays.map((d) => ({
+            label: `${d.dayAbbr} ${d.dateLabel}`,
+            value: d.displayHours > 0 ? `${fmt2(d.displayHours)}h` : "No entry",
+          }))}
+        />
       </div>
 
       <div className="stat-grid">

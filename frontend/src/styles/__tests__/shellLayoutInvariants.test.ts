@@ -209,3 +209,125 @@ describe("installed-PWA background continuity", () => {
     expect(rule).toContain("background: var(--color-bg)");
   });
 });
+
+describe("design-token integrity", () => {
+  // The bug this exists for: `--space-5` was referenced in three places and
+  // defined in none. An undefined custom property doesn't fall back to
+  // something close — it makes the whole declaration invalid at
+  // computed-value time — so `.confirm-modal` and `.wakeup-card` rendered
+  // with no padding at all and Home's "Week at a glance" heading with no top
+  // margin. Nothing failed, nothing warned, and the CSS still looked
+  // perfectly reasonable to read.
+  it("defines every custom property the stylesheets reference", () => {
+    const source = stripComments(allCss);
+
+    const defined = new Set<string>();
+    for (const m of source.matchAll(/(--[a-z0-9-]+)\s*:/gi)) defined.add(m[1]);
+
+    // Properties set from JS via inline styles rather than declared in CSS.
+    // Each is written by a specific component; they're listed explicitly so
+    // a genuinely undefined token can never hide behind a loose pattern.
+    const setInJs = new Set([
+      "--app-viewport-height", // lib/viewportHeight.ts
+      "--i", // per-item animation stagger index
+      "--nav-index", // components/BottomNav.tsx
+      "--nav-count", // components/BottomNav.tsx
+      "--ring-circumference", // components/GoalRing.tsx
+      "--ring-offset-target", // components/GoalRing.tsx
+    ]);
+
+    const missing = new Set<string>();
+    // `var(--x, fallback)` is fine by construction — the fallback is the
+    // definition. Only bare references matter.
+    for (const m of source.matchAll(/var\(\s*(--[a-z0-9-]+)\s*\)/gi)) {
+      const name = m[1];
+      if (!defined.has(name) && !setInJs.has(name)) missing.add(name);
+    }
+
+    expect([...missing].sort()).toEqual([]);
+  });
+
+  it("keeps the spacing scale contiguous, so a missing step is obvious", () => {
+    const steps = [...tokensCss.matchAll(/--space-(\d+)\s*:/g)].map((m) => Number(m[1])).sort((a, b) => a - b);
+    expect(steps).toEqual([1, 2, 3, 4, 5, 6, 8]);
+  });
+});
+
+describe("chart sizing", () => {
+  // app.css gives the chart an aspect-ratio and height:auto specifically so
+  // it scales uniformly at every container width. A later rule that sets a
+  // fixed height against its 100% width re-introduces the stretched line and
+  // elliptical dots that fix removed — which is exactly what a desktop
+  // override in shell.css was doing.
+  it("never re-imposes a fixed height on the aspect-ratio chart", () => {
+    expect(appCss).toMatch(/\.chart-svg\s*\{[^}]*aspect-ratio/);
+    // Scanned against comment-stripped source: shell.css mentions the
+    // removed `.chart-svg { height: 220px }` rule inside a comment
+    // explaining why it is gone, and matching that would fail forever.
+    // The value is captured and compared rather than excluded with a
+    // negative lookahead — `\s*(?!auto)` happily backtracks to a zero-width
+    // match and "succeeds" on `height: auto`.
+    const offenders: string[] = [];
+    for (const m of stripComments(allCss).matchAll(/\.chart-svg[^{]*\{([^}]*)\}/g)) {
+      for (const decl of m[1].matchAll(/(?:^|[;{\s])height\s*:([^;}]+)/g)) {
+        const value = decl[1].trim();
+        if (value !== "auto") offenders.push(`height: ${value}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});
+
+describe("touch targets", () => {
+  // WCAG 2.5.5. Each of these is a small glyph inside a deliberately larger
+  // hit area; the risk is someone later "tidying" the box down to the glyph.
+  const required: [string, string][] = [
+    [".banner-dismiss", tokensCss],
+    [".sessions-drawer-icon-btn", settingsCss],
+    [".btn-icon", tokensCss],
+  ];
+
+  for (const [selector, css] of required) {
+    it(`${selector} keeps a 44px hit area`, () => {
+      const body = block(css, selector);
+      expect(body).toMatch(/width:\s*44px/);
+      expect(body).toMatch(/height:\s*44px/);
+    });
+  }
+
+  // Two controls keep a deliberately smaller *visible* box — the header is
+  // dense, and a 44px disc beside the Log out button crowds it — and extend
+  // the hit area with an absolutely-positioned ::before instead. The
+  // technique only works while the host is a positioning context and the
+  // pseudo's insets stay negative, either of which a later tidy-up could
+  // quietly drop. The earnings-privacy toggle was found at a bare 36x36 by
+  // the headless breakpoint check, having been missed when the password
+  // toggle got this treatment.
+  for (const selector of [".password-toggle-btn", ".app-nav-eye-btn"]) {
+    it(`${selector} extends its hit area with a positioned pseudo-element`, () => {
+      expect(block(appCss, selector)).toMatch(/position:\s*relative|position:\s*absolute/);
+      const pseudo = block(appCss, `${selector}::before`);
+      expect(pseudo).toMatch(/position:\s*absolute/);
+      const inset = pseudo.match(/inset:\s*(-?[\d.]+)px/);
+      expect(inset, `${selector}::before needs a negative inset`).not.toBeNull();
+      expect(Number(inset![1])).toBeLessThan(0);
+    });
+  }
+});
+
+describe("looping animation restraint", () => {
+  // The refresh glyph spins only while a request is genuinely in flight, and
+  // must stop entirely under reduced motion — the button's own "Refreshing…"
+  // label carries the state, so nothing is lost by stopping it.
+  it("stops the refresh spinner under prefers-reduced-motion", () => {
+    expect(settingsCss).toMatch(/\.refresh-glyph\.is-spinning\s*\{[^}]*animation:\s*refresh-glyph-spin/);
+    // settings.css has more than one reduced-motion block (the drawer has
+    // its own), so this looks for the rule inside *any* of them rather than
+    // assuming which one.
+    const source = stripComments(settingsCss);
+    const stopped = [...source.matchAll(/@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?)\n\}/g)].some((m) =>
+      /\.refresh-glyph\.is-spinning\s*\{\s*animation:\s*none/.test(m[1])
+    );
+    expect(stopped).toBe(true);
+  });
+});

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Overlay } from "../components/Overlay";
 import { PasswordInput } from "../components/PasswordInput";
 import { StableLabel } from "../components/StableLabel";
 import { useFocusTrap } from "../lib/useFocusTrap";
@@ -43,49 +44,55 @@ export function DeleteAccountDialog({ onClose, onDelete }: DeleteAccountDialogPr
   }
 
   return (
-    <div className={`dialog-backdrop${closing ? " is-closing" : ""}`} onClick={close}>
-      <div
-        ref={trapRef}
-        className={`dialog${closing ? " is-closing" : ""}`}
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="delete-account-title"
-        aria-describedby="delete-account-desc"
-        tabIndex={-1}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div id="delete-account-title" className="dialog-title">
-          Delete your account?
-        </div>
-        <p id="delete-account-desc" className="dialog-body">
-          This permanently deletes your account, your saved settings, and every shift you've logged. There's no way
-          to undo this. Enter your password to confirm.
-        </p>
-        {error && (
-          <div className="banner banner-danger" role="alert">
-            <span>{error}</span>
+    // Portalled for the same reason as the sessions drawer: rendered in
+    // place, this dialog's fixed backdrop was contained by .swipe-track's
+    // transform rather than by the viewport, so it never covered the app
+    // header and the page behind it kept scrolling. See components/Overlay.
+    <Overlay>
+        <div className={`dialog-backdrop${closing ? " is-closing" : ""}`} onClick={close}>
+        <div
+          ref={trapRef}
+          className={`dialog${closing ? " is-closing" : ""}`}
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="delete-account-title"
+          aria-describedby="delete-account-desc"
+          tabIndex={-1}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div id="delete-account-title" className="dialog-title">
+            Delete your account?
           </div>
-        )}
-        <div className="field">
-          <label htmlFor="delete-account-password">Password</label>
-          <PasswordInput
-            id="delete-account-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && password && !deleting) void handleDelete();
-            }}
-          />
-        </div>
-        <div className="dialog-actions">
-          <button type="button" className="btn btn-secondary" onClick={close} disabled={deleting}>
-            Cancel
-          </button>
-          <button type="button" className="btn btn-danger btn-destructive-final" onClick={handleDelete} disabled={deleting || !password}>
-            <StableLabel current={deleting ? "Deleting…" : "Yes, permanently delete my account"} longest="Yes, permanently delete my account" />
-          </button>
+          <p id="delete-account-desc" className="dialog-body">
+            This permanently deletes your account, your saved settings, and every shift you've logged. There's no way
+            to undo this. Enter your password to confirm.
+          </p>
+          {error && (
+            <div className="banner banner-danger" role="alert">
+              <span>{error}</span>
+            </div>
+          )}
+          <div className="field">
+            <label htmlFor="delete-account-password">Password</label>
+            <PasswordInput
+              id="delete-account-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && password && !deleting) void handleDelete();
+              }}
+            />
+          </div>
+          <div className="dialog-actions">
+            <button type="button" className="btn btn-secondary" onClick={close} disabled={deleting}>
+              Cancel
+            </button>
+            <button type="button" className="btn btn-danger btn-destructive-final" onClick={handleDelete} disabled={deleting || !password}>
+              <StableLabel current={deleting ? "Deleting…" : "Yes, permanently delete my account"} longest="Yes, permanently delete my account" />
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Overlay>
   );
 }
