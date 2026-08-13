@@ -81,11 +81,21 @@
     box-shadow: none;
     display: grid;
     grid-template-columns: 240px 1fr;
-    grid-template-rows: auto 1fr;
+    /* Three rows, not two. `.app-shell-banner` (the device-limit notice and
+       the top-level action error) sits between the header and the scrolling
+       pane in the phone layout's flex column. At this breakpoint the frame
+       becomes a grid, and an element with no `grid-area` is auto-placed into
+       a new implicit row — which put the banner underneath the sidebar, in a
+       240px column, wrapped to five lines. It needs a named row of its own.
+       The row is `auto`, so it collapses to nothing when no banner is
+       showing. */
+    grid-template-rows: auto auto 1fr;
     grid-template-areas:
       "sidebar topbar"
+      "sidebar banner"
       "sidebar main";
   }
+  .app-shell-banner { grid-area: banner; padding: 0 var(--space-6); }
 
   .app-nav {
     grid-area: topbar;

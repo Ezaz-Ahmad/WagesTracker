@@ -412,3 +412,34 @@ describe("auth footer placement", () => {
     expect(footer).not.toMatch(/position:\s*(absolute|fixed|sticky)/);
   });
 });
+
+describe("shell banner placement", () => {
+  // Found by the headless desktop sweep during this feature, but introduced
+  // with the banner itself: at >=1080px the frame becomes a grid, and an
+  // element without a `grid-area` is auto-placed into a new implicit row.
+  // That put the device-limit notice and the top-level action error
+  // underneath the sidebar, in a 240px column, wrapped to five lines.
+  it("gives the shell banner a named grid area at the desktop breakpoint", () => {
+    const desktop = shellCss.slice(shellCss.indexOf("@media (min-width: 1080px)"));
+    expect(desktop).toMatch(/\.app-shell-banner\s*\{[^}]*grid-area:\s*banner/);
+  });
+
+  it("declares a row for it in the frame's template", () => {
+    const desktop = shellCss.slice(shellCss.indexOf("@media (min-width: 1080px)"));
+    expect(desktop).toMatch(/grid-template-areas:\s*"sidebar topbar"\s*"sidebar banner"\s*"sidebar main"/);
+    // Three rows to match the three areas. Two would silently drop the third
+    // row back into implicit placement, which is the original bug.
+    expect(desktop).toMatch(/grid-template-rows:\s*auto auto 1fr/);
+  });
+
+  it("keeps every named area in the template addressed by a rule", () => {
+    // A named area nothing claims is dead layout; an element claiming an
+    // undeclared area is a silent auto-placement bug of exactly this kind.
+    const desktop = shellCss.slice(shellCss.indexOf("@media (min-width: 1080px)"));
+    const template = desktop.match(/grid-template-areas:([^;]+);/)![1];
+    const areas = new Set(template.match(/[a-z]+/g));
+    for (const area of areas) {
+      expect(desktop, `no rule assigns grid-area: ${area}`).toMatch(new RegExp(`grid-area:\\s*${area}\\b`));
+    }
+  });
+});
