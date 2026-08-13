@@ -1,9 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { buildDayComputed, buildWeekDaysComputed, findOpenShift, isDateInWeek, weekExtraFor, weekTotals } from "../aggregate";
+import { buildChart, buildDayComputed, buildWeekDaysComputed, findOpenShift, isDateInWeek, weekExtraFor, weekTotals } from "../aggregate";
 import { buildWeekDays, isoDate, startOfWeek } from "../date";
 import type { Shift, WeekExtra } from "../types";
 
 const CURRENCY = "$";
+
+describe("buildChart", () => {
+  const weeks = [
+    { startISO: "2026-07-27", endISO: "2026-08-02", label: "Previous", short: "Jul 27", hours: 80, earnings: 2050.49 },
+    { startISO: "current", endISO: "current", label: "This week", short: "Now", hours: 2.58, earnings: 90.42, inProgress: true },
+  ];
+
+  it("keeps endpoint dots and value labels inside the chart", () => {
+    const chart = buildChart(weeks, "earnings", CURRENCY);
+    expect(chart.points[0]).toMatchObject({ x: 8, labelAnchor: "start", valueLabel: "$2050.49" });
+    expect(chart.points.at(-1)).toMatchObject({ x: 312, labelAnchor: "end", valueLabel: "$90.42" });
+  });
+
+  it("centres a chart containing only one point", () => {
+    const chart = buildChart(weeks.slice(0, 1), "hours", CURRENCY);
+    expect(chart.points[0]).toMatchObject({ x: 160, labelAnchor: "middle" });
+  });
+});
 
 describe("buildDayComputed", () => {
   it("totals multiple shifts logged on the same day", () => {

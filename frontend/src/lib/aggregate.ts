@@ -393,6 +393,7 @@ export interface ChartPoint {
   x: number;
   y: number;
   labelY: number;
+  labelAnchor: "start" | "middle" | "end";
   short: string;
   valueLabel: string;
   dotColor: string;
@@ -417,15 +418,21 @@ export function buildChart(chartSource: WeekSummary[], metric: "earnings" | "hou
   const maxVal = Math.max(...chartSource.map((w) => (metric === "earnings" ? w.earnings : w.hours)), 1);
   const chartW = 320;
   const chartH = 118;
+  // Keep endpoint dots inside the SVG, while anchoring their labels inward.
+  // Previously the first/last points sat at x=0/320 with centred text, so
+  // half of each value was outside the viewBox and visibly clipped.
+  const plotInset = 8;
+  const plotW = chartW - plotInset * 2;
   const n = chartSource.length;
   const points: ChartPoint[] = chartSource.map((w, i) => {
     const val = metric === "earnings" ? w.earnings : w.hours;
-    const x = n > 1 ? Math.round((i * chartW) / (n - 1)) : chartW / 2;
+    const x = n > 1 ? Math.round(plotInset + (i * plotW) / (n - 1)) : chartW / 2;
     const y = Math.round(chartH - Math.max(6, (val / maxVal) * (chartH - 16)));
     return {
       x,
       y,
       labelY: Math.max(10, y - 10),
+      labelAnchor: n === 1 ? "middle" : i === 0 ? "start" : i === n - 1 ? "end" : "middle",
       short: w.short,
       valueLabel: metric === "earnings" ? currency + fmt2(val) : `${Math.round(val * 10) / 10}h`,
       dotColor: w.inProgress ? "var(--color-bg)" : "var(--color-accent)",

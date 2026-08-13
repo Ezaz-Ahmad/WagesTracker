@@ -243,7 +243,7 @@ export function ReportScreen() {
                 x={p.x}
                 y={p.labelY}
                 fontSize="10"
-                textAnchor="middle"
+                textAnchor={p.labelAnchor}
                 fill="var(--color-text)"
                 opacity="0.7"
                 className={metric === "earnings" ? `amount-mask${earningsHidden ? " is-hidden" : ""}` : undefined}
