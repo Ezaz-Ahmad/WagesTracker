@@ -1,23 +1,30 @@
-import { GithubIcon, GlobeIcon } from "./icons";
 import { VERSION_LABEL } from "../lib/appVersion";
+import { DEVELOPER_LINKS } from "./AuthFooter";
 
 /** Shared creator credit — shown on the auth screen and in Settings.
- * `showVersion` additionally renders the build version underneath, which is
- * only turned on in Settings — it's useful "which build am I on" info, not
- * something the marketing-flavored auth screen needs cluttering it up. */
+ * `showVersion` additionally renders the full build label (version, commit
+ * hash and build date) underneath, which is only turned on in Settings —
+ * that level of detail is diagnostic. The auth screen shows just the version
+ * number, in its own footer (see AuthFooter). */
 export function AppCredit({ showVersion = false }: { showVersion?: boolean }) {
   return (
     <div className="app-credit">
       <span className="app-credit-name">Built by Ezaz Ahmad</span>
       <span className="app-credit-links">
-        <a className="app-credit-link" href="https://github.com/Ezaz-Ahmad" target="_blank" rel="noopener noreferrer">
-          <GithubIcon size={13} />
-          GitHub
-        </a>
-        <a className="app-credit-link" href="https://ezazahmad.com" target="_blank" rel="noopener noreferrer">
-          <GlobeIcon size={13} />
-          Portfolio
-        </a>
+        {/* Shared with the auth footer so the two can't drift apart on a URL. */}
+        {DEVELOPER_LINKS.map(({ href, label, Icon, description }) => (
+          <a
+            key={href}
+            className="app-credit-link"
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`${description} (opens in a new tab)`}
+          >
+            <Icon size={13} />
+            {label}
+          </a>
+        ))}
       </span>
       {showVersion && <span className="app-credit-version">{VERSION_LABEL}</span>}
     </div>

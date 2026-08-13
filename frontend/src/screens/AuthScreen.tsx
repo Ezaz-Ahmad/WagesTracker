@@ -5,7 +5,7 @@ import { fmt2 } from "../lib/date";
 import { getRememberedEmail } from "../lib/api";
 import { EntryIcon, ReportIcon, TargetIcon } from "../components/icons";
 import { PasswordInput } from "../components/PasswordInput";
-import { AppCredit } from "../components/AppCredit";
+import { AuthFooter } from "../components/AuthFooter";
 import { BubbleLoader } from "../components/BubbleLoader";
 import { Logo } from "../components/Logo";
 import { StatusBanner } from "../components/StatusBanner";
@@ -168,8 +168,6 @@ export function AuthScreen() {
                 Create account
               </label>
             </div>
-
-            <AppCredit />
 
             {/* Was a bare `<div className="form-error">` with no role: a
                 failed login announced nothing at all to a screen reader, so
@@ -340,6 +338,8 @@ export function AuthScreen() {
             )}
 
             <div className="auth-demo-note">Your data is private to your account.</div>
+
+            <AuthFooter />
           </div>
         </div>
       </main>
