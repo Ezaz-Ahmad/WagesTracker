@@ -157,6 +157,15 @@ figcaption {
 .stable-label-ghost, .stable-label-current { grid-area: 1 / 1; white-space: nowrap; }
 .stable-label-ghost { visibility: hidden; }
 
+/* The same idea one level up, for a button whose in-progress state is a
+   spinner rather than a longer word. The label keeps holding the box open
+   (hidden, not removed, so it still contributes its width) while the
+   spinner paints on top of it — otherwise the button collapses to the
+   spinner's width mid-action and snaps back when it finishes. */
+.btn-stable { position: relative; }
+.btn-stable-hidden { visibility: hidden; }
+.btn-stable-overlay { position: absolute; inset: 0; display: grid; place-items: center; }
+
 :focus { outline: none; }
 :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 /* `tabindex="-1"` marks an element that is NEVER in the Tab order and only

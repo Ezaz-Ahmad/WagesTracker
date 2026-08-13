@@ -47,18 +47,26 @@ export function HistoryScreen() {
         </div>
       ) : (
         <table className="table">
+          {/* A caption and scope="col" on the header cells: without them a
+              screen reader reading cell by cell gets four bare values per
+              row with nothing saying which column each belongs to, which on
+              a four-column table of numbers is the difference between
+              usable and not. The caption repeats the visible hint above
+              rather than inventing new wording, and is hidden visually
+              because that hint is already on screen. */}
+          <caption className="visually-hidden">Completed weeks, most recent first</caption>
           <thead>
             <tr>
-              <th>Week</th>
-              <th>Hours</th>
-              <th>Earnings</th>
-              <th>Status</th>
+              <th scope="col">Week</th>
+              <th scope="col">Hours</th>
+              <th scope="col">Earnings</th>
+              <th scope="col">Status</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((w, i) => (
               <tr key={i} style={{ ["--i" as string]: i }}>
-                <td>{w.label}</td>
+                <th scope="row">{w.label}</th>
                 <td>{w.hoursLabel}</td>
                 <td>
                   <Amount>{w.earningsLabel}</Amount>

@@ -1029,6 +1029,11 @@ button { font-family: inherit; }
    in shell.css, and the comment on the <svg> itself in ReportScreen). */
 .chart-svg { width: 100%; aspect-ratio: 320 / 150; height: auto; overflow: visible; display: block; }
 .chart-x-labels { display: flex; gap: 0; padding: 0 var(--space-1); margin-top: 4px; }
+/* Was an inline `style={{ marginTop: "var(--space-5)" }}` on the heading —
+   and --space-5 was undefined, so the declaration was invalid and the
+   margin never applied at all. Both halves of that are fixed: the token
+   exists (tokens.css) and the rule lives with the rest of the styles. */
+.home-glance-title { margin-top: var(--space-5); }
 .chart-x-label { flex: 1; text-align: center; font-size: 10px; opacity: 0.72; }
 /* Headline card at the top of the report — two big numbers side by side,
    split by a plain divider rule, same numeral treatment as Home's "this
@@ -1078,3 +1083,13 @@ button { font-family: inherit; }
 .settings-note { font-size: 11px; opacity: 0.68; margin-top: var(--space-3); }
 .settings-note-static { margin-bottom: 0; }
 .settings-danger-title { color: var(--color-danger-700); }
+
+/* A row header (<th scope="row">) is still a data cell visually — without
+   this it inherits the uppercase, letter-spaced, muted treatment meant for
+   the column headers in <thead>, which would make the week label in every
+   row shout. */
+.table tbody th {
+  text-align: left; font-size: inherit; font-weight: 400;
+  letter-spacing: normal; text-transform: none; color: inherit;
+  padding: var(--space-2); border-bottom: 1px solid var(--color-divider);
+}

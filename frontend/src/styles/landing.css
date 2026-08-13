@@ -138,3 +138,10 @@
 /* — mode toggle (login / create account) — */
 .landing-mode-toggle.seg { display: flex; width: 100%; margin-bottom: var(--space-4); }
 .landing-mode-toggle .seg-opt { flex: 1; justify-content: center; }
+
+/* Both were inline `style` objects on the elements themselves — the same
+   one-off-inline-fix pattern this pass is removing everywhere else. The
+   brand line is also no longer an <h6> (see AuthScreen.tsx), so its layout
+   has to come from the class rather than from the heading it used to be. */
+.auth-card-brand { display: flex; align-items: center; gap: 8px; }
+.auth-form-title { margin: 0 0 var(--space-3); }

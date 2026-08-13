@@ -21,6 +21,7 @@ import { FlameIcon, TrophyIcon } from "../components/icons";
 import { Skeleton } from "../components/Skeleton";
 import { Amount } from "../components/Amount";
 import { EarningsHiddenHint } from "../components/EarningsHiddenHint";
+import { ChartDataTable } from "../components/ChartDataTable";
 
 export function HomeScreen() {
   const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras, earningsHidden } = useApp();
@@ -201,11 +202,23 @@ export function HomeScreen() {
             {fmt2(totalHours)}h logged · goal {user.goalHours}h
           </div>
           <div className="hr" style={{ margin: "var(--space-3) 0" }} />
-          <div className="progress-label-row">
+          <div className="progress-label-row" id="home-goal-progress-label">
             <span>Hours toward goal</span>
             <span className="count-value">{progressPctAnim}%</span>
           </div>
-          <div className="progress-track">
+          {/* Was a pair of anonymous divs. The percentage beside the label
+              happens to be readable, but nothing connected it to the bar or
+              told assistive tech this was a progress indicator at all.
+              aria-valuenow uses the settled figure, not the count-up
+              animation value, so it never announces an intermediate frame. */}
+          <div
+            className="progress-track"
+            role="progressbar"
+            aria-valuenow={progressPct}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-labelledby="home-goal-progress-label"
+          >
             <div className="progress-fill" style={{ width: `${progressPct}%` }} />
           </div>
         </div>
@@ -222,10 +235,15 @@ export function HomeScreen() {
         </div>
       </div>
 
-      <h2 className="section-title" style={{ marginTop: "var(--space-5)" }}>Week at a glance</h2>
+      <h2 className="section-title home-glance-title">Week at a glance</h2>
       <div className="section-hint">How this week's hours are spread out, day by day.</div>
       <div className="card elev-sm anim-rise glance-card" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 2 }}>
-        <div className="glance-bars">
+        {/* The bars carried their information in `title` attributes on
+            <div>s — a tooltip, which is unreachable by touch, unreliable
+            for screen readers, and never shown on keyboard focus. The
+            drawing is hidden from assistive tech and the same day-by-day
+            figures are published as a table below it. */}
+        <div className="glance-bars" aria-hidden="true">
           {glanceDays.map((d, i) => {
             const pct = Math.max(4, Math.round((d.displayHours / maxGlanceHours) * 100));
             const worked = d.displayHours > 0;
@@ -246,6 +264,15 @@ export function HomeScreen() {
             );
           })}
         </div>
+        <ChartDataTable
+          caption="Hours worked each day this week"
+          labelHeading="Day"
+          valueHeading="Hours"
+          rows={glanceDays.map((d) => ({
+            label: `${d.dayAbbr} ${d.dateLabel}`,
+            value: d.displayHours > 0 ? `${fmt2(d.displayHours)}h` : "No entry",
+          }))}
+        />
       </div>
 
       <div className="stat-grid">
