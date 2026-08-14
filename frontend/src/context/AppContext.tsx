@@ -65,7 +65,7 @@ interface AppContextValue {
   clearActionError: () => void;
   login: (email: string, password: string, remember?: boolean) => Promise<void>;
   signup: (input: api.SignupInput) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   clearAuthError: () => void;
   /** A server-side explanation the user needs to see once after a *successful*
    * login — today only the device-limit eviction notice. Distinct from
@@ -172,17 +172,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => clearRevealTimer, [clearRevealTimer]);
 
+  const clearTokenSafely = useCallback(async () => {
+    try {
+      await api.clearToken();
+    } catch (error) {
+      // Native secure storage can fail asynchronously. Authentication state
+      // must still settle without an unhandled promise rejection; each caller
+      // is also revoking, deleting, or responding to an invalid server session.
+      console.error("Could not clear the stored authentication token", error);
+    }
+  }, []);
+
   useEffect(() => {
     const timer = setInterval(() => setToday(new Date()), 60_000);
     return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
-    const token = api.getToken();
-    if (!token) {
-      setStatus("loggedOut");
-      return;
-    }
+    let cancelled = false;
+    const restoreSession = async () => {
+      const token = api.getToken();
+      if (!token) {
+        setStatus("loggedOut");
+        return;
+      }
 
     // The idle timeout applies even across a full close/relaunch: if more
     // time has passed since the last recorded activity than the timeout
@@ -190,31 +203,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // the login form immediately. No silent auto-login attempt, and
     // critically no wake-up-screen wait on a possibly-cold server for a
     // session we're about to throw away anyway.
-    const lastActivity = api.getLastActivity();
-    if (lastActivity !== null && Date.now() - lastActivity >= IDLE_LOGOUT_MS) {
-      void api.clearToken();
-      api.clearLastActivity();
-      setStatus("loggedOut");
-      setAuthError(IDLE_LOGOUT_MESSAGE);
-      return;
-    }
+      const lastActivity = api.getLastActivity();
+      if (lastActivity !== null && Date.now() - lastActivity >= IDLE_LOGOUT_MS) {
+        await clearTokenSafely();
+        if (cancelled) return;
+        api.clearLastActivity();
+        setStatus("loggedOut");
+        setAuthError(IDLE_LOGOUT_MESSAGE);
+        return;
+      }
 
-    api
-      .fetchMe()
-      .then(({ user }) => {
+      try {
+        const { user } = await api.fetchMe();
+        if (cancelled) return;
         setUser(user);
         api.recordActivity();
         setStatus("loggedIn");
-      })
-      .catch((e) => {
+      } catch (e) {
         // Only drop the session on an actual auth failure. A network blip or a
         // momentarily-unreachable backend shouldn't force the user to log back in.
         if (e instanceof ApiError && e.status === 401) {
-          void api.clearToken();
+          await clearTokenSafely();
         }
+        if (cancelled) return;
         setStatus("loggedOut");
-      });
-  }, []);
+      }
+    };
+
+    void restoreSession();
+    return () => { cancelled = true; };
+  }, [clearTokenSafely]);
 
   const reloadShifts = useCallback(async (u: User, anchor: Date) => {
     setShiftsLoading(true);
@@ -304,18 +322,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [hideEarningsNow]);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
     // Best-effort server-side revocation of the current session, fired
     // before the token is cleared below (so it still has a valid
     // Authorization header to send) but never awaited: a network failure,
     // an already-expired token, or the session already being revoked by
     // some other means must never prevent the *local* logout from
-    // completing. The request itself is read synchronously up to its first
-    // await, so the token is still in storage at the moment it builds its
-    // headers even though clearToken() runs on the very next line here.
-    void api.logout().catch(() => {});
-
-    void api.clearToken();
+    // completing. Start it before awaiting secure-storage cleanup so it can
+    // still build its Authorization header from the current token.
+    const serverLogout = api.logout().catch(() => {});
+    await clearTokenSafely();
     api.clearLastActivity();
     setUser(null);
     setShifts([]);
@@ -326,7 +342,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSessionNotice(null);
     setStatus("loggedOut");
     hideEarningsNow();
-  }, [hideEarningsNow]);
+    void serverLogout;
+  }, [clearTokenSafely, hideEarningsNow]);
 
   // Pulled by the Home screen's pull-to-refresh gesture. Re-fetches both the
   // user profile (in case rate/goals changed from another device or the
@@ -342,7 +359,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await reloadShifts(freshUser, today);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
-        logout();
+        await logout();
         setAuthError("Your session expired. Please log in again.");
       }
     }
@@ -358,8 +375,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     let timer: ReturnType<typeof setTimeout>;
     const handleIdle = () => {
-      logout();
-      setAuthError(IDLE_LOGOUT_MESSAGE);
+      void logout().then(() => setAuthError(IDLE_LOGOUT_MESSAGE));
     };
     const resetTimer = () => {
       api.recordActivity();
@@ -400,7 +416,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // error inline instead of routing it through the top-level action-error banner.
   const deleteAccount = useCallback(async (password: string) => {
     await api.deleteAccount(password);
-    void api.clearToken();
+    await clearTokenSafely();
     api.clearRememberedEmail();
     api.clearLastActivity();
     setUser(null);
@@ -410,16 +426,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setShiftsLoaded(false);
     setStatus("loggedOut");
     hideEarningsNow();
-  }, [hideEarningsNow]);
+  }, [clearTokenSafely, hideEarningsNow]);
 
   // Shared handling for authenticated actions (settings/shifts): an expired or invalid
   // token logs the user out with a clear reason instead of failing silently; any other
   // failure (validation, network) surfaces as a dismissible message instead of an
   // unhandled promise rejection.
   const handleActionError = useCallback(
-    (e: unknown, fallback: string) => {
+    async (e: unknown, fallback: string) => {
       if (e instanceof ApiError && e.status === 401) {
-        logout();
+        await logout();
         setAuthError("Your session expired. Please log in again.");
         return;
       }
@@ -444,7 +460,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setUser(user);
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) {
-          logout();
+          await logout();
           setAuthError("Your session expired. Please log in again.");
         }
         throw e;
@@ -472,7 +488,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setSessions(sessions);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
-        logout();
+        await logout();
         setAuthError("Your session expired. Please log in again.");
         return;
       }
@@ -491,7 +507,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     async (sessionId: string) => {
       const { revokedCurrent } = await api.revokeSession(sessionId);
       if (revokedCurrent) {
-        logout();
+        await logout();
         return;
       }
       await loadSessions();
@@ -514,7 +530,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return await run();
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) {
-          logout();
+          await logout();
           setAuthError("Your session expired. Please log in again.");
         }
         throw e;
@@ -559,7 +575,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setShifts((prev) => [...prev, shift]);
         return shift;
       } catch (e) {
-        handleActionError(e, "Couldn't save shift");
+        await handleActionError(e, "Couldn't save shift");
         return undefined;
       }
     },
@@ -573,7 +589,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setShifts((prev) => prev.map((s) => (s.id === id ? shift : s)));
         return shift;
       } catch (e) {
-        handleActionError(e, "Couldn't update shift");
+        await handleActionError(e, "Couldn't update shift");
         return undefined;
       }
     },
@@ -586,7 +602,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         await api.deleteShift(id);
         setShifts((prev) => prev.filter((s) => s.id !== id));
       } catch (e) {
-        handleActionError(e, "Couldn't remove shift");
+        await handleActionError(e, "Couldn't remove shift");
       }
     },
     [handleActionError]
@@ -616,7 +632,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         await setFuelCostOrThrow(date, fuelCost);
       } catch (e) {
-        handleActionError(e, "Couldn't save fuel cost");
+        await handleActionError(e, "Couldn't save fuel cost");
       }
     },
     [setFuelCostOrThrow, handleActionError]
@@ -641,7 +657,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (e instanceof ApiError && e.status === 400) {
           setActionError(e.message);
         } else {
-          handleActionError(e, "Couldn't save other earnings");
+          await handleActionError(e, "Couldn't save other earnings");
         }
         return false;
       }

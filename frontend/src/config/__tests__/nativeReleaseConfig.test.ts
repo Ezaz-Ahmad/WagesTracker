@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { assertSafeNativeReleaseEnvironment, PRODUCTION_API_URL } from "../nativeReleaseConfig";
+import {
+  assertSafeNativeReleaseEnvironment,
+  parseAppBuildTarget,
+  PRODUCTION_API_URL,
+} from "../nativeReleaseConfig";
 
 const safe = { target: "ios", mode: "production", apiUrl: PRODUCTION_API_URL };
 
@@ -27,5 +31,20 @@ describe("native release configuration", () => {
   it("does not constrain ordinary web development", () => {
     expect(() => assertSafeNativeReleaseEnvironment({ target: "web", mode: "development", apiUrl: "http://localhost:4000" }))
       .not.toThrow();
+  });
+
+  it.each(["web", "ios", "android"])("accepts the %s application target", (target) => {
+    expect(parseAppBuildTarget(target)).toBe(target);
+  });
+
+  it("defaults an unset target to web", () => {
+    expect(parseAppBuildTarget(undefined)).toBe("web");
+  });
+
+  it.each(["iso", "iphone", "native", "WEB", " ios "])("rejects the unknown target %s", (target) => {
+    expect(() => parseAppBuildTarget(target)).toThrow(/Invalid VITE_APP_TARGET/);
+    expect(() =>
+      assertSafeNativeReleaseEnvironment({ target, mode: "production", apiUrl: PRODUCTION_API_URL })
+    ).toThrow(/Invalid VITE_APP_TARGET/);
   });
 });

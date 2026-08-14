@@ -134,7 +134,7 @@ describe("session API calls (lib/api.ts)", () => {
     // swallow whatever it does, and clear local storage regardless —
     // proving the local cleanup never depends on the network call succeeding.
     await api.logout().catch(() => {});
-    api.clearToken();
+    await api.clearToken();
 
     expect(api.getToken()).toBeNull();
   });
