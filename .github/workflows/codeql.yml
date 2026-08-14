@@ -66,6 +66,14 @@ jobs:
       - name: Verify Capacitor dependency alignment
         run: npm run verify:capacitor
 
+      - name: Generate and verify branded iOS assets
+        run: |
+          npm run ios:assets -w frontend
+          git diff --exit-code -- frontend/assets ios/App/App/Assets.xcassets
+
+      - name: Validate application privacy manifest
+        run: plutil -lint ios/App/App/PrivacyInfo.xcprivacy
+
       - name: Initialize Swift CodeQL
         uses: github/codeql-action/init@v4
         with:
@@ -88,6 +96,11 @@ jobs:
           ONLY_ACTIVE_ARCH=YES
           COMPILATION_CACHE_ENABLE_CACHING=NO
           SWIFT_ENABLE_COMPILE_CACHE=NO
+
+      - name: Inspect unsigned native artifact
+        run: |
+          plutil -lint ios/DerivedData/Build/Products/Debug-iphonesimulator/App.app/PrivacyInfo.xcprivacy
+          node frontend/scripts/inspect-ios-artifact.mjs ios/DerivedData/Build/Products/Debug-iphonesimulator/App.app
 
       - name: Analyze Swift
         uses: github/codeql-action/analyze@v4

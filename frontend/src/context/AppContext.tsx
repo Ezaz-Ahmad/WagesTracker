@@ -5,6 +5,9 @@ import { addDays, isoDate, startOfWeek } from "../lib/date";
 import { settleViewportBeforeAuth } from "../lib/viewportHeight";
 import type { SessionInfo } from "../lib/api";
 import type { DayExpense, Shift, User, WeekExtra } from "../lib/types";
+import { getConnectivityStatus, subscribeConnectivity } from "../platform/connectivity";
+import { subscribeAppResume } from "../platform/appLifecycle";
+import { AutomaticRefreshGate } from "../platform/automaticRefresh";
 
 export const RETENTION_YEARS = 5;
 export const CURRENCY = "$";
@@ -62,6 +65,8 @@ interface AppContextValue {
   authError: string | null;
   authBusy: boolean;
   actionError: string | null;
+  connected: boolean;
+  retryConnectivity: () => Promise<void>;
   clearActionError: () => void;
   login: (email: string, password: string, remember?: boolean) => Promise<void>;
   signup: (input: api.SignupInput) => Promise<void>;
@@ -127,6 +132,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // back cannot resurrect it (see the regression test).
   const [sessionNotice, setSessionNotice] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [connected, setConnected] = useState(true);
+  const connectedRef = useRef(true);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [dayExpenses, setDayExpenses] = useState<DayExpense[]>([]);
   const [weekExtras, setWeekExtras] = useState<WeekExtra[]>([]);
@@ -364,6 +371,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     }
   }, [user, today, reloadShifts, logout]);
+
+  const automaticRefreshGateRef = useRef(new AutomaticRefreshGate());
+  const refreshOnce = useCallback((): Promise<void> => {
+    return automaticRefreshGateRef.current.trigger(refresh);
+  }, [refresh]);
+  const refreshOnceRef = useRef(refreshOnce);
+  useEffect(() => { refreshOnceRef.current = refreshOnce; }, [refreshOnce]);
+
+  useEffect(() => {
+    let previous = true;
+    return subscribeConnectivity((next) => {
+      connectedRef.current = next.connected;
+      setConnected(next.connected);
+      if (!previous && next.connected) void refreshOnceRef.current();
+      previous = next.connected;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (status !== "loggedIn") return;
+    return subscribeAppResume(() => {
+      // fetchMe inside refresh is the authoritative session revalidation.
+      // Network status only suppresses an obviously futile request; it never
+      // decides whether a session is valid or logs the user out.
+      if (connectedRef.current) void refreshOnceRef.current();
+    });
+  }, [status]);
+
+  const retryConnectivity = useCallback(async () => {
+    try {
+      const next = await getConnectivityStatus();
+      connectedRef.current = next.connected;
+      setConnected(next.connected);
+      if (next.connected) await refreshOnceRef.current();
+    } catch {
+      setActionError("Couldn't check the connection. Please try again.");
+    }
+  }, []);
 
   // Idle auto-logout: resets on any real interaction while logged in, and
   // signs out (with an explanatory message on the login screen) if none
@@ -672,6 +717,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       authError,
       authBusy,
       actionError,
+      connected,
+      retryConnectivity,
       clearActionError: () => setActionError(null),
       login,
       signup,
@@ -714,6 +761,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       authError,
       authBusy,
       actionError,
+      connected,
+      retryConnectivity,
       sessionNotice,
       login,
       signup,

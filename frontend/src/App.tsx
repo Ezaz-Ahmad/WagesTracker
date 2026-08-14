@@ -29,7 +29,7 @@ import type { Screen } from "./lib/types";
 const VIEWPORT_DEBUG = !__NATIVE_CONSUMER_BUILD__ && import.meta.env.VITE_VIEWPORT_DEBUG === "true";
 
 function AuthedApp() {
-  const { today, user, actionError, clearActionError, sessionNotice, dismissSessionNotice, logout, refresh, earningsHidden, revealEarnings, hideEarningsNow } =
+  const { today, user, actionError, clearActionError, sessionNotice, dismissSessionNotice, logout, refresh, connected, retryConnectivity, earningsHidden, revealEarnings, hideEarningsNow } =
     useApp();
   const [screen, setScreen] = useState<Screen>("home");
 
@@ -141,8 +141,16 @@ function AuthedApp() {
             login succeeded, and dressing it in red would read as a failure.
             Shown once and dismissible; nothing re-sets it, so switching tabs
             or re-rendering can't bring it back (AppContext.sessionNotice). */}
-        {(sessionNotice || actionError) && (
+        {(!connected || sessionNotice || actionError) && (
           <div className="app-shell-banner" aria-label="Notifications">
+            {!connected && (
+            <StatusBanner tone="warning">
+              <span className="offline-banner-content">
+                <span><strong>You're offline.</strong> Loaded information remains available, but changes cannot be saved.</span>
+                <button type="button" className="offline-retry-btn" onClick={() => void retryConnectivity()}>Retry</button>
+              </span>
+            </StatusBanner>
+            )}
             {sessionNotice && (
             <StatusBanner tone="info" onDismiss={dismissSessionNotice} dismissLabel="Dismiss this notice">
               {sessionNotice}
