@@ -37,8 +37,9 @@ function decodeSession(raw: string | null): StoredSession | null {
 }
 
 /** Native implementation of the shared authentication-storage contract.
- * iOS stores the single serialized session in Keychain; the same adapter can
- * use Android Keystore later without changing authentication or React code. */
+ * Remembered iOS sessions use Keychain; unchecked sessions remain in memory
+ * only. The same adapter can use Android Keystore later without changing
+ * authentication or React code. */
 export class NativeSecureTokenStorageAdapter implements TokenStorageAdapter {
   private session: StoredSession | null = null;
 
@@ -50,7 +51,8 @@ export class NativeSecureTokenStorageAdapter implements TokenStorageAdapter {
     await this.secureStore.setDefaultKeychainAccess(KeychainAccess.whenUnlockedThisDeviceOnly);
 
     const raw = await this.secureStore.getItem(TOKEN_KEY);
-    this.session = decodeSession(raw);
+    const persisted = decodeSession(raw);
+    this.session = persisted?.remembered ? persisted : null;
     if (raw && !this.session) {
       await this.secureStore.removeItem(TOKEN_KEY);
     }
@@ -62,7 +64,13 @@ export class NativeSecureTokenStorageAdapter implements TokenStorageAdapter {
 
   async setToken(token: string, remember: boolean): Promise<void> {
     const next = { token, remembered: remember };
-    await this.secureStore.setItem(TOKEN_KEY, JSON.stringify(next));
+    if (remember) {
+      await this.secureStore.setItem(TOKEN_KEY, JSON.stringify(next));
+    } else {
+      // Match the web sessionStorage contract: an unchecked session exists
+      // only in memory and cannot survive a native process restart.
+      await this.secureStore.removeItem(TOKEN_KEY);
+    }
     this.session = next;
   }
 

@@ -29,18 +29,34 @@ describe("NativeSecureTokenStorageAdapter", () => {
   });
 
   it("hydrates the synchronous cache from native secure storage", async () => {
-    stored = JSON.stringify({ token: "native-token", remembered: false });
+    stored = JSON.stringify({ token: "native-token", remembered: true });
     const adapter = new NativeSecureTokenStorageAdapter(secureStore);
 
     await adapter.initialize();
 
     expect(adapter.getToken()).toBe("native-token");
-    expect(adapter.isRemembered()).toBe(false);
+    expect(adapter.isRemembered()).toBe(true);
     expect(secureStore.setKeyPrefix).toHaveBeenCalledWith("com.ezazahmad.wagestracker.auth.");
     expect(secureStore.setSynchronize).toHaveBeenCalledWith(false);
     expect(secureStore.setDefaultKeychainAccess).toHaveBeenCalledWith(
       KeychainAccess.whenUnlockedThisDeviceOnly
     );
+  });
+
+  it("keeps an unchecked session in memory only and does not restore it after restart", async () => {
+    const adapter = new NativeSecureTokenStorageAdapter(secureStore);
+    await adapter.initialize();
+
+    await adapter.setToken("session-only-token", false);
+
+    expect(adapter.getToken()).toBe("session-only-token");
+    expect(adapter.isRemembered()).toBe(false);
+    expect(secureStore.setItem).not.toHaveBeenCalled();
+    expect(secureStore.removeItem).toHaveBeenCalledWith("session");
+
+    const restartedAdapter = new NativeSecureTokenStorageAdapter(secureStore);
+    await restartedAdapter.initialize();
+    expect(restartedAdapter.getToken()).toBeNull();
   });
 
   it("persists token and Remember Me state as one atomic value", async () => {

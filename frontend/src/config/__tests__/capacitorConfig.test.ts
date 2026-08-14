@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import config from "../../../capacitor.config";
 
+const frontendPackage = JSON.parse(readFileSync("package.json", "utf8")) as { version: string };
+const packageLock = JSON.parse(readFileSync("../package-lock.json", "utf8")) as {
+  packages: { frontend: { version: string } };
+};
 const xcodeProject = readFileSync("../ios/App/App.xcodeproj/project.pbxproj", "utf8");
 const infoPlist = readFileSync("../ios/App/App/Info.plist", "utf8");
 const swiftPackage = readFileSync("../ios/App/CapApp-SPM/Package.swift", "utf8");
@@ -19,7 +23,11 @@ describe("Capacitor production configuration", () => {
     });
     expect(xcodeProject).toContain("PRODUCT_BUNDLE_IDENTIFIER = com.ezazahmad.wagestracker;");
     expect(xcodeProject).toContain("IPHONEOS_DEPLOYMENT_TARGET = 15.0;");
-    expect(xcodeProject).toContain("MARKETING_VERSION = 1.14.1;");
+    expect(xcodeProject).toContain("MARKETING_VERSION = 1.15.0;");
+    expect(frontendPackage.version).toBe("1.15.0");
+    expect(packageLock.packages.frontend.version).toBe("1.15.0");
+    expect(xcodeProject).toContain("TARGETED_DEVICE_FAMILY = 1;");
+    expect(xcodeProject).not.toContain('TARGETED_DEVICE_FAMILY = "1,2";');
     expect(swiftPackage).toContain('capacitor-swift-pm.git", exact: "8.4.2"');
     expect(swiftPackage).toContain('AparajitaCapacitorSecureStorage", path: "../../../node_modules/');
     expect(swiftResolution.pins).toEqual(

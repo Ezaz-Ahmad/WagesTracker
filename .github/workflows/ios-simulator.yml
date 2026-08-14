@@ -21,8 +21,8 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -59,7 +59,7 @@ jobs:
 
       - name: Upload iOS build log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ios-simulator-build-log
           path: |
@@ -70,7 +70,7 @@ jobs:
 
       - name: Upload unsigned Simulator app
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: WagesTracker-unsigned-simulator
           path: ios/DerivedData/Build/Products/Debug-iphonesimulator/App.app
