@@ -18,6 +18,10 @@ export function DataAccountSettings() {
       <div className="hr" />
       <h3 className="settings-subsection-title">About</h3>
       <AppCredit showVersion />
+      <nav className="settings-policy-links" aria-label="Privacy and support">
+        <a href="/privacy">Privacy Policy</a>
+        <a href="/support">Support</a>
+      </nav>
 
       <div className="hr" />
       <h3 className="settings-subsection-title settings-danger-title">Delete account</h3>

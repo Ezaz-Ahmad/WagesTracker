@@ -56,7 +56,74 @@ A `/api/health` response only ever tells the browser one of two things: it hasn'
 - **Future dates use the device's real calendar, with the server authoritative.** The frontend rejects a date later than the browser's current local `YYYY-MM-DD` immediately. Every shift create/update also sends the current device IANA timezone in `X-Client-Time-Zone`; the backend validates it, converts its own current timestamp into that zone, and rejects any start date later than that local date. Today is accepted, tomorrow is not, and a shift starting today and ending after midnight remains valid. Missing/invalid headers get a friendly validation response rather than a silent UTC or Sydney fallback.
 - **PDF failures show a generic message.** Generation is client-side, so every reachable failure is internal detail; the specific error goes to the console rather than onto the screen. The shift-editing path does the opposite and shows the server's message verbatim, because "that overlaps another shift you've already logged" is something the user can act on.
 
+## Product status and roadmap
+
+Wage Tracker is currently a production web application and installable PWA. Native store distribution is the next planned platform milestone, not a claim about the current release. The mobile strategy deliberately keeps product logic in one tested React/TypeScript codebase and introduces thin platform adapters only where web and native behaviour genuinely differ.
+
+| Capability | Current status | Planned delivery |
+| --- | --- | --- |
+| Responsive web application | Live on Vercel | Continues as the fastest release channel |
+| Installable PWA | Available from supported browsers | Maintained alongside native applications |
+| iPhone application | Planned first | Capacitor package, Codemagic macOS build, TestFlight, then App Store review |
+| Android application | Planned after iOS | Same Capacitor foundation, internal testing, then Google Play |
+| Shared backend | Live on Render with Turso | One versioned HTTPS API for web, iOS, and Android |
+
+### Target multi-platform architecture
+
+```mermaid
+flowchart TD
+    Source["GitHub - single source of truth"] --> CI["Pull request checks<br/>type-check, tests, production build"]
+    CI --> Shared["Shared React + Vite application<br/>UI, calculations, validation, API client"]
+    CI --> API["Express API<br/>Render"]
+
+    Shared --> Web["Web build"]
+    Web --> Vercel["Vercel<br/>Web app + PWA"]
+
+    Shared --> Capacitor["Capacitor native runtime"]
+    Capacitor --> IOS["iOS project"]
+    IOS --> Codemagic["Codemagic<br/>cloud macOS build and signing"]
+    Codemagic --> TestFlight["TestFlight"]
+    TestFlight --> AppStore["Apple App Store<br/>manual release approval"]
+
+    Capacitor --> Android["Android project<br/>planned after iOS"]
+    Android --> Play["Google Play<br/>internal testing, then production"]
+
+    Vercel -->|"HTTPS /api/*"| API
+    IOS -->|"HTTPS /api/*"| API
+    Android -->|"HTTPS /api/*"| API
+    API --> DB[("Turso / libSQL")]
+```
+
+The shared application is not three independent implementations. A change to a screen, calculation, validation rule, or API contract is made once and reaches each client in its next release. Delivery cadence remains platform-specific: Vercel can deploy the web build automatically after a merge, while iOS and Android require signed builds, store testing, and store approval.
+
+Only platform boundaries receive adapters. Planned examples include secure token storage (browser storage on the web, Keychain-backed storage on iOS, and Keystore-backed storage on Android), PDF delivery (browser download versus the native file/share sheet), app lifecycle handling, and platform-specific icons and configuration. This keeps platform code small, auditable, and replaceable without forking core business logic.
+
+### Delivery roadmap
+
+1. **Store-readiness foundation** - publish privacy/support pages, allow native API origins, introduce a platform-neutral token-storage interface, and verify all authentication and account-deletion flows.
+2. **iOS packaging** - add Capacitor and the iOS project, native icons/splash assets, Keychain-backed session storage, connectivity handling, and native PDF sharing.
+3. **iOS delivery** - configure Codemagic signing, distribute internal builds through TestFlight, complete physical-device regression testing, and submit a manually approved release to the App Store.
+4. **Android delivery** - add the Android project from the same Capacitor codebase, use Android Keystore-backed session storage, test through Google Play's internal track, and prepare a production release.
+5. **Operational maturity** - add mobile crash reporting, privacy-preserving release telemetry, dependency and security scanning, documented rollback procedures, and versioned release notes.
+
+### Release engineering model
+
+```mermaid
+flowchart LR
+    Work["Feature branch"] --> PR["Pull request"]
+    PR --> Checks["Automated checks + review"]
+    Checks --> Main["Protected main branch"]
+    Main --> WebRelease["Vercel / Render deployment"]
+    Main --> Beta["Signed TestFlight build"]
+    Beta --> Approval["Manual App Store release"]
+    Main -. "future" .-> AndroidBeta["Google Play internal testing"]
+```
+
+Application changes should enter through a feature branch and pull request, with CI passing before merge. Web/API deployment and beta-build creation may be automated from the protected main branch; public mobile-store releases remain explicit, versioned decisions. Every TestFlight or App Store upload receives a unique build number, and release tags identify the source commit used to produce it.
+
 ## Architecture
+
+### Current production architecture
 
 Three hosted pieces, talking over plain HTTPS — no shared filesystem, no server-to-server trust beyond a bearer token:
 
@@ -89,6 +156,23 @@ The wake-up screen (`frontend/src/components/WakingUpScreen.tsx`) is what `App.t
 **Backend structure:** route groups (`routes/auth.ts`, `routes/me.ts`, `routes/shifts.ts`, `routes/dayExpenses.ts`, `routes/admin.ts`) sit behind Express, all async and going through `@libsql/client`. `day_expenses` holds one optional row per calendar day for fuel cost / other earnings — flat amounts added on top of hours × rate, not tied to any individual shift. `db.ts` is the only place that knows whether it's talking to a local SQLite file (dev) or a hosted Turso database (production, when `TURSO_DATABASE_URL` is set) — everything above it is unaware of the difference. Admin routes sit behind a separate `requireAdmin` middleware and token type from regular user auth, not layered on top of it — see [Admin panel](#admin-panel).
 
 **Local dev** collapses the diagram above to two processes on one machine: Vite's dev server proxies `/api/*` to the Express server on `:4000`, and the backend falls back to a local SQLite file instead of Turso. See [Local development](#local-development).
+
+### Repository boundaries
+
+```text
+wage-tracker/
+|-- backend/                  Express API, security policy, and database access
+|-- frontend/
+|   |-- src/components/      Shared presentation components
+|   |-- src/screens/         Shared product screens
+|   |-- src/lib/             Calculations, API client, and domain logic
+|   `-- public/              Web and PWA assets
+|-- .github/workflows/       Continuous integration
+|-- render.yaml              Backend deployment definition
+`-- README.md                Architecture, operations, and contributor guidance
+```
+
+The future Capacitor work will add native project directories and platform adapters without moving business rules out of `frontend/src`. Generated native projects will be build targets; the React application and Express API remain the authoritative implementation.
 
 ## Tech stack
 
@@ -148,7 +232,7 @@ To try the admin panel locally, add `ADMIN_PASSWORD=something` to `backend/.env`
 
 ## Testing and CI
 
-The project has **624 automated tests: 196 backend and 428 frontend**. Backend integration/API tests (`backend/test/`) use [Vitest](https://vitest.dev/) and [Supertest](https://github.com/ladjs/supertest) to exercise the real Express app end to end over HTTP; each test file gets its own isolated, throwaway temporary SQLite database (see `backend/test/testApp.ts`) so runs never share or pollute data. Coverage includes authentication/password security, database-backed sessions and device limits, ownership isolation, historical data, fuel/other earnings, overlap and duration rules, and timezone-aware date validation.
+The project has **626 automated tests: 196 backend and 430 frontend**. Backend integration/API tests (`backend/test/`) use [Vitest](https://vitest.dev/) and [Supertest](https://github.com/ladjs/supertest) to exercise the real Express app end to end over HTTP; each test file gets its own isolated, throwaway temporary SQLite database (see `backend/test/testApp.ts`) so runs never share or pollute data. Coverage includes authentication/password security, database-backed sessions and device limits, ownership isolation, historical data, fuel/other earnings, overlap and duration rules, timezone-aware date validation, and public privacy/support pages.
 
 Most frontend tests are pure-logic tests (`frontend/src/lib/__tests__/`) run in a plain Node environment (no DOM) for speed — wage/duration calculations, week aggregation, PDF report data, password-policy validation, the session-management API client (including that the session list is refreshed against the replacement token right after a password change), and friendly device-label parsing (`parseUserAgent.test.ts` — Windows/macOS/Android/iOS across Chrome, Safari, and Firefox, including the iOS in-app-browser tokens like `CriOS`/`FxiOS`/`EdgiOS`, plus empty/unrecognized/oversized user-agent strings).
 

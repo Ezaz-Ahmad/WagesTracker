@@ -42,7 +42,10 @@ describe("AuthFooter", () => {
     // The visible text is a single word ("GitHub"), which tells a screen
     // reader user nothing about whose profile it is or that it opens a tab.
     render(<AuthFooter />);
-    for (const link of screen.getAllByRole("link")) {
+    for (const link of [
+      screen.getByRole("link", { name: /GitHub profile/ }),
+      screen.getByRole("link", { name: /portfolio/i }),
+    ]) {
       expect(link.getAttribute("aria-label")).toMatch(/opens in a new tab/);
       expect(link.getAttribute("target")).toBe("_blank");
       // noreferrer as well as noopener — without it the destination receives

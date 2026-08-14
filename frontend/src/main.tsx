@@ -3,12 +3,15 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import { AdminApp } from "./admin/AdminApp";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { PrivacyPolicyPage } from "./screens/PrivacyPolicyPage";
+import { SupportPage } from "./screens/SupportPage";
 import "./styles/tokens.css";
 import "./styles/app.css";
 import "./styles/animations.css";
 import "./styles/shell.css";
 import "./styles/landing.css";
 import "./styles/settings.css";
+import "./styles/public-pages.css";
 import "./admin/admin.css";
 
 // Last-resort net for a stray rejected promise nothing else catches (every
@@ -25,10 +28,17 @@ window.addEventListener("unhandledrejection", (event) => {
 
 // No router: the admin panel is a fully separate tree, gated by its own login, reached only
 // by knowing the URL. It shares nothing with the regular AppProvider/user session.
-const isAdminRoute = window.location.pathname.replace(/\/+$/, "") === "/admin";
+const path = window.location.pathname.replace(/\/+$/, "") || "/";
+
+function route() {
+  if (path === "/admin") return <AdminApp />;
+  if (path === "/privacy") return <PrivacyPolicyPage />;
+  if (path === "/support") return <SupportPage />;
+  return <App />;
+}
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <ErrorBoundary>{isAdminRoute ? <AdminApp /> : <App />}</ErrorBoundary>
+    <ErrorBoundary>{route()}</ErrorBoundary>
   </StrictMode>
 );
