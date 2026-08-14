@@ -26,7 +26,7 @@ import type { Screen } from "./lib/types";
 // code, and ViewportDebugOverlay is tree-shaken out of the bundle. It is only
 // ever true in the temporary diagnostic build made for on-device testing:
 //   VITE_VIEWPORT_DEBUG=true npm run build -w frontend
-const VIEWPORT_DEBUG = import.meta.env.VITE_VIEWPORT_DEBUG === "true";
+const VIEWPORT_DEBUG = !__NATIVE_CONSUMER_BUILD__ && import.meta.env.VITE_VIEWPORT_DEBUG === "true";
 
 function AuthedApp() {
   const { today, user, actionError, clearActionError, sessionNotice, dismissSessionNotice, logout, refresh, earningsHidden, revealEarnings, hideEarningsNow } =

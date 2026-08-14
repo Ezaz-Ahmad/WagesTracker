@@ -4,6 +4,7 @@ import type { WeekReportData } from "../lib/reportData";
 import { fmt2 } from "../lib/date";
 import { VERSION_SHORT } from "../lib/appVersion";
 import { svgPathToJsPdfOps } from "./svgPathToJsPdf";
+import { webPdfDelivery, type GeneratedPdfFile, type PdfDeliveryAdapter } from "../platform/pdfDelivery";
 
 const ACCENT = "#ec3013";
 const ACCENT_DARK = "#ae1800";
@@ -148,7 +149,7 @@ function drawStatRow(
   });
 }
 
-export async function generateReportPdf(data: WeekReportData): Promise<void> {
+export async function createReportPdf(data: WeekReportData): Promise<GeneratedPdfFile> {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "letter" });
   const pageW = doc.internal.pageSize.getWidth();
@@ -620,5 +621,15 @@ export async function generateReportPdf(data: WeekReportData): Promise<void> {
   // hyphenated the name (dropping capitalisation and every non-ASCII
   // character) and used the prose date range, which sorts alphabetically by
   // month name rather than chronologically.
-  doc.save(weeklyPdfFilename(data.employeeName, data.weekStartISO, data.weekEndISO));
+  return {
+    filename: weeklyPdfFilename(data.employeeName, data.weekStartISO, data.weekEndISO),
+    bytes: doc.output("arraybuffer"),
+  };
+}
+
+export async function generateReportPdf(
+  data: WeekReportData,
+  delivery: PdfDeliveryAdapter = webPdfDelivery
+): Promise<void> {
+  await delivery.deliver(await createReportPdf(data));
 }

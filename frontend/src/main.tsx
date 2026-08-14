@@ -1,10 +1,10 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
-import { AdminApp } from "./admin/AdminApp";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PrivacyPolicyPage } from "./screens/PrivacyPolicyPage";
 import { SupportPage } from "./screens/SupportPage";
+import { initializeTokenStorage } from "./platform/tokenStorage";
 import "./styles/tokens.css";
 import "./styles/app.css";
 import "./styles/animations.css";
@@ -12,7 +12,6 @@ import "./styles/shell.css";
 import "./styles/landing.css";
 import "./styles/settings.css";
 import "./styles/public-pages.css";
-import "./admin/admin.css";
 
 // Last-resort net for a stray rejected promise nothing else catches (every
 // data-changing action already goes through AppContext's try/catch, and
@@ -30,8 +29,16 @@ window.addEventListener("unhandledrejection", (event) => {
 // by knowing the URL. It shares nothing with the regular AppProvider/user session.
 const path = window.location.pathname.replace(/\/+$/, "") || "/";
 
-function route() {
-  if (path === "/admin") return <AdminApp />;
+// Native secure-storage adapters hydrate their in-memory token cache here,
+// before any API request or authentication state is evaluated. The web
+// adapter is a no-op and preserves the existing synchronous startup path.
+await initializeTokenStorage();
+
+async function route() {
+  if (!__NATIVE_CONSUMER_BUILD__ && path === "/admin") {
+    const { AdminApp } = await import("./admin/AdminApp");
+    return <AdminApp />;
+  }
   if (path === "/privacy") return <PrivacyPolicyPage />;
   if (path === "/support") return <SupportPage />;
   return <App />;
@@ -39,6 +46,6 @@ function route() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <ErrorBoundary>{route()}</ErrorBoundary>
+    <ErrorBoundary>{await route()}</ErrorBoundary>
   </StrictMode>
 );

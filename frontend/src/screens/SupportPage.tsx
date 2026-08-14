@@ -2,7 +2,8 @@ import { PublicPageShell } from "../components/PublicPageShell";
 
 const REPOSITORY_URL = "https://github.com/Ezaz-Ahmad/WagesTracker";
 const ISSUE_URL = `${REPOSITORY_URL}/issues/new`;
-const CONTACT_URL = "https://www.ezazahmad.com/";
+const SUPPORT_EMAIL = "ezazahmadshanto@gmail.com";
+const CONTACT_URL = "https://www.ezazahmad.com/#contact";
 
 export function SupportPage() {
   return (
@@ -14,20 +15,22 @@ export function SupportPage() {
       <section className="support-callout" aria-labelledby="support-contact-title">
         <h2 id="support-contact-title">Contact support</h2>
         <p>
-          For the fastest response, submit a support request with the device you use, the app version shown in
-          Settings, what you expected to happen, and what happened instead.
+          For private account, wage, privacy, or security assistance, email{" "}
+          <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a> or use the developer's private contact form.
+          Include the device you use, the app version shown in Settings, what you expected, and what happened.
         </p>
         <div className="support-actions">
-          <a className="btn btn-primary" href={ISSUE_URL} target="_blank" rel="noopener noreferrer">
-            Submit a support request
+          <a className="btn btn-primary" href={CONTACT_URL} target="_blank" rel="noopener noreferrer">
+            Open private contact form
           </a>
-          <a className="btn btn-secondary" href={CONTACT_URL} target="_blank" rel="noopener noreferrer">
-            Contact the developer
+          <a className="btn btn-secondary" href={ISSUE_URL} target="_blank" rel="noopener noreferrer">
+            Report a non-sensitive bug
           </a>
         </div>
         <p className="public-page-fine-print">
-          Support is provided in English. Never include your password, authentication token, or complete financial
-          records in a public request.
+          GitHub issues are public. Never include personal information, account details, wage or shift records,
+          authentication information, privacy requests, security vulnerabilities, passwords, or tokens in a GitHub
+          issue. Support is provided in English.
         </p>
       </section>
 
@@ -65,9 +68,9 @@ export function SupportPage() {
       <section>
         <h2>Security and privacy reports</h2>
         <p>
-          If you believe you found a security or privacy issue, contact the developer before publishing sensitive
-          details. Include a clear description and safe reproduction steps, but do not access another person’s data
-          or include secrets in your report.
+          Do not report security vulnerabilities or privacy matters through GitHub issues. Use the private developer
+          contact options above before publishing any details. Include safe reproduction steps, but do not access
+          another person's data or include credentials, tokens, or other secrets.
         </p>
         <p>For information about data handling, read the <a href="/privacy">Privacy Policy</a>.</p>
       </section>

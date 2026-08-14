@@ -15,6 +15,10 @@ describe("public App Store pages", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Privacy Policy" })).toBeTruthy();
     expect(screen.getByText(/Last updated: 14 August 2026/)).toBeTruthy();
     expect(screen.getByText(/Settings → Data & account → Delete account/)).toBeTruthy();
+    expect(screen.getByText(/Vercel/)).toBeTruthy();
+    expect(screen.getByText(/Render/)).toBeTruthy();
+    expect(screen.getByText(/Turso/)).toBeTruthy();
+    expect(container.textContent).not.toMatch(/encrypted backups/i);
     expect(screen.getByRole("link", { name: "Support page" }).getAttribute("href")).toBe("/support");
     expect(await axe(container, { rules: { "color-contrast": { enabled: false } } })).toHaveNoViolations();
   });
@@ -23,9 +27,12 @@ describe("public App Store pages", () => {
     const { container } = render(<SupportPage />);
 
     expect(screen.getByRole("heading", { level: 1, name: "Wage Tracker Support" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Submit a support request" }).getAttribute("href"))
+    expect(screen.getByRole("link", { name: "ezazahmadshanto@gmail.com" }).getAttribute("href"))
+      .toBe("mailto:ezazahmadshanto@gmail.com");
+    expect(screen.getByRole("link", { name: "Report a non-sensitive bug" }).getAttribute("href"))
       .toBe("https://github.com/Ezaz-Ahmad/WagesTracker/issues/new");
-    expect(screen.getByText(/Never include your password/)).toBeTruthy();
+    expect(screen.getByText(/GitHub issues are public/)).toBeTruthy();
+    expect(screen.getByText(/Never include personal information/)).toBeTruthy();
     expect(screen.getByRole("link", { name: "Privacy Policy" }).getAttribute("href")).toBe("/privacy");
     expect(await axe(container, { rules: { "color-contrast": { enabled: false } } })).toHaveNoViolations();
   });
