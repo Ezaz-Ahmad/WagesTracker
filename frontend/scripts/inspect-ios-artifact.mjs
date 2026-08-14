@@ -27,9 +27,19 @@ const searchable = await Promise.all(publicFiles
   .filter((path) => /\.(?:js|json|html|css)$/.test(path))
   .map((path) => readFile(path, "utf8")));
 const bundle = searchable.join("\n");
-if (!bundle.includes("https://wage-tracker-api.onrender.com")) throw new Error("Production API URL missing from native web bundle");
-for (const forbidden of ["http://localhost:4000", "http://localhost:5173", "VITE_CAPACITOR_SERVER_URL"]) {
-  if (bundle.includes(forbidden)) throw new Error(`Development configuration found in native bundle: ${forbidden}`);
+const bundleOrigins = new Set((bundle.match(/https?:\/\/[^\s"'`\\<>]+/gu) ?? []).flatMap((candidate) => {
+  try { return [new URL(candidate).origin]; }
+  catch { return []; }
+}));
+const productionApiOrigin = new URL("https://wage-tracker-api.onrender.com").origin;
+if (!bundleOrigins.has(productionApiOrigin)) throw new Error("Production API URL missing from native web bundle");
+for (const forbiddenOrigin of ["http://localhost:4000", "http://localhost:5173"]) {
+  if (bundleOrigins.has(new URL(forbiddenOrigin).origin)) {
+    throw new Error(`Development configuration found in native bundle: ${forbiddenOrigin}`);
+  }
+}
+if (bundle.includes("VITE_CAPACITOR_SERVER_URL")) {
+  throw new Error("Development configuration found in native bundle: VITE_CAPACITOR_SERVER_URL");
 }
 
 const pluginsFile = files.find((path) => basename(path) === "capacitor.config.json");
