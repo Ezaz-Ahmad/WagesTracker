@@ -14,6 +14,7 @@
     "ios:copy:web": "npm run ios:build:web && cap copy ios",
     "ios:sync": "npm run ios:build:web && cap sync ios && node scripts/normalize-capacitor-spm-path.mjs",
     "ios:assets": "node scripts/render-brand-sources.mjs && capacitor-assets generate --ios --assetPath assets --iosProject ../ios/App",
+    "ios:assets:verify": "node scripts/verify-ios-assets.mjs",
     "ios:resolve:native": "xcodebuild -project ../ios/App/App.xcodeproj -scheme App -resolvePackageDependencies",
     "ios:build:simulator": "xcodebuild -project ../ios/App/App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator -destination \"generic/platform=iOS Simulator\" -derivedDataPath ../ios/DerivedData CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= build"
   },

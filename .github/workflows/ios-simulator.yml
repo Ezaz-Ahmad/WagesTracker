@@ -39,7 +39,7 @@ jobs:
       - name: Generate and verify branded iOS assets
         run: |
           npm run ios:assets -w frontend
-          git diff --exit-code -- frontend/assets ios/App/App/Assets.xcassets
+          npm run ios:assets:verify -w frontend
 
       - name: Validate application privacy manifest
         run: plutil -lint ios/App/App/PrivacyInfo.xcprivacy
