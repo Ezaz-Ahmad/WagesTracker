@@ -5,6 +5,9 @@ import config from "../../../capacitor.config";
 const xcodeProject = readFileSync("../ios/App/App.xcodeproj/project.pbxproj", "utf8");
 const infoPlist = readFileSync("../ios/App/App/Info.plist", "utf8");
 const swiftPackage = readFileSync("../ios/App/CapApp-SPM/Package.swift", "utf8");
+const swiftResolution = JSON.parse(
+  readFileSync("../ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved", "utf8")
+) as { pins: Array<{ identity: string; state: { version: string } }> };
 
 describe("Capacitor production configuration", () => {
   it("uses the shared Vite output and permanent application identity", () => {
@@ -19,6 +22,12 @@ describe("Capacitor production configuration", () => {
     expect(xcodeProject).toContain("MARKETING_VERSION = 1.14.1;");
     expect(swiftPackage).toContain('capacitor-swift-pm.git", exact: "8.4.2"');
     expect(swiftPackage).toContain('AparajitaCapacitorSecureStorage", path: "../../../node_modules/');
+    expect(swiftResolution.pins).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ identity: "capacitor-swift-pm", state: expect.objectContaining({ version: "8.4.2" }) }),
+        expect.objectContaining({ identity: "keychain-swift", state: expect.objectContaining({ version: "21.0.0" }) }),
+      ])
+    );
   });
 
   it("never embeds a live-reload server or cleartext transport override", () => {
