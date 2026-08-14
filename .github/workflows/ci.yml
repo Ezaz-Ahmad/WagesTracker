@@ -44,6 +44,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Verify Capacitor dependency alignment
+        run: npm run verify:capacitor
       - name: Typecheck
         run: npm run typecheck -w frontend
       - name: Test

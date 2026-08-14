@@ -33,6 +33,9 @@ jobs:
         # record and `npm ci` cannot reproduce the macOS dependency graph.
         run: npm ci
 
+      - name: Verify Capacitor dependency alignment
+        run: npm run verify:capacitor
+
       - name: Show native toolchain
         run: xcodebuild -version
 
@@ -47,6 +50,9 @@ jobs:
         run: |
           set -o pipefail
           npm run ios:sync 2>&1 | tee ios-sync.log
+
+      - name: Verify native bundle contains one Capacitor runtime
+        run: npm run verify:capacitor:bundle
 
       - name: Resolve Swift Package Manager dependencies
         run: npm run ios:resolve:native

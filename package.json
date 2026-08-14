@@ -14,6 +14,8 @@
     "build": "npm run build -w backend && npm run build -w frontend",
     "typecheck": "npm run typecheck -w backend && npm run typecheck -w frontend",
     "test": "npm run test -w backend && npm run test -w frontend",
+    "verify:capacitor": "node frontend/scripts/verify-capacitor-alignment.mjs",
+    "verify:capacitor:bundle": "node frontend/scripts/verify-capacitor-alignment.mjs --bundle frontend/dist --bundle ios/App/App/public",
     "ios:build:web": "npm run ios:build:web -w frontend",
     "ios:copy:web": "npm run ios:copy:web -w frontend",
     "ios:sync": "npm run ios:sync -w frontend",
@@ -24,7 +26,10 @@
     "concurrently": "^9.1.0"
   },
   "overrides": {
-    "jsdom": "^29.1.1"
+    "jsdom": "^29.1.1",
+    "@capacitor/android": "8.4.2",
+    "@capacitor/core": "8.4.2",
+    "@capacitor/ios": "8.4.2"
   },
   "optionalDependencies": {
     "lightningcss-darwin-arm64": "1.33.0"
