@@ -32,6 +32,8 @@ export function AuthFooter() {
     <footer className="auth-footer">
       <p className="auth-footer-name">Built by Ezaz Ahmad</p>
       <p className="auth-footer-links">
+        <a className="auth-footer-link" href="/privacy">Privacy</a>
+        <a className="auth-footer-link" href="/support">Support</a>
         {DEVELOPER_LINKS.map(({ href, label, Icon, description }) => (
           <a
             key={href}
