@@ -58,13 +58,13 @@ A `/api/health` response only ever tells the browser one of two things: it hasn'
 
 ## Product status and roadmap
 
-Wage Tracker is currently a production web application and installable PWA. Native store distribution is the next planned platform milestone, not a claim about the current release. The mobile strategy deliberately keeps product logic in one tested React/TypeScript codebase and introduces thin platform adapters only where web and native behaviour genuinely differ.
+Wage Tracker is a production web application and installable PWA with a committed Capacitor iOS shell. The native shell compiles in cloud CI but is not yet signed, distributed through TestFlight, or available in the App Store. The mobile strategy deliberately keeps product logic in one tested React/TypeScript codebase and introduces thin platform adapters only where web and native behaviour genuinely differ.
 
 | Capability | Current status | Planned delivery |
 | --- | --- | --- |
 | Responsive web application | Live on Vercel | Continues as the fastest release channel |
 | Installable PWA | Available from supported browsers | Maintained alongside native applications |
-| iPhone application | Planned first | Capacitor package, Codemagic macOS build, TestFlight, then App Store review |
+| iPhone application | Capacitor shell and unsigned cloud build available | Signing, device testing, TestFlight, then App Store review |
 | Android application | Planned after iOS | Same Capacitor foundation, internal testing, then Google Play |
 | Shared backend | Live on Render with Turso | One versioned HTTPS API for web, iOS, and Android |
 
@@ -81,8 +81,9 @@ flowchart TD
 
     Shared --> Capacitor["Capacitor native runtime"]
     Capacitor --> IOS["iOS project"]
-    IOS --> Codemagic["Codemagic<br/>cloud macOS build and signing"]
-    Codemagic --> TestFlight["TestFlight"]
+    IOS --> Actions["GitHub Actions<br/>unsigned Simulator build"]
+    Actions --> Signing["Apple signing<br/>future milestone"]
+    Signing --> TestFlight["TestFlight"]
     TestFlight --> AppStore["Apple App Store<br/>manual release approval"]
 
     Capacitor --> Android["Android project<br/>planned after iOS"]
@@ -96,15 +97,16 @@ flowchart TD
 
 The shared application is not three independent implementations. A change to a screen, calculation, validation rule, or API contract is made once and reaches each client in its next release. Delivery cadence remains platform-specific: Vercel can deploy the web build automatically after a merge, while iOS and Android require signed builds, store testing, and store approval.
 
-Only platform boundaries receive adapters. Planned examples include secure token storage (browser storage on the web, Keychain-backed storage on iOS, and Keystore-backed storage on Android), PDF delivery (browser download versus the native file/share sheet), app lifecycle handling, and platform-specific icons and configuration. This keeps platform code small, auditable, and replaceable without forking core business logic.
+Only platform boundaries receive adapters. Authentication currently uses unchanged browser storage on the web and an encrypted, device-only Keychain entry on iOS through the shared token-storage contract; the same native adapter is compatible with Android Keystore when Android is added. PDF creation remains shared and client-side, while delivery is the next native boundary to receive an iOS share-sheet adapter. This keeps platform code small, auditable, and replaceable without forking core business logic.
 
 ### Delivery roadmap
 
-1. **Store-readiness foundation** - publish privacy/support pages, allow native API origins, introduce a platform-neutral token-storage interface, and verify all authentication and account-deletion flows.
-2. **iOS packaging** - add Capacitor and the iOS project, native icons/splash assets, Keychain-backed session storage, connectivity handling, and native PDF sharing.
-3. **iOS delivery** - configure Codemagic signing, distribute internal builds through TestFlight, complete physical-device regression testing, and submit a manually approved release to the App Store.
-4. **Android delivery** - add the Android project from the same Capacitor codebase, use Android Keystore-backed session storage, test through Google Play's internal track, and prepare a production release.
-5. **Operational maturity** - add mobile crash reporting, privacy-preserving release telemetry, dependency and security scanning, documented rollback procedures, and versioned release notes.
+1. **Store-readiness foundation - complete** - publish privacy/support pages, allow native API origins, introduce platform-neutral token/PDF boundaries, and verify authentication and account-deletion flows.
+2. **iOS shell and cloud-build foundation - complete** - add the thin Capacitor/Xcode project, Keychain-backed session storage, reproducible SPM dependencies, and an unsigned Simulator build on GitHub-hosted macOS.
+3. **iOS product integration** - add native PDF sharing, lifecycle/connectivity handling, final icons/splash assets, and the iOS privacy manifest review.
+4. **iOS delivery** - configure Apple signing, distribute internal builds through TestFlight, complete physical-device regression testing, and submit a manually approved release to the App Store.
+5. **Android delivery** - add the Android project from the same Capacitor codebase, use Android Keystore-backed session storage, test through Google Play's internal track, and prepare a production release.
+6. **Operational maturity** - add mobile crash reporting, privacy-preserving release telemetry, dependency and security scanning, documented rollback procedures, and versioned release notes.
 
 ### Release engineering model
 
@@ -167,17 +169,18 @@ wage-tracker/
 |   |-- src/screens/         Shared product screens
 |   |-- src/lib/             Calculations, API client, and domain logic
 |   `-- public/              Web and PWA assets
+|-- ios/                     Thin Capacitor/Xcode container (no business logic)
 |-- .github/workflows/       Continuous integration
 |-- render.yaml              Backend deployment definition
 `-- README.md                Architecture, operations, and contributor guidance
 ```
 
-The native foundation now defines platform-neutral token-storage and PDF-delivery contracts under `frontend/src/platform/`. The web adapters remain active today; future Keychain/Keystore storage and native share-sheet delivery will implement those contracts after Capacitor is introduced. Native project directories will be build targets only: the React application and Express API remain the authoritative implementation.
+The native foundation defines platform-neutral token-storage and PDF-delivery contracts under `frontend/src/platform/`. Web authentication still uses the existing `localStorage`/`sessionStorage` and Remember Me semantics. A native runtime dynamically selects the secure adapter, hydrates its cache before authentication begins, and stores the serialized session in iOS Keychain with synchronization disabled and `whenUnlockedThisDeviceOnly` accessibility. The native `ios/` directory contains only the Xcode container, launch assets, and generated SPM bridge; React and Express remain authoritative. Android will consume the same shared application and adapter contract rather than introducing separate business logic.
 
 ## Tech stack
 
 **Backend** (`backend/`)
-- [Express](https://expressjs.com/) 4 + TypeScript, running on Node ≥20 (`type: module`, ESM throughout)
+- [Express](https://expressjs.com/) 4 + TypeScript, in a Node ≥22 workspace (`type: module`, ESM throughout)
 - [@libsql/client](https://github.com/tursodatabase/libsql-client-ts) — talks to a local SQLite file in dev, or a hosted [Turso](https://turso.tech) (libSQL) database in production, over the same client API
 - Auth: [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) (30-day JWTs, invalidated early on password change via a `tokenVersion` claim). New passwords are hashed with Argon2id ([hash-wasm](https://github.com/Daninet/hash-wasm)); [bcryptjs](https://github.com/dcodeIO/bcrypt.js) is kept solely to verify (never create) hashes from before this migration, upgrading them to Argon2id on next login. Passwords are also subject to a length/blocklist policy — see [Authentication and password security](#authentication-and-password-security)
 - [zod](https://zod.dev/) for request validation
@@ -192,7 +195,7 @@ The native foundation now defines platform-neutral token-storage and PDF-deliver
 - Plain CSS (`styles/tokens.css`, `styles/app.css`, `styles/animations.css`, `styles/shell.css`, `styles/landing.css`, `styles/settings.css`) — no CSS framework, no animation library. The motion system (screen transitions, staggered card entrances, count-up numbers, chart/progress-bar animations, and one consistent button/dialog interaction language — a single shared press-scale and duration used everywhere via `--press-scale`/`--dur-btn`) is hand-rolled CSS plus a small `useCountUp` hook, and respects `prefers-reduced-motion`: a blanket `@media (prefers-reduced-motion: reduce)` rule in `animations.css` collapses every CSS animation/transition duration to near-zero and caps infinite loops (the active-shift pulse, skeleton shimmer, bubble-loader dots) to a single iteration, while `useCountUp` and `useDismissTransition` separately check the same preference in JS (their motion isn't CSS-driven) to jump straight to the end state instead of tweening. `shell.css` turns the same bottom-tab-nav component into a persistent sidebar at tablet/desktop widths via CSS Grid — no separate desktop component, no router. `styles/settings.css` holds the categorized Settings hub's own layout (list/detail on mobile, two-column on desktop at the same `1080px` breakpoint as the sidebar, `scrollbar-gutter: stable` plus `min-width: 0` on the detail pane so switching categories can never shift the layout sideways) and its opacity-only category-change transition
 - While a shift is active, this week's hours/earnings tick upward in real time (`useLiveElapsedHours`) on top of what's already saved, instead of only updating once you sign out
 - API calls go through a small `fetch` wrapper (`lib/api.ts`) that targets `VITE_API_URL` in production or the Vite dev proxy locally, and centralizes auth-error handling (expired/invalid token → auto logout)
-- Authentication depends on a platform-neutral token-storage adapter. The web implementation preserves `localStorage` for Remember Me and `sessionStorage` for session-only login; its async initialization boundary is ready for a future Keychain/Keystore adapter without moving auth logic into platform projects.
+- Authentication depends on a platform-neutral token-storage adapter. The web implementation preserves `localStorage` for Remember Me and `sessionStorage` for session-only login. Native startup dynamically installs the Keychain/Keystore-compatible secure adapter before the first authentication request; logout, deletion, expiry, 401 and revocation paths all await token removal.
 - PDF creation returns platform-neutral bytes plus the existing sanitized filename. The web delivery adapter downloads those bytes in-browser; future native adapters can use the device file/share sheet without changing report calculations or jsPDF layout code.
 - Native production configuration fails closed unless it targets the exact HTTPS production API. It also rejects live-reload server URLs and viewport diagnostics; native consumer builds tree-shake the admin panel and its stylesheet.
 - `src/admin/` — a self-contained admin panel (own login, own API client, own token) reached at `/admin`; see [Admin panel](#admin-panel)
@@ -231,11 +234,27 @@ Useful scripts (run from the root):
 - `npm run typecheck` — type-check both
 - `npm test` — run the full automated test suite (backend + frontend)
 
+Additional native scripts:
+
+- `npm run ios:build:web` - fail-closed iOS-targeted Vite build against the production HTTPS API
+- `npm run ios:copy:web` - build and copy shared web assets into the native container
+- `npm run ios:sync` - build, copy, update Capacitor plugins, and regenerate the SPM bridge
+- `npm run ios:resolve:native` - resolve native Swift packages (macOS/Xcode only)
+- `npm run ios:build:simulator` - compile an unsigned Simulator app with code signing disabled (macOS/Xcode only)
+
 To try the admin panel locally, add `ADMIN_PASSWORD=something` to `backend/.env` and visit `http://localhost:5173/admin`.
+
+### iOS shell and cloud build
+
+The committed `ios/` project is generated from `frontend/capacitor.config.ts` and wraps the same `frontend/dist` output used by the web product. It uses app name `WagesTracker`, bundle identifier `com.ezazahmad.wagestracker`, iOS 15 as the minimum target, Capacitor 8.4.2, Swift Package Manager, and `@aparajita/capacitor-secure-storage` 8.0.0. The identifier must still be registered and confirmed as available in the owner's Apple Developer account before signing; it must not be silently replaced in source.
+
+`ios:build:web` supplies `VITE_APP_TARGET=ios` and the exact production API `https://wage-tracker-api.onrender.com`. The existing release guard rejects missing, HTTP, localhost, development, live-reload, or unknown-target configuration. The generated Capacitor config contains no `server.url`, and the native plist adds neither broad App Transport Security exceptions nor permission usage descriptions. The shell currently requests no protected iOS capability. Its generated icon and splash images are build placeholders and must be replaced and reviewed before distribution.
+
+Developers without a Mac can rely on `.github/workflows/ios-simulator.yml`. On every pull request to `main`, its macOS 26 runner installs the locked npm graph, validates the shared frontend, builds the iOS-targeted assets, synchronizes Capacitor, resolves SPM packages, and compiles an unsigned Simulator `.app` with Xcode 26 and signing disabled. Logs are retained for 14 days and a successful unsigned Simulator artifact for 7 days. This proves compilation only: Apple Developer enrollment, bundle-ID registration, certificates, provisioning, TestFlight, a physical-device pass, store metadata, final assets, privacy review, and App Store review remain future release work.
 
 ## Testing and CI
 
-The project has **658 automated tests: 200 backend and 458 frontend**. Backend integration/API tests (`backend/test/`) use [Vitest](https://vitest.dev/) and [Supertest](https://github.com/ladjs/supertest) to exercise the real Express app end to end over HTTP; each test file gets its own isolated, throwaway temporary SQLite database (see `backend/test/testApp.ts`) so runs never share or pollute data. Coverage includes authentication/password security, database-backed sessions and device limits, ownership isolation, historical data, fuel/other earnings, overlap and duration rules, timezone-aware date validation, exact production CORS policy, platform adapters, native release safeguards, and public privacy/support pages.
+The project has **665 automated tests: 200 backend and 465 frontend**. Backend integration/API tests (`backend/test/`) use [Vitest](https://vitest.dev/) and [Supertest](https://github.com/ladjs/supertest) to exercise the real Express app end to end over HTTP; each test file gets its own isolated, throwaway temporary SQLite database (see `backend/test/testApp.ts`) so runs never share or pollute data. Coverage includes authentication/password security, database-backed sessions and device limits, ownership isolation, historical data, fuel/other earnings, overlap and duration rules, timezone-aware date validation, exact production CORS policy, platform adapters, native release safeguards, and public privacy/support pages.
 
 Most frontend tests are pure-logic tests (`frontend/src/lib/__tests__/`) run in a plain Node environment (no DOM) for speed — wage/duration calculations, week aggregation, PDF report data, password-policy validation, the session-management API client (including that the session list is refreshed against the replacement token right after a password change), and friendly device-label parsing (`parseUserAgent.test.ts` — Windows/macOS/Android/iOS across Chrome, Safari, and Firefox, including the iOS in-app-browser tokens like `CriOS`/`FxiOS`/`EdgiOS`, plus empty/unrecognized/oversized user-agent strings).
 
@@ -280,7 +299,7 @@ The overlay reports `innerHeight`, `clientHeight`, `visualViewport.height/offset
 On-device checklist: install the build to the Home Screen, log out, focus the password field, submit from the keyboard without touching the screen afterwards, and confirm the bottom navigation is already in its final position — before the first swipe, and unchanged after it. Repeat submitting with the on-screen Login button (a different code path: focus has already moved off the field), after a backend cold start, after backgrounding and reopening, and in both orientations.
 
 
-[GitHub Actions](.github/workflows/ci.yml) runs on every push and pull request to `main`: type-checking, the test suite, and a production build, for both the backend and frontend workspaces as separate parallel jobs.
+[GitHub Actions](.github/workflows/ci.yml) runs on every push and pull request to `main`: type-checking, the test suite, and a production build for both workspaces as separate parallel jobs. The separate [iOS Simulator workflow](.github/workflows/ios-simulator.yml) adds the macOS/Xcode native compilation gate without requiring signing credentials.
 
 ## Configuration
 

@@ -9,20 +9,30 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "ios:build:web": "cross-env VITE_APP_TARGET=ios VITE_API_URL=https://wage-tracker-api.onrender.com npm run build",
+    "ios:copy:web": "npm run ios:build:web && cap copy ios",
+    "ios:sync": "npm run ios:build:web && cap sync ios && node scripts/normalize-capacitor-spm-path.mjs",
+    "ios:resolve:native": "xcodebuild -project ../ios/App/App.xcodeproj -scheme App -resolvePackageDependencies",
+    "ios:build:simulator": "xcodebuild -project ../ios/App/App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator -destination \"generic/platform=iOS Simulator\" -derivedDataPath ../ios/DerivedData CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= build"
   },
   "dependencies": {
+    "@aparajita/capacitor-secure-storage": "8.0.0",
+    "@capacitor/core": "8.4.2",
+    "@capacitor/ios": "8.4.2",
     "jspdf": "^4.2.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@capacitor/cli": "8.4.2",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.3",
+    "@types/jest-axe": "^3.5.9",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",
-    "@types/jest-axe": "^3.5.9",
     "@vitejs/plugin-react": "^5.2.0",
+    "cross-env": "10.1.0",
     "jest-axe": "^9.0.0",
     "jsdom": "^29.1.1",
     "typescript": "^5.6.2",

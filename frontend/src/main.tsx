@@ -4,7 +4,8 @@ import App from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PrivacyPolicyPage } from "./screens/PrivacyPolicyPage";
 import { SupportPage } from "./screens/SupportPage";
-import { initializeTokenStorage } from "./platform/tokenStorage";
+import { Capacitor } from "@capacitor/core";
+import { configureTokenStorage, initializeTokenStorage } from "./platform/tokenStorage";
 import "./styles/tokens.css";
 import "./styles/app.css";
 import "./styles/animations.css";
@@ -32,6 +33,10 @@ const path = window.location.pathname.replace(/\/+$/, "") || "/";
 // Native secure-storage adapters hydrate their in-memory token cache here,
 // before any API request or authentication state is evaluated. The web
 // adapter is a no-op and preserves the existing synchronous startup path.
+if (Capacitor.isNativePlatform()) {
+  const { NativeSecureTokenStorageAdapter } = await import("./platform/nativeSecureTokenStorage");
+  configureTokenStorage(new NativeSecureTokenStorageAdapter());
+}
 await initializeTokenStorage();
 
 async function route() {

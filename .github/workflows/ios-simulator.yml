@@ -1,0 +1,70 @@
+name: iOS Simulator Build
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-simulator-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios-simulator:
+    name: Unsigned iOS Simulator
+    runs-on: macos-26
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Show native toolchain
+        run: xcodebuild -version
+
+      - name: Type-check shared frontend
+        run: npm run typecheck -w frontend
+
+      - name: Test shared frontend
+        run: npm run test -w frontend
+
+      - name: Build iOS web assets and sync native dependencies
+        run: npm run ios:sync
+
+      - name: Resolve Swift Package Manager dependencies
+        run: npm run ios:resolve:native
+
+      - name: Build unsigned iOS Simulator app
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run ios:build:simulator 2>&1 | tee ios-build.log
+
+      - name: Upload iOS build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-build-log
+          path: ios-build.log
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload unsigned Simulator app
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: WagesTracker-unsigned-simulator
+          path: ios/DerivedData/Build/Products/Debug-iphonesimulator/App.app
+          if-no-files-found: error
+          retention-days: 7
