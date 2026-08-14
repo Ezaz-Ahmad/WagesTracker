@@ -10,6 +10,14 @@ export interface NativeReleaseEnvironment {
   viewportDebug?: string;
 }
 
+export function parseAppBuildTarget(target?: string): AppBuildTarget {
+  const normalized = target || "web";
+  if (normalized === "web" || normalized === "ios" || normalized === "android") {
+    return normalized;
+  }
+  throw new Error(`Invalid VITE_APP_TARGET "${normalized}". Expected web, ios, or android.`);
+}
+
 export function isNativeConsumerTarget(target?: string): target is "ios" | "android" {
   return target === "ios" || target === "android";
 }
@@ -18,7 +26,8 @@ export function isNativeConsumerTarget(target?: string): target is "ios" | "andr
  * web builds remain flexible; signed native release builds are deliberately
  * pinned to the known HTTPS API and may never embed a live-reload server. */
 export function assertSafeNativeReleaseEnvironment(environment: NativeReleaseEnvironment): void {
-  if (!isNativeConsumerTarget(environment.target) || environment.mode !== "production") return;
+  const target = parseAppBuildTarget(environment.target);
+  if (!isNativeConsumerTarget(target) || environment.mode !== "production") return;
 
   if (!environment.apiUrl) {
     throw new Error("Native production builds require VITE_API_URL.");

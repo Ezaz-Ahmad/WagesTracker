@@ -1,8 +1,14 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { WebPdfDeliveryAdapter, type GeneratedPdfFile, type PdfDeliveryAdapter } from "../pdfDelivery";
+import {
+  PDF_OBJECT_URL_REVOKE_DELAY_MS,
+  WebPdfDeliveryAdapter,
+  type GeneratedPdfFile,
+  type PdfDeliveryAdapter,
+} from "../pdfDelivery";
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -20,6 +26,7 @@ describe("PDF delivery boundary", () => {
   });
 
   it("downloads the generated file through the browser adapter", async () => {
+    vi.useFakeTimers();
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     const createObjectURL = vi.fn(() => "blob:wage-tracker-report");
     const revokeObjectURL = vi.fn();
@@ -32,7 +39,32 @@ describe("PDF delivery boundary", () => {
 
     expect(createObjectURL).toHaveBeenCalledOnce();
     expect(click).toHaveBeenCalledOnce();
-    expect(revokeObjectURL).toHaveBeenCalledWith("blob:wage-tracker-report");
+    expect(revokeObjectURL).not.toHaveBeenCalled();
     expect(document.querySelector("a[download]")).toBeNull();
+
+    await vi.advanceTimersByTimeAsync(PDF_OBJECT_URL_REVOKE_DELAY_MS - 1);
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:wage-tracker-report");
+    vi.useRealTimers();
+  });
+
+  it("releases the object URL immediately when starting the download fails", async () => {
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {
+      throw new Error("Download blocked");
+    });
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", {
+      ...URL,
+      createObjectURL: vi.fn(() => "blob:failed-report"),
+      revokeObjectURL,
+    });
+
+    await expect(new WebPdfDeliveryAdapter().deliver({
+      filename: "User Name-2026-08-10-to-2026-08-16.pdf",
+      bytes: new ArrayBuffer(4),
+    })).rejects.toThrow("Download blocked");
+
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:failed-report");
   });
 });
