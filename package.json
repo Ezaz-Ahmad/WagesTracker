@@ -25,5 +25,8 @@
   },
   "overrides": {
     "jsdom": "^29.1.1"
+  },
+  "optionalDependencies": {
+    "lightningcss-darwin-arm64": "1.33.0"
   }
 }
