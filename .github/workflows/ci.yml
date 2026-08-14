@@ -18,10 +18,10 @@ jobs:
   backend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       # `npm ci` at the repo root installs every workspace (backend +
       # frontend) in one pass, per package-lock.json.
@@ -38,12 +38,14 @@ jobs:
   frontend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
+      - name: Verify Capacitor dependency alignment
+        run: npm run verify:capacitor
       - name: Typecheck
         run: npm run typecheck -w frontend
       - name: Test
