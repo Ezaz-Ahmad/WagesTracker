@@ -192,7 +192,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // session we're about to throw away anyway.
     const lastActivity = api.getLastActivity();
     if (lastActivity !== null && Date.now() - lastActivity >= IDLE_LOGOUT_MS) {
-      api.clearToken();
+      void api.clearToken();
       api.clearLastActivity();
       setStatus("loggedOut");
       setAuthError(IDLE_LOGOUT_MESSAGE);
@@ -210,7 +210,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // Only drop the session on an actual auth failure. A network blip or a
         // momentarily-unreachable backend shouldn't force the user to log back in.
         if (e instanceof ApiError && e.status === 401) {
-          api.clearToken();
+          void api.clearToken();
         }
         setStatus("loggedOut");
       });
@@ -259,7 +259,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const viewportReady = settleViewportBeforeAuth();
     try {
       const { token, user, notice } = await api.login(email, password);
-      api.setToken(token, remember);
+      await api.setToken(token, remember);
       api.recordActivity();
       if (remember) api.setRememberedEmail(email);
       else api.clearRememberedEmail();
@@ -290,7 +290,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const viewportReady = settleViewportBeforeAuth();
     try {
       const { token, user } = await api.signup(input);
-      api.setToken(token, true);
+      await api.setToken(token, true);
       api.recordActivity();
       setUser(user);
       hideEarningsNow();
@@ -315,7 +315,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // headers even though clearToken() runs on the very next line here.
     void api.logout().catch(() => {});
 
-    api.clearToken();
+    void api.clearToken();
     api.clearLastActivity();
     setUser(null);
     setShifts([]);
@@ -400,7 +400,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // error inline instead of routing it through the top-level action-error banner.
   const deleteAccount = useCallback(async (password: string) => {
     await api.deleteAccount(password);
-    api.clearToken();
+    void api.clearToken();
     api.clearRememberedEmail();
     api.clearLastActivity();
     setUser(null);
@@ -461,7 +461,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // session-only one doesn't suddenly start surviving a browser restart.
   const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
     const { token } = await api.changePassword(currentPassword, newPassword);
-    api.setToken(token, api.isRemembered());
+    await api.setToken(token, api.isRemembered());
   }, []);
 
   const loadSessions = useCallback(async () => {

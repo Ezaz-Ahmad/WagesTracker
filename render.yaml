@@ -24,7 +24,7 @@ services:
       - key: TURSO_AUTH_TOKEN
         sync: false # token for the database above, from `turso db tokens create <db-name>`
       - key: ALLOWED_ORIGINS
-        sync: false # set to your deployed frontend URL(s), comma-separated, after the frontend is deployed
+        value: https://wages-tracker-frontend.vercel.app,capacitor://localhost
       - key: ADMIN_PASSWORD
         sync: false # a strong password of your choosing — gates the admin panel at <frontend-url>/admin
     # No `disk:` block needed: the database lives on Turso (see TURSO_DATABASE_URL above), not on this

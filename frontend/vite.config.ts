@@ -1,7 +1,8 @@
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
+import { assertSafeNativeReleaseEnvironment, isNativeConsumerTarget } from "./src/config/nativeReleaseConfig.ts";
 
 const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as {
   version: string;
@@ -23,12 +24,25 @@ function safeGit(cmd: string, fallback: string): string {
 const buildHash = safeGit("git rev-parse --short HEAD", "dev");
 const buildDate = safeGit("git log -1 --format=%cI", new Date().toISOString());
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), "");
+  const target = env.VITE_APP_TARGET || "web";
+  assertSafeNativeReleaseEnvironment({
+    target,
+    mode,
+    apiUrl: env.VITE_API_URL,
+    capacitorServerUrl: env.VITE_CAPACITOR_SERVER_URL,
+    viewportDebug: env.VITE_VIEWPORT_DEBUG,
+  });
+  const nativeConsumerBuild = isNativeConsumerTarget(target);
+
+  return {
   plugins: [react()],
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
     __BUILD_HASH__: JSON.stringify(buildHash),
     __BUILD_DATE__: JSON.stringify(buildDate),
+    __NATIVE_CONSUMER_BUILD__: JSON.stringify(nativeConsumerBuild),
   },
   server: {
     port: 5173,
@@ -39,4 +53,5 @@ export default defineConfig({
       },
     },
   },
+  };
 });

@@ -1,7 +1,6 @@
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { jsPDF } from "jspdf";
 import { buildWeekReportData } from "../../lib/reportData";
 import type { DayExpense, Shift, User } from "../../lib/types";
 
@@ -21,23 +20,6 @@ vi.mock("../../lib/appVersion", () => ({
   VERSION_SHORT: FAKE_VERSION_SHORT,
   VERSION_LABEL: `${FAKE_VERSION_SHORT} · Jan 1, 2030`,
 }));
-
-// jsPDF's own `.save()` triggers a browser download — not available (or
-// wanted) under Node. Every jsPDF instance gets `save` copied onto it at
-// construction time from `jsPDF.API` (it's a per-instance own property, not
-// on the prototype), so the plugin object itself is what needs patching for
-// the override to reach instances created *inside* generateReportPdf.
-let lastBuffer: Buffer | null = null;
-/** The filename `save()` was called with. Captured because the filename is
- * part of the deliverable, not an implementation detail — a unit test of the
- * filename helper proves the helper works, not that the generator calls it. */
-let lastFilename: string | null = null;
-beforeAll(() => {
-  (jsPDF as unknown as { API: Record<string, unknown> }).API.save = function (this: jsPDF, filename?: string) {
-    lastBuffer = Buffer.from(this.output("arraybuffer") as ArrayBuffer);
-    lastFilename = filename ?? null;
-  };
-});
 
 const CURRENCY = "$";
 
@@ -69,10 +51,8 @@ function makeUser(overrides: Partial<User> = {}): User {
  * tests fast and dependency-free while still asserting on what's genuinely
  * in the output file, not just what the code intended to draw. */
 async function renderToBytes(data: Awaited<ReturnType<typeof buildWeekReportData>>): Promise<string> {
-  const { generateReportPdf } = await import("../generateReportPdf");
-  await generateReportPdf(data);
-  if (!lastBuffer) throw new Error("doc.save() was never called");
-  return lastBuffer.toString("latin1");
+  const { createReportPdf } = await import("../generateReportPdf");
+  return Buffer.from((await createReportPdf(data)).bytes).toString("latin1");
 }
 
 function countOccurrences(haystack: string, needle: string): number {
@@ -250,10 +230,8 @@ describe("generateReportPdf", () => {
 // real generator output rather than only on the helper that builds it.
 describe("weekly PDF filename", () => {
   async function filenameFor(data: Awaited<ReturnType<typeof buildWeekReportData>>): Promise<string> {
-    const { generateReportPdf } = await import("../generateReportPdf");
-    await generateReportPdf(data);
-    if (!lastFilename) throw new Error("doc.save() was called without a filename");
-    return lastFilename;
+    const { createReportPdf } = await import("../generateReportPdf");
+    return (await createReportPdf(data)).filename;
   }
 
   const shifts: Shift[] = [

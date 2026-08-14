@@ -1,32 +1,30 @@
 import { getDeviceInstallationId } from "./deviceInstallation";
 import type { DayExpense, Shift, User, WeekExtra, WeekStart } from "./types";
+import {
+  getStoredToken,
+  isStoredTokenRemembered,
+  removeStoredToken,
+  storeToken,
+} from "../platform/tokenStorage";
 
 // In local dev this is left unset and Vite's dev-server proxy forwards "/api" to the backend
 // (see vite.config.ts). In production, set VITE_API_URL to the deployed backend's origin
 // (e.g. https://wage-tracker-api.onrender.com) since the frontend and backend are hosted separately.
 const API_ORIGIN = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
 
-const TOKEN_KEY = "wageTracker.token";
 const CLIENT_TIME_ZONE_HEADER = "X-Client-Time-Zone";
 const TIME_ZONE_FALLBACK_MESSAGE = "We couldn't determine your device time zone. Refresh the app and try again.";
 
 export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY);
+  return getStoredToken();
 }
 /** `remember=true` (the default) persists across browser restarts; `false` keeps
  * the session only until the tab/browser closes — the "Remember me" checkbox. */
-export function setToken(token: string, remember: boolean = true): void {
-  if (remember) {
-    localStorage.setItem(TOKEN_KEY, token);
-    sessionStorage.removeItem(TOKEN_KEY);
-  } else {
-    sessionStorage.setItem(TOKEN_KEY, token);
-    localStorage.removeItem(TOKEN_KEY);
-  }
+export function setToken(token: string, remember: boolean = true): Promise<void> {
+  return storeToken(token, remember);
 }
-export function clearToken(): void {
-  localStorage.removeItem(TOKEN_KEY);
-  sessionStorage.removeItem(TOKEN_KEY);
+export function clearToken(): Promise<void> {
+  return removeStoredToken();
 }
 /** Whether the current session is in "remember me" storage (localStorage,
  * survives a browser restart) rather than session-only storage. Used so a
@@ -34,7 +32,7 @@ export function clearToken(): void {
  * stored the same way the current one was, instead of quietly downgrading a
  * remembered session to a session-only one or vice versa. */
 export function isRemembered(): boolean {
-  return localStorage.getItem(TOKEN_KEY) !== null;
+  return isStoredTokenRemembered();
 }
 
 const LAST_ACTIVITY_KEY = "wageTracker.lastActivity";

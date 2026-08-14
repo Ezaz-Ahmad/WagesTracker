@@ -25,9 +25,9 @@ export function PrivacyPolicyPage() {
         <ul>
           <li><strong>Account information:</strong> your name, email address, and securely hashed password.</li>
           <li><strong>Work profile:</strong> home and work addresses, workplace names, pay rate, week-start preference, and weekly goals.</li>
-          <li><strong>Work records:</strong> shift dates and times, work locations, expenses, additional earnings, and report data.</li>
+          <li><strong>Work records:</strong> shift dates and times, work locations, expenses, additional earnings, and the data used to create reports.</li>
           <li><strong>Security information:</strong> session identifiers, device or browser description, installation identifier, IP address, login and activity times, and session expiry or revocation status.</li>
-          <li><strong>Technical information:</strong> information needed to diagnose errors, protect the service, and maintain reliable operation.</li>
+          <li><strong>Technical request information:</strong> information ordinarily processed when you connect, such as IP address, user-agent, request path, timing, and security or error logs.</li>
         </ul>
         <p>Wage Tracker does not request access to your contacts, photos, precise device location, microphone, or advertising identifier.</p>
       </section>
@@ -45,11 +45,20 @@ export function PrivacyPolicyPage() {
       </section>
 
       <section>
-        <h2>Storage and service providers</h2>
+        <h2>Service providers and data flow</h2>
         <p>
-          Information is transmitted using HTTPS and stored using hosting, database, and infrastructure providers
-          that process it on our behalf. Those providers may operate systems outside Australia. We limit provider
-          access to what is necessary to deliver and protect the service.
+          <strong>Vercel</strong> serves the compiled website and may process ordinary web-request information such as
+          IP address, user-agent, requested URL, and request timing. <strong>Render</strong> hosts the Express API and
+          processes API requests, authentication headers, IP address, user-agent, and operational logs.
+          <strong>Turso</strong> hosts the libSQL database containing account profiles, work records, and session
+          metadata described above. <strong>Google Fonts</strong> may receive ordinary request information when the
+          application loads its externally hosted font files.
+        </p>
+        <p>
+          These providers process information to deliver infrastructure and may operate systems outside Australia.
+          Weekly PDF reports are generated on your device from records returned by the API; Wage Tracker does not
+          upload a separately generated PDF file to its backend. Following a link to GitHub or the developer website
+          is governed by that destination's own privacy practices.
         </p>
         <p>
           Passwords are stored as one-way cryptographic hashes rather than readable passwords. No internet service
@@ -68,8 +77,7 @@ export function PrivacyPolicyPage() {
         <p>
           You can permanently delete your account from <strong>Settings → Data &amp; account → Delete account</strong>.
           This deletes your account, sessions, shifts, expenses, and additional-earning records from the active
-          service. Deletion cannot be undone. Limited copies may remain temporarily in encrypted backups until those
-          backups are rotated.
+          service. Deletion cannot be undone.
         </p>
       </section>
 

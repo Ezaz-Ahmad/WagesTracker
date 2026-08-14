@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { AdminApiError, clearAdminToken, getAdminToken, setAdminToken } from "./adminApi";
 import { AdminLogin } from "./AdminLogin";
 import { AdminDashboard } from "./AdminDashboard";
+import "./admin.css";
 
 export function AdminApp() {
   const [token, setTokenState] = useState<string | null>(() => getAdminToken());

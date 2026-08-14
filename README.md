@@ -172,7 +172,7 @@ wage-tracker/
 `-- README.md                Architecture, operations, and contributor guidance
 ```
 
-The future Capacitor work will add native project directories and platform adapters without moving business rules out of `frontend/src`. Generated native projects will be build targets; the React application and Express API remain the authoritative implementation.
+The native foundation now defines platform-neutral token-storage and PDF-delivery contracts under `frontend/src/platform/`. The web adapters remain active today; future Keychain/Keystore storage and native share-sheet delivery will implement those contracts after Capacitor is introduced. Native project directories will be build targets only: the React application and Express API remain the authoritative implementation.
 
 ## Tech stack
 
@@ -192,6 +192,9 @@ The future Capacitor work will add native project directories and platform adapt
 - Plain CSS (`styles/tokens.css`, `styles/app.css`, `styles/animations.css`, `styles/shell.css`, `styles/landing.css`, `styles/settings.css`) — no CSS framework, no animation library. The motion system (screen transitions, staggered card entrances, count-up numbers, chart/progress-bar animations, and one consistent button/dialog interaction language — a single shared press-scale and duration used everywhere via `--press-scale`/`--dur-btn`) is hand-rolled CSS plus a small `useCountUp` hook, and respects `prefers-reduced-motion`: a blanket `@media (prefers-reduced-motion: reduce)` rule in `animations.css` collapses every CSS animation/transition duration to near-zero and caps infinite loops (the active-shift pulse, skeleton shimmer, bubble-loader dots) to a single iteration, while `useCountUp` and `useDismissTransition` separately check the same preference in JS (their motion isn't CSS-driven) to jump straight to the end state instead of tweening. `shell.css` turns the same bottom-tab-nav component into a persistent sidebar at tablet/desktop widths via CSS Grid — no separate desktop component, no router. `styles/settings.css` holds the categorized Settings hub's own layout (list/detail on mobile, two-column on desktop at the same `1080px` breakpoint as the sidebar, `scrollbar-gutter: stable` plus `min-width: 0` on the detail pane so switching categories can never shift the layout sideways) and its opacity-only category-change transition
 - While a shift is active, this week's hours/earnings tick upward in real time (`useLiveElapsedHours`) on top of what's already saved, instead of only updating once you sign out
 - API calls go through a small `fetch` wrapper (`lib/api.ts`) that targets `VITE_API_URL` in production or the Vite dev proxy locally, and centralizes auth-error handling (expired/invalid token → auto logout)
+- Authentication depends on a platform-neutral token-storage adapter. The web implementation preserves `localStorage` for Remember Me and `sessionStorage` for session-only login; its async initialization boundary is ready for a future Keychain/Keystore adapter without moving auth logic into platform projects.
+- PDF creation returns platform-neutral bytes plus the existing sanitized filename. The web delivery adapter downloads those bytes in-browser; future native adapters can use the device file/share sheet without changing report calculations or jsPDF layout code.
+- Native production configuration fails closed unless it targets the exact HTTPS production API. It also rejects live-reload server URLs and viewport diagnostics; native consumer builds tree-shake the admin panel and its stylesheet.
 - `src/admin/` — a self-contained admin panel (own login, own API client, own token) reached at `/admin`; see [Admin panel](#admin-panel)
 - Every build is stamped with the `package.json` version plus the exact git commit hash and commit date it was built from (`vite.config.ts` computes these at build time; see `lib/appVersion.ts`) — shown in Settings and in the PDF footer, so it's always possible to confirm which build is actually live without digging through deployed JS
 
@@ -232,7 +235,7 @@ To try the admin panel locally, add `ADMIN_PASSWORD=something` to `backend/.env`
 
 ## Testing and CI
 
-The project has **626 automated tests: 196 backend and 430 frontend**. Backend integration/API tests (`backend/test/`) use [Vitest](https://vitest.dev/) and [Supertest](https://github.com/ladjs/supertest) to exercise the real Express app end to end over HTTP; each test file gets its own isolated, throwaway temporary SQLite database (see `backend/test/testApp.ts`) so runs never share or pollute data. Coverage includes authentication/password security, database-backed sessions and device limits, ownership isolation, historical data, fuel/other earnings, overlap and duration rules, timezone-aware date validation, and public privacy/support pages.
+The project has **643 automated tests: 200 backend and 443 frontend**. Backend integration/API tests (`backend/test/`) use [Vitest](https://vitest.dev/) and [Supertest](https://github.com/ladjs/supertest) to exercise the real Express app end to end over HTTP; each test file gets its own isolated, throwaway temporary SQLite database (see `backend/test/testApp.ts`) so runs never share or pollute data. Coverage includes authentication/password security, database-backed sessions and device limits, ownership isolation, historical data, fuel/other earnings, overlap and duration rules, timezone-aware date validation, exact production CORS policy, platform adapters, native release safeguards, and public privacy/support pages.
 
 Most frontend tests are pure-logic tests (`frontend/src/lib/__tests__/`) run in a plain Node environment (no DOM) for speed — wage/duration calculations, week aggregation, PDF report data, password-policy validation, the session-management API client (including that the session list is refreshed against the replacement token right after a password change), and friendly device-label parsing (`parseUserAgent.test.ts` — Windows/macOS/Android/iOS across Chrome, Safari, and Firefox, including the iOS in-app-browser tokens like `CriOS`/`FxiOS`/`EdgiOS`, plus empty/unrecognized/oversized user-agent strings).
 
@@ -291,7 +294,7 @@ On-device checklist: install the build to the Home Screen, log out, focus the pa
 | `DB_PATH` | no | path to a local SQLite file, defaults to `./data/wage-tracker.sqlite`. Only used when `TURSO_DATABASE_URL` is unset — fine for local dev, but most PaaS filesystems are ephemeral, so don't rely on this in production |
 | `TURSO_DATABASE_URL` | **yes, in production** | hosted libSQL/Turso database URL, e.g. `libsql://your-db-your-org.turso.io`. When set, this replaces the local SQLite file so data survives restarts/redeploys. Leave unset locally |
 | `TURSO_AUTH_TOKEN` | **yes, in production** (if `TURSO_DATABASE_URL` is set) | auth token for the database above, from `turso db tokens create <db-name>` |
-| `ALLOWED_ORIGINS` | **yes, in production** | comma-separated list of browser origins allowed to call the API, e.g. `https://your-app.vercel.app` |
+| `ALLOWED_ORIGINS` | **yes, in production** | exact comma-separated allowlist: `https://wages-tracker-frontend.vercel.app,capacitor://localhost`. Wildcards are not used |
 | `ADMIN_PASSWORD` | no, but the admin panel is disabled without it | a single shared secret (unrelated to any user account) gating the admin panel at `<frontend-url>/admin`. See [Admin panel](#admin-panel) |
 | `ARGON2_MEMORY_COST_KIB` | no | Argon2id memory cost in KiB for new password hashes, defaults to `19456` (19 MiB) — the OWASP-recommended minimum. See [Authentication and password security](#authentication-and-password-security) |
 | `ARGON2_TIME_COST` | no | Argon2id iteration count, defaults to `2` |
@@ -302,6 +305,9 @@ On-device checklist: install the build to the Home Screen, log out, focus the pa
 | Variable | Required | Notes |
 | --- | --- | --- |
 | `VITE_API_URL` | **yes, in production** | the deployed backend's origin, e.g. `https://wage-tracker-api.onrender.com`. Leave unset locally — the Vite dev proxy handles it |
+| `VITE_APP_TARGET` | no for web; **yes for native** | `web` (default), `ios`, or `android`. A production native target activates fail-closed release checks |
+| `VITE_CAPACITOR_SERVER_URL` | development only | optional future live-reload URL. Any value fails a native production build and must never ship |
+| `VITE_VIEWPORT_DEBUG` | diagnostics only | `true` includes the temporary viewport overlay in a web diagnostic build. Native production builds reject it |
 
 ## Authentication and password security
 
@@ -367,7 +373,7 @@ Local dev doesn't need any of this — with `TURSO_DATABASE_URL` unset, the back
 
 Two things it's already configured to handle:
 - **Build command** is `npm install --include=dev && npm run build -w backend` — the `--include=dev` is required because Render sets `NODE_ENV=production` before installing, which npm otherwise treats as "skip devDependencies," and `typescript`/`@types/*` (needed to compile) live there. Without this, the build fails with a wall of "cannot find declaration file" errors.
-- **`ALLOWED_ORIGINS`** is left blank in the blueprint (marked `sync: false`) since you won't have a frontend URL yet on first deploy — Render will prompt you for a value when you deploy the blueprint. Put in a harmless placeholder (e.g. `http://localhost:5173`), then come back and set it to the real Vercel URL once the frontend is deployed (Environment tab on the service → edit `ALLOWED_ORIGINS` → save, which triggers an automatic redeploy).
+- **`ALLOWED_ORIGINS`** is pinned in the blueprint to the production Vercel origin and Capacitor's standard iOS origin: `https://wages-tracker-frontend.vercel.app,capacitor://localhost`. The backend reflects only an exact match, never a wildcard, and still exposes `X-New-Token` for password-change session rotation.
 
 Set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` on the service (Environment tab) using the values from the Turso setup above. Render's free plan has no persistent disk, but that no longer matters here — the database lives on Turso, not on this service's local filesystem, so restarts/redeploys/spin-downs don't touch your data.
 
@@ -380,9 +386,9 @@ Once Root Directory is set to `frontend`, `frontend/vercel.json` supplies the bu
 ### Order of operations
 
 1. Create the Turso database and grab its URL + token (see above).
-2. Deploy the backend to Render, with `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` set and `ALLOWED_ORIGINS` set to a placeholder.
+2. Deploy the backend to Render with `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` set; the exact production CORS allowlist is already defined in `render.yaml`.
 3. Deploy the frontend to Vercel, with `VITE_API_URL` set to the Render URL from step 2.
-4. Go back to Render and set `ALLOWED_ORIGINS` to the real Vercel URL from step 3, then save (auto-redeploys).
+4. Verify both the web application and `/api/health`; no wildcard or placeholder CORS value is required.
 
 ### Other hosts (not currently used)
 
@@ -392,7 +398,7 @@ The repo also has `railway.json` (Railway, as a backend alternative to Render) a
 
 - [x] `JWT_SECRET` set to a strong, unique value (not the dev default) — auto-generated by the Render blueprint
 - [x] `NODE_ENV=production` set on the backend
-- [x] `ALLOWED_ORIGINS` set to the real frontend URL
+- [x] `ALLOWED_ORIGINS` restricted to the production web and native iOS origins
 - [x] `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` set on the backend — data lives on Turso, independent of Render's ephemeral filesystem
 - [x] `VITE_API_URL` set on the frontend build to the backend's URL
 - [x] Backend `/api/health` returns `{"ok": true}`
