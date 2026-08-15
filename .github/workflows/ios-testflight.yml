@@ -84,6 +84,9 @@ jobs:
       - name: Verify TestFlight workflow and release metadata
         run: npm run ios:testflight:verify -w frontend
 
+      - name: Test distribution plist entitlement inspection
+        run: npm run ios:distribution:test -w frontend
+
       - name: Verify Capacitor dependency alignment
         run: npm run verify:capacitor
 

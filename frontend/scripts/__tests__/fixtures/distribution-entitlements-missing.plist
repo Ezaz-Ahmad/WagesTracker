@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Entitlements</key>
+  <dict>
+    <key>application-identifier</key>
+    <string>XYN7FY5RB8.com.ezazahmad.wagestracker</string>
+    <key>beta-reports-active</key>
+    <true/>
+  </dict>
+</dict>
+</plist>

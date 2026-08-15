@@ -41,6 +41,9 @@ jobs:
       - name: Verify Capacitor dependency alignment
         run: npm run verify:capacitor
 
+      - name: Test distribution plist entitlement inspection
+        run: npm run ios:distribution:test -w frontend
+
       - name: Generate and verify branded iOS assets
         run: |
           npm run ios:assets -w frontend

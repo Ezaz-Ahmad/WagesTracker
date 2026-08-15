@@ -2,6 +2,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { assertDistributionEntitlements } from "./lib/ios-distribution-entitlements.mjs";
 
 const appPath = process.argv[2];
 if (!appPath) throw new Error("Usage: node inspect-ios-distribution.mjs <path-to-App.app>");
@@ -29,9 +30,8 @@ function plistJson(plist, key) {
   return JSON.parse(command("plutil", ["-extract", key, "json", "-o", "-", plist]));
 }
 
-function optionalPlistRaw(plist, key) {
-  const result = spawnSync("plutil", ["-extract", key, "raw", "-o", "-", plist], { encoding: "utf8" });
-  return result.status === 0 ? result.stdout.trim() : undefined;
+function plistDocumentJson(plist) {
+  return JSON.parse(command("plutil", ["-convert", "json", "-o", "-", plist]));
 }
 
 function assertEqual(actual, wanted, description) {
@@ -68,11 +68,7 @@ try {
 
   assertEqual(plistRaw(profilePlist, "Name"), expected.profileName, "provisioning profile name");
   assertEqual(plistRaw(profilePlist, "TeamIdentifier.0"), expected.teamId, "provisioning profile team");
-  assertEqual(plistRaw(profilePlist, "Entitlements.application-identifier"), `${expected.teamId}.${expected.bundleId}`, "profile application identifier");
-  assertEqual(plistRaw(profilePlist, "Entitlements.com.apple.developer.team-identifier"), expected.teamId, "profile entitlement team");
-  assertEqual(plistRaw(profilePlist, "Entitlements.beta-reports-active"), "true", "TestFlight entitlement");
-  const getTaskAllow = optionalPlistRaw(profilePlist, "Entitlements.get-task-allow");
-  if (getTaskAllow !== undefined) assertEqual(getTaskAllow, "false", "debug entitlement");
+  assertDistributionEntitlements(plistJson(profilePlist, "Entitlements"), expected, "profile");
   for (const forbiddenKey of ["ProvisionedDevices", "ProvisionsAllDevices"]) {
     const result = spawnSync("plutil", ["-extract", forbiddenKey, "raw", "-o", "-", profilePlist], { encoding: "utf8" });
     if (result.status === 0) throw new Error(`App Store profile unexpectedly contains ${forbiddenKey}`);
@@ -81,11 +77,7 @@ try {
   const entitlementResult = spawnSync("codesign", ["-d", "--entitlements", ":-", appPath], { encoding: "utf8" });
   if (entitlementResult.status !== 0) throw new Error(`Unable to inspect signed entitlements: ${entitlementResult.stderr}`);
   await writeFile(entitlementsPlist, entitlementResult.stdout, { mode: 0o600 });
-  assertEqual(plistRaw(entitlementsPlist, "application-identifier"), `${expected.teamId}.${expected.bundleId}`, "signed application identifier");
-  assertEqual(plistRaw(entitlementsPlist, "com.apple.developer.team-identifier"), expected.teamId, "signed entitlement team");
-  assertEqual(plistRaw(entitlementsPlist, "beta-reports-active"), "true", "signed TestFlight entitlement");
-  const signedGetTaskAllow = optionalPlistRaw(entitlementsPlist, "get-task-allow");
-  if (signedGetTaskAllow !== undefined) assertEqual(signedGetTaskAllow, "false", "signed debug entitlement");
+  assertDistributionEntitlements(plistDocumentJson(entitlementsPlist), expected, "signed application");
 
   const expiration = new Date(plistRaw(profilePlist, "ExpirationDate"));
   if (!Number.isFinite(expiration.valueOf()) || expiration <= new Date()) {
