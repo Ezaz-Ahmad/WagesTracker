@@ -63,6 +63,11 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm ci
 
+      - name: Verify libSQL macOS ARM64 dependency alignment
+        run: |
+          npm run verify:libsql
+          npm ls @libsql/darwin-arm64 --all
+
       - name: Verify Capacitor dependency alignment
         run: npm run verify:capacitor
 

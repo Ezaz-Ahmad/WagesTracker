@@ -26,6 +26,8 @@ jobs:
       # `npm ci` at the repo root installs every workspace (backend +
       # frontend) in one pass, per package-lock.json.
       - run: npm ci
+      - name: Verify libSQL platform dependency alignment
+        run: npm run verify:libsql
       - name: Typecheck
         run: npm run typecheck -w backend
       # Talks to a real (temp, throwaway) SQLite file per test file — see

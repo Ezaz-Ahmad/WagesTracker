@@ -14,6 +14,7 @@
     "build": "npm run build -w backend && npm run build -w frontend",
     "typecheck": "npm run typecheck -w backend && npm run typecheck -w frontend",
     "test": "npm run test -w backend && npm run test -w frontend",
+    "verify:libsql": "node frontend/scripts/verify-libsql-platform.mjs",
     "verify:capacitor": "node frontend/scripts/verify-capacitor-alignment.mjs",
     "verify:capacitor:bundle": "node frontend/scripts/verify-capacitor-alignment.mjs --bundle frontend/dist --bundle ios/App/App/public",
     "ios:build:web": "npm run ios:build:web -w frontend",
@@ -35,6 +36,7 @@
     "uuid": "11.1.1"
   },
   "optionalDependencies": {
+    "@libsql/darwin-arm64": "0.5.29",
     "lightningcss-darwin-arm64": "1.33.0"
   }
 }
