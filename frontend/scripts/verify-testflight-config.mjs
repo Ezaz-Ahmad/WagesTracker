@@ -71,6 +71,8 @@ for (const variable of [
 
 for (const requiredStep of [
   /npm ci/u,
+  /npm run verify:libsql/u,
+  /npm ls @libsql\/darwin-arm64 --all/u,
   /npm run ios:testflight:verify -w frontend/u,
   /npm run typecheck\b/u,
   /npm run test\b/u,

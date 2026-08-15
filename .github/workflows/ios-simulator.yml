@@ -28,10 +28,15 @@ jobs:
           cache: npm
 
       - name: Install JavaScript dependencies
-        # The root optional pin keeps Lightning CSS's Darwin binary in a
-        # lockfile generated on Windows; npm otherwise prunes that platform
-        # record and `npm ci` cannot reproduce the macOS dependency graph.
+        # Root optional pins keep Darwin binaries in a lockfile generated on
+        # Windows; npm otherwise prunes those platform records and `npm ci`
+        # cannot reproduce the macOS dependency graph.
         run: npm ci
+
+      - name: Verify libSQL macOS ARM64 dependency alignment
+        run: |
+          npm run verify:libsql
+          npm ls @libsql/darwin-arm64 --all
 
       - name: Verify Capacitor dependency alignment
         run: npm run verify:capacitor
