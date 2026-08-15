@@ -41,6 +41,9 @@ jobs:
       - name: Verify Capacitor dependency alignment
         run: npm run verify:capacitor
 
+      - name: Verify iOS native plugins are registered with the bridge
+        run: npm run verify:ios-plugin-registration
+
       - name: Test distribution plist entitlement inspection
         run: npm run ios:distribution:test -w frontend
 
