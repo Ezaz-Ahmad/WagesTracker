@@ -54,7 +54,7 @@ Do not trigger the signed workflow from this feature branch. Pull-request valida
 
 ## Build numbers
 
-`CFBundleShortVersionString` remains `1.16.0`. Each workflow attempt derives `CFBundleVersion` as `<github.run_number>.<github.run_attempt>`. Run numbers increase for new dispatches; the attempt suffix increases for reruns of the same dispatch. This makes every possible upload identifier unique and monotonically ordered without committing build-number churn to the Xcode project.
+`CFBundleShortVersionString` remains `1.16.0`. Each new workflow dispatch derives `CFBundleVersion` directly from `github.run_number`, which increases across new runs without committing build-number churn to the Xcode project. The workflow accepts only `github.run_attempt == 1`; GitHub reruns keep the original run number and could therefore break reliable ordering after a newer dispatch. If a run fails, fix the cause and start a new **Run workflow** dispatch instead of using **Re-run jobs**.
 
 ## Signing, validation and cleanup
 
@@ -85,8 +85,8 @@ Apple references:
 
 ## Recovery procedure
 
-- **Validation or signing failure:** do not weaken a check. Correct the environment variable, replace the affected environment secret or regenerate the Apple profile/certificate, then rerun the original workflow. The attempt suffix produces a fresh build number.
-- **Apple rejects a duplicate or processed build:** start a new workflow dispatch or rerun the failed attempt; never rewrite the committed marketing version or a Git tag to reuse a build number.
-- **Credential exposure or suspected compromise:** revoke the API key/certificate/profile in Apple portals, create replacements, update the GitHub environment secrets and rerun. Removing a secret from GitHub is not sufficient if the original credential may have escaped.
+- **Validation or signing failure:** do not weaken a check. Correct the environment variable, replace the affected environment secret or regenerate the Apple profile/certificate, then start a new workflow dispatch. Never use **Re-run jobs** for signed delivery.
+- **Apple rejects a duplicate or processed build:** start a new workflow dispatch; never rerun an older attempt, rewrite the committed marketing version or move a Git tag to reuse a build number.
+- **Credential exposure or suspected compromise:** revoke the API key/certificate/profile in Apple portals, create replacements, update the GitHub environment secrets and start a new workflow dispatch. Removing a secret from GitHub is not sufficient if the original credential may have escaped.
 - **Upload accepted but processing fails:** inspect App Store Connect's build processing message. Fix the underlying signing/metadata issue in a reviewed branch; do not submit the failed build to review.
-- **Accidental workflow selection on a non-main ref:** the job is skipped before the environment is entered. Re-run from protected `main`.
+- **Accidental workflow selection on a non-main ref:** the job is skipped before the environment is entered. Start a new workflow dispatch from protected `main`.

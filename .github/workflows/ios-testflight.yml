@@ -47,6 +47,10 @@ jobs:
           [[ "$IOS_APP_VERSION" == "1.16.0" ]]
           [[ "$IOS_PROVISIONING_PROFILE_NAME" == "WagesTracker App Store 1.16.0" ]]
           [[ "$APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]
+          if [[ "$GITHUB_RUN_ATTEMPT" != "1" ]]; then
+            echo "TestFlight delivery reruns are disabled because an older run could produce a lower build number. Start a new workflow dispatch instead." >&2
+            exit 1
+          fi
 
       - name: Verify required environment secrets exist
         shell: bash
@@ -101,12 +105,12 @@ jobs:
       - name: Verify native bundle contains one Capacitor runtime
         run: npm run verify:capacitor:bundle
 
-      - name: Prepare unique TestFlight build number
+      - name: Prepare monotonic TestFlight build number
         shell: bash
         run: |
           set -euo pipefail
-          IOS_BUILD_NUMBER="${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
-          [[ "$IOS_BUILD_NUMBER" =~ ^[1-9][0-9]*\.[1-9][0-9]*$ ]]
+          IOS_BUILD_NUMBER="$GITHUB_RUN_NUMBER"
+          [[ "$IOS_BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]]
           echo "IOS_BUILD_NUMBER=$IOS_BUILD_NUMBER" >> "$GITHUB_ENV"
           echo "Preparing WagesTracker $IOS_APP_VERSION build $IOS_BUILD_NUMBER."
 

@@ -13,7 +13,13 @@ backend/data/
 # Apple signing and distribution material must never enter source control.
 *.p12
 *.mobileprovision
-AuthKey_*.p8
+*.key
+*.pem
+*.cer
+*.certSigningRequest
+*.p8
+*.pfx
+*.provisionprofile
 *.ipa
 *.xcarchive/
 

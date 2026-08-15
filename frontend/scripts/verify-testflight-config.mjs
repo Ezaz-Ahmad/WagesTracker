@@ -97,8 +97,10 @@ for (const requiredStep of [
   requireMatch(workflow, requiredStep, `missing required delivery safeguard: ${requiredStep}`);
 }
 
-requireMatch(workflow, /GITHUB_RUN_NUMBER.*GITHUB_RUN_ATTEMPT/u, "build number must be unique for every workflow attempt");
-requireMatch(workflow, /IOS_BUILD_NUMBER=.*GITHUB_RUN_NUMBER.*GITHUB_RUN_ATTEMPT/u, "build number must be derived monotonically from run number and attempt");
+requireMatch(workflow, /GITHUB_RUN_ATTEMPT" != "1"/u, "signed delivery must reject reruns so build numbers remain monotonic");
+requireMatch(workflow, /Start a new workflow dispatch instead/u, "rerun rejection must explain the safe recovery path");
+requireMatch(workflow, /IOS_BUILD_NUMBER="\$GITHUB_RUN_NUMBER"/u, "build number must use the monotonic GitHub run number");
+requireAbsent(workflow, /IOS_BUILD_NUMBER=.*GITHUB_RUN_ATTEMPT/u, "build number must not include the non-monotonic run attempt");
 requireMatch(workflow, /MARKETING_VERSION="\$IOS_APP_VERSION"/u, "archive must receive the environment marketing version");
 requireMatch(workflow, /CURRENT_PROJECT_VERSION="\$IOS_BUILD_NUMBER"/u, "archive must receive the unique build number");
 requireMatch(workflow, /CODE_SIGN_STYLE=Manual/u, "archive must use explicit manual signing");
@@ -127,11 +129,40 @@ const trackedCredentialFiles = execFileSync("git", [
   "ls-files",
   "*.p12",
   "*.mobileprovision",
-  "AuthKey_*.p8",
+  "*.key",
+  "*.pem",
+  "*.cer",
+  "*.certSigningRequest",
+  "*.p8",
+  "*.pfx",
+  "*.provisionprofile",
   "*.ipa",
+  ":(glob)**/*.xcarchive/**",
 ], { cwd: repositoryRoot, encoding: "utf8" }).trim();
 if (trackedCredentialFiles) {
   throw new Error(`TestFlight configuration invalid: signing or distribution material is tracked: ${trackedCredentialFiles}`);
 }
 
-console.log("Verified manual-main TestFlight trigger, secret boundaries, signing/upload safeguards, release metadata and native production invariants.");
+const trackedFiles = execFileSync("git", ["ls-files", "-z"], {
+  cwd: repositoryRoot,
+  encoding: "utf8",
+}).split("\0").filter(Boolean);
+const privateKeyHeader = new RegExp([
+  "-{5}BEGIN ",
+  "(?:ENCRYPTED |RSA |EC |DSA |OPENSSH )?",
+  "PRIVATE KEY-{5}",
+].join(""), "u");
+const trackedPrivateKeys = [];
+for (const path of trackedFiles) {
+  try {
+    const contents = await source(path);
+    if (privateKeyHeader.test(contents)) trackedPrivateKeys.push(path);
+  } catch (error) {
+    if (error?.code !== "EISDIR") throw error;
+  }
+}
+if (trackedPrivateKeys.length > 0) {
+  throw new Error(`TestFlight configuration invalid: private-key content is tracked in: ${trackedPrivateKeys.join(", ")}`);
+}
+
+console.log("Verified manual-main TestFlight trigger, credential boundaries, monotonic build numbering, signing/upload safeguards, release metadata and native production invariants.");
