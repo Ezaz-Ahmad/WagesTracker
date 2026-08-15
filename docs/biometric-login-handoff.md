@@ -7,7 +7,9 @@ version, does not touch the TestFlight workflow, and does not affect the
 `v1.16.0` release candidate in any way (see the confirmation at the bottom).
 
 This revision addresses two blocking issues found in review of the first
-version of this PR — both are fixed here, with regression coverage for each:
+version of this PR, plus one further hardening fix found in review of the
+second revision — all three are fixed here, with regression coverage for
+each:
 
 1. **The native plugin was never registered with the Capacitor bridge.**
    `BiometricAuthPlugin.swift` conforming to `CAPBridgedPlugin` makes the
@@ -27,6 +29,14 @@ version of this PR — both are fixed here, with regression coverage for each:
    found, signed straight back in without ever attempting biometrics —
    meaning turning Face ID on did nothing observable for anyone who already
    had Remember Me enabled, which is the majority case. Fixed below.
+3. **The biometric-enablement transaction could throw despite its
+   documented contract.** Fix 2's own demotion call
+   (`api.setToken(token, false)`) sits between "the native biometric
+   credential now exists" and "the enable call reports success" — if that
+   storage write failed, the exception propagated straight out of a
+   function documented as never throwing, leaving the just-created
+   credential in place while biometric status could end up reported
+   inconsistently. Fixed below.
 
 ## Fix 1 — registering the plugin with the bridge
 
@@ -172,13 +182,80 @@ registration check: reverting the `api.setToken(token, false)` line in
 isolation makes this exact test fail with `expected { remembered: true }
 to equal { remembered: false }` — restoring the line makes it pass again.
 
+## Fix 3 — hardening the biometric-enablement transaction
+
+**Before:** in `enableBiometricLoginAction`
+(`frontend/src/context/AppContext.tsx`), once
+`adapterEnableBiometricLogin` reported `outcome: "enabled"` (meaning the
+native Keychain credential already exists), the follow-up
+`await api.setToken(token, false)` demotion call from Fix 2 was not
+guarded. If that Keychain write failed — device locked mid-write, storage
+full, a concurrent access conflict — the rejection propagated straight out
+of `enableBiometricLoginAction`, even though the function is documented
+(and relied upon by its only call site, `BiometricLoginSettings.tsx`,
+which does not attach a `.catch()`) as never throwing. That would have
+surfaced as an unhandled promise rejection in production, left the
+just-created biometric credential in Keychain with nothing to show for it
+in the UI, and risked biometric status reading as either "on" (stale) or
+"off" (accurate, but silently dropping the credential) depending on
+whatever happened to run next.
+
+**After:** the demotion call is wrapped in its own `try`/`catch` as part of
+the same transaction:
+
+- **The storage failure is caught**, not allowed to propagate.
+- **The credential is rolled back** — `clearBiometricCredential()` is
+  called, deleting the Keychain credential `adapterEnableBiometricLogin`
+  just wrote (its own `disable()` call is already best-effort/non-throwing
+  by contract; the rollback's own `.catch()` is a second line of defense
+  in case a future adapter doesn't honor that, so a rollback failure can
+  never itself produce an unhandled rejection on top of the original one).
+- **Biometric status does not incorrectly remain enabled** —
+  `clearBiometricCredential()` sets it to `{ enabled: false }` directly, so
+  the UI never reports "on" for a transaction that ultimately failed.
+- **A typed failure result and readable message are returned**:
+  `{ outcome: "failed", reason: "keychain_error", error: "Couldn't finish
+  turning on biometric sign-in. Please try again." }` — matching the same
+  `BiometricEnableResult` shape every other failure path already returns,
+  so `BiometricLoginSettings.tsx` needs no new handling to display it.
+- **No unhandled promise rejection occurs** — the function's documented
+  "never throws" contract now actually holds for this path too.
+- **The user's current authenticated session remains safe and
+  consistent** — nothing in this path touches `status`/`user`/the ordinary
+  in-memory token; only the biometric credential and its status flag are
+  affected. `NativeSecureTokenStorageAdapter.setToken` (see
+  `platform/nativeSecureTokenStorage.ts`) also only updates its in-memory
+  `session` field *after* the awaited Keychain call succeeds, so a failed
+  demotion leaves the storage layer's own state exactly as it was before
+  the failed call too — belt-and-suspenders with the app-level session
+  fields staying untouched.
+
+### Regression test
+
+`frontend/src/context/__tests__/biometricLogin.test.tsx`, new test in the
+`"Remember Me and biometric login"` describe block: `"rolls back the
+credential and reports a typed failure when demoting the session storage
+fails"`. Logs in with Remember Me checked, then forces the *second*
+`api.setToken` call (the demotion call, not login's own persist) to
+reject. The harness component's click handler deliberately has no
+`.catch()` on the `enableBiometricLogin()` promise chain, mirroring the
+real `BiometricLoginSettings.tsx` call site, so an unguarded regression
+would surface as an unhandled rejection failing the test — not just a
+wrong return value.
+
+**Verified working in both directions**: run against the pre-fix code
+(`AppContext.tsx`'s `try`/`catch` temporarily removed via `git stash`),
+the test fails and Vitest additionally reports the exact unhandled
+rejection (`Error: Keychain busy`) the fix exists to prevent. Run against
+the fixed tree, it — and the other 11 tests in the file — pass.
+
 ## Full verification, this revision
 
 | Check | Result |
 |---|---|
 | Backend tests | **200/200 passed**, 20 files |
-| Frontend tests | **533/533 passed**, 59 files (previously 532; +1 for the Remember Me regression test) |
-| — of which, biometric-specific | **50/50 passed** across 5 files (49 from the first revision + the new Remember Me test) |
+| Frontend tests | **534/534 passed**, 59 files (previously 533; +1 for the Fix 3 storage-failure regression test) |
+| — of which, biometric-specific | **12/12 passed** in `biometricLogin.test.tsx` alone (11 from the previous revision + the new storage-failure test), plus the rest of the biometric-adapter/Settings/AuthScreen suites unchanged |
 | Backend typecheck | clean |
 | Frontend typecheck | clean |
 | Backend build | clean |
@@ -186,10 +263,13 @@ to equal { remembered: false }` — restoring the line makes it pass again.
 | `npm audit` | **0 vulnerabilities** |
 | `verify:libsql` | passed |
 | `verify:capacitor` (JS/Swift version alignment) | passed — 8.4.2 on both sides |
-| **`verify:ios-plugin-registration`** (new) | passed — plugin compiled, registered, storyboard wired |
+| `verify:ios-plugin-registration` | passed — plugin compiled, registered, storyboard wired |
 | `verify:capacitor:bundle` (one Capacitor runtime in the shipped bundle) | passed, against a real `ios:build:web && cap copy ios` output |
-| `ios:assets:verify` | passed — 11 files, unchanged |
+| `ios:build:web` + `ios:sync` (Capacitor sync) | passed — web bundle copied to `ios/App/App/public`, `Package.swift` regenerated, 5 plugins resolved |
+| Marketing/app version | unchanged — `MARKETING_VERSION` / `frontend/package.json` / `CFBundleShortVersionString` all still `1.16.0` |
 | `ios:testflight:verify` | passed — manual-trigger-only, off `main`, signing safeguards intact, unmodified by this branch |
+| iOS Simulator build (GitHub Actions, macOS runner) | not runnable in this sandbox — verified after push, see the PR's check-runs |
+| CodeQL | not runnable in this sandbox — verified after push, see the PR's check-runs |
 
 **Still true, and still cannot be done in this sandbox**: this is a Linux
 container with no Xcode/macOS toolchain, so the Swift has not been compiled

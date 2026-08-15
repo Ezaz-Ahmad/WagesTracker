@@ -6,6 +6,7 @@
 // changes between tests is the mocked platform/biometricAuth boundary (the
 // native Swift plugin can't run in this sandbox — see nativeBiometricAuth
 // .test.ts for that translation layer's own coverage) and lib/api.
+import { useState } from "react";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -207,14 +208,22 @@ describe("manual retry icon", () => {
  * own contract (`enableBiometricLogin` demoting the persisted session), not
  * that specific button. */
 function RememberMeHarness() {
-  const { status, login, enableBiometricLogin } = useApp();
+  const { status, biometricStatus, login, enableBiometricLogin } = useApp();
+  const [lastResult, setLastResult] = useState<string>("");
   return (
     <div>
       <div data-testid="status">{status}</div>
+      <div data-testid="biometric-enabled">{String(biometricStatus.enabled)}</div>
+      <div data-testid="last-enable-result">{lastResult}</div>
       <button type="button" onClick={() => void login(USER.email, "correct horse battery staple", true)}>
         log in (remember me)
       </button>
-      <button type="button" onClick={() => void enableBiometricLogin()}>
+      <button
+        type="button"
+        onClick={() =>
+          void enableBiometricLogin().then((result) => setLastResult(JSON.stringify(result)))
+        }
+      >
         enable biometrics
       </button>
     </div>
@@ -286,6 +295,64 @@ describe("Remember Me and biometric login", () => {
     // auth automatically, rather than silently restoring the old session.
     await waitFor(() => expect(authenticate).toHaveBeenCalledOnce());
     await waitFor(() => expect(screen.getByTestId("status").textContent).toBe("loggedOut"));
+  });
+
+  it("rolls back the credential and reports a typed failure when demoting the session storage fails", async () => {
+    // First setToken call is login's own remember-me persist (must succeed
+    // so the test reaches an authenticated state); the second is the
+    // demotion call `enableBiometricLoginAction` makes after the native
+    // credential is created — that's the one this test forces to reject,
+    // simulating a Keychain write failure (device locked, storage full,
+    // simultaneous access, etc.).
+    apiSetToken.mockResolvedValueOnce(undefined);
+    apiSetToken.mockRejectedValueOnce(new Error("Keychain busy"));
+    apiGetToken.mockReturnValue("ordinary-token");
+
+    checkCapabilities.mockResolvedValue(FACE_ID_AVAILABLE);
+    getStatus.mockResolvedValue(NOT_ENABLED);
+    apiLogin.mockResolvedValue({ token: "ordinary-token", user: USER });
+    enableBiometric.mockResolvedValue({ outcome: "enabled", kind: "faceId" });
+
+    const user = userEvent.setup();
+    render(
+      <AppProvider>
+        <RememberMeHarness />
+      </AppProvider>
+    );
+
+    await user.click(screen.getByText("log in (remember me)"));
+    await waitFor(() => expect(screen.getByTestId("status").textContent).toBe("loggedIn"));
+
+    // No .catch() sits between this click and enableBiometricLogin()'s
+    // returned promise (see RememberMeHarness above) — if the storage
+    // failure weren't caught inside AppContext, this would surface here as
+    // an unhandled rejection and fail the test, exactly like the real
+    // BiometricLoginSettings.tsx call site would blow up in production.
+    await user.click(screen.getByText("enable biometrics"));
+
+    // A typed failure result with a readable message comes back instead of
+    // the call throwing.
+    await waitFor(() =>
+      expect(screen.getByTestId("last-enable-result").textContent).toBe(
+        JSON.stringify({
+          outcome: "failed",
+          reason: "keychain_error",
+          error: "Couldn't finish turning on biometric sign-in. Please try again.",
+        })
+      )
+    );
+
+    // The native credential `enableBiometricLogin` just created is rolled
+    // back — it must not survive a transaction that ultimately failed.
+    expect(disableBiometric).toHaveBeenCalled();
+
+    // Biometric status must not read as enabled after a failed transaction.
+    expect(screen.getByTestId("biometric-enabled").textContent).toBe("false");
+
+    // The user's existing authenticated session remains safe and
+    // consistent — a storage failure while demoting must not also log them
+    // out.
+    expect(screen.getByTestId("status").textContent).toBe("loggedIn");
   });
 });
 

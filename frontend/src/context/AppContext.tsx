@@ -973,14 +973,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // "failed" (see platform/biometricAuth.ts), so this branch is
         // unreachable there, and the Settings toggle itself never renders
         // outside Capacitor.isNativePlatform() in the first place.
-        await api.setToken(token, false);
+        //
+        // This is a two-step transaction — the native credential already
+        // exists at this point — so a failure here cannot just propagate:
+        // `enableBiometricLogin`'s documented contract is "never throws",
+        // and leaving the just-created Keychain credential in place while
+        // the ordinary session failed to demote would report biometrics as
+        // "on" while a stale persisted token still sits in Keychain too,
+        // exactly the inconsistent state Fix 2 above exists to prevent.
+        try {
+          await api.setToken(token, false);
+        } catch (storageError) {
+          console.error("Could not demote the persisted session while enabling biometric login", storageError);
+          // Roll back: delete the credential `adapterEnableBiometricLogin`
+          // just wrote. `clearBiometricCredential`'s own `disable()` call is
+          // already best-effort/non-throwing by contract (see
+          // NativeBiometricAuthAdapter.disable and the web adapter's no-op)
+          // — the `.catch` below is a second line of defense in case a
+          // future adapter doesn't honor that, so this rollback can never
+          // itself produce an unhandled rejection on top of the original
+          // failure.
+          await clearBiometricCredential().catch((rollbackError) => {
+            console.error("Could not roll back the biometric credential after a storage failure", rollbackError);
+          });
+          return {
+            outcome: "failed",
+            reason: "keychain_error",
+            error: "Couldn't finish turning on biometric sign-in. Please try again.",
+          };
+        }
         setBiometricStatus(await getBiometricStatus());
       }
       return result;
     } finally {
       setBiometricBusy(false);
     }
-  }, [user]);
+  }, [user, clearBiometricCredential]);
 
   const retryBiometricLoginAction = useCallback(async (): Promise<void> => {
     await attemptBiometricAuthentication();
