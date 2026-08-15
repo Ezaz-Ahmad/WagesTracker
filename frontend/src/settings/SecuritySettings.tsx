@@ -5,6 +5,7 @@ import { validatePassword } from "../lib/passwordPolicy";
 import { StableLabel } from "../components/StableLabel";
 import { StatusBanner } from "../components/StatusBanner";
 import { SessionList } from "./SessionList";
+import { BiometricLoginSettings } from "./BiometricLoginSettings";
 
 export function SecuritySettings() {
   const { changePassword, loadSessions } = useApp();
@@ -51,6 +52,7 @@ export function SecuritySettings() {
   }
 
   return (
+    <>
     <div className="settings-section-card card">
       <h3 className="settings-subsection-title">Change password</h3>
       <div className="section-hint">
@@ -124,5 +126,7 @@ export function SecuritySettings() {
       <h3 className="settings-subsection-title">Active sessions</h3>
       <SessionList />
     </div>
+    <BiometricLoginSettings />
+    </>
   );
 }

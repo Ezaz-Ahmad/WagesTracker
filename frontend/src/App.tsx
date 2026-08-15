@@ -197,7 +197,7 @@ function AuthedApp() {
 }
 
 function Root() {
-  const { status, authBusy } = useApp();
+  const { status, authBusy, biometricBusy } = useApp();
 
   // Covers every path that can stall on a cold backend: the silent
   // session check on load (status === "loading") *and* an explicit
@@ -206,7 +206,16 @@ function Root() {
   // Delayed by 500ms so a normal, already-warm response never flashes this
   // screen — it only escalates once a wait is actually starting to look
   // like a Render cold start rather than ordinary network latency.
-  const isWaiting = status === "loading" || authBusy;
+  //
+  // `biometricBusy` is excluded from `status === "loading"` here on
+  // purpose: the automatic cold-launch Face ID/Touch ID attempt runs inside
+  // that same "loading" window (see AppContext's restoreSession), and this
+  // screen's "Connecting…"/"Waking the server…" copy describes server
+  // cold-starts specifically — showing it while the user is actually
+  // looking at the system Face ID prompt would be actively misleading. The
+  // screen stays blank (the same fallback already used for the initial
+  // grace window below) for that stretch instead.
+  const isWaiting = (status === "loading" && !biometricBusy) || authBusy;
   const showWakingScreen = useDelayedFlag(isWaiting, 500);
 
   if (showWakingScreen) return <WakingUpScreen />;

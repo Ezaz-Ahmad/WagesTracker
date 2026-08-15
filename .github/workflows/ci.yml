@@ -48,6 +48,13 @@ jobs:
       - run: npm ci
       - name: Verify Capacitor dependency alignment
         run: npm run verify:capacitor
+      # Text/JSON checks against project.pbxproj, Main.storyboard and the
+      # Swift sources — catches an app-local native plugin (like
+      # BiometricAuthPlugin) that compiles fine but was never actually
+      # registered with the bridge, without needing a macOS runner or an
+      # Xcode build to find out. See the script's own header comment.
+      - name: Verify iOS native plugins are registered with the bridge
+        run: npm run verify:ios-plugin-registration
       - name: Verify signed-delivery configuration without secrets
         run: npm run ios:testflight:verify -w frontend
       - name: Typecheck

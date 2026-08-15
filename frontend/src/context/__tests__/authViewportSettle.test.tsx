@@ -121,6 +121,13 @@ describe("auth transitions wait for the settled viewport", () => {
         <Harness />
       </AppProvider>
     );
+    // The cold-launch restore effect now checks biometric-login status
+    // (platform/biometricAuth.ts) before falling through to "loggedOut" when
+    // there's no ordinary token — an unavoidable microtask gap even when
+    // biometrics was never enabled. Flush it before asserting the starting
+    // state, the same way every other assertion in this file already runs
+    // inside `act` after the mount effects have settled.
+    await act(async () => {});
     expect(status()).toBe("loggedOut");
 
     await act(async () => {

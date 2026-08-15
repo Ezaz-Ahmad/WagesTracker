@@ -185,6 +185,29 @@ export function fetchMe(): Promise<{ user: User }> {
   return request("/me");
 }
 
+/**
+ * Validates an arbitrary bearer token against the backend without touching
+ * the stored session at all — deliberately bypasses `request()`/`getToken()`.
+ * Used by the biometric-login flow (see AppContext): a token recovered from
+ * the native Keychain must be confirmed still good against the backend
+ * *before* it is trusted as the active session, so it can never become "the"
+ * stored token, even briefly, if it turns out to be expired or revoked.
+ */
+export async function fetchMeWithToken(token: string): Promise<{ user: User }> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_ORIGIN}/api/me`, { headers: { Authorization: `Bearer ${token}` } });
+  } catch {
+    throw new ApiError("Couldn't reach the server. Check your connection and try again.", 0);
+  }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const errorBody = body as { error?: string };
+    throw new ApiError(errorBody.error || `Request failed (${res.status})`, res.status);
+  }
+  return body as { user: User };
+}
+
 export interface MePatch {
   name?: string;
   address?: string;

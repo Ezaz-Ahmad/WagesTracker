@@ -348,3 +348,38 @@ export function DownloadIcon({ size = 16 }: IconProps) {
     </svg>
   );
 }
+
+/** Face ID's own corner-bracket-and-face glyph — used in Settings → Security
+ * and on the login screen whenever the device's detected biometry kind is
+ * "faceId" (see AppContext.biometricCapabilities/biometricStatus). Kept
+ * visually distinct from TouchIdIcon so the two are never confused in a
+ * screenshot or at a glance. */
+export function FaceIdIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <path d="M4 8V6a2 2 0 0 1 2-2h2" />
+      <path d="M18 4h2a2 2 0 0 1 2 2v2" />
+      <path d="M22 16v2a2 2 0 0 1-2 2h-2" />
+      <path d="M6 20H4a2 2 0 0 1-2-2v-2" />
+      <path d="M9 10v1" />
+      <path d="M15 10v1" />
+      <path d="M9 15.5c.8.8 1.9 1.2 3 1.2s2.2-.4 3-1.2" />
+      <path d="M12 9v4h-1" />
+    </svg>
+  );
+}
+
+/** Touch ID's fingerprint glyph — shown instead of FaceIdIcon whenever the
+ * detected biometry kind is "touchId" (older/smaller iPhones without a
+ * TrueDepth camera). */
+export function TouchIdIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <path d="M12 4a8 8 0 0 1 8 8v2" />
+      <path d="M4 14v-2a8 8 0 0 1 4-6.93" />
+      <path d="M12 8a4 4 0 0 1 4 4v3" />
+      <path d="M8 15v-3a4 4 0 0 1 1.5-3.12" />
+      <path d="M12 11v4.5a2.5 2.5 0 0 0 2.5 2.5" />
+    </svg>
+  );
+}
