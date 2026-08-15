@@ -8,6 +8,17 @@ import type { DayExpense, Shift, User, WeekExtra } from "../lib/types";
 import { getConnectivityStatus, subscribeConnectivity } from "../platform/connectivity";
 import { subscribeAppResume } from "../platform/appLifecycle";
 import { AutomaticRefreshGate } from "../platform/automaticRefresh";
+import {
+  checkBiometricCapabilities,
+  getBiometricStatus,
+  enableBiometricLogin as adapterEnableBiometricLogin,
+  authenticateWithBiometrics,
+  disableBiometricLogin as adapterDisableBiometricLogin,
+  type BiometricCapabilities,
+  type BiometricEnableResult,
+  type BiometricFailureReason,
+  type BiometricStatus,
+} from "../platform/biometricAuth";
 
 export const RETENTION_YEARS = 5;
 export const CURRENCY = "$";
@@ -57,6 +68,33 @@ const EARNINGS_REVEAL_MS = 20 * 60 * 1000;
 // of those pays any delay for it. Both login and signup use it: they are the
 // same transition and hit the same bug.
 
+/**
+ * Fallback copy for a failed biometric attempt when the platform adapter
+ * didn't supply its own message (the native adapter normally does — see
+ * `describeLaError` in `ios/App/App/BiometricAuthPlugin.swift` — this only
+ * matters for `unknown_error`/an adapter that omits `error`). Cancellation
+ * and app-backgrounding are handled by the caller before this is ever
+ * reached, since neither should show an error at all.
+ */
+function describeBiometricFailure(reason: BiometricFailureReason): string {
+  switch (reason) {
+    case "authentication_failed":
+      return "Face ID or Touch ID did not recognize you.";
+    case "unavailable":
+      return "Face ID or Touch ID isn't available on this device.";
+    case "not_enrolled":
+      return "Face ID or Touch ID is not set up on this device.";
+    case "lockout":
+      return "Face ID or Touch ID is temporarily locked. Use your device passcode, or sign in with your password.";
+    case "credential_invalidated":
+      return "Your device's biometric enrollment changed. Sign in with your password, then re-enable biometric login in Settings.";
+    case "keychain_error":
+      return "Couldn't read the stored biometric credential.";
+    default:
+      return "Biometric sign-in failed.";
+  }
+}
+
 type Status = "loading" | "loggedOut" | "loggedIn";
 
 interface AppContextValue {
@@ -80,6 +118,36 @@ interface AppContextValue {
   updateSettings: (patch: api.MePatch) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   deleteAccount: (password: string) => Promise<void>;
+
+  /** Device capability (Face ID / Touch ID / none, enrolled or not) — native
+   * iOS only; always `{ kind: "none", enrolled: false, ... }` on web/PWA, so
+   * Settings and the login screen can decide whether to render anything at
+   * all without checking platform directly. See platform/biometricAuth.ts. */
+  biometricCapabilities: BiometricCapabilities;
+  /** Non-prompting "is biometric login currently on for this device" — drives
+   * the Settings toggle state and whether the login-screen icon appears. */
+  biometricStatus: BiometricStatus;
+  /** True while a biometric prompt (enable or authenticate) is in flight —
+   * used to disable the Settings toggle and the login-screen icon so a
+   * second tap can't start a second concurrent prompt. */
+  biometricBusy: boolean;
+  /** Set by a failed/cancelled automatic or manual biometric login attempt;
+   * distinct from `authError` (a failed password login) so retrying with a
+   * password doesn't show a stale biometric message and vice versa. */
+  biometricLoginError: string | null;
+  clearBiometricLoginError: () => void;
+  /** Must only be called while logged in. Prompts Face ID/Touch ID
+   * immediately; only stores a credential if that prompt succeeds. Never
+   * throws — the result tells the caller (SecuritySettings) what happened,
+   * since "the user cancelled" is an expected outcome, not an exception. */
+  enableBiometricLogin: () => Promise<BiometricEnableResult>;
+  /** Clears the stored credential. Safe to call even when nothing is
+   * stored. */
+  disableBiometricLogin: () => Promise<void>;
+  /** Manual retry from the login screen's Face ID/Touch ID icon — the same
+   * underlying attempt as the automatic cold-launch prompt, just user-
+   * triggered instead, so it isn't gated by the "once per launch" guard. */
+  retryBiometricLogin: () => Promise<void>;
 
   sessions: SessionInfo[];
   sessionsLoading: boolean;
@@ -147,6 +215,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [shiftsLoaded, setShiftsLoaded] = useState(false);
   const [today, setToday] = useState(() => new Date());
 
+  const [biometricCapabilities, setBiometricCapabilities] = useState<BiometricCapabilities>({
+    kind: "none",
+    enrolled: false,
+  });
+  const [biometricStatus, setBiometricStatus] = useState<BiometricStatus>({ enabled: false });
+  const [biometricBusy, setBiometricBusy] = useState(false);
+  const [biometricLoginError, setBiometricLoginError] = useState<string | null>(null);
+  // Gates the *automatic* cold-launch prompt to at most once per app load —
+  // a fresh value every time this module/provider is freshly instantiated,
+  // i.e. exactly once per real cold launch. The manual retry action (the
+  // login screen's icon) deliberately does not check this ref: cancelling
+  // the automatic prompt and then tapping the icon must be able to trigger a
+  // second, explicitly-requested one.
+  const autoBiometricAttemptedRef = useRef(false);
+
   // Earnings-privacy toggle: dollar figures across the app render blurred
   // until explicitly revealed, and always start hidden again on a fresh
   // login — see the eye button in the top nav. Starting `true` by default
@@ -190,6 +273,97 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Shared by every session-ending action (logout, password change, account
+  // deletion) and by a failed post-biometric backend validation. Always safe
+  // to call even when nothing is stored — the native adapter's disable() is
+  // itself unconditional (see NativeBiometricAuthAdapter/BiometricAuthPlugin
+  // .disable) — so every caller here can fire it defensively rather than
+  // first checking whether biometrics was ever turned on.
+  const clearBiometricCredential = useCallback(async () => {
+    await adapterDisableBiometricLogin();
+    setBiometricStatus({ enabled: false });
+  }, []);
+
+  // Loads device capability + on/off status once at startup, independent of
+  // auth state — the login screen needs `biometricStatus` while logged out
+  // (to decide whether to show the Face ID/Touch ID icon at all) just as
+  // much as Settings needs it while logged in.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const [capabilities, status] = await Promise.all([checkBiometricCapabilities(), getBiometricStatus()]);
+      if (cancelled) return;
+      setBiometricCapabilities(capabilities);
+      setBiometricStatus(status);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  /**
+   * Shared by the automatic cold-launch prompt below and the login screen's
+   * manual retry icon (`retryBiometricLogin`). Prompts biometrics via the
+   * platform adapter and, only on a genuine success, re-validates the
+   * recovered token against the backend (`fetchMeWithToken`) before ever
+   * treating it as the active session — biometrics supplements backend
+   * session validation here, it never replaces it. Returns whether it
+   * resulted in a signed-in session, so the cold-launch restore effect below
+   * knows not to also fall through to its own "loggedOut" branch.
+   */
+  const attemptBiometricAuthentication = useCallback(async (): Promise<boolean> => {
+    setBiometricBusy(true);
+    setBiometricLoginError(null);
+    try {
+      const result = await authenticateWithBiometrics();
+      if (result.outcome !== "success" || !result.token) {
+        // Cancellation and an interrupted (backgrounded) prompt are ordinary,
+        // expected outcomes — the user simply lands back on the normal
+        // login screen with nothing to explain. Everything else gets a
+        // specific, readable message instead of silently doing nothing.
+        const reason = result.reason;
+        if (reason && reason !== "user_cancelled" && reason !== "app_backgrounded") {
+          setBiometricLoginError(result.error ?? describeBiometricFailure(reason));
+        }
+        if (reason === "credential_invalidated") {
+          // The plugin already deleted its own Keychain entries in this case
+          // (device biometric enrollment changed) — this just brings the JS
+          // side in sync so the login screen's icon disappears instead of
+          // offering a retry that can never succeed.
+          setBiometricStatus({ enabled: false });
+        }
+        return false;
+      }
+
+      try {
+        const { user } = await api.fetchMeWithToken(result.token);
+        // Session-only (remember=false), independent of whatever the
+        // ordinary Remember Me setting is — see the module doc comment
+        // above AppProvider... a biometric-recovered session is its own
+        // persistence path, gated by a fresh Face ID/Touch ID check on the
+        // *next* cold launch rather than by silently surviving one the way
+        // an ordinary Remember Me session does.
+        await api.setToken(result.token, false);
+        api.recordActivity();
+        setUser(user);
+        hideEarningsNow();
+        setStatus("loggedIn");
+        return true;
+      } catch (e) {
+        // The recovered token is expired, revoked, or the account no longer
+        // exists — clear the now-useless stored credential rather than
+        // leaving it to fail the exact same way on every future launch.
+        await clearBiometricCredential();
+        setBiometricLoginError(
+          e instanceof ApiError && e.status === 401
+            ? "Your saved sign-in has expired. Please log in again."
+            : "Couldn't verify your saved sign-in. Please log in again."
+        );
+        return false;
+      }
+    } finally {
+      setBiometricBusy(false);
+    }
+  }, [hideEarningsNow, clearBiometricCredential]);
+
   useEffect(() => {
     const timer = setInterval(() => setToday(new Date()), 60_000);
     return () => clearInterval(timer);
@@ -200,6 +374,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const restoreSession = async () => {
       const token = api.getToken();
       if (!token) {
+        // No ordinary (Remember Me / session-only) token to restore — the
+        // one moment biometric login actually does something. Gated to at
+        // most once per cold launch by the ref, and only even attempted when
+        // a credential is actually stored, so a device that never enabled
+        // biometrics never sees so much as a capability check delay itself
+        // here. See the "once per launch" reasoning on the ref's own comment.
+        if (!autoBiometricAttemptedRef.current) {
+          autoBiometricAttemptedRef.current = true;
+          const status = await getBiometricStatus();
+          if (cancelled) return;
+          if (status.enabled) {
+            const loggedIn = await attemptBiometricAuthentication();
+            if (cancelled || loggedIn) return;
+          }
+        }
         setStatus("loggedOut");
         return;
       }
@@ -239,7 +428,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     void restoreSession();
     return () => { cancelled = true; };
-  }, [clearTokenSafely]);
+  }, [clearTokenSafely, attemptBiometricAuthentication]);
 
   const reloadShifts = useCallback(async (u: User, anchor: Date) => {
     setShiftsLoading(true);
@@ -339,6 +528,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // still build its Authorization header from the current token.
     const serverLogout = api.logout().catch(() => {});
     await clearTokenSafely();
+    // A logged-out account has no session for a biometric credential to
+    // unlock into — leaving it behind would let the next cold launch
+    // silently sign back in via Face ID/Touch ID after an explicit logout,
+    // which defeats the point of logging out. Re-enabling requires
+    // authenticating again first, same as turning it on the first time.
+    await clearBiometricCredential();
     api.clearLastActivity();
     setUser(null);
     setShifts([]);
@@ -350,7 +545,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setStatus("loggedOut");
     hideEarningsNow();
     void serverLogout;
-  }, [clearTokenSafely, hideEarningsNow]);
+  }, [clearTokenSafely, clearBiometricCredential, hideEarningsNow]);
 
   // Pulled by the Home screen's pull-to-refresh gesture. Re-fetches both the
   // user profile (in case rate/goals changed from another device or the
@@ -462,6 +657,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const deleteAccount = useCallback(async (password: string) => {
     await api.deleteAccount(password);
     await clearTokenSafely();
+    // The account itself no longer exists — a leftover biometric credential
+    // would just fail its post-unlock backend validation on the next launch
+    // anyway, but there is no reason to leave a dead credential sitting in
+    // the Keychain (or, worse, silently succeed a stale unlock if this
+    // device is ever handed to someone else who signs up with the same
+    // slot before the OS ever asks about it again).
+    await clearBiometricCredential();
     api.clearRememberedEmail();
     api.clearLastActivity();
     setUser(null);
@@ -471,7 +673,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setShiftsLoaded(false);
     setStatus("loggedOut");
     hideEarningsNow();
-  }, [clearTokenSafely, hideEarningsNow]);
+  }, [clearTokenSafely, clearBiometricCredential, hideEarningsNow]);
 
   // Shared handling for authenticated actions (settings/shifts): an expired or invalid
   // token logs the user out with a clear reason instead of failing silently; any other
@@ -523,7 +725,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
     const { token } = await api.changePassword(currentPassword, newPassword);
     await api.setToken(token, api.isRemembered());
-  }, []);
+    // The backend already revoked every session (including the one a
+    // biometric credential might have been storing a token for) and issued
+    // a fresh one — see routes/me.ts's PATCH /password. Clearing here rather
+    // than silently re-storing the new token means the user consciously
+    // re-enables biometric login after changing their password instead of
+    // it quietly carrying on with a token they never approved for that
+    // purpose.
+    await clearBiometricCredential();
+  }, [clearBiometricCredential]);
 
   const loadSessions = useCallback(async () => {
     setSessionsLoading(true);
@@ -563,6 +773,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const revokeOtherSessions = useCallback(async () => {
     await api.revokeOtherSessions();
     await loadSessions();
+    // Deliberately does NOT touch this device's own biometric credential:
+    // "log out all other devices" never revokes the current session, so
+    // whatever token this device's credential is storing is still good. If
+    // biometrics is enabled on one of the *other* devices being revoked
+    // here, there's no cross-device Keychain to reach into and clear
+    // directly (sync is off — see nativeSecureTokenStorage's
+    // setSynchronize(false) — by design, so a compromised device can't pull
+    // another device's credential either). That device's own next biometric
+    // unlock re-validates against the backend (attemptBiometricAuthentication
+    // above) and clears itself the moment that validation 401s — the same
+    // mechanism that handles a revoked/expired session for any other reason.
   }, [loadSessions]);
 
   // Shared 401 handling for the throwing variants: an expired session still
@@ -710,6 +931,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [weekExtras, handleActionError]
   );
 
+  // Must only be called while logged in (Settings, the only caller, is
+  // itself only reachable while authenticated). Never throws: cancelling or
+  // failing the Face ID/Touch ID prompt is an expected, ordinary outcome —
+  // "keep the setting off" — not an exceptional one, so the result object
+  // is how SecuritySettings finds out what happened, same pattern as
+  // setWeekExtra above returning a boolean rather than throwing on a
+  // validation failure.
+  const enableBiometricLoginAction = useCallback(async (): Promise<BiometricEnableResult> => {
+    const token = api.getToken();
+    if (!user || !token) {
+      return {
+        outcome: "failed",
+        reason: "unavailable",
+        error: "You must be logged in to enable biometric login.",
+      };
+    }
+    setBiometricBusy(true);
+    try {
+      const result = await adapterEnableBiometricLogin(user.id, user.name, token);
+      if (result.outcome === "enabled") {
+        setBiometricStatus(await getBiometricStatus());
+      }
+      return result;
+    } finally {
+      setBiometricBusy(false);
+    }
+  }, [user]);
+
+  const retryBiometricLoginAction = useCallback(async (): Promise<void> => {
+    await attemptBiometricAuthentication();
+  }, [attemptBiometricAuthentication]);
+
+  const clearBiometricLoginError = useCallback(() => setBiometricLoginError(null), []);
+
   const value = useMemo<AppContextValue>(
     () => ({
       status,
@@ -729,6 +984,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       updateSettings,
       changePassword,
       deleteAccount,
+      biometricCapabilities,
+      biometricStatus,
+      biometricBusy,
+      biometricLoginError,
+      clearBiometricLoginError,
+      enableBiometricLogin: enableBiometricLoginAction,
+      disableBiometricLogin: clearBiometricCredential,
+      retryBiometricLogin: retryBiometricLoginAction,
       sessions,
       sessionsLoading,
       sessionsError,
@@ -770,6 +1033,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       updateSettings,
       changePassword,
       deleteAccount,
+      biometricCapabilities,
+      biometricStatus,
+      biometricBusy,
+      biometricLoginError,
+      clearBiometricLoginError,
+      enableBiometricLoginAction,
+      clearBiometricCredential,
+      retryBiometricLoginAction,
       sessions,
       sessionsLoading,
       sessionsError,

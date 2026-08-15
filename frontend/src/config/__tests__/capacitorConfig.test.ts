@@ -42,7 +42,15 @@ describe("Capacitor production configuration", () => {
     expect(config.server).toBeUndefined();
     expect(JSON.stringify(config)).not.toMatch(/localhost|http:|cleartext|allowNavigation/i);
     expect(infoPlist).not.toMatch(/NSAppTransportSecurity|NSAllowsArbitraryLoads/);
-    expect(infoPlist).not.toMatch(/NS[A-Za-z]+UsageDescription/);
+    // NSFaceIDUsageDescription is the one deliberate exception: Face ID
+    // access requires it (see the biometric-login feature), and its exact
+    // copy is pinned below. Any other NS*UsageDescription key showing up
+    // here would mean a permission was added without the same review.
+    const usageDescriptionKeys = [...infoPlist.matchAll(/NS[A-Za-z]+UsageDescription/g)].map((m) => m[0]);
+    expect(usageDescriptionKeys).toEqual(["NSFaceIDUsageDescription"]);
+    expect(infoPlist).toContain(
+      "<key>NSFaceIDUsageDescription</key>\n\t<string>Use Face ID to securely unlock WagesTracker.</string>"
+    );
     expect(swiftPackage).not.toContain("\\");
   });
 });

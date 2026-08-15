@@ -3,7 +3,7 @@ import { CURRENCY, useApp } from "../context/AppContext";
 import { useCountUp } from "../lib/useCountUp";
 import { fmt2 } from "../lib/date";
 import { getRememberedEmail } from "../lib/api";
-import { EntryIcon, LockIcon, ReportIcon, TargetIcon } from "../components/icons";
+import { EntryIcon, FaceIdIcon, LockIcon, ReportIcon, TargetIcon, TouchIdIcon } from "../components/icons";
 import { PasswordInput } from "../components/PasswordInput";
 import { AuthFooter } from "../components/AuthFooter";
 import { BubbleLoader } from "../components/BubbleLoader";
@@ -48,8 +48,25 @@ function LandingPreviewCard() {
   );
 }
 
+function biometryName(kind: "faceId" | "touchId" | "none"): string {
+  if (kind === "faceId") return "Face ID";
+  if (kind === "touchId") return "Touch ID";
+  return "biometric login";
+}
+
 export function AuthScreen() {
-  const { login, signup, authError, authBusy, clearAuthError } = useApp();
+  const {
+    login,
+    signup,
+    authError,
+    authBusy,
+    clearAuthError,
+    biometricStatus,
+    biometricBusy,
+    biometricLoginError,
+    clearBiometricLoginError,
+    retryBiometricLogin,
+  } = useApp();
   const [mode, setMode] = useState<Mode>("login");
 
   const [email, setEmail] = useState(() => getRememberedEmail() ?? "");
@@ -171,6 +188,39 @@ export function AuthScreen() {
                 Create account
               </label>
             </div>
+
+            {/* Only ever visible once biometric login has previously been
+                enabled for this device — biometricStatus.enabled is always
+                false on web/PWA (see platform/biometricAuth.ts's web
+                adapter) and before Settings → Security has ever turned it
+                on, so this renders nothing in either of those cases. The
+                automatic cold-launch prompt (AppContext.
+                attemptBiometricAuthentication) already tries this once on
+                its own; this button exists for when that prompt was
+                cancelled, missed, or never got a chance to run (e.g. the
+                device was still on this screen when it fired). */}
+            {mode === "login" && biometricStatus.enabled && (
+              <div className="auth-biometric-row">
+                <button
+                  type="button"
+                  className="auth-biometric-btn"
+                  onClick={() => void retryBiometricLogin()}
+                  disabled={biometricBusy}
+                  aria-label={`Sign in with ${biometryName(biometricStatus.kind ?? "none")}`}
+                >
+                  {biometricStatus.kind === "touchId" ? <TouchIdIcon size={22} /> : <FaceIdIcon size={22} />}
+                </button>
+                <span className="auth-biometric-caption">
+                  {biometricBusy ? "Confirming…" : `Sign in with ${biometryName(biometricStatus.kind ?? "none")}`}
+                </span>
+              </div>
+            )}
+
+            {biometricLoginError && (
+              <StatusBanner tone="danger" onDismiss={clearBiometricLoginError} dismissLabel="Dismiss this message">
+                {biometricLoginError}
+              </StatusBanner>
+            )}
 
             {/* Was a bare `<div className="form-error">` with no role: a
                 failed login announced nothing at all to a screen reader, so

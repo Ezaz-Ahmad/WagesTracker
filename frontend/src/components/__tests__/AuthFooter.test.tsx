@@ -73,7 +73,18 @@ describe("placement on the auth screen", () => {
       const actual = await importOriginal<typeof import("../../context/AppContext")>();
       return {
         ...actual,
-        useApp: () => ({ login: vi.fn(), signup: vi.fn(), authError: null, authBusy: false, clearAuthError: vi.fn() }),
+        useApp: () => ({
+          login: vi.fn(),
+          signup: vi.fn(),
+          authError: null,
+          authBusy: false,
+          clearAuthError: vi.fn(),
+          biometricStatus: { enabled: false },
+          biometricBusy: false,
+          biometricLoginError: null,
+          clearBiometricLoginError: vi.fn(),
+          retryBiometricLogin: vi.fn(),
+        }),
       };
     });
     const { AuthScreen } = await import("../../screens/AuthScreen");

@@ -132,6 +132,28 @@
 }
 .session-list-hint { margin: 0; max-width: 34ch; }
 
+/* Settings → Security's biometric-login row. The disabled (unsupported/
+   unenrolled) state still meets the 44px touch-target floor even though it
+   isn't interactive — a disabled control that's visually cramped reads as
+   broken rather than "not available right now". */
+.biometric-row {
+  display: flex; align-items: flex-start; gap: var(--space-3);
+  min-height: 44px; padding: var(--space-2) 0;
+}
+.biometric-row.is-disabled { opacity: 0.6; }
+.biometric-row-icon {
+  display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-text) 8%, var(--color-bg));
+  color: color-mix(in srgb, var(--color-text) 80%, transparent);
+}
+.biometric-row-label { font-weight: 600; margin-bottom: 2px; }
+.biometric-toggle-btn {
+  display: flex; align-items: center; justify-content: center; gap: var(--space-2);
+  min-height: 44px;
+}
+
 .settings-savebar { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); margin-top: var(--space-2); }
 .settings-savebar .banner { width: 100%; margin-bottom: 0; }
 
