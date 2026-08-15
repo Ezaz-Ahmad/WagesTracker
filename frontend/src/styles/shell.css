@@ -180,3 +180,32 @@
      is; it does not need a second, contradictory size. */
   .period-bars { height: 200px; }
 }
+.offline-banner-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.offline-retry-btn {
+  flex: none;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.85rem;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-md);
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.offline-retry-btn:focus-visible {
+  outline: 3px solid currentColor;
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  .offline-banner-content { align-items: flex-start; }
+}

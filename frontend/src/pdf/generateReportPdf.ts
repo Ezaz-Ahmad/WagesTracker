@@ -4,7 +4,7 @@ import type { WeekReportData } from "../lib/reportData";
 import { fmt2 } from "../lib/date";
 import { VERSION_SHORT } from "../lib/appVersion";
 import { svgPathToJsPdfOps } from "./svgPathToJsPdf";
-import { webPdfDelivery, type GeneratedPdfFile, type PdfDeliveryAdapter } from "../platform/pdfDelivery";
+import { getPdfDelivery, type GeneratedPdfFile, type PdfDeliveryAdapter } from "../platform/pdfDelivery";
 
 const ACCENT = "#ec3013";
 const ACCENT_DARK = "#ae1800";
@@ -629,7 +629,7 @@ export async function createReportPdf(data: WeekReportData): Promise<GeneratedPd
 
 export async function generateReportPdf(
   data: WeekReportData,
-  delivery: PdfDeliveryAdapter = webPdfDelivery
+  delivery: PdfDeliveryAdapter = getPdfDelivery()
 ): Promise<void> {
   await delivery.deliver(await createReportPdf(data));
 }

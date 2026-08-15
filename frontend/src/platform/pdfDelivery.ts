@@ -38,3 +38,15 @@ export class WebPdfDeliveryAdapter implements PdfDeliveryAdapter {
 }
 
 export const webPdfDelivery = new WebPdfDeliveryAdapter();
+
+let activePdfDelivery: PdfDeliveryAdapter = webPdfDelivery;
+
+/** Native startup swaps only the delivery mechanism. PDF layout, calculations,
+ * bytes and filenames remain shared with the browser build. */
+export function configurePdfDelivery(adapter: PdfDeliveryAdapter): void {
+  activePdfDelivery = adapter;
+}
+
+export function getPdfDelivery(): PdfDeliveryAdapter {
+  return activePdfDelivery;
+}

@@ -6,6 +6,9 @@ import { PrivacyPolicyPage } from "./screens/PrivacyPolicyPage";
 import { SupportPage } from "./screens/SupportPage";
 import { Capacitor } from "@capacitor/core";
 import { configureTokenStorage, initializeTokenStorage } from "./platform/tokenStorage";
+import { configurePdfDelivery } from "./platform/pdfDelivery";
+import { configureConnectivityAdapter } from "./platform/connectivity";
+import { configureAppLifecycleAdapter } from "./platform/appLifecycle";
 import "./styles/tokens.css";
 import "./styles/app.css";
 import "./styles/animations.css";
@@ -33,9 +36,18 @@ const path = window.location.pathname.replace(/\/+$/, "") || "/";
 // Native secure-storage adapters hydrate their in-memory token cache here,
 // before any API request or authentication state is evaluated. The web
 // adapter is a no-op and preserves the existing synchronous startup path.
-if (Capacitor.isNativePlatform()) {
-  const { NativeSecureTokenStorageAdapter } = await import("./platform/nativeSecureTokenStorage");
+if (__NATIVE_CONSUMER_BUILD__ && Capacitor.isNativePlatform()) {
+  const [storage, pdf, connectivity, lifecycle] = await Promise.all([
+    import("./platform/nativeSecureTokenStorage"),
+    import("./platform/nativePdfDelivery"),
+    import("./platform/nativeConnectivity"),
+    import("./platform/nativeAppLifecycle"),
+  ]);
+  const { NativeSecureTokenStorageAdapter } = storage;
   configureTokenStorage(new NativeSecureTokenStorageAdapter());
+  configurePdfDelivery(new pdf.IosPdfDeliveryAdapter());
+  configureConnectivityAdapter(new connectivity.NativeConnectivityAdapter());
+  configureAppLifecycleAdapter(new lifecycle.NativeAppLifecycleAdapter());
 }
 await initializeTokenStorage();
 

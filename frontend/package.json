@@ -1,7 +1,7 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "1.15.0",
+  "version": "1.16.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,18 +13,25 @@
     "ios:build:web": "cross-env VITE_APP_TARGET=ios VITE_API_URL=https://wage-tracker-api.onrender.com npm run build",
     "ios:copy:web": "npm run ios:build:web && cap copy ios",
     "ios:sync": "npm run ios:build:web && cap sync ios && node scripts/normalize-capacitor-spm-path.mjs",
+    "ios:assets": "node scripts/render-brand-sources.mjs && capacitor-assets generate --ios --assetPath assets --iosProject ../ios/App",
+    "ios:assets:verify": "node scripts/verify-ios-assets.mjs",
     "ios:resolve:native": "xcodebuild -project ../ios/App/App.xcodeproj -scheme App -resolvePackageDependencies",
     "ios:build:simulator": "xcodebuild -project ../ios/App/App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator -destination \"generic/platform=iOS Simulator\" -derivedDataPath ../ios/DerivedData CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= build"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "8.0.0",
+    "@capacitor/app": "8.1.1",
     "@capacitor/core": "8.4.2",
+    "@capacitor/filesystem": "8.1.2",
     "@capacitor/ios": "8.4.2",
+    "@capacitor/network": "8.0.1",
+    "@capacitor/share": "8.0.1",
     "jspdf": "^4.2.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@capacitor/assets": "3.0.5",
     "@capacitor/cli": "8.4.2",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.3",

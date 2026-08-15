@@ -36,6 +36,14 @@ jobs:
       - name: Verify Capacitor dependency alignment
         run: npm run verify:capacitor
 
+      - name: Generate and verify branded iOS assets
+        run: |
+          npm run ios:assets -w frontend
+          npm run ios:assets:verify -w frontend
+
+      - name: Validate application privacy manifest
+        run: plutil -lint ios/App/App/PrivacyInfo.xcprivacy
+
       - name: Show native toolchain
         run: xcodebuild -version
 
@@ -61,7 +69,14 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          npm run ios:build:simulator 2>&1 | tee ios-build.log
+          npm run ios:build:simulator -- ARCHS=arm64 ONLY_ACTIVE_ARCH=YES 2>&1 | tee ios-build.log
+
+      - name: Inspect unsigned native artifact
+        shell: bash
+        run: |
+          set -o pipefail
+          plutil -lint ios/DerivedData/Build/Products/Debug-iphonesimulator/App.app/PrivacyInfo.xcprivacy
+          node frontend/scripts/inspect-ios-artifact.mjs ios/DerivedData/Build/Products/Debug-iphonesimulator/App.app | tee ios-artifact-inspection.json
 
       - name: Upload iOS build log
         if: always()
@@ -71,6 +86,7 @@ jobs:
           path: |
             ios-sync.log
             ios-build.log
+            ios-artifact-inspection.json
           if-no-files-found: warn
           retention-days: 14
 
