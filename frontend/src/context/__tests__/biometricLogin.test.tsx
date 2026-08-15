@@ -9,6 +9,7 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { AppProvider, useApp } from "../AppContext";
 import type { BiometricAuthenticateResult, BiometricCapabilities, BiometricStatus } from "../../platform/biometricAuth";
 
 vi.mock("../../lib/api", async (importOriginal) => {
@@ -52,12 +53,14 @@ import App from "../../App";
 
 const apiFetchMeWithToken = api.fetchMeWithToken as unknown as ReturnType<typeof vi.fn>;
 const apiGetToken = api.getToken as unknown as ReturnType<typeof vi.fn>;
+const apiSetToken = api.setToken as unknown as ReturnType<typeof vi.fn>;
 const apiLogin = api.login as unknown as ReturnType<typeof vi.fn>;
 const apiChangePassword = api.changePassword as unknown as ReturnType<typeof vi.fn>;
 
 const checkCapabilities = biometricAuth.checkBiometricCapabilities as unknown as ReturnType<typeof vi.fn>;
 const getStatus = biometricAuth.getBiometricStatus as unknown as ReturnType<typeof vi.fn>;
 const authenticate = biometricAuth.authenticateWithBiometrics as unknown as ReturnType<typeof vi.fn>;
+const enableBiometric = biometricAuth.enableBiometricLogin as unknown as ReturnType<typeof vi.fn>;
 const disableBiometric = biometricAuth.disableBiometricLogin as unknown as ReturnType<typeof vi.fn>;
 
 const USER = {
@@ -193,6 +196,96 @@ describe("manual retry icon", () => {
 
     await screen.findByRole("navigation", { name: "Main" });
     expect(authenticate).toHaveBeenCalledTimes(2);
+  });
+});
+
+/** Exposes just enough of AppContext to drive this scenario without going
+ * through the Settings screen's biometric toggle, which only renders behind
+ * `Capacitor.isNativePlatform()` (see BiometricLoginSettings.tsx) — false in
+ * jsdom, same as every other test in this file already works around for the
+ * things it needs to reach directly. What's under test here is AppContext's
+ * own contract (`enableBiometricLogin` demoting the persisted session), not
+ * that specific button. */
+function RememberMeHarness() {
+  const { status, login, enableBiometricLogin } = useApp();
+  return (
+    <div>
+      <div data-testid="status">{status}</div>
+      <button type="button" onClick={() => void login(USER.email, "correct horse battery staple", true)}>
+        log in (remember me)
+      </button>
+      <button type="button" onClick={() => void enableBiometricLogin()}>
+        enable biometrics
+      </button>
+    </div>
+  );
+}
+
+describe("Remember Me and biometric login", () => {
+  it("Remember Me enabled -> enable Face ID -> restart -> Face ID is required", async () => {
+    // A minimal stand-in for the real native token adapter's persistence
+    // contract (see platform/nativeSecureTokenStorage.ts): setToken(token,
+    // remember) is the only thing that changes what a later getToken() call
+    // — standing in here for "the next cold launch" — returns.
+    let persisted: { token: string; remembered: boolean } | null = null;
+    apiSetToken.mockImplementation(async (token: string, remember: boolean) => {
+      persisted = { token, remembered: remember };
+    });
+    apiGetToken.mockImplementation(() => (persisted?.remembered ? persisted.token : null));
+
+    checkCapabilities.mockResolvedValue(FACE_ID_AVAILABLE);
+    getStatus.mockResolvedValue(NOT_ENABLED);
+    apiLogin.mockResolvedValue({ token: "ordinary-token", user: USER });
+
+    const user = userEvent.setup();
+    const { unmount } = render(
+      <AppProvider>
+        <RememberMeHarness />
+      </AppProvider>
+    );
+
+    await user.click(screen.getByText("log in (remember me)"));
+    await waitFor(() => expect(screen.getByTestId("status").textContent).toBe("loggedIn"));
+
+    // Logging in with Remember Me checked persists the ordinary session —
+    // the baseline this test needs to prove biometrics changes.
+    expect(persisted).toEqual({ token: "ordinary-token", remembered: true });
+
+    // Enabling Face ID succeeds (mocked, since there's no real Face ID
+    // hardware here) and reports the account is now biometric-enabled, same
+    // as isEnabled() would report on the device after BiometricAuthPlugin's
+    // `enable` writes its Keychain items.
+    enableBiometric.mockResolvedValue({ outcome: "enabled", kind: "faceId" });
+    getStatus.mockResolvedValue(FACE_ID_ENABLED);
+    await user.click(screen.getByText("enable biometrics"));
+    await waitFor(() => expect(enableBiometric).toHaveBeenCalled());
+
+    // The requirement under test: turning Face ID on must demote the
+    // ordinary persisted session, not leave it sitting in Keychain
+    // alongside the new biometric credential. If this token were still
+    // "remembered", the next cold launch would restore straight through it
+    // and never reach the biometric prompt at all.
+    expect(persisted).toEqual({ token: "ordinary-token", remembered: false });
+
+    // Simulate a cold launch: unmount entirely (nothing here survives
+    // process death) and mount a fresh provider — getToken() now reflects
+    // exactly what a real restart would see, driven by the same `persisted`
+    // state the calls above just changed, not a value hand-set for this
+    // step.
+    unmount();
+    authenticate.mockResolvedValue({ outcome: "failed", reason: "user_cancelled" });
+
+    render(
+      <AppProvider>
+        <RememberMeHarness />
+      </AppProvider>
+    );
+
+    // Face ID is required: the cold-launch restore effect finds no ordinary
+    // token (persisted.remembered is now false) and attempts biometric
+    // auth automatically, rather than silently restoring the old session.
+    await waitFor(() => expect(authenticate).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.getByTestId("status").textContent).toBe("loggedOut"));
   });
 });
 

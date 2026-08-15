@@ -951,6 +951,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const result = await adapterEnableBiometricLogin(user.id, user.name, token);
       if (result.outcome === "enabled") {
+        // Biometrics becomes the persistent unlock method from here on — an
+        // ordinary Remember-Me-persisted token left in Keychain alongside it
+        // would let the *next* cold launch restore straight into the app
+        // through `restoreSession`'s "has a token" branch, before biometrics
+        // ever gets a chance to run (see the top of that effect below). That
+        // would make turning Face ID on a no-op in exactly the case it's
+        // supposed to matter — Remember Me was already on.
+        //
+        // `setToken(token, false)` re-stores the *same* token as
+        // session-only: the native adapter's in-memory `session` field is
+        // updated (so the account already running right now stays signed
+        // in, nothing about the live session changes), but the Keychain
+        // entry that would have survived a cold launch is deleted. On the
+        // next cold launch `api.getToken()` is therefore null, which is
+        // exactly the branch `restoreSession` uses to attempt biometric
+        // auto-login — biometrics becomes the only path back in without
+        // re-entering a password. A no-op when Remember Me was already off.
+        //
+        // Web is unaffected: the web adapter's `enable()` always resolves
+        // "failed" (see platform/biometricAuth.ts), so this branch is
+        // unreachable there, and the Settings toggle itself never renders
+        // outside Capacitor.isNativePlatform() in the first place.
+        await api.setToken(token, false);
         setBiometricStatus(await getBiometricStatus());
       }
       return result;
