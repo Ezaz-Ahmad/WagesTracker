@@ -10,6 +10,13 @@ backend/data/
 .DS_Store
 *.tsbuildinfo
 
+# Apple signing and distribution material must never enter source control.
+*.p12
+*.mobileprovision
+AuthKey_*.p8
+*.ipa
+*.xcarchive/
+
 # Local-only design conversation transcript — never pushed to GitHub.
 chats/
 

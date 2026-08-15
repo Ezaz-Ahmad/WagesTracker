@@ -46,6 +46,8 @@ jobs:
       - run: npm ci
       - name: Verify Capacitor dependency alignment
         run: npm run verify:capacitor
+      - name: Verify signed-delivery configuration without secrets
+        run: npm run ios:testflight:verify -w frontend
       - name: Typecheck
         run: npm run typecheck -w frontend
       - name: Test
