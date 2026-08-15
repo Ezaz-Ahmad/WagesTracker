@@ -9,7 +9,7 @@ export interface NativeFilesystemPort {
 }
 
 export interface NativeSharePort {
-  share(options: { title: string; url: string; files: string[] }): Promise<unknown>;
+  share(options: { title: string; url: string }): Promise<unknown>;
 }
 
 function toBase64(bytes: ArrayBuffer): string {
@@ -46,7 +46,7 @@ export class IosPdfDeliveryAdapter implements PdfDeliveryAdapter {
       });
       written = true;
       await duringNativeActivity(() =>
-        this.share.share({ title: file.filename, url: result.uri, files: [result.uri] })
+        this.share.share({ title: file.filename, url: result.uri })
       );
     } catch (error) {
       if (!(written && isShareCancellation(error))) primaryError = error;

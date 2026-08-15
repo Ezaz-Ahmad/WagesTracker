@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { useApp } from "../../context/AppContext";
@@ -97,5 +97,19 @@ describe("current-week PDF download", () => {
       otherEarningReason: "Bonus",
       totalEarnings: 97.5,
     });
+  });
+
+  it("guards rapid duplicate requests before the disabled state renders", async () => {
+    render(<ReportScreen />);
+    const button = screen.getByRole("button", { name: /Download PDF/ });
+
+    act(() => {
+      fireEvent.click(button);
+      fireEvent.click(button);
+    });
+
+    await waitFor(() => expect(api.listShifts).toHaveBeenCalledOnce());
+    expect(api.listDayExpenses).toHaveBeenCalledOnce();
+    expect(api.listWeekExtras).toHaveBeenCalledOnce();
   });
 });
