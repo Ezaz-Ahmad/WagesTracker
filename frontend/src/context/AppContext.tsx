@@ -519,21 +519,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [hideEarningsNow]);
 
   const logout = useCallback(async () => {
-    // Best-effort server-side revocation of the current session, fired
-    // before the token is cleared below (so it still has a valid
-    // Authorization header to send) but never awaited: a network failure,
-    // an already-expired token, or the session already being revoked by
-    // some other means must never prevent the *local* logout from
-    // completing. Start it before awaiting secure-storage cleanup so it can
-    // still build its Authorization header from the current token.
-    const serverLogout = api.logout().catch(() => {});
-    await clearTokenSafely();
-    // A logged-out account has no session for a biometric credential to
-    // unlock into — leaving it behind would let the next cold launch
-    // silently sign back in via Face ID/Touch ID after an explicit logout,
-    // which defeats the point of logging out. Re-enabling requires
-    // authenticating again first, same as turning it on the first time.
-    await clearBiometricCredential();
+    if (biometricStatus.enabled) {
+      // With biometric login on, "Log out" is deliberately a soft lock, not
+      // a full account sign-out: the backend session is left valid and the
+      // biometric credential is left in place, so Face ID/Touch ID can sign
+      // the same session straight back in from the login screen — exactly
+      // like closing and reopening the app already does. Revoking the
+      // session here would kill the very token that credential unlocks,
+      // turning every post-logout Face ID attempt into a guaranteed
+      // "your saved sign-in has expired" failure instead of signing back
+      // in, which is worse than not offering it at all.
+      //
+      // Only the local, ordinary token is cleared, so the app still returns
+      // to the login screen and requires re-authentication (biometric or
+      // password) to continue. A user who wants this device to stop trusting
+      // the account entirely still has "Log out all other devices" and
+      // per-session revoke in Settings → Security → Sessions, and turning
+      // biometric login off itself clears this credential via the existing
+      // disable path.
+      await clearTokenSafely();
+    } else {
+      // No biometric credential is at stake — logout can, and should, fully
+      // end the session: best-effort server-side revocation, fired before
+      // the token is cleared below (so it still has a valid Authorization
+      // header to send) but never awaited, since a network failure or an
+      // already-expired token must never prevent the *local* logout from
+      // completing.
+      const serverLogout = api.logout().catch(() => {});
+      await clearTokenSafely();
+      // Defensive: covers a credential that exists in storage but hasn't
+      // been reflected into `biometricStatus` state yet (e.g. a status
+      // check still in flight). Safe and cheap to call unconditionally —
+      // disable() is itself a no-op when nothing is stored.
+      await clearBiometricCredential();
+      void serverLogout;
+    }
     api.clearLastActivity();
     setUser(null);
     setShifts([]);
@@ -544,8 +564,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSessionNotice(null);
     setStatus("loggedOut");
     hideEarningsNow();
-    void serverLogout;
-  }, [clearTokenSafely, clearBiometricCredential, hideEarningsNow]);
+  }, [biometricStatus.enabled, clearTokenSafely, clearBiometricCredential, hideEarningsNow]);
 
   // Pulled by the Home screen's pull-to-refresh gesture. Re-fetches both the
   // user profile (in case rate/goals changed from another device or the

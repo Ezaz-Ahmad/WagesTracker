@@ -57,6 +57,7 @@ const apiGetToken = api.getToken as unknown as ReturnType<typeof vi.fn>;
 const apiSetToken = api.setToken as unknown as ReturnType<typeof vi.fn>;
 const apiLogin = api.login as unknown as ReturnType<typeof vi.fn>;
 const apiChangePassword = api.changePassword as unknown as ReturnType<typeof vi.fn>;
+const apiLogout = api.logout as unknown as ReturnType<typeof vi.fn>;
 
 const checkCapabilities = biometricAuth.checkBiometricCapabilities as unknown as ReturnType<typeof vi.fn>;
 const getStatus = biometricAuth.getBiometricStatus as unknown as ReturnType<typeof vi.fn>;
@@ -208,7 +209,7 @@ describe("manual retry icon", () => {
  * own contract (`enableBiometricLogin` demoting the persisted session), not
  * that specific button. */
 function RememberMeHarness() {
-  const { status, biometricStatus, login, enableBiometricLogin } = useApp();
+  const { status, biometricStatus, login, enableBiometricLogin, logout, retryBiometricLogin } = useApp();
   const [lastResult, setLastResult] = useState<string>("");
   return (
     <div>
@@ -225,6 +226,12 @@ function RememberMeHarness() {
         }
       >
         enable biometrics
+      </button>
+      <button type="button" onClick={() => void logout()}>
+        log out
+      </button>
+      <button type="button" onClick={() => void retryBiometricLogin()}>
+        retry biometric
       </button>
     </div>
   );
@@ -353,6 +360,80 @@ describe("Remember Me and biometric login", () => {
     // consistent — a storage failure while demoting must not also log them
     // out.
     expect(screen.getByTestId("status").textContent).toBe("loggedIn");
+  });
+});
+
+describe("Log out is a soft lock when biometric login is enabled", () => {
+  it("does not revoke the session or clear the credential, and Face ID signs back in", async () => {
+    // Same minimal persistence stand-in as the Remember Me describe block
+    // above — what matters here is that the token this test's mocked
+    // `api.logout` would otherwise revoke keeps working after logout.
+    let persisted: { token: string; remembered: boolean } | null = null;
+    apiSetToken.mockImplementation(async (token: string, remember: boolean) => {
+      persisted = { token, remembered: remember };
+    });
+    apiGetToken.mockImplementation(() => (persisted?.remembered ? persisted.token : null));
+
+    checkCapabilities.mockResolvedValue(FACE_ID_AVAILABLE);
+    getStatus.mockResolvedValue(NOT_ENABLED);
+    apiLogin.mockResolvedValue({ token: "ordinary-token", user: USER });
+    enableBiometric.mockResolvedValue({ outcome: "enabled", kind: "faceId" });
+
+    const user = userEvent.setup();
+    render(
+      <AppProvider>
+        <RememberMeHarness />
+      </AppProvider>
+    );
+
+    await user.click(screen.getByText("log in (remember me)"));
+    await waitFor(() => expect(screen.getByTestId("status").textContent).toBe("loggedIn"));
+
+    getStatus.mockResolvedValue(FACE_ID_ENABLED);
+    await user.click(screen.getByText("enable biometrics"));
+    await waitFor(() => expect(screen.getByTestId("biometric-enabled").textContent).toBe("true"));
+
+    await user.click(screen.getByText("log out"));
+    await waitFor(() => expect(screen.getByTestId("status").textContent).toBe("loggedOut"));
+
+    // The whole point of the soft lock: the backend session is left valid
+    // (no server-side revoke call) and the biometric credential is left in
+    // place (no disable call), unlike the old "logout always fully signs
+    // out" behavior.
+    expect(apiLogout).not.toHaveBeenCalled();
+    expect(disableBiometric).not.toHaveBeenCalled();
+    expect(screen.getByTestId("biometric-enabled").textContent).toBe("true");
+
+    // Prove it actually still works end-to-end, not just that the flags
+    // look right: Face ID recovers the same token that was never revoked,
+    // and the backend accepts it.
+    authenticate.mockResolvedValue(success("ordinary-token"));
+    apiFetchMeWithToken.mockResolvedValue({ user: USER });
+    await user.click(screen.getByText("retry biometric"));
+    await waitFor(() => expect(screen.getByTestId("status").textContent).toBe("loggedIn"));
+  });
+
+  it("still fully signs out (server revoke + credential clear) when biometric login was never enabled", async () => {
+    apiGetToken.mockReturnValue(null);
+    checkCapabilities.mockResolvedValue(FACE_ID_AVAILABLE);
+    getStatus.mockResolvedValue(NOT_ENABLED);
+    apiLogin.mockResolvedValue({ token: "ordinary-token", user: USER });
+
+    const user = userEvent.setup();
+    render(
+      <AppProvider>
+        <RememberMeHarness />
+      </AppProvider>
+    );
+
+    await user.click(screen.getByText("log in (remember me)"));
+    await waitFor(() => expect(screen.getByTestId("status").textContent).toBe("loggedIn"));
+
+    await user.click(screen.getByText("log out"));
+    await waitFor(() => expect(screen.getByTestId("status").textContent).toBe("loggedOut"));
+
+    expect(apiLogout).toHaveBeenCalled();
+    expect(disableBiometric).toHaveBeenCalled();
   });
 });
 
