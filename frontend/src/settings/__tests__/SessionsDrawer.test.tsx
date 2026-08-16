@@ -30,6 +30,7 @@ function makeSession(n: number, overrides: Partial<SessionInfo> = {}): SessionIn
     lastActiveAt: new Date(Date.UTC(2026, 0, 30 - n)).toISOString(),
     expiresAt: "2026-03-01T00:00:00.000Z",
     isCurrent: false,
+    biometricProtected: false,
     ...overrides,
   };
 }

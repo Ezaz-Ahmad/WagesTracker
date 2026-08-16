@@ -89,8 +89,8 @@ export function BiometricLoginSettings() {
       <h3 className="settings-subsection-title">Biometric login</h3>
       <div className="section-hint">
         {biometricStatus.enabled
-          ? `Confirm with ${name} instead of retyping your password each time you open the app.`
-          : `Turn on ${name} to skip retyping your password on this device. Your password still works everywhere, and every sign-in is still checked against your account.`}
+          ? `Confirm with ${name} instead of retyping your password each time you open the app. This also keeps you signed in on this device for up to 5 years, instead of the usual 30 days, since ${name} re-entry takes over as the periodic check.`
+          : `Turn on ${name} to skip retyping your password on this device, and to stay signed in far longer here (up to 5 years, instead of the usual 30 days). Your password still works everywhere, and every sign-in is still checked against your account.`}
       </div>
       {feedback && (
         <StatusBanner tone={feedback.tone} onDismiss={() => setFeedback(null)} dismissLabel="Dismiss this message">

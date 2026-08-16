@@ -43,10 +43,24 @@ interface RegularUserTokenPayload {
  *
  * A token is only ever valid while both checks pass. Neither replaces the
  * JWT's own signature/expiry check; both are layered on top of it.
+ *
+ * `ttlOverrideMs`, when given, replaces the ordinary TOKEN_TTL for this one
+ * token — used exclusively for the biometric-protected session upgrade (see
+ * BIOMETRIC_SESSION_TTL_MS in security/sessionPolicy.ts and
+ * rotateSessionForBiometricProtection in security/sessions.ts). A JWT's
+ * `exp` claim is baked in at signing time and can never be extended later by
+ * a database write alone, which is why that flow mints a brand-new token
+ * through here rather than just updating the session row.
  */
-export function signToken(userId: string, tokenVersion: number, sessionId: string): string {
+export function signToken(
+  userId: string,
+  tokenVersion: number,
+  sessionId: string,
+  ttlOverrideMs?: number
+): string {
   const payload: RegularUserTokenPayload = { sub: userId, tokenVersion, sid: sessionId };
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: TOKEN_TTL });
+  const expiresIn = ttlOverrideMs === undefined ? TOKEN_TTL : Math.round(ttlOverrideMs / 1000);
+  return jwt.sign(payload, JWT_SECRET, { expiresIn });
 }
 
 /** The one response for every way a protected request can fail to

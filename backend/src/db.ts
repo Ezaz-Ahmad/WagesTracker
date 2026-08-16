@@ -102,7 +102,8 @@ await db.executeMultiple(`
     created_at TEXT NOT NULL,
     last_seen_at TEXT NOT NULL,
     expires_at TEXT NOT NULL,
-    revoked_at TEXT
+    revoked_at TEXT,
+    biometric_protected INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
@@ -185,6 +186,21 @@ try {
 }
 try {
   await db.execute("ALTER TABLE user_sessions ADD COLUMN device_name TEXT NOT NULL DEFAULT ''");
+} catch {
+  // already migrated
+}
+
+// A session marked biometric-protected is exempt from the idle timeout in
+// validateSession (see security/sessions.ts) — Face ID/Touch ID re-entry on
+// that device substitutes for the "kill an unattended session" protection
+// the idle timeout otherwise provides, rather than sitting behind it. Set by
+// PATCH /api/me/sessions/current when the frontend turns biometric login on
+// (see routes/me.ts), cleared the same way when it's turned off. A brand-new
+// session created by a fresh password login always starts unprotected —
+// re-enabling biometric login on that new token is what (re-)marks it, the
+// same one-time step already required to store a fresh Keychain credential.
+try {
+  await db.execute("ALTER TABLE user_sessions ADD COLUMN biometric_protected INTEGER NOT NULL DEFAULT 0");
 } catch {
   // already migrated
 }

@@ -68,6 +68,22 @@ export function SessionCard({
         </span>
         <strong className="session-card-label">{label}</strong>
         {session.isCurrent && <span className="tag tag-accent-2 session-card-badge">This device</span>}
+        {session.biometricProtected && (
+          // Tells the "why didn't this sign me out after sitting idle" and
+          // "why does this last so much longer than my other devices"
+          // questions before anyone has to ask them — this device is exempt
+          // from the ordinary 10-minute idle timeout and lasts up to 5 years
+          // instead of the usual 30 days, because Face ID/Touch ID re-entry
+          // substitutes for both (see setSessionBiometricProtection in
+          // lib/api.ts, BIOMETRIC_SESSION_TTL_MS, and validateSession's
+          // exemption on the backend).
+          <span
+            className="tag session-card-badge"
+            title="Exempt from the 10-minute idle sign-out, and lasts up to 5 years instead of 30 days, while Face ID/Touch ID is on"
+          >
+            Face ID/Touch ID
+          </span>
+        )}
       </div>
       <div className="session-card-primary">Last active {formatSessionTime(session.lastActiveAt)}</div>
       <div className="session-card-secondary">First signed in {formatSessionTime(session.createdAt)}</div>

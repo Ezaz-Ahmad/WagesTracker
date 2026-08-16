@@ -12,6 +12,7 @@ import {
   listSessionsForUser,
   revokeOtherSessions,
   revokeSessionById,
+  rotateSessionForBiometricProtection,
   sessionBelongsToUser,
   SESSION_TTL_MS,
 } from "../security/sessions.js";
@@ -83,6 +84,50 @@ meRouter.delete(
     // own current session so it can log itself out immediately, rather than
     // waiting for some future request to fail with a generic 401.
     res.json({ revokedCurrent: req.params.sessionId === req.sessionId });
+  })
+);
+
+const sessionBiometricProtectionSchema = z.object({ biometricProtected: z.boolean() });
+
+/**
+ * Marks (or unmarks) the calling request's own session as biometric-
+ * protected — see validateSession's idle-timeout exemption in
+ * security/sessions.ts. Called by the frontend right after Face ID/Touch ID
+ * is turned on (with `true`) or off (with `false`); there is deliberately no
+ * way to target any session other than "the one this request authenticated
+ * with" — `req.sessionId` only, never a body/param id — since biometric
+ * protection is inherently a property of "the credential this specific
+ * device is holding", not something one session can set for another.
+ *
+ * Marking a session protected also moves it onto the much longer
+ * BIOMETRIC_SESSION_TTL_MS absolute lifetime (5 years, vs. the ordinary
+ * 30 days) — see rotateSessionForBiometricProtection's own comment for why
+ * that can't be done by mutating this row in place. Like changePassword
+ * below, this responds `204 No Content` with the replacement token in the
+ * `X-New-Token` header rather than a JSON body, since the caller's current
+ * token is revoked as part of the same rotation and would otherwise stop
+ * working the instant this request completes.
+ */
+meRouter.patch(
+  "/sessions/current",
+  asyncHandler<AuthedRequest>(async (req, res) => {
+    const parsed = sessionBiometricProtectionSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "biometricProtected must be a boolean" });
+      return;
+    }
+    const rotated = await rotateSessionForBiometricProtection(
+      req.sessionId!,
+      req.userId!,
+      parsed.data.biometricProtected
+    );
+    if (!rotated) {
+      res.status(401).json({ error: "Invalid or expired token" });
+      return;
+    }
+    const replacementToken = signToken(req.userId!, rotated.tokenVersion, rotated.sessionId, rotated.ttlMs);
+    res.setHeader("X-New-Token", replacementToken);
+    res.status(204).end();
   })
 );
 

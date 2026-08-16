@@ -169,4 +169,93 @@ describe("server-enforced session idle timeout", () => {
     expect(ids).toEqual([sidOf(otherToken)]);
     expect(userId).toBeTruthy();
   });
+
+  // A session marked biometric_protected (see PATCH /api/me/sessions/current
+  // and validateSession's exemption in security/sessions.ts) exists so that
+  // a device with Face ID/Touch ID on doesn't get idle-logged-out just for
+  // sitting in the background — the whole point of the feature this session
+  // was built for (see docs/shift-notification-handoff.md's sibling PR for
+  // the shift-notification feature; this one covers biometric session
+  // longevity specifically).
+  describe("biometric-protected sessions are exempt from idle expiry", () => {
+    async function markBiometricProtected(sessionId: string, protectedFlag: boolean) {
+      await db.execute({
+        sql: "UPDATE user_sessions SET biometric_protected = ? WHERE id = ?",
+        args: [protectedFlag ? 1 : 0, sessionId],
+      });
+    }
+
+    it("keeps authenticating a biometric-protected session well past the ordinary idle timeout", async () => {
+      const { token } = await signup("biometric-idle-exempt@example.com");
+      const sid = sidOf(token);
+      await markBiometricProtected(sid, true);
+
+      await ageSession(sid, SESSION_IDLE_TIMEOUT_MS * 10);
+
+      const res = await request(app).get("/api/me").set("Authorization", `Bearer ${token}`);
+      expect(res.status).toBe(200);
+    });
+
+    it("still rejects the same session once biometric protection is turned back off", async () => {
+      // Proves the exemption is genuinely conditional on the flag, not a
+      // side effect of anything else this test file's other cases might
+      // share (a fresh session, a fresh user) — flipping the flag off on an
+      // otherwise-identical aged session brings the ordinary idle rejection
+      // right back.
+      const { token } = await signup("biometric-idle-then-off@example.com");
+      const sid = sidOf(token);
+      await markBiometricProtected(sid, true);
+      await ageSession(sid, SESSION_IDLE_TIMEOUT_MS + 60_000);
+      expect((await request(app).get("/api/me").set("Authorization", `Bearer ${token}`)).status).toBe(200);
+
+      // The successful request above touched last_seen_at (it was stale
+      // past the throttle) — re-age it before flipping protection off, or
+      // this would spuriously pass by looking freshly-active rather than by
+      // the exemption actually being gone.
+      await markBiometricProtected(sid, false);
+      await ageSession(sid, SESSION_IDLE_TIMEOUT_MS + 60_000);
+      const res = await request(app).get("/api/me").set("Authorization", `Bearer ${token}`);
+      expect(res.status).toBe(401);
+    });
+
+    it("still rejects a biometric-protected session once its absolute lifetime (expires_at) has passed", async () => {
+      // The exemption is narrowly for idle expiry — it must never make a
+      // session outlive its own 30-day absolute lifetime.
+      const { token } = await signup("biometric-absolute-expiry@example.com");
+      const sid = sidOf(token);
+      await markBiometricProtected(sid, true);
+      await db.execute({
+        sql: "UPDATE user_sessions SET expires_at = ? WHERE id = ?",
+        args: [new Date(Date.now() - 1000).toISOString(), sid],
+      });
+
+      const res = await request(app).get("/api/me").set("Authorization", `Bearer ${token}`);
+      expect(res.status).toBe(401);
+    });
+
+    it("still rejects a revoked biometric-protected session", async () => {
+      const { token } = await signup("biometric-revoked@example.com");
+      const sid = sidOf(token);
+      await markBiometricProtected(sid, true);
+      await db.execute({
+        sql: "UPDATE user_sessions SET revoked_at = ? WHERE id = ?",
+        args: [new Date().toISOString(), sid],
+      });
+
+      const res = await request(app).get("/api/me").set("Authorization", `Bearer ${token}`);
+      expect(res.status).toBe(401);
+    });
+
+    it("includes an idle-but-biometric-protected session in the sessions list", async () => {
+      const { token } = await signup("biometric-idle-listed@example.com");
+      const sid = sidOf(token);
+      await markBiometricProtected(sid, true);
+      await ageSession(sid, SESSION_IDLE_TIMEOUT_MS + 60_000);
+
+      const res = await request(app).get("/api/me/sessions").set("Authorization", `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      const ids = (res.body.sessions as { id: string }[]).map((s) => s.id);
+      expect(ids).toContain(sid);
+    });
+  });
 });

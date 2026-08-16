@@ -1,8 +1,16 @@
+import { useCallback, useState } from "react";
 import { useApp } from "../context/AppContext";
 import { findOpenShift } from "./aggregate";
-import { isoDate, nowHHMMSS } from "./date";
+import { formatTime12, isoDate, nowHHMMSS } from "./date";
 import { useConfirm } from "../components/ConfirmProvider";
 import { isUnusuallyLongShift, LONG_SHIFT_WARNING } from "./shiftRules";
+import { getApiOrigin, getToken } from "./api";
+import {
+  clearShiftNotification,
+  isShiftNotificationEnabled,
+  postShiftStartedNotification,
+  setShiftNotificationEnabled,
+} from "../platform/shiftNotifications";
 
 /**
  * Tracks the shift the Sign in/Sign out button (and the elapsed-time
@@ -29,7 +37,26 @@ export function useTodayShift() {
     // that (see routes/shifts.ts) and surfaces a clear "already open"
     // error instead of silently allowing a second one.
     if (active) return;
-    await createShift({ date: todayISO, location: user?.workLocationName || "", signIn: nowHHMMSS(), signOut: null });
+    const signIn = nowHHMMSS();
+    const shift = await createShift({ date: todayISO, location: user?.workLocationName || "", signIn, signOut: null });
+    if (!shift) return; // createShift already surfaced the error — nothing to notify about.
+    const token = getToken();
+    // Settings → Security → Shift notification lets this be turned off
+    // per device (see isShiftNotificationEnabled) — checked here, not inside
+    // the adapter, so a disabled preference means no notification call is
+    // even attempted, not one that's silently swallowed downstream.
+    if (token && isShiftNotificationEnabled()) {
+      // Fire-and-forget: postShiftStartedNotification never throws (see
+      // NativeShiftNotificationAdapter) — a notification permission
+      // problem or any other platform failure must never make it look like
+      // starting the shift itself failed.
+      void postShiftStartedNotification({
+        shiftId: shift.id,
+        apiBaseUrl: getApiOrigin(),
+        token,
+        startedAtLabel: `Started at ${formatTime12(signIn)}`,
+      });
+    }
   };
 
   const end = async () => {
@@ -39,9 +66,42 @@ export function useTodayShift() {
     if (last && !last.signOut) {
       const signOut = nowHHMMSS();
       if (isUnusuallyLongShift(last.signIn, signOut) && !(await confirm(LONG_SHIFT_WARNING))) return;
-      await updateShift(last.id, { signOut });
+      const updated = await updateShift(last.id, { signOut });
+      if (updated) {
+        // The notification (and any native-held credential behind it) has
+        // done its job — the shift ended through the app itself, so there
+        // is nothing left for a background "Sign out" tap to finish later.
+        void clearShiftNotification();
+      }
     }
   };
 
   return { active, last, start, end, todayISO };
+}
+
+/**
+ * Backs the "Shift notification" toggle in Settings → Security
+ * (`ShiftNotificationSettings.tsx`). Deliberately just a persisted
+ * preference — it does not reach into `shifts`/app state to react to a
+ * shift that's already open. Two reasons: turning this off is not a safety
+ * measure (the notification's "Sign out" action isn't a new trust boundary —
+ * see `shiftNotifications.ts`'s own comment on that), so there is no
+ * correctness reason to force it away immediately rather than letting it
+ * naturally clear itself when that shift ends; and a Settings toggle
+ * pulling in full shift/app state to reach across screens is a needless
+ * coupling for a component that renders unconditionally alongside the rest
+ * of the Security page (a Settings test harness has no reason to expect a
+ * shift-notification toggle to need `shifts` in its fixture at all). The
+ * preference takes effect starting with the *next* shift — see `start()`
+ * above, the only other place it's read.
+ */
+export function useShiftNotificationSetting() {
+  const [enabled, setEnabledState] = useState(isShiftNotificationEnabled);
+
+  const setEnabled = useCallback((next: boolean) => {
+    setShiftNotificationEnabled(next);
+    setEnabledState(next);
+  }, []);
+
+  return { enabled, setEnabled };
 }

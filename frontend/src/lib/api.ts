@@ -18,6 +18,19 @@ const TIME_ZONE_FALLBACK_MESSAGE = "We couldn't determine your device time zone.
 export function getToken(): string | null {
   return getStoredToken();
 }
+
+/** The backend origin this build talks to (no trailing slash, no `/api`
+ * suffix) — exposed so native-only code that must make its own request
+ * outside the JS bridge (see `platform/nativeShiftNotifications.ts`) can
+ * build the exact same URL `request()` above does, without duplicating the
+ * `VITE_API_URL` env read. Empty in local dev, where Vite's dev-server
+ * proxy handles it instead (see the comment on `API_ORIGIN` above) — native
+ * builds always set `VITE_API_URL` explicitly (see `ios:build:web`), so
+ * this is only ever empty in a context with no native background caller to
+ * matter for anyway. */
+export function getApiOrigin(): string {
+  return API_ORIGIN;
+}
 /** `remember=true` (the default) persists across browser restarts; `false` keeps
  * the session only until the tab/browser closes — the "Remember me" checkbox. */
 export function setToken(token: string, remember: boolean = true): Promise<void> {
@@ -278,6 +291,7 @@ export interface SessionInfo {
   lastActiveAt: string;
   expiresAt: string;
   isCurrent: boolean;
+  biometricProtected: boolean;
 }
 
 /** Lists the current user's own active (non-revoked, non-expired) sessions —
@@ -300,6 +314,61 @@ export function revokeSession(sessionId: string): Promise<{ revokedCurrent: bool
  * other devices." Never touches the current session. */
 export function revokeOtherSessions(): Promise<void> {
   return request("/me/sessions/others", { method: "DELETE" });
+}
+
+/**
+ * Marks (`true`) or unmarks (`false`) the session backing the current
+ * token as biometric-protected — exempts it from the server's idle timeout
+ * (see backend/src/security/sessions.ts's validateSession) on the theory
+ * that Face ID/Touch ID re-entry on this device is itself the "was this
+ * really the account owner" check an idle timeout otherwise approximates,
+ * and moves it onto the matching absolute lifetime (5 years while
+ * protected, the ordinary 30 days once it isn't — see
+ * BIOMETRIC_SESSION_TTL_MS on the backend).
+ *
+ * The backend responds `204 No Content` but hands back a replacement
+ * session token in the `X-New-Token` header rather than a JSON body — same
+ * reason and same shape as `changePassword` above: the call revokes the
+ * caller's current session as part of rotating it onto the new lifetime, so
+ * the token this very request authenticated with is about to stop working,
+ * and the caller must switch to the returned one (via `setToken`) right
+ * away rather than let the next request discover that the hard way.
+ * Fetches directly rather than going through `request()`, for the same
+ * reason `changePassword` does.
+ *
+ * Called from AppContext right before/after enabling biometric login and
+ * right after disabling it; see those call sites for how a failure here is
+ * handled (never allowed to block Face ID itself, but the returned token —
+ * when there is one — must always be applied, since a failure to apply an
+ * already-issued token would silently leave the live session pointed at one
+ * this call just revoked).
+ */
+export async function setSessionBiometricProtection(enabled: boolean): Promise<{ token: string }> {
+  const token = getToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_ORIGIN}/api/me/sessions/current`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ biometricProtected: enabled }),
+    });
+  } catch {
+    throw new ApiError("Couldn't reach the server. Check your connection and try again.", 0);
+  }
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError((body as { error?: string }).error || `Request failed (${res.status})`, res.status);
+  }
+
+  const newToken = res.headers.get("X-New-Token");
+  if (!newToken) {
+    throw new ApiError("Session was updated, but no replacement session token was returned.", 500);
+  }
+  return { token: newToken };
 }
 
 /** Server-side logout: revokes the session backing the current token, so a

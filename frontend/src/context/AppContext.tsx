@@ -19,6 +19,7 @@ import {
   type BiometricFailureReason,
   type BiometricStatus,
 } from "../platform/biometricAuth";
+import { clearPendingEndShift, getPendingEndShift } from "../platform/shiftNotifications";
 
 export const RETENTION_YEARS = 5;
 export const CURRENCY = "$";
@@ -242,6 +243,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // concurrent backend call.
   const biometricOperationInFlightRef = useRef(false);
 
+  // Gates the pending-notification-sign-out reconciliation effect below to
+  // at most once per signed-in app session — a fresh value every time this
+  // module/provider is freshly instantiated, matching
+  // `autoBiometricAttemptedRef`'s reasoning exactly.
+  const pendingEndShiftReconciledRef = useRef(false);
+
   // Earnings-privacy toggle: dollar figures across the app render blurred
   // until explicitly revealed, and always start hidden again on a fresh
   // login — see the eye button in the top nav. Starting `true` by default
@@ -294,6 +301,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const clearBiometricCredential = useCallback(async () => {
     await adapterDisableBiometricLogin();
     setBiometricStatus({ enabled: false });
+    // Best-effort unmark of the idle-timeout exemption and the 5-year
+    // lifetime upgrade (see setSessionBiometricProtection's own comment) —
+    // frequently has no session left that can actually authenticate this
+    // call (e.g. a failed Face ID validation already means the recovered
+    // token itself just 401'd), which is fine: a session that can't
+    // authenticate at all doesn't need rotating back to start behaving
+    // ordinarily again. When it does succeed, the call revokes the current
+    // session as part of rotating it back onto the ordinary 30-day
+    // lifetime, so the returned replacement token must be applied right
+    // away — the live app would otherwise be left holding a token this same
+    // call just revoked, in whichever persistence mode it was already in
+    // (never forced to session-only here; that demotion is a deliberate,
+    // separate step only enableBiometricLoginAction's own success path
+    // performs).
+    try {
+      const { token: reverted } = await api.setSessionBiometricProtection(false);
+      await api.setToken(reverted, api.isRemembered());
+    } catch (error) {
+      console.error("Could not clear this session's biometric-protection flag", error);
+    }
   }, []);
 
   // Loads device capability + on/off status once at startup, independent of
@@ -490,6 +517,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, user?.id, user?.weekStartsOn, reloadShifts]);
 
+
   const login = useCallback(async (email: string, password: string, remember: boolean = true) => {
     setAuthBusy(true);
     setAuthError(null);
@@ -662,8 +690,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // arrives within IDLE_LOGOUT_MS. A closed tab/browser has the same effect
   // for non-"remember me" sessions already, since those live in
   // sessionStorage and are gone the moment the tab closes.
+  //
+  // Skipped entirely while biometric login is enabled: this timer forces a
+  // *local* logout purely from the client's own clock, with no server round
+  // trip — but a biometric-protected session (see
+  // setSessionBiometricProtection/enableBiometricLoginAction above) is
+  // specifically exempt from the server's own idle timeout, on the theory
+  // that Face ID/Touch ID re-entry on this device substitutes for it. If
+  // this timer still fired locally regardless, it would force exactly the
+  // "signed out just for leaving the app alone for 10 minutes" experience
+  // the exemption exists to prevent — the resume-triggered `refresh()`
+  // effect above is the one that actually asks the server, and the server
+  // will now keep saying this session is still valid.
   useEffect(() => {
-    if (status !== "loggedIn") return;
+    if (status !== "loggedIn" || biometricStatus.enabled) return;
 
     let timer: ReturnType<typeof setTimeout>;
     const handleIdle = () => {
@@ -702,7 +742,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("focus", checkStaleOnResume);
       window.removeEventListener("pageshow", checkStaleOnResume);
     };
-  }, [status, logout]);
+  }, [status, logout, biometricStatus.enabled]);
 
   // Left to throw on failure (e.g. wrong password) so the confirmation dialog can show the
   // error inline instead of routing it through the top-level action-error banner.
@@ -877,6 +917,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [rethrowingAction]
   );
 
+  // Finishes a "Sign out" tap on the shift-in-progress notification that
+  // the native side couldn't complete on its own (no connectivity, or the
+  // OS reclaimed the background execution window before the request
+  // finished — see platform/shiftNotifications.ts and the Swift plugin).
+  // Runs once per signed-in app session, as soon as there is a valid
+  // authenticated token to make the request with. Deliberately uses
+  // `updateShiftOrThrow` rather than the user-facing `updateShift` wrapper:
+  // a 401 still triggers the normal expired-session logout+message (via
+  // `rethrowingAction`), but any other failure here (the shift was already
+  // ended, already deleted, whatever) is swallowed silently — there is no
+  // user action this reconciliation is a direct response to, so surfacing
+  // an "action failed" banner the instant the app opens would be confusing
+  // rather than helpful. The pending record is cleared after exactly one
+  // attempt either way, so a persistently-failing reconciliation can never
+  // turn into a retry loop on every launch — the ordinary in-app Sign out
+  // button is always still there as a fallback.
+  useEffect(() => {
+    if (status !== "loggedIn" || pendingEndShiftReconciledRef.current) return;
+    pendingEndShiftReconciledRef.current = true;
+    void (async () => {
+      const pending = await getPendingEndShift();
+      if (!pending) return;
+      try {
+        await updateShiftOrThrow(pending.shiftId, { signOut: pending.signOut });
+      } catch (error) {
+        console.error("Could not reconcile a pending notification sign-out", error);
+      } finally {
+        await clearPendingEndShift();
+      }
+    })();
+  }, [status, updateShiftOrThrow]);
+
   const removeShiftOrThrow = useCallback(
     (id: string) =>
       rethrowingAction(async () => {
@@ -1013,8 +1085,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     biometricOperationInFlightRef.current = true;
     setBiometricBusy(true);
+    let rotatedToBiometric = false;
     try {
-      const result = await adapterEnableBiometricLogin(user.id, user.name, token);
+      // Best-effort: try to upgrade this session onto the 5-year
+      // biometric-protected lifetime *before* prompting Face ID/Touch ID, so
+      // the credential the native prompt is about to store is already the
+      // long-lived token. A JWT's own expiry can't be extended after it's
+      // signed (see BIOMETRIC_SESSION_TTL_MS on the backend), so there is no
+      // way to upgrade it after the fact without also updating whatever
+      // Face ID already stored — and this plugin has no "update without
+      // re-prompting" method (see BiometricAuthPlugin.swift). A failure here
+      // is not fatal to turning Face ID on at all: the prompt below still
+      // runs with whichever token is on hand, just capped at the ordinary
+      // 30-day session length until the next successful call.
+      let tokenForCredential = token;
+      try {
+        const { token: rotated } = await api.setSessionBiometricProtection(true);
+        tokenForCredential = rotated;
+        rotatedToBiometric = true;
+        // Keeps the live app working under the new session id right away,
+        // in whatever persistence mode it was already in — not yet the
+        // "biometrics replaces Remember Me" demotion below, just making
+        // sure nothing breaks if the user backgrounds the app before the
+        // Face ID prompt resolves, since the session this token replaced
+        // was revoked the instant the call above succeeded.
+        await api.setToken(rotated, api.isRemembered());
+      } catch (error) {
+        console.error(
+          "Could not upgrade this session onto the biometric-protected lifetime before enabling Face ID",
+          error
+        );
+      }
+
+      const result = await adapterEnableBiometricLogin(user.id, user.name, tokenForCredential);
       if (result.outcome === "enabled") {
         // Biometrics becomes the persistent unlock method from here on — an
         // ordinary Remember-Me-persisted token left in Keychain alongside it
@@ -1024,15 +1127,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // would make turning Face ID on a no-op in exactly the case it's
         // supposed to matter — Remember Me was already on.
         //
-        // `setToken(token, false)` re-stores the *same* token as
-        // session-only: the native adapter's in-memory `session` field is
-        // updated (so the account already running right now stays signed
-        // in, nothing about the live session changes), but the Keychain
-        // entry that would have survived a cold launch is deleted. On the
-        // next cold launch `api.getToken()` is therefore null, which is
-        // exactly the branch `restoreSession` uses to attempt biometric
-        // auto-login — biometrics becomes the only path back in without
-        // re-entering a password. A no-op when Remember Me was already off.
+        // `setToken(tokenForCredential, false)` re-stores the *same* token
+        // Face ID just saved as session-only: the native adapter's in-memory
+        // `session` field is updated (so the account already running right
+        // now stays signed in, nothing about the live session changes), but
+        // the Keychain entry that would have survived a cold launch is
+        // deleted. On the next cold launch `api.getToken()` is therefore
+        // null, which is exactly the branch `restoreSession` uses to attempt
+        // biometric auto-login — biometrics becomes the only path back in
+        // without re-entering a password. A no-op when Remember Me was
+        // already off.
         //
         // Web is unaffected: the web adapter's `enable()` always resolves
         // "failed" (see platform/biometricAuth.ts), so this branch is
@@ -1043,21 +1147,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // exists at this point — so a failure here cannot just propagate:
         // `enableBiometricLogin`'s documented contract is "never throws",
         // and leaving the just-created Keychain credential in place while
-        // the ordinary session failed to demote would report biometrics as
-        // "on" while a stale persisted token still sits in Keychain too,
-        // exactly the inconsistent state Fix 2 above exists to prevent.
+        // the session failed to demote would report biometrics as "on"
+        // while a stale persisted token still sits in Keychain too, exactly
+        // the inconsistent state Fix 2 above exists to prevent.
         try {
-          await api.setToken(token, false);
+          await api.setToken(tokenForCredential, false);
         } catch (storageError) {
           console.error("Could not demote the persisted session while enabling biometric login", storageError);
           // Roll back: delete the credential `adapterEnableBiometricLogin`
-          // just wrote. `clearBiometricCredential`'s own `disable()` call is
-          // already best-effort/non-throwing by contract (see
-          // NativeBiometricAuthAdapter.disable and the web adapter's no-op)
-          // — the `.catch` below is a second line of defense in case a
-          // future adapter doesn't honor that, so this rollback can never
-          // itself produce an unhandled rejection on top of the original
-          // failure.
+          // just wrote, and — since the session was upgraded above — rotate
+          // it back onto the ordinary lifetime too, via
+          // `clearBiometricCredential` (which does both). Its own
+          // `disable()` call is already best-effort/non-throwing by
+          // contract (see NativeBiometricAuthAdapter.disable and the web
+          // adapter's no-op) — the `.catch` below is a second line of
+          // defense in case a future adapter doesn't honor that, so this
+          // rollback can never itself produce an unhandled rejection on top
+          // of the original failure.
           await clearBiometricCredential().catch((rollbackError) => {
             console.error("Could not roll back the biometric credential after a storage failure", rollbackError);
           });
@@ -1068,6 +1174,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
           };
         }
         setBiometricStatus(await getBiometricStatus());
+      } else if (rotatedToBiometric) {
+        // The Face ID/Touch ID prompt itself failed or was cancelled after
+        // the session was already upgraded above — roll that back rather
+        // than silently leaving an ordinary logged-in session idle-exempt
+        // and 5-years-lived with no biometric gate actually protecting it.
+        // Safe to call even though `enable()` never stored anything:
+        // `clearBiometricCredential`'s own `disable()` is an unconditional
+        // no-op when there's nothing to remove.
+        await clearBiometricCredential().catch((rollbackError) => {
+          console.error("Could not roll back the session upgrade after a failed biometric enable", rollbackError);
+        });
       }
       return result;
     } finally {

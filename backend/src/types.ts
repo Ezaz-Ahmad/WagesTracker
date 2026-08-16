@@ -138,6 +138,11 @@ export interface UserSessionRow {
    * toPublicSession below. */
   device_installation_id: string | null;
   device_name: string;
+  /** SQLite stores booleans as 0/1 — see toPublicSession's `!!` below.
+   * Exempts this session from the idle timeout in validateSession (see
+   * security/sessions.ts) — set when the frontend turns biometric login on
+   * for this session's device, cleared when it's turned off. */
+  biometric_protected: number;
 }
 
 export interface PublicSession {
@@ -148,6 +153,7 @@ export interface PublicSession {
   lastActiveAt: string;
   expiresAt: string;
   isCurrent: boolean;
+  biometricProtected: boolean;
 }
 
 /** Never include revoked_at, the raw JWT (never stored — see sessions.ts),
@@ -161,6 +167,7 @@ export function toPublicSession(row: UserSessionRow, currentSessionId: string): 
     lastActiveAt: row.last_seen_at,
     expiresAt: row.expires_at,
     isCurrent: row.id === currentSessionId,
+    biometricProtected: !!row.biometric_protected,
   };
 }
 
