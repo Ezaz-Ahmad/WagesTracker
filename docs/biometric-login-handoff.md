@@ -8,12 +8,15 @@ release-candidate commit — and this merge did not change the app version,
 did not touch the TestFlight workflow, and does not affect the `v1.16.0`
 release candidate in any way (see the confirmation further down).
 
-This document covers four fixes in total: two blocking issues found in
+This document covers five fixes in total: two blocking issues found in
 review of the first revision of PR #17, one further hardening fix found in
 review of the second revision (all three merged into `main` as part of PR
-#17), and a fourth behavioral fix — described in its own branch,
-`fix/ios-biometric-logout-soft-lock` — made after physical-device TestFlight
-testing surfaced a real UX gap post-merge. Each has regression coverage:
+#17), a fourth behavioral fix made after physical-device TestFlight testing
+surfaced a real UX gap post-merge, and a fifth round closing three test-
+coverage gaps found in a self-review of the first four — one of which
+turned out to be a real bug, not just missing coverage. Fixes 4 and 5 are
+both on their own branch, `fix/ios-biometric-logout-soft-lock`, based on
+the now-merged `main`. Each fix has regression coverage:
 
 1. **The native plugin was never registered with the Capacitor bridge.**
    `BiometricAuthPlugin.swift` conforming to `CAPBridgedPlugin` makes the
@@ -52,6 +55,16 @@ testing surfaced a real UX gap post-merge. Each has regression coverage:
    requirement once stated explicitly: biometric login should keep working
    across an explicit logout, the same as it does across a cold app
    restart, until the user turns it off from Settings. Fixed below.
+5. **A generic network error during Face ID validation was silently
+   turning biometric login off — found during a self-review, not by
+   testing on-device.** `attemptBiometricAuthentication`'s error handling
+   cleared the stored credential on *any* failure to validate the
+   recovered token against the backend, not just an actual 401 — so a
+   dropped connection or a momentarily-unreachable server would silently
+   disable Face ID over nothing more than a network blip, even though the
+   token itself was still perfectly valid. Fixed below, alongside two
+   coverage-only gaps (an interrupted/backgrounded prompt, and a
+   double-tap/race guard) closed in the same pass.
 
 ## Fix 1 — registering the plugin with the bridge
 
@@ -335,13 +348,85 @@ already-existing-behavior case) still passes unmodified, confirming the fix
 doesn't change anything for accounts that never turn biometrics on. With the
 fix restored, all 14 tests in the file — including both new ones — pass.
 
+## Fix 5 — closing three coverage gaps found in a self-review of Fixes 1–4
+
+After Fix 4 shipped and was confirmed working on a physical device, an
+explicit request to audit test coverage and error handling turned up three
+real gaps — one of which was an actual bug, not just missing coverage:
+
+1. **A generic (non-401) backend error during Face ID validation was
+   silently deleting the credential — an actual bug.**
+   `attemptBiometricAuthentication`'s catch block around
+   `api.fetchMeWithToken(result.token)` called
+   `await clearBiometricCredential()` unconditionally on *any* thrown error,
+   not just an actual 401. A dropped connection or a momentarily-unreachable
+   backend would therefore silently turn biometric login off, even though
+   the recovered token was still perfectly valid — worse than doing nothing,
+   and inconsistent with the principle `restoreSession`'s ordinary-token
+   path already follows a few lines below in the same file ("only drop the
+   session on an actual auth failure"). **Fixed**: the credential is now
+   only cleared when the error is actually an `ApiError` with `status ===
+   401`; any other error just shows "Couldn't verify your saved sign-in,
+   please log in again" and leaves the credential untouched.
+2. **The "app was backgrounded mid-prompt" case had adapter-level coverage
+   but no AppContext-level test.** Not a bug — `attemptBiometricAuthentication`
+   already treated `reason === "app_backgrounded"` identically to
+   `"user_cancelled"` (no error banner, credential untouched) — but that
+   condition was only proven at the native-adapter translation layer
+   (`nativeBiometricAuth.test.ts`), not where the actual behavior is
+   decided. Closed with a dedicated test exercising the real condition
+   directly.
+3. **Two biometric operations could run concurrently — a real, if narrow,
+   race.** `biometricBusy` is React state, used only to disable the
+   relevant button in the UI; it is not synchronous and does not stop the
+   underlying functions from being called twice — a very fast double-tap
+   landing before a re-render, or the automatic cold-launch prompt and a
+   manually-tapped retry racing each other, could in principle start a
+   second concurrent native prompt or a second concurrent backend call
+   while the first was still in flight. **Fixed**: a new
+   `biometricOperationInFlightRef` (a plain ref, checked and set
+   synchronously) now gates both `attemptBiometricAuthentication` and
+   `enableBiometricLoginAction` — the second of two near-simultaneous calls
+   always sees it already set and returns immediately without starting
+   anything.
+
+### Regression tests
+
+All three in `frontend/src/context/__tests__/biometricLogin.test.tsx`:
+
+- `"does NOT clear the credential on a generic (non-401) backend validation
+  error"` — forces `fetchMeWithToken` to reject with a plain `Error`
+  (not `ApiError`/401), asserts `disableBiometricLogin` was never called
+  and the Face ID icon is still offered afterward.
+- `"shows no error banner and leaves biometric login enabled after an
+  interrupted (backgrounded) prompt"` — mirrors the existing cancellation
+  test with `reason: "app_backgrounded"` instead.
+- `"a manual retry while the automatic cold-launch prompt is still in
+  flight does not start a second native prompt"` — holds `authenticate()`
+  pending with a manually-resolved promise (simulating a still-open native
+  sheet), fires two rapid clicks on the harness's deliberately
+  un-disabled retry button, and asserts the native adapter was still only
+  called once.
+
+**Verified working in both directions**: with the `AppContext.tsx` changes
+temporarily reverted, the non-401 test fails
+(`expected "vi.fn()" to not be called at all, but actually been called 1
+times` — proving the credential really was being cleared) and the
+concurrency test fails (`expected "vi.fn()" to be called 1 times, but got 3
+times` — proving all three clicks/attempts really did each start a new
+native call). The `app_backgrounded` test passes even against the reverted
+code, confirming that one was genuinely just missing coverage, not a bug.
+With the fix restored, all 17 tests in the file pass, alongside the full
+200 backend + 539 frontend suite, a clean typecheck, a clean build, and
+`npm audit` at 0 vulnerabilities.
+
 ## Full verification, this revision
 
 | Check | Result |
 |---|---|
 | Backend tests | **200/200 passed**, 20 files |
-| Frontend tests | **536/536 passed**, 59 files (previously 534; +2 for the Fix 4 soft-logout regression tests) |
-| — of which, biometric-specific | **14/14 passed** in `biometricLogin.test.tsx` alone (12 from the previous revision + the two new soft-logout tests), plus the rest of the biometric-adapter/Settings/AuthScreen suites unchanged (`BiometricLoginSettings.test.tsx`: 9/9) |
+| Frontend tests | **539/539 passed**, 59 files (previously 536; +3 for the Fix 5 coverage-gap regression tests) |
+| — of which, biometric-specific | **17/17 passed** in `biometricLogin.test.tsx` alone (14 from the previous revision + the three new tests), plus the rest of the biometric-adapter/Settings/AuthScreen suites unchanged (`BiometricLoginSettings.test.tsx`: 9/9, `nativeBiometricAuth.test.ts` unchanged) |
 | Backend typecheck | clean |
 | Frontend typecheck | clean |
 | Backend build | clean |

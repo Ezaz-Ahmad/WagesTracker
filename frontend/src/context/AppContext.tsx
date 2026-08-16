@@ -230,6 +230,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // second, explicitly-requested one.
   const autoBiometricAttemptedRef = useRef(false);
 
+  // Guards against two biometric operations (a sign-in attempt and/or an
+  // enable attempt) running concurrently. `biometricBusy` state exists for
+  // the UI to disable its own button while a prompt is in flight, but a
+  // React state update is not synchronous — a rapid double-tap can land
+  // before the button re-renders as disabled, and the automatic cold-launch
+  // prompt and a manually-tapped retry icon could in principle race each
+  // other too. A plain ref check-and-set closes that gap: it's synchronous,
+  // so the second of two near-simultaneous calls always sees it already set
+  // and bails out before ever starting a second native prompt or a second
+  // concurrent backend call.
+  const biometricOperationInFlightRef = useRef(false);
+
   // Earnings-privacy toggle: dollar figures across the app render blurred
   // until explicitly revealed, and always start hidden again on a fresh
   // login — see the eye button in the top nav. Starting `true` by default
@@ -310,6 +322,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
    * knows not to also fall through to its own "loggedOut" branch.
    */
   const attemptBiometricAuthentication = useCallback(async (): Promise<boolean> => {
+    if (biometricOperationInFlightRef.current) {
+      // Already mid-prompt — e.g. a double-tap on the login screen's icon
+      // beating React's disabled-button re-render, or the automatic
+      // cold-launch attempt and a manual retry racing each other. Never
+      // start a second concurrent native prompt/backend call; the one
+      // already running will settle `status`/`biometricStatus` on its own.
+      return false;
+    }
+    biometricOperationInFlightRef.current = true;
     setBiometricBusy(true);
     setBiometricLoginError(null);
     try {
@@ -348,12 +369,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setStatus("loggedIn");
         return true;
       } catch (e) {
-        // The recovered token is expired, revoked, or the account no longer
-        // exists — clear the now-useless stored credential rather than
-        // leaving it to fail the exact same way on every future launch.
-        await clearBiometricCredential();
+        const sessionInvalid = e instanceof ApiError && e.status === 401;
+        if (sessionInvalid) {
+          // The recovered token is actually expired, revoked, or the
+          // account no longer exists — clear the now-useless stored
+          // credential rather than leaving it to fail the exact same way
+          // on every future launch.
+          await clearBiometricCredential();
+        }
+        // A network failure or a momentarily-unreachable backend must not
+        // clear a perfectly good credential just because this one check
+        // couldn't complete — the same principle `restoreSession`'s
+        // ordinary-token path below already follows for `fetchMe()`
+        // ("Only drop the session on an actual auth failure"). Losing Face
+        // ID over a dropped connection would be a worse outcome than just
+        // asking the user to try again.
         setBiometricLoginError(
-          e instanceof ApiError && e.status === 401
+          sessionInvalid
             ? "Your saved sign-in has expired. Please log in again."
             : "Couldn't verify your saved sign-in. Please log in again."
         );
@@ -361,6 +393,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     } finally {
       setBiometricBusy(false);
+      biometricOperationInFlightRef.current = false;
     }
   }, [hideEarningsNow, clearBiometricCredential]);
 
@@ -966,6 +999,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
         error: "You must be logged in to enable biometric login.",
       };
     }
+    if (biometricOperationInFlightRef.current) {
+      // Shares the same in-flight guard as attemptBiometricAuthentication:
+      // an enable prompt and a sign-in prompt must never run concurrently
+      // either — both drive the single native Face ID/Touch ID sheet and
+      // the same `biometricBusy` UI flag, so a race between them would be
+      // just as unsafe as a double sign-in attempt.
+      return {
+        outcome: "failed",
+        reason: "unavailable",
+        error: "A biometric prompt is already in progress. Please wait and try again.",
+      };
+    }
+    biometricOperationInFlightRef.current = true;
     setBiometricBusy(true);
     try {
       const result = await adapterEnableBiometricLogin(user.id, user.name, token);
@@ -1026,6 +1072,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return result;
     } finally {
       setBiometricBusy(false);
+      biometricOperationInFlightRef.current = false;
     }
   }, [user, clearBiometricCredential]);
 
