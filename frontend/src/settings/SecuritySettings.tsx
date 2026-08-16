@@ -6,6 +6,7 @@ import { StableLabel } from "../components/StableLabel";
 import { StatusBanner } from "../components/StatusBanner";
 import { SessionList } from "./SessionList";
 import { BiometricLoginSettings } from "./BiometricLoginSettings";
+import { ShiftNotificationSettings } from "./ShiftNotificationSettings";
 
 export function SecuritySettings() {
   const { changePassword, loadSessions } = useApp();
@@ -127,6 +128,7 @@ export function SecuritySettings() {
       <SessionList />
     </div>
     <BiometricLoginSettings />
+    <ShiftNotificationSettings />
     </>
   );
 }

@@ -44,6 +44,12 @@ intended sign-out is recorded locally, and the app finishes the job
 automatically, silently, the next time it's opened — no user action
 required, no data loss.
 
+A direct follow-up request added a Settings control to turn this whole
+feature off per device (`Settings → Security → Shift notification`) — see
+`docs/shift-notification-settings-toggle-handoff.md` for that design.
+Nothing else in this document changed as part of that; the notification's
+own behavior, once enabled, is exactly as described here.
+
 ## Architecture
 
 **Shared platform-neutral contract** (`frontend/src/platform/shiftNotifications.ts`),

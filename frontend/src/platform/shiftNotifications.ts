@@ -102,3 +102,37 @@ export function getPendingEndShift(): Promise<PendingEndShift | null> {
 export function clearPendingEndShift(): Promise<void> {
   return adapter().clearPendingEndShift();
 }
+
+const SHIFT_NOTIFICATION_ENABLED_KEY = "wageTracker.shiftNotificationEnabled";
+
+/**
+ * Whether the shift-in-progress notification should be posted at all — a
+ * device-local preference (like Remember Me's remembered-email in
+ * `lib/api.ts`, never synced to the backend, since it's purely about what
+ * this one device's notification center shows) that the Settings toggle in
+ * `ShiftNotificationSettings.tsx` controls and `useTodayShift`'s `start()`
+ * checks before ever calling `postShiftStartedNotification`.
+ *
+ * Defaults to **on** — absence of the key (every existing install, and any
+ * fresh one) reads as enabled, so shipping this toggle doesn't silently turn
+ * a notification off that people were already relying on; only an explicit
+ * "off" write changes the default. Irrelevant on web/PWA, where
+ * `WebShiftNotificationAdapter` already no-ops every call regardless — the
+ * Settings control itself only renders on native, same as
+ * `BiometricLoginSettings`.
+ */
+export function isShiftNotificationEnabled(): boolean {
+  return localStorage.getItem(SHIFT_NOTIFICATION_ENABLED_KEY) !== "off";
+}
+
+export function setShiftNotificationEnabled(enabled: boolean): void {
+  if (enabled) {
+    // Removing the key (rather than writing "on") keeps "no key" and
+    // "explicitly turned on" indistinguishable, which is exactly the point —
+    // there's nothing meaningful to tell them apart on, only "off" is ever a
+    // real deviation from the default worth persisting.
+    localStorage.removeItem(SHIFT_NOTIFICATION_ENABLED_KEY);
+  } else {
+    localStorage.setItem(SHIFT_NOTIFICATION_ENABLED_KEY, "off");
+  }
+}

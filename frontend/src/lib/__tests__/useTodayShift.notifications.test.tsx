@@ -49,9 +49,12 @@ vi.mock("../../context/AppContext", async (importOriginal) => {
 
 const postShiftStartedNotification = vi.fn().mockResolvedValue(undefined);
 const clearShiftNotification = vi.fn().mockResolvedValue(undefined);
+let notificationPreferenceEnabled: boolean;
 vi.mock("../../platform/shiftNotifications", () => ({
   postShiftStartedNotification: (...args: unknown[]) => postShiftStartedNotification(...args),
   clearShiftNotification: (...args: unknown[]) => clearShiftNotification(...args),
+  isShiftNotificationEnabled: () => notificationPreferenceEnabled,
+  setShiftNotificationEnabled: vi.fn(),
 }));
 
 let tokenValue: string | null;
@@ -75,6 +78,7 @@ beforeEach(() => {
   createShift = vi.fn();
   updateShift = vi.fn();
   tokenValue = "session-token";
+  notificationPreferenceEnabled = true;
   postShiftStartedNotification.mockClear();
   clearShiftNotification.mockClear();
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -118,6 +122,22 @@ describe("useTodayShift → shift-notification wiring on start()", () => {
   it("does not post a notification when there is no session token to hand the native layer", async () => {
     const user = userEvent.setup();
     tokenValue = null;
+    createShift.mockResolvedValue({ id: "new-shift-1", date: "2026-08-09", location: "Downtown Store", signIn: "09:00:00", signOut: null });
+    render(<Harness />);
+
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
+
+    await waitFor(() => expect(createShift).toHaveBeenCalledTimes(1));
+    expect(postShiftStartedNotification).not.toHaveBeenCalled();
+  });
+
+  it("does not post a notification when the Settings toggle has turned the feature off", async () => {
+    // Settings → Security → Shift notification (isShiftNotificationEnabled)
+    // — a device-local preference checked before the token check above, so
+    // turning the feature off skips the call entirely rather than relying
+    // on the adapter to silently swallow it.
+    const user = userEvent.setup();
+    notificationPreferenceEnabled = false;
     createShift.mockResolvedValue({ id: "new-shift-1", date: "2026-08-09", location: "Downtown Store", signIn: "09:00:00", signOut: null });
     render(<Harness />);
 
