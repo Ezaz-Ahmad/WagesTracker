@@ -19,18 +19,6 @@ export function getToken(): string | null {
   return getStoredToken();
 }
 
-/** The backend origin this build talks to (no trailing slash, no `/api`
- * suffix) — exposed so native-only code that must make its own request
- * outside the JS bridge (see `platform/nativeShiftNotifications.ts`) can
- * build the exact same URL `request()` above does, without duplicating the
- * `VITE_API_URL` env read. Empty in local dev, where Vite's dev-server
- * proxy handles it instead (see the comment on `API_ORIGIN` above) — native
- * builds always set `VITE_API_URL` explicitly (see `ios:build:web`), so
- * this is only ever empty in a context with no native background caller to
- * matter for anyway. */
-export function getApiOrigin(): string {
-  return API_ORIGIN;
-}
 /** `remember=true` (the default) persists across browser restarts; `false` keeps
  * the session only until the tab/browser closes — the "Remember me" checkbox. */
 export function setToken(token: string, remember: boolean = true): Promise<void> {

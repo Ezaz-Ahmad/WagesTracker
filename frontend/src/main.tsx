@@ -10,7 +10,6 @@ import { configurePdfDelivery } from "./platform/pdfDelivery";
 import { configureConnectivityAdapter } from "./platform/connectivity";
 import { configureAppLifecycleAdapter } from "./platform/appLifecycle";
 import { configureBiometricAuth } from "./platform/biometricAuth";
-import { configureShiftNotifications } from "./platform/shiftNotifications";
 import "./styles/tokens.css";
 import "./styles/app.css";
 import "./styles/animations.css";
@@ -39,13 +38,12 @@ const path = window.location.pathname.replace(/\/+$/, "") || "/";
 // before any API request or authentication state is evaluated. The web
 // adapter is a no-op and preserves the existing synchronous startup path.
 if (__NATIVE_CONSUMER_BUILD__ && Capacitor.isNativePlatform()) {
-  const [storage, pdf, connectivity, lifecycle, biometrics, shiftNotifications] = await Promise.all([
+  const [storage, pdf, connectivity, lifecycle, biometrics] = await Promise.all([
     import("./platform/nativeSecureTokenStorage"),
     import("./platform/nativePdfDelivery"),
     import("./platform/nativeConnectivity"),
     import("./platform/nativeAppLifecycle"),
     import("./platform/nativeBiometricAuth"),
-    import("./platform/nativeShiftNotifications"),
   ]);
   const { NativeSecureTokenStorageAdapter } = storage;
   configureTokenStorage(new NativeSecureTokenStorageAdapter());
@@ -53,7 +51,6 @@ if (__NATIVE_CONSUMER_BUILD__ && Capacitor.isNativePlatform()) {
   configureConnectivityAdapter(new connectivity.NativeConnectivityAdapter());
   configureAppLifecycleAdapter(new lifecycle.NativeAppLifecycleAdapter());
   configureBiometricAuth(new biometrics.NativeBiometricAuthAdapter());
-  configureShiftNotifications(new shiftNotifications.NativeShiftNotificationAdapter());
 }
 await initializeTokenStorage();
 

@@ -10,7 +10,6 @@
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		B10000020000000000000001 /* BiometricAuthPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000010000000000000001 /* BiometricAuthPlugin.swift */; };
 		B10000040000000000000001 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000030000000000000001 /* MainViewController.swift */; };
-		B20000020000000000000001 /* ShiftNotificationPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000001 /* ShiftNotificationPlugin.swift */; };
 		4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 4D22ABE82AF431CB00220026 /* CapApp-SPM */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
 		504EC3081FED79650016851F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504EC3071FED79650016851F /* AppDelegate.swift */; };
@@ -35,7 +34,6 @@
 		A16000020000000000000001 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B10000010000000000000001 /* BiometricAuthPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricAuthPlugin.swift; sourceTree = "<group>"; };
 		B10000030000000000000001 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
-		B20000010000000000000001 /* ShiftNotificationPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShiftNotificationPlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -74,7 +72,6 @@
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				B10000010000000000000001 /* BiometricAuthPlugin.swift */,
 				B10000030000000000000001 /* MainViewController.swift */,
-				B20000010000000000000001 /* ShiftNotificationPlugin.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -171,7 +168,6 @@
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				B10000020000000000000001 /* BiometricAuthPlugin.swift in Sources */,
 				B10000040000000000000001 /* MainViewController.swift in Sources */,
-				B20000020000000000000001 /* ShiftNotificationPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

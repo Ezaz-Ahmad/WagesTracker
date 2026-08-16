@@ -57,13 +57,6 @@ vi.mock("../../platform/biometricAuth", () => ({
   disableBiometricLogin: vi.fn(async () => {}),
 }));
 
-vi.mock("../../platform/shiftNotifications", () => ({
-  getPendingEndShift: vi.fn(async () => null),
-  clearPendingEndShift: vi.fn(async () => {}),
-  postShiftStartedNotification: vi.fn(async () => ({ ok: true })),
-  clearShiftNotification: vi.fn(async () => {}),
-}));
-
 import * as api from "../../lib/api";
 import * as biometricAuth from "../../platform/biometricAuth";
 

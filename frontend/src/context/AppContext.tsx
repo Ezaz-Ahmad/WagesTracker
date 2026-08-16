@@ -19,7 +19,6 @@ import {
   type BiometricFailureReason,
   type BiometricStatus,
 } from "../platform/biometricAuth";
-import { clearPendingEndShift, getPendingEndShift } from "../platform/shiftNotifications";
 
 export const RETENTION_YEARS = 5;
 export const CURRENCY = "$";
@@ -107,17 +106,6 @@ interface AppContextValue {
   connected: boolean;
   retryConnectivity: () => Promise<void>;
   clearActionError: () => void;
-  /** Set when the native shift-in-progress notification (see
-   * `platform/shiftNotifications.ts`) failed to actually post — permission
-   * denied, a Keychain write failure, or any other platform error. Never
-   * blocks or unwinds the shift that already started successfully (see
-   * `useTodayShift.start()`); this only makes an otherwise-silent failure
-   * visible, since without it the person has no way to know their
-   * "remember to sign out" reminder didn't show up. Warning tone, not
-   * `actionError`'s danger tone — the shift itself is fine. */
-  shiftNotificationNotice: string | null;
-  reportShiftNotificationIssue: (message: string) => void;
-  dismissShiftNotificationNotice: () => void;
   login: (email: string, password: string, remember?: boolean) => Promise<void>;
   signup: (input: api.SignupInput) => Promise<void>;
   logout: () => Promise<void>;
@@ -234,7 +222,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // back cannot resurrect it (see the regression test).
   const [sessionNotice, setSessionNotice] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [shiftNotificationNotice, setShiftNotificationNotice] = useState<string | null>(null);
   const [connected, setConnected] = useState(true);
   const connectedRef = useRef(true);
   const [shifts, setShifts] = useState<Shift[]>([]);
@@ -288,12 +275,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // and bails out before ever starting a second native prompt or a second
   // concurrent backend call.
   const biometricOperationInFlightRef = useRef(false);
-
-  // Gates the pending-notification-sign-out reconciliation effect below to
-  // at most once per signed-in app session — a fresh value every time this
-  // module/provider is freshly instantiated, matching
-  // `autoBiometricAttemptedRef`'s reasoning exactly.
-  const pendingEndShiftReconciledRef = useRef(false);
 
   // Earnings-privacy toggle: dollar figures across the app render blurred
   // until explicitly revealed, and always start hidden again on a fresh
@@ -840,15 +821,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [logout]
   );
 
-  // Fed by useTodayShift.start() after a failed postShiftStartedNotification
-  // — see shiftNotificationNotice's own doc on the AppContextValue interface
-  // for why this is a separate, warning-tone banner rather than reusing
-  // actionError.
-  const reportShiftNotificationIssue = useCallback((message: string) => {
-    setShiftNotificationNotice(message);
-  }, []);
-  const dismissShiftNotificationNotice = useCallback(() => setShiftNotificationNotice(null), []);
-
   // Left to throw on any failure — including validation and network errors —
   // so the Settings UI can tell a genuine save from a failed one and never
   // show "Saved" when nothing actually changed server-side (see
@@ -982,38 +954,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }),
     [rethrowingAction]
   );
-
-  // Finishes a "Sign out" tap on the shift-in-progress notification that
-  // the native side couldn't complete on its own (no connectivity, or the
-  // OS reclaimed the background execution window before the request
-  // finished — see platform/shiftNotifications.ts and the Swift plugin).
-  // Runs once per signed-in app session, as soon as there is a valid
-  // authenticated token to make the request with. Deliberately uses
-  // `updateShiftOrThrow` rather than the user-facing `updateShift` wrapper:
-  // a 401 still triggers the normal expired-session logout+message (via
-  // `rethrowingAction`), but any other failure here (the shift was already
-  // ended, already deleted, whatever) is swallowed silently — there is no
-  // user action this reconciliation is a direct response to, so surfacing
-  // an "action failed" banner the instant the app opens would be confusing
-  // rather than helpful. The pending record is cleared after exactly one
-  // attempt either way, so a persistently-failing reconciliation can never
-  // turn into a retry loop on every launch — the ordinary in-app Sign out
-  // button is always still there as a fallback.
-  useEffect(() => {
-    if (status !== "loggedIn" || pendingEndShiftReconciledRef.current) return;
-    pendingEndShiftReconciledRef.current = true;
-    void (async () => {
-      const pending = await getPendingEndShift();
-      if (!pending) return;
-      try {
-        await updateShiftOrThrow(pending.shiftId, { signOut: pending.signOut });
-      } catch (error) {
-        console.error("Could not reconcile a pending notification sign-out", error);
-      } finally {
-        await clearPendingEndShift();
-      }
-    })();
-  }, [status, updateShiftOrThrow]);
 
   const removeShiftOrThrow = useCallback(
     (id: string) =>
@@ -1284,9 +1224,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       connected,
       retryConnectivity,
       clearActionError: () => setActionError(null),
-      shiftNotificationNotice,
-      reportShiftNotificationIssue,
-      dismissShiftNotificationNotice,
       login,
       signup,
       logout,
@@ -1340,9 +1277,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       actionError,
       connected,
       retryConnectivity,
-      shiftNotificationNotice,
-      reportShiftNotificationIssue,
-      dismissShiftNotificationNotice,
       sessionNotice,
       login,
       signup,
