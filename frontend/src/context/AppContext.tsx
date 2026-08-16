@@ -301,6 +301,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const clearBiometricCredential = useCallback(async () => {
     await adapterDisableBiometricLogin();
     setBiometricStatus({ enabled: false });
+    // Best-effort unmark of the idle-timeout exemption (see
+    // setSessionBiometricProtection's own comment) — frequently has no
+    // session left that can actually authenticate this call (e.g. a failed
+    // Face ID validation already means the recovered token itself just
+    // 401'd), which is fine: a session that can't authenticate at all
+    // doesn't need its flag cleared to start behaving ordinarily again.
+    try {
+      await api.setSessionBiometricProtection(false);
+    } catch (error) {
+      console.error("Could not clear this session's biometric-protection flag", error);
+    }
   }, []);
 
   // Loads device capability + on/off status once at startup, independent of
@@ -670,8 +681,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // arrives within IDLE_LOGOUT_MS. A closed tab/browser has the same effect
   // for non-"remember me" sessions already, since those live in
   // sessionStorage and are gone the moment the tab closes.
+  //
+  // Skipped entirely while biometric login is enabled: this timer forces a
+  // *local* logout purely from the client's own clock, with no server round
+  // trip — but a biometric-protected session (see
+  // setSessionBiometricProtection/enableBiometricLoginAction above) is
+  // specifically exempt from the server's own idle timeout, on the theory
+  // that Face ID/Touch ID re-entry on this device substitutes for it. If
+  // this timer still fired locally regardless, it would force exactly the
+  // "signed out just for leaving the app alone for 10 minutes" experience
+  // the exemption exists to prevent — the resume-triggered `refresh()`
+  // effect above is the one that actually asks the server, and the server
+  // will now keep saying this session is still valid.
   useEffect(() => {
-    if (status !== "loggedIn") return;
+    if (status !== "loggedIn" || biometricStatus.enabled) return;
 
     let timer: ReturnType<typeof setTimeout>;
     const handleIdle = () => {
@@ -710,7 +733,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("focus", checkStaleOnResume);
       window.removeEventListener("pageshow", checkStaleOnResume);
     };
-  }, [status, logout]);
+  }, [status, logout, biometricStatus.enabled]);
 
   // Left to throw on failure (e.g. wrong password) so the confirmation dialog can show the
   // error inline instead of routing it through the top-level action-error banner.
@@ -1108,6 +1131,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
           };
         }
         setBiometricStatus(await getBiometricStatus());
+        // Best-effort, and deliberately NOT part of the transaction above:
+        // Face ID itself is already fully working at this point (the
+        // Keychain credential exists, the ordinary token is demoted), so a
+        // failure here must not roll any of that back or report enable()
+        // as failed — it only means this session keeps the ordinary
+        // 10-minute idle timeout until this call (or the next enable)
+        // succeeds, not that biometric login doesn't work. See
+        // setSessionBiometricProtection's own comment for what this flag
+        // does server-side.
+        try {
+          await api.setSessionBiometricProtection(true);
+        } catch (error) {
+          console.error("Could not mark this session as biometric-protected", error);
+        }
       }
       return result;
     } finally {

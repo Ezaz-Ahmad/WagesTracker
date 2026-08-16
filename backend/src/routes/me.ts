@@ -13,6 +13,7 @@ import {
   revokeOtherSessions,
   revokeSessionById,
   sessionBelongsToUser,
+  setSessionBiometricProtection,
   SESSION_TTL_MS,
 } from "../security/sessions.js";
 import { toPublicSession, toPublicUser, type UserRow } from "../types.js";
@@ -83,6 +84,31 @@ meRouter.delete(
     // own current session so it can log itself out immediately, rather than
     // waiting for some future request to fail with a generic 401.
     res.json({ revokedCurrent: req.params.sessionId === req.sessionId });
+  })
+);
+
+const sessionBiometricProtectionSchema = z.object({ biometricProtected: z.boolean() });
+
+/**
+ * Marks (or unmarks) the calling request's own session as biometric-
+ * protected — see validateSession's idle-timeout exemption in
+ * security/sessions.ts. Called by the frontend right after Face ID/Touch ID
+ * is turned on (with `true`) or off (with `false`); there is deliberately no
+ * way to target any session other than "the one this request authenticated
+ * with" — `req.sessionId` only, never a body/param id — since biometric
+ * protection is inherently a property of "the credential this specific
+ * device is holding", not something one session can set for another.
+ */
+meRouter.patch(
+  "/sessions/current",
+  asyncHandler<AuthedRequest>(async (req, res) => {
+    const parsed = sessionBiometricProtectionSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "biometricProtected must be a boolean" });
+      return;
+    }
+    await setSessionBiometricProtection(req.sessionId!, req.userId!, parsed.data.biometricProtected);
+    res.status(204).end();
   })
 );
 

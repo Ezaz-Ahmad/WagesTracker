@@ -291,6 +291,7 @@ export interface SessionInfo {
   lastActiveAt: string;
   expiresAt: string;
   isCurrent: boolean;
+  biometricProtected: boolean;
 }
 
 /** Lists the current user's own active (non-revoked, non-expired) sessions —
@@ -313,6 +314,18 @@ export function revokeSession(sessionId: string): Promise<{ revokedCurrent: bool
  * other devices." Never touches the current session. */
 export function revokeOtherSessions(): Promise<void> {
   return request("/me/sessions/others", { method: "DELETE" });
+}
+
+/** Marks (`true`) or unmarks (`false`) the session backing the current
+ * token as biometric-protected — exempts it from the server's idle timeout
+ * (see backend/src/security/sessions.ts's validateSession) on the theory
+ * that Face ID/Touch ID re-entry on this device is itself the "was this
+ * really the account owner" check an idle timeout otherwise approximates.
+ * Called from AppContext right after enabling/disabling biometric login;
+ * best-effort on the caller's side — see the call sites for why a failure
+ * here must never block the underlying Face ID enable/disable itself. */
+export function setSessionBiometricProtection(enabled: boolean): Promise<void> {
+  return request("/me/sessions/current", { method: "PATCH", body: JSON.stringify({ biometricProtected: enabled }) });
 }
 
 /** Server-side logout: revokes the session backing the current token, so a

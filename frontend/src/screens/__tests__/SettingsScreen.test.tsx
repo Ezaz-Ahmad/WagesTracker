@@ -45,12 +45,12 @@ const testUser: User = {
 };
 
 const oldSessions: SessionInfo[] = [
-  { id: "old-1", userAgent: "Old Device A", ipAddress: "1.1.1.1", createdAt: "2026-01-01T00:00:00.000Z", lastActiveAt: "2026-01-01T00:00:00.000Z", expiresAt: "2026-02-01T00:00:00.000Z", isCurrent: true },
-  { id: "old-2", userAgent: "Old Device B", ipAddress: "2.2.2.2", createdAt: "2026-01-01T00:00:00.000Z", lastActiveAt: "2026-01-01T00:00:00.000Z", expiresAt: "2026-02-01T00:00:00.000Z", isCurrent: false },
+  { id: "old-1", userAgent: "Old Device A", ipAddress: "1.1.1.1", createdAt: "2026-01-01T00:00:00.000Z", lastActiveAt: "2026-01-01T00:00:00.000Z", expiresAt: "2026-02-01T00:00:00.000Z", isCurrent: true, biometricProtected: false },
+  { id: "old-2", userAgent: "Old Device B", ipAddress: "2.2.2.2", createdAt: "2026-01-01T00:00:00.000Z", lastActiveAt: "2026-01-01T00:00:00.000Z", expiresAt: "2026-02-01T00:00:00.000Z", isCurrent: false, biometricProtected: false },
 ];
 
 const newSessions: SessionInfo[] = [
-  { id: "new-1", userAgent: "New Device", ipAddress: "3.3.3.3", createdAt: "2026-01-05T00:00:00.000Z", lastActiveAt: "2026-01-05T00:00:00.000Z", expiresAt: "2026-02-05T00:00:00.000Z", isCurrent: true },
+  { id: "new-1", userAgent: "New Device", ipAddress: "3.3.3.3", createdAt: "2026-01-05T00:00:00.000Z", lastActiveAt: "2026-01-05T00:00:00.000Z", expiresAt: "2026-02-05T00:00:00.000Z", isCurrent: true, biometricProtected: false },
 ];
 
 // Configurable per test, read live by the fake context hook below —

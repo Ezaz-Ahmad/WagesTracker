@@ -37,8 +37,8 @@ const testUser: User = {
 };
 
 const sessions: SessionInfo[] = [
-  { id: "current-1", userAgent: "Chrome on macOS", ipAddress: "1.2.3.4", createdAt: "2026-01-01T00:00:00.000Z", lastActiveAt: "2026-01-05T00:00:00.000Z", expiresAt: "2026-02-01T00:00:00.000Z", isCurrent: true },
-  { id: "other-1", userAgent: "Firefox on Windows", ipAddress: "5.6.7.8", createdAt: "2026-01-01T00:00:00.000Z", lastActiveAt: "2026-01-02T00:00:00.000Z", expiresAt: "2026-02-01T00:00:00.000Z", isCurrent: false },
+  { id: "current-1", userAgent: "Chrome on macOS", ipAddress: "1.2.3.4", createdAt: "2026-01-01T00:00:00.000Z", lastActiveAt: "2026-01-05T00:00:00.000Z", expiresAt: "2026-02-01T00:00:00.000Z", isCurrent: true, biometricProtected: false },
+  { id: "other-1", userAgent: "Firefox on Windows", ipAddress: "5.6.7.8", createdAt: "2026-01-01T00:00:00.000Z", lastActiveAt: "2026-01-02T00:00:00.000Z", expiresAt: "2026-02-01T00:00:00.000Z", isCurrent: false, biometricProtected: false },
 ];
 
 function useFakeApp(): AppCtx {

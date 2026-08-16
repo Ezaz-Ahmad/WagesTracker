@@ -17,8 +17,8 @@ type AppCtx = ReturnType<typeof useApp>;
 // Deliberately NOT current-first, to prove the component (not the fixture)
 // does the sorting.
 const twoSessions: SessionInfo[] = [
-  { id: "other-1", userAgent: "Firefox on Windows", ipAddress: "5.6.7.8", createdAt: "2026-01-01T00:00:00.000Z", lastActiveAt: "2026-01-02T00:00:00.000Z", expiresAt: "2026-02-01T00:00:00.000Z", isCurrent: false },
-  { id: "current-1", userAgent: "Chrome on macOS", ipAddress: "1.2.3.4", createdAt: "2026-01-01T00:00:00.000Z", lastActiveAt: "2026-01-05T00:00:00.000Z", expiresAt: "2026-02-01T00:00:00.000Z", isCurrent: true },
+  { id: "other-1", userAgent: "Firefox on Windows", ipAddress: "5.6.7.8", createdAt: "2026-01-01T00:00:00.000Z", lastActiveAt: "2026-01-02T00:00:00.000Z", expiresAt: "2026-02-01T00:00:00.000Z", isCurrent: false, biometricProtected: false },
+  { id: "current-1", userAgent: "Chrome on macOS", ipAddress: "1.2.3.4", createdAt: "2026-01-01T00:00:00.000Z", lastActiveAt: "2026-01-05T00:00:00.000Z", expiresAt: "2026-02-01T00:00:00.000Z", isCurrent: true, biometricProtected: false },
 ];
 
 let fetchSessionsImpl: () => Promise<SessionInfo[]>;
@@ -82,6 +82,21 @@ describe("SessionList", () => {
     expect(within(cards[0]).getByText("Chrome on macOS")).toBeTruthy();
     expect(within(cards[0]).getByText("This device")).toBeTruthy();
     expect(within(cards[1]).getByText("Firefox on Windows")).toBeTruthy();
+  });
+
+  it("shows the Face ID/Touch ID badge only on a biometric-protected session", async () => {
+    fetchSessionsImpl = vi.fn().mockResolvedValue([
+      { ...twoSessions[0], biometricProtected: true },
+      twoSessions[1],
+    ]);
+    render(<SessionList />);
+
+    await waitFor(() => expect(screen.getByText("Chrome on macOS")).toBeTruthy());
+    const cards = screen.getAllByRole("listitem");
+    // current-1 (Chrome on macOS) sorts first regardless of protection —
+    // "This device" always wins the sort, protection is just a badge.
+    expect(within(cards[0]).queryByText("Face ID/Touch ID")).toBeNull();
+    expect(within(cards[1]).getByText("Face ID/Touch ID")).toBeTruthy();
   });
 
   it("shows an empty state when there are no sessions", async () => {

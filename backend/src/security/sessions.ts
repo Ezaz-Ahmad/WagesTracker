@@ -219,6 +219,16 @@ export interface SessionValidationResult {
  * Idle expiry is enforced here rather than by a background sweep, so it
  * applies the instant it's true: there is no window in which an abandoned
  * session still authenticates because a cleanup job hasn't run yet.
+ *
+ * A session marked `biometric_protected` (see PATCH /api/me/sessions/current
+ * in routes/me.ts) is exempt from that idle check specifically — Face
+ * ID/Touch ID re-entry on that device is itself the "was this really the
+ * account owner" check an idle timeout otherwise exists to approximate, so
+ * requiring both would just mean Face ID quietly stops working after 10
+ * minutes of the app merely sitting in the background. The absolute
+ * lifetime (`expires_at`), revocation, and token-version checks below still
+ * apply unconditionally — this is narrowly an idle-timeout exemption, not a
+ * way to make a session unkillable.
  */
 export async function validateSession(
   sessionId: string,
@@ -227,22 +237,51 @@ export async function validateSession(
 ): Promise<SessionValidationResult> {
   const result = await db.execute({
     sql: `SELECT s.last_seen_at as last_seen_at, s.revoked_at as revoked_at, s.expires_at as expires_at,
-                 u.token_version as token_version
+                 s.biometric_protected as biometric_protected, u.token_version as token_version
           FROM user_sessions s
           JOIN users u ON u.id = s.user_id
           WHERE s.id = ? AND s.user_id = ?`,
     args: [sessionId, userId],
   });
   const row = result.rows[0] as unknown as
-    | { last_seen_at: string; revoked_at: string | null; expires_at: string; token_version: number }
+    | {
+        last_seen_at: string;
+        revoked_at: string | null;
+        expires_at: string;
+        biometric_protected: number;
+        token_version: number;
+      }
     | undefined;
   if (!row) return { valid: false };
   if (row.revoked_at) return { valid: false };
   const { expiredAtOrBefore, idleBefore } = sessionCutoffs();
   if (row.expires_at <= expiredAtOrBefore) return { valid: false };
-  if (row.last_seen_at <= idleBefore) return { valid: false };
+  if (!row.biometric_protected && row.last_seen_at <= idleBefore) return { valid: false };
   if (Number(row.token_version) !== tokenVersion) return { valid: false };
   return { valid: true, lastSeenAt: row.last_seen_at };
+}
+
+/**
+ * Marks (or unmarks) the caller's own current session as biometric-
+ * protected — see validateSession's idle-exemption above. Scoped to
+ * `sessionId + userId` the same way every other single-session mutation in
+ * this file is, even though the route only ever passes the caller's own
+ * `req.sessionId`: defense in depth against a future call site passing the
+ * wrong id, not a currently-reachable cross-user path.
+ *
+ * Deliberately does not touch `last_seen_at`, `expires_at`, or anything
+ * else — turning biometric login on or off is not itself session activity,
+ * and must not silently extend or shorten the session's own lifetime.
+ */
+export async function setSessionBiometricProtection(
+  sessionId: string,
+  userId: string,
+  protectedFlag: boolean
+): Promise<void> {
+  await db.execute({
+    sql: "UPDATE user_sessions SET biometric_protected = ? WHERE id = ? AND user_id = ?",
+    args: [protectedFlag ? 1 : 0, sessionId, userId],
+  });
 }
 
 /**
