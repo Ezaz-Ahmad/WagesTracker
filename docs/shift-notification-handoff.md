@@ -50,6 +50,13 @@ feature off per device (`Settings → Security → Shift notification`) — see
 Nothing else in this document changed as part of that; the notification's
 own behavior, once enabled, is exactly as described here.
 
+A second follow-up, after physical-device testing turned up a real failure
+that had no way to surface itself, changed `postShiftStarted` to report
+`{ ok: false, error }` instead of only logging a platform failure — see
+`docs/shift-notification-failure-visibility-handoff.md`. The notification's
+own posting/clearing/background-wake behavior described below is unchanged
+by that fix.
+
 ## Architecture
 
 **Shared platform-neutral contract** (`frontend/src/platform/shiftNotifications.ts`),

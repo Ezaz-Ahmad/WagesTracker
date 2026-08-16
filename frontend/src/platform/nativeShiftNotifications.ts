@@ -1,5 +1,10 @@
 import { registerPlugin } from "@capacitor/core";
-import type { PendingEndShift, ShiftNotificationAdapter, ShiftNotificationStartInfo } from "./shiftNotifications";
+import type {
+  PendingEndShift,
+  ShiftNotificationAdapter,
+  ShiftNotificationResult,
+  ShiftNotificationStartInfo,
+} from "./shiftNotifications";
 
 /**
  * Raw shape of the native `ShiftNotificationPlugin.swift` bridge (see
@@ -33,14 +38,19 @@ const ShiftNotificationPlugin = registerPlugin<ShiftNotificationPluginPort>("Shi
 export class NativeShiftNotificationAdapter implements ShiftNotificationAdapter {
   constructor(private readonly plugin: ShiftNotificationPluginPort = ShiftNotificationPlugin) {}
 
-  async postShiftStarted(info: ShiftNotificationStartInfo): Promise<void> {
+  async postShiftStarted(info: ShiftNotificationStartInfo): Promise<ShiftNotificationResult> {
     try {
       await this.plugin.postShiftStarted(info);
+      return { ok: true };
     } catch (error) {
       // Notification permission denied, or any other platform failure — the
       // shift itself is already running; not being able to show a
-      // notification about it is not a reason to interrupt the user.
+      // notification about it is not a reason to interrupt the user. Still
+      // reported back (not just logged) so a caller can tell the person
+      // relying on this reminder that it didn't actually show up — see
+      // `useTodayShift.start()`.
       console.error("Could not post the shift-in-progress notification", error);
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
   }
 

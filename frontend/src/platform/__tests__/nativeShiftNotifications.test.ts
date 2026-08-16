@@ -28,12 +28,13 @@ describe("NativeShiftNotificationAdapter", () => {
       const adapter = new NativeShiftNotificationAdapter(fakePlugin({ postShiftStarted }));
       const info = { shiftId: "s1", apiBaseUrl: "https://example.com", token: "t", startedAtLabel: "Started at 8:45 AM" };
 
-      await adapter.postShiftStarted(info);
+      const result = await adapter.postShiftStarted(info);
 
       expect(postShiftStarted).toHaveBeenCalledWith(info);
+      expect(result).toEqual({ ok: true });
     });
 
-    it("is best-effort — a native failure (e.g. permission denied) never throws", async () => {
+    it("is best-effort — a native failure (e.g. permission denied) never throws, but is reported in the result", async () => {
       const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
       const plugin = fakePlugin({
         postShiftStarted: vi.fn(async () => {
@@ -44,8 +45,26 @@ describe("NativeShiftNotificationAdapter", () => {
 
       await expect(
         adapter.postShiftStarted({ shiftId: "s1", apiBaseUrl: "https://example.com", token: "t", startedAtLabel: "x" }),
-      ).resolves.toBeUndefined();
+      ).resolves.toEqual({ ok: false, error: "notifications denied" });
       expect(consoleError).toHaveBeenCalled();
+      consoleError.mockRestore();
+    });
+
+    it("falls back to String(error) when the platform throws something that isn't an Error", async () => {
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+      const plugin = fakePlugin({
+        // Capacitor plugin rejections are always real Error objects in
+        // practice, but this guards the fallback path itself rather than
+        // assuming that never changes.
+        postShiftStarted: vi.fn(async () => {
+          throw "notifications denied";
+        }),
+      });
+      const adapter = new NativeShiftNotificationAdapter(plugin);
+
+      await expect(
+        adapter.postShiftStarted({ shiftId: "s1", apiBaseUrl: "https://example.com", token: "t", startedAtLabel: "x" }),
+      ).resolves.toEqual({ ok: false, error: "notifications denied" });
       consoleError.mockRestore();
     });
   });

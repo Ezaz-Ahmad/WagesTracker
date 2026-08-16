@@ -22,7 +22,7 @@ import {
  */
 export function useTodayShift() {
   const confirm = useConfirm();
-  const { today, shifts, user, createShift, updateShift } = useApp();
+  const { today, shifts, user, createShift, updateShift, reportShiftNotificationIssue } = useApp();
   const todayISO = isoDate(today);
   const last = findOpenShift(shifts);
   const active = !!last;
@@ -49,13 +49,28 @@ export function useTodayShift() {
       // Fire-and-forget: postShiftStartedNotification never throws (see
       // NativeShiftNotificationAdapter) — a notification permission
       // problem or any other platform failure must never make it look like
-      // starting the shift itself failed.
+      // starting the shift itself failed. Its result is still inspected
+      // once it settles, purely to surface a failure that would otherwise
+      // be completely invisible (see shiftNotificationNotice on AppContext)
+      // — this never delays or blocks the shift start above.
       void postShiftStartedNotification({
         shiftId: shift.id,
         apiBaseUrl: getApiOrigin(),
         token,
         startedAtLabel: `Started at ${formatTime12(signIn)}`,
-      });
+      })
+        .then((result) => {
+          if (!result.ok) {
+            reportShiftNotificationIssue(`Shift started, but the reminder notification couldn't be shown: ${result.error}`);
+          }
+        })
+        .catch(() => {
+          // postShiftStartedNotification's own contract is "never throws"
+          // (see NativeShiftNotificationAdapter) — this only guards against a
+          // pathological/misbehaving adapter implementation turning into an
+          // unhandled promise rejection; there is nothing more specific to
+          // report than the ok:false path above already covers.
+        });
     }
   };
 

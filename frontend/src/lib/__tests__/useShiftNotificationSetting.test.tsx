@@ -14,7 +14,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useShiftNotificationSetting } from "../useTodayShift";
 
-const postShiftStartedNotification = vi.fn().mockResolvedValue(undefined);
+const postShiftStartedNotification = vi.fn().mockResolvedValue({ ok: true });
 const clearShiftNotification = vi.fn().mockResolvedValue(undefined);
 let storedPreference: boolean;
 const setShiftNotificationEnabled = vi.fn((next: boolean) => {

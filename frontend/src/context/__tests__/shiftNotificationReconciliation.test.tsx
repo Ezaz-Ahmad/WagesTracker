@@ -57,7 +57,7 @@ const clearPendingEndShift = vi.fn().mockResolvedValue(undefined);
 vi.mock("../../platform/shiftNotifications", () => ({
   getPendingEndShift: (...args: unknown[]) => getPendingEndShift(...args),
   clearPendingEndShift: (...args: unknown[]) => clearPendingEndShift(...args),
-  postShiftStartedNotification: vi.fn().mockResolvedValue(undefined),
+  postShiftStartedNotification: vi.fn().mockResolvedValue({ ok: true }),
   clearShiftNotification: vi.fn().mockResolvedValue(undefined),
 }));
 

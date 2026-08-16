@@ -107,6 +107,17 @@ interface AppContextValue {
   connected: boolean;
   retryConnectivity: () => Promise<void>;
   clearActionError: () => void;
+  /** Set when the native shift-in-progress notification (see
+   * `platform/shiftNotifications.ts`) failed to actually post — permission
+   * denied, a Keychain write failure, or any other platform error. Never
+   * blocks or unwinds the shift that already started successfully (see
+   * `useTodayShift.start()`); this only makes an otherwise-silent failure
+   * visible, since without it the person has no way to know their
+   * "remember to sign out" reminder didn't show up. Warning tone, not
+   * `actionError`'s danger tone — the shift itself is fine. */
+  shiftNotificationNotice: string | null;
+  reportShiftNotificationIssue: (message: string) => void;
+  dismissShiftNotificationNotice: () => void;
   login: (email: string, password: string, remember?: boolean) => Promise<void>;
   signup: (input: api.SignupInput) => Promise<void>;
   logout: () => Promise<void>;
@@ -201,6 +212,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // back cannot resurrect it (see the regression test).
   const [sessionNotice, setSessionNotice] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [shiftNotificationNotice, setShiftNotificationNotice] = useState<string | null>(null);
   const [connected, setConnected] = useState(true);
   const connectedRef = useRef(true);
   const [shifts, setShifts] = useState<Shift[]>([]);
@@ -783,6 +795,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [logout]
   );
 
+  // Fed by useTodayShift.start() after a failed postShiftStartedNotification
+  // — see shiftNotificationNotice's own doc on the AppContextValue interface
+  // for why this is a separate, warning-tone banner rather than reusing
+  // actionError.
+  const reportShiftNotificationIssue = useCallback((message: string) => {
+    setShiftNotificationNotice(message);
+  }, []);
+  const dismissShiftNotificationNotice = useCallback(() => setShiftNotificationNotice(null), []);
+
   // Left to throw on any failure — including validation and network errors —
   // so the Settings UI can tell a genuine save from a failed one and never
   // show "Saved" when nothing actually changed server-side (see
@@ -1209,6 +1230,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       connected,
       retryConnectivity,
       clearActionError: () => setActionError(null),
+      shiftNotificationNotice,
+      reportShiftNotificationIssue,
+      dismissShiftNotificationNotice,
       login,
       signup,
       logout,
@@ -1260,6 +1284,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       actionError,
       connected,
       retryConnectivity,
+      shiftNotificationNotice,
+      reportShiftNotificationIssue,
+      dismissShiftNotificationNotice,
       sessionNotice,
       login,
       signup,

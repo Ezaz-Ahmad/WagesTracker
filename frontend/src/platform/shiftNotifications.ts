@@ -47,11 +47,21 @@ export interface PendingEndShift {
   signOut: string;
 }
 
+/** Outcome of a `postShiftStarted` attempt — never a thrown error (see that
+ * method's own doc), since a caller like `useTodayShift.start()` must never
+ * have a notification failure block or unwind a shift that already started
+ * successfully. `ok: false` carries a human-readable reason so a caller that
+ * *does* want to tell the user something couldn't be shown still can,
+ * without needing to catch anything. */
+export type ShiftNotificationResult = { ok: true } | { ok: false; error: string };
+
 export interface ShiftNotificationAdapter {
   /** Posts (or replaces) the persistent notification. Never throws —
    * notification permission being denied, or any other platform failure,
-   * must never block a shift from starting. */
-  postShiftStarted(info: ShiftNotificationStartInfo): Promise<void>;
+   * must never block a shift from starting — but the returned result still
+   * reports whether it actually worked, so a failure isn't entirely silent
+   * to the person relying on it (see `useTodayShift.start()`). */
+  postShiftStarted(info: ShiftNotificationStartInfo): Promise<ShiftNotificationResult>;
   /** Removes the notification and any native-held credential for it.
    * Called whenever the shift ends through the app itself — the
    * notification's own job is already done at that point. Safe to call
@@ -66,7 +76,9 @@ export interface ShiftNotificationAdapter {
 }
 
 class WebShiftNotificationAdapter implements ShiftNotificationAdapter {
-  async postShiftStarted(): Promise<void> {}
+  async postShiftStarted(): Promise<ShiftNotificationResult> {
+    return { ok: true };
+  }
   async clearShiftNotification(): Promise<void> {}
   async getPendingEndShift(): Promise<PendingEndShift | null> {
     return null;
@@ -87,7 +99,7 @@ export function configureShiftNotifications(next: ShiftNotificationAdapter): voi
   activeAdapter = next;
 }
 
-export function postShiftStartedNotification(info: ShiftNotificationStartInfo): Promise<void> {
+export function postShiftStartedNotification(info: ShiftNotificationStartInfo): Promise<ShiftNotificationResult> {
   return adapter().postShiftStarted(info);
 }
 
