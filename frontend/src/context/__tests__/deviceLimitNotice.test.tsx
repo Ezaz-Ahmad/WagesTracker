@@ -72,6 +72,11 @@ const USER = {
 const NOTICE = "You were signed in on more than 5 devices, so the least recently used one was signed out.";
 
 async function logIn(user: ReturnType<typeof userEvent.setup>) {
+  // The mobile welcome screen (see WelcomeScreen.tsx) now appears before
+  // every login, in front of AuthScreen — dismissed here via its
+  // always-present "Get started" button so the rest of this helper can
+  // reach the login form exactly as it did before that screen existed.
+  await user.click(await screen.findByRole("button", { name: "Get started" }));
   await user.type(await screen.findByLabelText("Email"), USER.email);
   await user.type(screen.getByLabelText("Password"), "correct horse battery staple");
   await user.click(screen.getByRole("button", { name: "Log in" }));

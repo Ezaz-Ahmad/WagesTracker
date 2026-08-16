@@ -29,13 +29,5 @@ import UIKit
 class MainViewController: CAPBridgeViewController {
   override open func capacitorDidLoad() {
     bridge?.registerPluginInstance(BiometricAuthPlugin())
-    // See ShiftNotificationPlugin.swift — this registration only makes
-    // `postShiftStarted`/`clearShiftNotification`/etc. callable from JS
-    // while the app is actually running; the notification category and the
-    // `UNUserNotificationCenterDelegate` a background "Sign out" tap needs
-    // are wired up separately and earlier, in AppDelegate, since this
-    // method may never run at all in a background-only notification-
-    // response launch.
-    bridge?.registerPluginInstance(ShiftNotificationPlugin())
   }
 }

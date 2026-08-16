@@ -13,8 +13,14 @@ function biometryName(kind: BiometryKind): string {
 }
 
 export function BiometricLoginSettings() {
-  const { biometricCapabilities, biometricStatus, biometricBusy, enableBiometricLogin, disableBiometricLogin } =
-    useApp();
+  const {
+    biometricCapabilities,
+    biometricStatus,
+    isBiometricEnabledForCurrentUser,
+    biometricBusy,
+    enableBiometricLogin,
+    disableBiometricLogin,
+  } = useApp();
   const [feedback, setFeedback] = useState<{ tone: "success" | "danger"; message: string } | null>(null);
 
   // Checked at render time (not folded to a module-level constant) so it
@@ -28,18 +34,37 @@ export function BiometricLoginSettings() {
   // which *should* render a disabled explanation rather than nothing.
   if (!Capacitor.isNativePlatform()) return null;
 
+  // Everything below reads `isBiometricEnabledForCurrentUser` (not the raw
+  // `biometricStatus.enabled`) for anything that claims biometrics is
+  // already on for the account being shown — see that value's own doc
+  // comment on AppContext for why: this plugin only ever stores one
+  // credential, so `biometricStatus.enabled` alone stays true even while a
+  // *different* account's credential occupies that slot. Without this
+  // distinction, logging into a second account on the same device used to
+  // show "Turn off Face ID" for an account that never actually had it on —
+  // and tapping it would have deleted the *other* account's real credential.
+  const enabledForMe = isBiometricEnabledForCurrentUser;
+
   // Prefer the kind the stored credential actually recorded once biometrics
-  // is on (it can't retroactively change without going through disable/
-  // re-enable), falling back to the live capability read the rest of the
-  // time — both agree in the overwhelming common case, but this keeps a
-  // freshly-disabled row from flashing "Face ID or Touch ID" for a frame.
-  const kind = biometricStatus.enabled ? biometricStatus.kind ?? biometricCapabilities.kind : biometricCapabilities.kind;
+  // is on for *this* account (it can't retroactively change without going
+  // through disable/re-enable), falling back to the live capability read
+  // the rest of the time — both agree in the overwhelming common case, but
+  // this keeps a freshly-disabled row (or another account's slot) from
+  // flashing the wrong biometry name for a frame.
+  const kind = enabledForMe ? biometricStatus.kind ?? biometricCapabilities.kind : biometricCapabilities.kind;
   const Icon = kind === "touchId" ? TouchIdIcon : FaceIdIcon;
   const name = biometryName(kind);
 
+  // Another account's credential currently occupies the device's single
+  // slot — turning this on here is not additive, it replaces it (see
+  // BiometricAuthPlugin.swift's "single account slot" note). Worth saying
+  // out loud rather than letting someone discover it only after the other
+  // account's Face ID quietly stops working.
+  const anotherAccountHasItOn = biometricStatus.enabled && !enabledForMe;
+
   async function handleToggle() {
     setFeedback(null);
-    if (biometricStatus.enabled) {
+    if (enabledForMe) {
       await disableBiometricLogin();
       setFeedback({ tone: "success", message: `${name} sign-in turned off.` });
       return;
@@ -62,9 +87,9 @@ export function BiometricLoginSettings() {
 
   // Hardware present but nothing enrolled (or no compatible hardware at
   // all) — requirement 2's "disabled option with a clear explanation."
-  // `biometricStatus.enabled` can't be true here on a fresh read (enabling
-  // requires a live prompt, which requires enrollment), so this check alone
-  // is enough to gate the disabled branch.
+  // `enabledForMe` can't be true here on a fresh read (enabling requires a
+  // live prompt, which requires enrollment), so this check alone is enough
+  // to gate the disabled branch.
   if (!biometricCapabilities.enrolled) {
     return (
       <div className="settings-section-card card">
@@ -88,10 +113,15 @@ export function BiometricLoginSettings() {
     <div className="settings-section-card card">
       <h3 className="settings-subsection-title">Biometric login</h3>
       <div className="section-hint">
-        {biometricStatus.enabled
+        {enabledForMe
           ? `Confirm with ${name} instead of retyping your password each time you open the app. This also keeps you signed in on this device for up to 5 years, instead of the usual 30 days, since ${name} re-entry takes over as the periodic check.`
           : `Turn on ${name} to skip retyping your password on this device, and to stay signed in far longer here (up to 5 years, instead of the usual 30 days). Your password still works everywhere, and every sign-in is still checked against your account.`}
       </div>
+      {anotherAccountHasItOn && (
+        <div className="section-hint" style={{ marginBottom: 0 }}>
+          {name} on this device is currently set up for a different account. Turning it on here will replace that — only one account can use {name} on this device at a time.
+        </div>
+      )}
       {feedback && (
         <StatusBanner tone={feedback.tone} onDismiss={() => setFeedback(null)} dismissLabel="Dismiss this message">
           {feedback.message}
@@ -102,11 +132,11 @@ export function BiometricLoginSettings() {
         className="btn btn-secondary btn-block biometric-toggle-btn"
         onClick={() => void handleToggle()}
         disabled={biometricBusy}
-        aria-pressed={biometricStatus.enabled}
+        aria-pressed={enabledForMe}
       >
         <Icon size={18} />
         <StableLabel
-          current={biometricBusy ? "Confirming…" : biometricStatus.enabled ? `Turn off ${name}` : `Use ${name}`}
+          current={biometricBusy ? "Confirming…" : enabledForMe ? `Turn off ${name}` : `Use ${name}`}
           longest={`Turn off Face ID or Touch ID`}
         />
       </button>

@@ -24,13 +24,21 @@ let status: BiometricStatus;
 let enableImpl: () => Promise<BiometricEnableResult>;
 let disableImpl: () => Promise<void>;
 let busy: boolean;
+// The id of the account currently "logged in" for this render — defaults to
+// "u1" to match every pre-existing test's single-account world. The
+// account-mismatch tests below override this to something else so a stored
+// credential enabled for "u1" is correctly treated as *not* enabled for the
+// account actually being shown, mirroring AppContext's real
+// isBiometricEnabledForCurrentUser derivation
+// (biometricStatus.enabled && biometricStatus.accountId === user.id).
+let loggedInUserId: string;
 
 function useFakeApp(): AppCtx {
   const [currentStatus, setCurrentStatus] = useState(status);
   const enableBiometricLogin = useCallback(async () => {
     const result = await enableImpl();
     if (result.outcome === "enabled") {
-      setCurrentStatus({ enabled: true, accountId: "u1", accountLabel: "Sam", kind: capabilities.kind });
+      setCurrentStatus({ enabled: true, accountId: loggedInUserId, accountLabel: "Sam", kind: capabilities.kind });
     }
     return result;
   }, []);
@@ -42,6 +50,7 @@ function useFakeApp(): AppCtx {
   return {
     biometricCapabilities: capabilities,
     biometricStatus: currentStatus,
+    isBiometricEnabledForCurrentUser: Boolean(currentStatus.enabled) && currentStatus.accountId === loggedInUserId,
     biometricBusy: busy,
     enableBiometricLogin,
     disableBiometricLogin,
@@ -58,6 +67,7 @@ beforeEach(() => {
   capabilities = { kind: "faceId", enrolled: true };
   status = { enabled: false };
   busy = false;
+  loggedInUserId = "u1";
   enableImpl = vi.fn(async () => ({ outcome: "enabled" as const, kind: "faceId" as const }));
   disableImpl = vi.fn(async () => undefined);
 });
@@ -149,5 +159,31 @@ describe("BiometricLoginSettings", () => {
     // StableLabel usage in the component) — there's exactly one button in
     // this render, so querying without a name filter is unambiguous.
     expect(screen.getByRole("button").hasAttribute("disabled")).toBe(true);
+  });
+
+  // Regression coverage for the cross-account Face ID bug: the device's
+  // single Keychain slot can be enabled for one account while a different
+  // account is signed in on the same device. Settings must never present
+  // that as "on" (or let a tap on "Turn off" delete a credential that was
+  // never this account's to begin with) — see isBiometricEnabledForCurrentUser
+  // on AppContext.
+  it("shows the toggle as OFF, with a 'different account' hint, when another account's credential occupies the device slot", () => {
+    status = { enabled: true, accountId: "someone-else", accountLabel: "Alex", kind: "faceId" };
+    loggedInUserId = "u1";
+    render(<BiometricLoginSettings />);
+
+    expect(screen.getByRole("button", { name: "Use Face ID" }).getAttribute("aria-pressed")).toBe("false");
+    expect(
+      screen.getByText(/currently set up for a different account/i)
+    ).toBeTruthy();
+  });
+
+  it("does not show the 'different account' hint once biometrics is genuinely on for this account", () => {
+    status = { enabled: true, accountId: "u1", accountLabel: "Sam", kind: "faceId" };
+    loggedInUserId = "u1";
+    render(<BiometricLoginSettings />);
+
+    expect(screen.getByRole("button", { name: "Turn off Face ID" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.queryByText(/currently set up for a different account/i)).toBeNull();
   });
 });

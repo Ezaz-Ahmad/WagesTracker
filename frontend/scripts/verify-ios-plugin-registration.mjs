@@ -14,16 +14,6 @@
 // checks against the checked-in project files — on every push, on a Linux
 // runner, with no Xcode needed — rather than waiting to be caught only once
 // a macOS runner (ios-simulator.yml) actually builds the app.
-//
-// Extended for the shift-in-progress notification feature to check a second,
-// independently-registered app-local plugin (ShiftNotificationPlugin.swift),
-// plus the AppDelegate-level wiring that plugin depends on: a notification
-// response tapped while the app process isn't running relies on
-// `UNUserNotificationCenter.current().delegate` and the notification
-// category being set up before `MainViewController.capacitorDidLoad()` ever
-// runs — possibly before it runs at all, in a background-only launch — so
-// that wiring living only in AppDelegate is not optional, it's the entire
-// point (see ShiftNotificationPlugin.swift's own comments).
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -79,14 +69,13 @@ function checkCompiled(pluginClassName) {
 }
 
 checkCompiled('BiometricAuthPlugin');
-checkCompiled('ShiftNotificationPlugin');
 
 // 2. A bridge view controller subclass must exist, be compiled into the
 //    target the same way, and actually call registerPluginInstance with
 //    each plugin — CAPBridgedPlugin conformance alone is not registration
 //    (see the file-level comment above).
 const compiledSwiftFiles = [...pbxproj.matchAll(/\/\* (\w+)\.swift \*\/ = \{isa = PBXFileReference;/g)].map((m) => m[1]);
-const knownPluginNames = ['BiometricAuthPlugin', 'ShiftNotificationPlugin'];
+const knownPluginNames = ['BiometricAuthPlugin'];
 const candidateControllers = compiledSwiftFiles.filter(
   (name) => !knownPluginNames.includes(name) && name !== 'AppDelegate',
 );
@@ -150,26 +139,6 @@ if (!/customModule="App"/.test(storyboard)) {
   fail('Main.storyboard\'s Bridge View Controller customClass is not "App" — a custom class outside the app\'s own module will not resolve.');
 }
 
-// 4. ShiftNotificationPlugin's background "Sign out" action tap depends on
-//    AppDelegate — not MainViewController — installing the notification
-//    delegate and category before the bridge/view controller exist, because
-//    a background-only launch may never reach capacitorDidLoad() at all in
-//    that particular process lifetime.
-const appDelegateSource = await read('ios/App/App/AppDelegate.swift');
-if (!/UNUserNotificationCenter\.current\(\)\.delegate\s*=\s*ShiftNotificationCenter\.shared/.test(appDelegateSource)) {
-  fail(
-    'AppDelegate.swift does not set UNUserNotificationCenter.current().delegate = ShiftNotificationCenter.shared — a "Sign out" tap on the shift notification while the app is not running would never be delivered.',
-  );
-}
-if (!/ShiftNotificationCenter\.shared\.configureCategories\(\)/.test(appDelegateSource)) {
-  fail(
-    'AppDelegate.swift does not call ShiftNotificationCenter.shared.configureCategories() — the "Sign out" notification action would never be registered with the system.',
-  );
-}
-if (!/func application\(_ application: UIApplication, didFinishLaunchingWithOptions/.test(appDelegateSource)) {
-  fail('AppDelegate.swift no longer implements application(_:didFinishLaunchingWithOptions:) — cannot confirm the notification delegate is wired up at launch.');
-}
-
 console.log(
-  `Verified BiometricAuthPlugin.swift and ShiftNotificationPlugin.swift both compile into the App target and are registered via ${registeringControllerName}.swift, which Main.storyboard's Bridge View Controller is set to use. Verified AppDelegate wires up the shift-notification delegate/category at launch.`,
+  `Verified BiometricAuthPlugin.swift compiles into the App target and is registered via ${registeringControllerName}.swift, which Main.storyboard's Bridge View Controller is set to use.`,
 );

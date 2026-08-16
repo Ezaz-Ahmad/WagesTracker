@@ -38,7 +38,7 @@ describe("web (default) biometric adapter", () => {
   });
 
   it("enable() always fails with reason unavailable — never silently pretends success", async () => {
-    const result = await enableBiometricLogin("u1", "Sam", "token");
+    const result = await enableBiometricLogin("u1", "Sam", "sam@example.com", "token");
     expect(result.outcome).toBe("failed");
     expect(result.reason).toBe("unavailable");
   });
@@ -58,7 +58,7 @@ describe("configureBiometricAuth", () => {
   it("swaps the active adapter for every subsequent call", async () => {
     const fake: BiometricAuthAdapter = {
       checkCapabilities: async () => ({ kind: "faceId", enrolled: true }),
-      getStatus: async () => ({ enabled: true, accountId: "u1", accountLabel: "Sam", kind: "faceId" }),
+      getStatus: async () => ({ enabled: true, accountId: "u1", accountLabel: "Sam", email: "sam@example.com", kind: "faceId" }),
       enable: async () => ({ outcome: "enabled", kind: "faceId" }),
       authenticate: async () => ({ outcome: "success", token: "t", accountId: "u1" }),
       disable: async () => {},
@@ -70,9 +70,10 @@ describe("configureBiometricAuth", () => {
       enabled: true,
       accountId: "u1",
       accountLabel: "Sam",
+      email: "sam@example.com",
       kind: "faceId",
     });
-    await expect(enableBiometricLogin("u1", "Sam", "t")).resolves.toEqual({ outcome: "enabled", kind: "faceId" });
+    await expect(enableBiometricLogin("u1", "Sam", "sam@example.com", "t")).resolves.toEqual({ outcome: "enabled", kind: "faceId" });
     await expect(authenticateWithBiometrics()).resolves.toEqual({ outcome: "success", token: "t", accountId: "u1" });
   });
 });

@@ -57,13 +57,6 @@ vi.mock("../../platform/biometricAuth", () => ({
   disableBiometricLogin: vi.fn(async () => {}),
 }));
 
-vi.mock("../../platform/shiftNotifications", () => ({
-  getPendingEndShift: vi.fn(async () => null),
-  clearPendingEndShift: vi.fn(async () => {}),
-  postShiftStartedNotification: vi.fn(async () => ({ ok: true })),
-  clearShiftNotification: vi.fn(async () => {}),
-}));
-
 import * as api from "../../lib/api";
 import * as biometricAuth from "../../platform/biometricAuth";
 
@@ -159,7 +152,7 @@ describe("enabling biometric login upgrades the session's token before prompting
     // The token handed to the native adapter's enable() — the one it will
     // store behind the biometric-gated Keychain item — must be the rotated
     // long-lived token, not the ordinary one the session started with.
-    expect(enableBiometric).toHaveBeenCalledWith("u1", "Sam Lee", "five-year-token");
+    expect(enableBiometric).toHaveBeenCalledWith("u1", "Sam Lee", "sam@example.com", "five-year-token");
     // The live app's own token must end up the same, or the next request
     // from this device would use a token whose session was just revoked.
     expect(currentToken).toBe("five-year-token");
@@ -179,7 +172,7 @@ describe("enabling biometric login upgrades the session's token before prompting
 
     // A failed upgrade must never block Face ID itself — it falls back to
     // whatever token was already on hand.
-    expect(enableBiometric).toHaveBeenCalledWith("u1", "Sam Lee", "ordinary-30-day-token");
+    expect(enableBiometric).toHaveBeenCalledWith("u1", "Sam Lee", "sam@example.com", "ordinary-30-day-token");
     expect(screen.getByTestId("biometric-enabled").textContent).toBe("true");
     // Only the one (failed) upgrade attempt — no rollback call, since
     // nothing was rotated in the first place.

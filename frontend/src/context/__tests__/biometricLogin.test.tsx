@@ -7,7 +7,7 @@
 // native Swift plugin can't run in this sandbox — see nativeBiometricAuth
 // .test.ts for that translation layer's own coverage) and lib/api.
 import { useState } from "react";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppProvider, useApp } from "../AppContext";
@@ -37,6 +37,13 @@ vi.mock("../../lib/api", async (importOriginal) => {
     listShifts: vi.fn(async () => ({ shifts: [] })),
     listDayExpenses: vi.fn(async () => ({ expenses: [] })),
     listWeekExtras: vi.fn(async () => ({ extras: [] })),
+    // Only reached if WakingUpScreen actually mounts (see the white-screen
+    // regression test below) — every other test in this file resolves fast
+    // enough that useDelayedFlag's 500ms never trips, so WakingUpScreen (and
+    // therefore useHealthWakeup/pingHealth) never mounts at all. Left
+    // permanently pending here rather than resolved: the test only cares
+    // that the screen *shows up*, not about its internal health-check phase.
+    pingHealth: vi.fn(() => new Promise<boolean>(() => {})),
   };
 });
 
@@ -89,6 +96,20 @@ function success(token = "recovered-token"): BiometricAuthenticateResult {
   return { outcome: "success", token, accountId: "u1" };
 }
 
+/** The mobile welcome screen (see WelcomeScreen.tsx) now appears before
+ * every login, in front of AuthScreen — dismissed here via its
+ * always-present "Get started" button so the rest of this file can keep
+ * asserting directly against the login form/icon, exactly as it did before
+ * that screen existed. Only ever needed after a render that mounts the real
+ * <App /> — the RememberMeHarness-based tests further down render just the
+ * harness directly, bypassing Root()/WelcomeScreen entirely, so they never
+ * need this. Not needed either for a cold-launch attempt that lands
+ * straight on "loggedIn" without ever passing through "loggedOut" (see
+ * WelcomeScreen's own gating in App.tsx's Root). */
+async function skipWelcomeScreen() {
+  fireEvent.click(await screen.findByRole("button", { name: "Get started" }));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   apiGetToken.mockReturnValue(null);
@@ -102,6 +123,7 @@ afterEach(cleanup);
 describe("cold-launch automatic biometric prompt", () => {
   it("never fires when biometric login was never enabled", async () => {
     render(<App />);
+    await skipWelcomeScreen();
     await screen.findByRole("button", { name: "Log in" });
     expect(authenticate).not.toHaveBeenCalled();
   });
@@ -119,11 +141,55 @@ describe("cold-launch automatic biometric prompt", () => {
     expect(api.setToken).toHaveBeenCalledWith("tok-abc", false);
   });
 
+  // Regression coverage for the "white screen after Face ID on a cold
+  // backend" bug: Root() used to keep WakingUpScreen suppressed for the
+  // *entire* attemptBiometricAuthentication operation (biometricBusy),
+  // including the fetchMeWithToken() re-validation call that follows a
+  // successful native prompt — so once the system Face ID sheet dismissed,
+  // there was nothing on screen at all for however long a cold Render
+  // instance took to answer. Root() now uses the narrower
+  // biometricPromptActive flag (true only for the native prompt itself),
+  // so WakingUpScreen is free to show during that wait. See App.tsx's
+  // Root() and AppContext's biometricPromptActive doc comments.
+  it("shows the waking-up screen (not a blank one) while the post-unlock backend re-validation is still in flight", async () => {
+    getStatus.mockResolvedValue(FACE_ID_ENABLED);
+
+    let resolveAuthenticate: (result: BiometricAuthenticateResult) => void = () => {};
+    authenticate.mockImplementation(
+      () => new Promise<BiometricAuthenticateResult>((resolve) => { resolveAuthenticate = resolve; })
+    );
+    let resolveFetchMe: (v: { user: typeof USER }) => void = () => {};
+    apiFetchMeWithToken.mockImplementation(
+      () => new Promise((resolve) => { resolveFetchMe = resolve; })
+    );
+
+    render(<App />);
+    await waitFor(() => expect(authenticate).toHaveBeenCalledOnce());
+
+    // While the native Face ID/Touch ID sheet itself would still be up,
+    // the screen intentionally stays blank rather than showing "Getting
+    // Wage Tracker ready" underneath it — see biometricPromptActive's own
+    // doc comment. Not asserted here beyond letting the 500ms grace delay
+    // elapse with nothing resolved yet; the real assertion is the state
+    // change below.
+    resolveAuthenticate({ outcome: "success", token: "tok-abc", accountId: "u1" });
+
+    // The prompt has now resolved successfully, but fetchMeWithToken() (the
+    // backend re-validation of the recovered token) is still pending —
+    // exactly the gap the bug lived in. WakingUpScreen must appear once the
+    // 500ms grace window passes, not stay blank.
+    await screen.findByText(/Getting Wage Tracker ready/, {}, { timeout: 2000 });
+
+    resolveFetchMe({ user: USER });
+    await screen.findByRole("navigation", { name: "Main" });
+  });
+
   it("falls back to the login screen with no error banner on cancellation", async () => {
     getStatus.mockResolvedValue(FACE_ID_ENABLED);
     authenticate.mockResolvedValue({ outcome: "failed", reason: "user_cancelled" });
 
     render(<App />);
+    await skipWelcomeScreen();
 
     await screen.findByRole("button", { name: "Log in" });
     expect(apiFetchMeWithToken).not.toHaveBeenCalled();
@@ -142,6 +208,7 @@ describe("cold-launch automatic biometric prompt", () => {
     });
 
     render(<App />);
+    await skipWelcomeScreen();
 
     await screen.findByText(/temporarily locked/);
   });
@@ -151,6 +218,7 @@ describe("cold-launch automatic biometric prompt", () => {
     authenticate.mockResolvedValue({ outcome: "failed", reason: "credential_invalidated", error: "enrollment changed" });
 
     render(<App />);
+    await skipWelcomeScreen();
 
     await screen.findByRole("button", { name: "Log in" });
     expect(screen.queryByRole("button", { name: /Sign in with/ })).toBeNull();
@@ -161,6 +229,7 @@ describe("cold-launch automatic biometric prompt", () => {
     authenticate.mockResolvedValue({ outcome: "failed", reason: "authentication_failed", error: "no match" });
 
     render(<App />);
+    await skipWelcomeScreen();
 
     await screen.findByRole("button", { name: "Log in" });
     // A second render tick (StrictMode's double effect invocation runs
@@ -176,6 +245,7 @@ describe("cold-launch automatic biometric prompt", () => {
     apiFetchMeWithToken.mockRejectedValue(new ApiError("Invalid or expired token", 401));
 
     render(<App />);
+    await skipWelcomeScreen();
 
     await screen.findByText(/saved sign-in has expired/i);
     expect(disableBiometric).toHaveBeenCalledOnce();
@@ -194,6 +264,7 @@ describe("cold-launch automatic biometric prompt", () => {
     apiFetchMeWithToken.mockRejectedValue(new Error("Network request failed"));
 
     render(<App />);
+    await skipWelcomeScreen();
 
     await screen.findByText(/Couldn't verify your saved sign-in/);
     expect(disableBiometric).not.toHaveBeenCalled();
@@ -213,6 +284,7 @@ describe("cold-launch automatic biometric prompt", () => {
     authenticate.mockResolvedValue({ outcome: "failed", reason: "app_backgrounded" });
 
     render(<App />);
+    await skipWelcomeScreen();
 
     await screen.findByRole("button", { name: /Sign in with Face ID/ });
     expect(screen.queryByRole("alert")).toBeNull();
@@ -225,6 +297,7 @@ describe("manual retry icon", () => {
     getStatus.mockResolvedValue(FACE_ID_ENABLED);
     authenticate.mockResolvedValueOnce({ outcome: "failed", reason: "user_cancelled" });
     render(<App />);
+    await skipWelcomeScreen();
     const icon = await screen.findByRole("button", { name: /Sign in with Face ID/ });
     expect(authenticate).toHaveBeenCalledTimes(1);
 
@@ -518,6 +591,7 @@ describe("Log out is a soft lock when biometric login is enabled", () => {
 });
 
 async function logInNormally(user: ReturnType<typeof userEvent.setup>) {
+  await skipWelcomeScreen();
   apiLogin.mockResolvedValue({ token: "ordinary-token", user: USER });
   await user.type(await screen.findByLabelText("Email"), USER.email);
   await user.type(screen.getByLabelText("Password"), "correct horse battery staple");
@@ -535,6 +609,11 @@ describe("session-ending actions clear the stored biometric credential", () => {
     const popup = await screen.findByRole("alertdialog");
     await user.click(within(popup).getByRole("button", { name: /^(log out|yes|confirm)/i }));
 
+    // Logging out returns to "loggedOut" — the welcome screen reappears
+    // here too (see WelcomeScreen's own doc comment: every time before
+    // login, not just the very first launch), so it needs dismissing again
+    // before the login form is reachable.
+    await skipWelcomeScreen();
     await waitFor(() => expect(screen.getByRole("button", { name: "Log in" })).toBeTruthy());
     expect(disableBiometric).toHaveBeenCalled();
   });

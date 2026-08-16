@@ -22,8 +22,8 @@ import type {
  */
 export interface BiometricAuthPluginPort {
   capabilities(): Promise<{ kind: BiometryKind; enrolled: boolean; reason?: string }>;
-  isEnabled(): Promise<{ enabled: boolean; accountId?: string; accountLabel?: string; kind?: BiometryKind }>;
-  enable(options: { accountId: string; accountLabel: string; token: string }): Promise<{ kind: BiometryKind }>;
+  isEnabled(): Promise<{ enabled: boolean; accountId?: string; accountLabel?: string; email?: string; kind?: BiometryKind }>;
+  enable(options: { accountId: string; accountLabel: string; email: string; token: string }): Promise<{ kind: BiometryKind }>;
   authenticate(): Promise<{ token: string; accountId: string }>;
   disable(): Promise<void>;
 }
@@ -75,9 +75,9 @@ export class NativeBiometricAuthAdapter implements BiometricAuthAdapter {
     return this.plugin.isEnabled();
   }
 
-  async enable(accountId: string, accountLabel: string, token: string): Promise<BiometricEnableResult> {
+  async enable(accountId: string, accountLabel: string, email: string, token: string): Promise<BiometricEnableResult> {
     try {
-      const { kind } = await this.plugin.enable({ accountId, accountLabel, token });
+      const { kind } = await this.plugin.enable({ accountId, accountLabel, email, token });
       return { outcome: "enabled", kind };
     } catch (error) {
       return { outcome: "failed", reason: reasonFromError(error), error: messageFromError(error) };

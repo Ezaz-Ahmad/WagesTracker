@@ -112,6 +112,12 @@ const { ReportScreen } = await import("../ReportScreen");
 const { HistoryScreen } = await import("../HistoryScreen");
 const { EntryScreen } = await import("../EntryScreen");
 const { AuthScreen } = await import("../AuthScreen");
+const { WelcomeScreen } = await import("../WelcomeScreen");
+
+/** WelcomeScreen takes a required prop rather than reading context, unlike
+ * every other screen here — wrapped so it fits the same no-arg
+ * ScreenComponent shape the two loops below already iterate over. */
+const Welcome: () => JSX.Element = () => <WelcomeScreen onContinue={() => {}} />;
 
 /** Screens return null while `user` is still unresolved, so the component
  * type has to allow it. */
@@ -131,6 +137,7 @@ describe("screen accessibility", () => {
     ["History", HistoryScreen],
     ["Entry", EntryScreen],
     ["Auth", AuthScreen],
+    ["Welcome", Welcome],
   ];
 
   for (const [name, Screen] of screens) {
@@ -207,6 +214,7 @@ describe("heading structure", () => {
       ["History", HistoryScreen],
       ["Entry", EntryScreen],
       ["Auth", AuthScreen],
+      ["Welcome", Welcome],
     ] as [string, ScreenComponent][]) {
       const { container, unmount } = render(<Screen />);
       const levels = [...container.querySelectorAll("h1,h2,h3,h4,h5,h6")].map((h) => Number(h.tagName[1]));

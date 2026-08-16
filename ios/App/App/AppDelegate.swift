@@ -1,6 +1,5 @@
 import UIKit
 import Capacitor
-import UserNotifications
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -8,14 +7,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Wired up here, before the bridge/window/view controller exist,
-        // deliberately — see ShiftNotificationPlugin.swift. A "Sign out" tap
-        // on the shift-in-progress notification can relaunch the app
-        // specifically to deliver that response, and this delegate needs to
-        // be ready to catch it regardless of whether (or how far)
-        // MainViewController's own setup gets in that particular launch.
-        UNUserNotificationCenter.current().delegate = ShiftNotificationCenter.shared
-        ShiftNotificationCenter.shared.configureCategories()
         return true
     }
 

@@ -110,4 +110,47 @@ describe("AuthScreen biometric icon", () => {
     await user.click(screen.getByRole("radio", { name: "Create account" }));
     expect(screen.queryByRole("button", { name: /Sign in with/ })).toBeNull();
   });
+
+  // Regression coverage for the cross-account Face ID bug: the device only
+  // ever stores one credential, so `biometricStatus.enabled` alone can't
+  // tell "enabled for the account you're about to type in" apart from
+  // "enabled for whichever other account last turned it on here." AuthScreen
+  // additionally compares the enrolled credential's email against whatever
+  // email is currently typed (see biometricMatchesTypedAccount) before
+  // offering the icon at all — otherwise tapping it would sign the typed-in
+  // account straight in as someone else.
+  describe("account-mismatch handling", () => {
+    it("hides the icon once a different account's email is typed in", async () => {
+      biometricStatus = { enabled: true, kind: "faceId", accountId: "u1", accountLabel: "Sam", email: "sam@example.com" };
+      const user = userEvent.setup();
+      render(<AuthScreen />);
+      expect(screen.getByRole("button", { name: "Sign in with Face ID" })).toBeTruthy();
+
+      await user.type(screen.getByLabelText("Email"), "someone-else@example.com");
+      expect(screen.queryByRole("button", { name: /Sign in with/ })).toBeNull();
+    });
+
+    it("keeps showing the icon when the typed email matches the enrolled account, case/whitespace-insensitively", async () => {
+      biometricStatus = { enabled: true, kind: "faceId", accountId: "u1", accountLabel: "Sam", email: "sam@example.com" };
+      const user = userEvent.setup();
+      render(<AuthScreen />);
+
+      await user.type(screen.getByLabelText("Email"), "  Sam@Example.com  ");
+      expect(screen.getByRole("button", { name: "Sign in with Face ID" })).toBeTruthy();
+    });
+
+    it("hides the icon for a pre-fix credential with no stored email once any email is typed in", async () => {
+      // A credential enabled before `email` was added to the stored
+      // metadata resolves from Swift as email: "" — never equal to a real
+      // typed email, so it fails closed exactly like a genuine mismatch
+      // instead of trusting the bare `enabled` flag.
+      biometricStatus = { enabled: true, kind: "faceId", accountId: "u1", accountLabel: "Sam", email: "" };
+      const user = userEvent.setup();
+      render(<AuthScreen />);
+      expect(screen.getByRole("button", { name: "Sign in with Face ID" })).toBeTruthy();
+
+      await user.type(screen.getByLabelText("Email"), "sam@example.com");
+      expect(screen.queryByRole("button", { name: /Sign in with/ })).toBeNull();
+    });
+  });
 });

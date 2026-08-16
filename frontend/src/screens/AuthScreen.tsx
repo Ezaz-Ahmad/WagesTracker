@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { CURRENCY, useApp } from "../context/AppContext";
-import { useCountUp } from "../lib/useCountUp";
-import { fmt2 } from "../lib/date";
 import { getRememberedEmail } from "../lib/api";
-import { EntryIcon, FaceIdIcon, LockIcon, ReportIcon, TargetIcon, TouchIdIcon } from "../components/icons";
+import { FaceIdIcon, LockIcon, TouchIdIcon } from "../components/icons";
+import { LandingHeroContent } from "../components/LandingHero";
 import { PasswordInput } from "../components/PasswordInput";
 import { AuthFooter } from "../components/AuthFooter";
 import { BubbleLoader } from "../components/BubbleLoader";
@@ -12,41 +11,6 @@ import { StatusBanner } from "../components/StatusBanner";
 import { MIN_PASSWORD_LENGTH, validatePassword } from "../lib/passwordPolicy";
 
 type Mode = "login" | "signup";
-
-const FEATURES = [
-  {
-    icon: EntryIcon,
-    title: "Clock in & out",
-    body: "One tap to start or end a shift, with a live running timer.",
-  },
-  {
-    icon: TargetIcon,
-    title: "Set weekly goals",
-    body: "Track hours and earnings against the goals you set.",
-  },
-  {
-    icon: ReportIcon,
-    title: "Export PDF reports",
-    body: "Professional weekly reports, ready to download and share.",
-  },
-];
-
-function LandingPreviewCard() {
-  const amount = useCountUp(647.5, 1400);
-  const progress = useCountUp(82, 1400);
-
-  return (
-    <div className="landing-preview-card anim-rise" style={{ ["--i" as string]: 10 }} aria-hidden="true">
-      <div className="landing-preview-kicker">This week</div>
-      <div className="landing-preview-amount count-value">${fmt2(amount)}</div>
-      <div className="landing-preview-trend">▲ 12% vs last week</div>
-      <div className="progress-track landing-preview-track">
-        <div className="progress-fill" style={{ width: `${progress}%` }} />
-      </div>
-      <div className="landing-preview-caption count-value">{Math.round(progress)}% toward your weekly goal</div>
-    </div>
-  );
-}
 
 function biometryName(kind: "faceId" | "touchId" | "none"): string {
   if (kind === "faceId") return "Face ID";
@@ -79,6 +43,24 @@ export function AuthScreen() {
   const [otherLocations, setOtherLocations] = useState("");
   const [rate, setRate] = useState("");
   const [remember, setRemember] = useState(true);
+
+  // `biometricStatus.enabled` is a device-level fact, not an account-level
+  // one — this plugin stores at most one credential at a time (see
+  // BiometricAuthPlugin.swift's "single account slot" note), so it stays
+  // true even while a *different* account's credential currently occupies
+  // that slot. Before this comparison existed, logging into a second
+  // account on the same device showed the Face ID icon as available even
+  // though that account never turned it on — and tapping it actually
+  // authenticated as whichever account's credential was actually stored.
+  // Only offer the icon when there's nothing to conflict with (the email
+  // field is empty — e.g. a fresh device, or Remember Me was off) or the
+  // typed/remembered email matches the account the credential actually
+  // belongs to. A credential stored before `email` existed on the metadata
+  // never matches a *typed* email — same fail-closed reasoning as
+  // `isBiometricEnabledForCurrentUser` on AppContext.
+  const storedBiometricEmail = biometricStatus.email?.trim().toLowerCase();
+  const typedEmail = email.trim().toLowerCase();
+  const biometricMatchesTypedAccount = !typedEmail || (!!storedBiometricEmail && storedBiometricEmail === typedEmail);
 
   // Immediate feedback only — the backend re-validates every signup password
   // against its own copy of this policy and is the only thing that actually
@@ -124,32 +106,7 @@ export function AuthScreen() {
           <span className="landing-shape landing-shape-3" />
         </div>
         <div className="landing-hero-content">
-          <div className="landing-kicker anim-rise" style={{ ["--i" as string]: 0 }}>
-            Wage Tracker
-          </div>
-          <h1 className="landing-headline anim-rise" style={{ ["--i" as string]: 2 }}>
-            Track your hours.
-            <br />
-            Know your worth.
-          </h1>
-          <p className="landing-subtext anim-rise" style={{ ["--i" as string]: 4 }}>
-            Clock in, log shifts, and watch your weekly earnings add up — with goal tracking and PDF reports built
-            in.
-          </p>
-          <div className="landing-features">
-            {FEATURES.map((f, i) => (
-              <div className="landing-feature anim-rise" style={{ ["--i" as string]: 6 + i }} key={f.title}>
-                <span className="landing-feature-icon">
-                  <f.icon size={18} />
-                </span>
-                <div>
-                  <div className="landing-feature-title">{f.title}</div>
-                  <div className="landing-feature-body">{f.body}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-          <LandingPreviewCard />
+          <LandingHeroContent />
         </div>
       </div>
 
@@ -198,8 +155,14 @@ export function AuthScreen() {
                 attemptBiometricAuthentication) already tries this once on
                 its own; this button exists for when that prompt was
                 cancelled, missed, or never got a chance to run (e.g. the
-                device was still on this screen when it fired). */}
-            {mode === "login" && biometricStatus.enabled && (
+                device was still on this screen when it fired).
+
+                Also requires biometricMatchesTypedAccount — see that
+                value's own comment above: without it, this offered (and
+                actually signed into) whichever account's credential
+                happened to occupy the device's single biometric slot,
+                regardless of which account's email was typed here. */}
+            {mode === "login" && biometricStatus.enabled && biometricMatchesTypedAccount && (
               <div className="auth-biometric-row">
                 <button
                   type="button"
