@@ -316,16 +316,59 @@ export function revokeOtherSessions(): Promise<void> {
   return request("/me/sessions/others", { method: "DELETE" });
 }
 
-/** Marks (`true`) or unmarks (`false`) the session backing the current
+/**
+ * Marks (`true`) or unmarks (`false`) the session backing the current
  * token as biometric-protected — exempts it from the server's idle timeout
  * (see backend/src/security/sessions.ts's validateSession) on the theory
  * that Face ID/Touch ID re-entry on this device is itself the "was this
- * really the account owner" check an idle timeout otherwise approximates.
- * Called from AppContext right after enabling/disabling biometric login;
- * best-effort on the caller's side — see the call sites for why a failure
- * here must never block the underlying Face ID enable/disable itself. */
-export function setSessionBiometricProtection(enabled: boolean): Promise<void> {
-  return request("/me/sessions/current", { method: "PATCH", body: JSON.stringify({ biometricProtected: enabled }) });
+ * really the account owner" check an idle timeout otherwise approximates,
+ * and moves it onto the matching absolute lifetime (5 years while
+ * protected, the ordinary 30 days once it isn't — see
+ * BIOMETRIC_SESSION_TTL_MS on the backend).
+ *
+ * The backend responds `204 No Content` but hands back a replacement
+ * session token in the `X-New-Token` header rather than a JSON body — same
+ * reason and same shape as `changePassword` above: the call revokes the
+ * caller's current session as part of rotating it onto the new lifetime, so
+ * the token this very request authenticated with is about to stop working,
+ * and the caller must switch to the returned one (via `setToken`) right
+ * away rather than let the next request discover that the hard way.
+ * Fetches directly rather than going through `request()`, for the same
+ * reason `changePassword` does.
+ *
+ * Called from AppContext right before/after enabling biometric login and
+ * right after disabling it; see those call sites for how a failure here is
+ * handled (never allowed to block Face ID itself, but the returned token —
+ * when there is one — must always be applied, since a failure to apply an
+ * already-issued token would silently leave the live session pointed at one
+ * this call just revoked).
+ */
+export async function setSessionBiometricProtection(enabled: boolean): Promise<{ token: string }> {
+  const token = getToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_ORIGIN}/api/me/sessions/current`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ biometricProtected: enabled }),
+    });
+  } catch {
+    throw new ApiError("Couldn't reach the server. Check your connection and try again.", 0);
+  }
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError((body as { error?: string }).error || `Request failed (${res.status})`, res.status);
+  }
+
+  const newToken = res.headers.get("X-New-Token");
+  if (!newToken) {
+    throw new ApiError("Session was updated, but no replacement session token was returned.", 500);
+  }
+  return { token: newToken };
 }
 
 /** Server-side logout: revokes the session backing the current token, so a

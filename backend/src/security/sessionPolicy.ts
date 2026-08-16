@@ -10,6 +10,27 @@
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
+ * Absolute lifetime for a session while it is biometric-protected — see
+ * `rotateSessionForBiometricProtection` in `security/sessions.ts` and
+ * `PATCH /api/me/sessions/current` in `routes/me.ts`. Deliberately far
+ * beyond SESSION_TTL_MS: once Face ID/Touch ID re-entry on this specific
+ * device backs a session, that biometric check *is* the periodic
+ * re-authentication event an absolute expiry otherwise exists to force, so
+ * the ordinary 30-day ceiling no longer serves its purpose here (this was
+ * an explicit, confirmed choice — scoped to biometric-protected sessions
+ * only, not a global change to SESSION_TTL_MS, precisely because a
+ * password-only or web session has no equivalent re-entry check backing
+ * it).
+ *
+ * A session's JWT bakes in its own expiry at signing time, so upgrading (or
+ * later downgrading) a session to/from this lifetime can't be done by
+ * mutating a database column alone — it always mints a brand-new token; see
+ * rotateSessionForBiometricProtection for why the old session is revoked in
+ * the same breath a replacement is created, never left both-active.
+ */
+export const BIOMETRIC_SESSION_TTL_MS = 5 * 365 * 24 * 60 * 60 * 1000;
+
+/**
  * Server-enforced idle timeout. A session whose `last_seen_at` is older than
  * this stops authenticating, full stop — the client can no longer be the
  * only thing deciding when an unattended session ends.

@@ -102,9 +102,13 @@ didn't this expire" question is answered before anyone has to ask it.
 
 ## What this deliberately does not change
 
-- The absolute 30-day session lifetime (`SESSION_TTL_MS`) — a
-  biometric-protected session still eventually requires a fresh login, just
-  not from mere inactivity.
+- The absolute session lifetime — a biometric-protected session still
+  eventually requires a fresh login, just not from mere inactivity. At the
+  time this fix shipped that lifetime was the ordinary `SESSION_TTL_MS` (30
+  days) for every session, biometric-protected or not; a direct follow-up
+  request extended it specifically for biometric-protected sessions to 5
+  years — see `docs/biometric-5-year-session-handoff.md` for that design.
+  Nothing else about the exemption described here changed as part of that.
 - Revocation and password-change invalidation (`token_version`) — both
   still kill a biometric-protected session immediately, same as any other.
 - Non-biometric sessions — completely unaffected; the idle timeout,

@@ -4,6 +4,7 @@ import { db } from "../db.js";
 import type { InStatement } from "@libsql/client";
 import type { UserSessionRow } from "../types.js";
 import {
+  BIOMETRIC_SESSION_TTL_MS,
   LAST_SEEN_THROTTLE_MS,
   MAX_ACTIVE_INSTALLATIONS,
   SESSION_TTL_MS,
@@ -34,7 +35,7 @@ import {
  * installation.
  */
 
-export { SESSION_TTL_MS };
+export { SESSION_TTL_MS, BIOMETRIC_SESSION_TTL_MS };
 
 const MAX_USER_AGENT_LENGTH = 300;
 const MAX_IP_ADDRESS_LENGTH = 64;
@@ -261,27 +262,107 @@ export async function validateSession(
   return { valid: true, lastSeenAt: row.last_seen_at };
 }
 
+export interface RotateSessionForBiometricProtectionResult {
+  sessionId: string;
+  tokenVersion: number;
+  /** The TTL the replacement session (and the JWT backing it) was minted
+   * with — SESSION_TTL_MS or BIOMETRIC_SESSION_TTL_MS depending on
+   * `protectedFlag`. The route uses this to sign the matching token via
+   * `signToken`'s `ttlOverrideMs` parameter. */
+  ttlMs: number;
+}
+
 /**
  * Marks (or unmarks) the caller's own current session as biometric-
- * protected — see validateSession's idle-exemption above. Scoped to
- * `sessionId + userId` the same way every other single-session mutation in
- * this file is, even though the route only ever passes the caller's own
- * `req.sessionId`: defense in depth against a future call site passing the
- * wrong id, not a currently-reachable cross-user path.
+ * protected — see validateSession's idle-exemption above — and, unlike a
+ * plain flag flip, also moves the session onto the matching absolute
+ * lifetime: BIOMETRIC_SESSION_TTL_MS (5 years) while protected,
+ * SESSION_TTL_MS (30 days) once it isn't. A JWT's own expiry is fixed at
+ * signing time, so genuinely changing a session's absolute lifetime can't be
+ * done by updating this row in place — the old session is revoked and a
+ * replacement row is inserted with the new `expires_at` and
+ * `biometric_protected` value, in the same write batch, so the two can never
+ * be observed both-active or both-gone (the same rotation pattern
+ * `changePassword` in routes/me.ts already uses for its own replacement
+ * session). The route signs a fresh JWT for the returned `sessionId` and
+ * ships it to the caller via the `X-New-Token` response header.
  *
- * Deliberately does not touch `last_seen_at`, `expires_at`, or anything
- * else — turning biometric login on or off is not itself session activity,
- * and must not silently extend or shorten the session's own lifetime.
+ * Scoped to `sessionId + userId` the same way every other single-session
+ * mutation in this file is, even though the route only ever passes the
+ * caller's own `req.sessionId`: defense in depth against a future call site
+ * passing the wrong id, not a currently-reachable cross-user path.
+ *
+ * Carries over `user_agent`/`ip_address`/`device_installation_id`/
+ * `device_name` from the row being replaced — this is the same physical
+ * device/installation, only the protection level and lifetime changed, so
+ * none of that display detail should reset or duplicate the entry in the
+ * sessions list.
+ *
+ * Returns `null` if the session is already gone (revoked/expired elsewhere,
+ * or a stale `req.sessionId`) rather than resurrecting it — the route turns
+ * that into the same "your session is no longer valid" outcome any other
+ * discovery of a dead session produces.
  */
-export async function setSessionBiometricProtection(
+export async function rotateSessionForBiometricProtection(
   sessionId: string,
   userId: string,
   protectedFlag: boolean
-): Promise<void> {
-  await db.execute({
-    sql: "UPDATE user_sessions SET biometric_protected = ? WHERE id = ? AND user_id = ?",
-    args: [protectedFlag ? 1 : 0, sessionId, userId],
+): Promise<RotateSessionForBiometricProtectionResult | null> {
+  const result = await db.execute({
+    sql: `SELECT s.user_agent as user_agent, s.ip_address as ip_address,
+                 s.device_installation_id as device_installation_id, s.device_name as device_name,
+                 u.token_version as token_version
+          FROM user_sessions s
+          JOIN users u ON u.id = s.user_id
+          WHERE s.id = ? AND s.user_id = ? AND s.revoked_at IS NULL`,
+    args: [sessionId, userId],
   });
+  const row = result.rows[0] as unknown as
+    | {
+        user_agent: string;
+        ip_address: string;
+        device_installation_id: string | null;
+        device_name: string | null;
+        token_version: number;
+      }
+    | undefined;
+  if (!row) return null;
+
+  const ttlMs = protectedFlag ? BIOMETRIC_SESSION_TTL_MS : SESSION_TTL_MS;
+  const newSessionId = randomUUID();
+  const nowIso = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + ttlMs).toISOString();
+
+  await db.batch(
+    [
+      // Must run before the INSERT below, in the same transaction — see
+      // createSession's identical ordering comment for why.
+      {
+        sql: "UPDATE user_sessions SET revoked_at = ? WHERE id = ?",
+        args: [nowIso, sessionId],
+      },
+      {
+        sql: `INSERT INTO user_sessions
+                (id, user_id, user_agent, ip_address, created_at, last_seen_at, expires_at, device_installation_id, device_name, biometric_protected)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          newSessionId,
+          userId,
+          row.user_agent,
+          row.ip_address,
+          nowIso,
+          nowIso,
+          expiresAt,
+          row.device_installation_id,
+          row.device_name,
+          protectedFlag ? 1 : 0,
+        ],
+      },
+    ],
+    "write"
+  );
+
+  return { sessionId: newSessionId, tokenVersion: Number(row.token_version), ttlMs };
 }
 
 /**

@@ -12,8 +12,8 @@ import {
   listSessionsForUser,
   revokeOtherSessions,
   revokeSessionById,
+  rotateSessionForBiometricProtection,
   sessionBelongsToUser,
-  setSessionBiometricProtection,
   SESSION_TTL_MS,
 } from "../security/sessions.js";
 import { toPublicSession, toPublicUser, type UserRow } from "../types.js";
@@ -98,6 +98,15 @@ const sessionBiometricProtectionSchema = z.object({ biometricProtected: z.boolea
  * with" — `req.sessionId` only, never a body/param id — since biometric
  * protection is inherently a property of "the credential this specific
  * device is holding", not something one session can set for another.
+ *
+ * Marking a session protected also moves it onto the much longer
+ * BIOMETRIC_SESSION_TTL_MS absolute lifetime (5 years, vs. the ordinary
+ * 30 days) — see rotateSessionForBiometricProtection's own comment for why
+ * that can't be done by mutating this row in place. Like changePassword
+ * below, this responds `204 No Content` with the replacement token in the
+ * `X-New-Token` header rather than a JSON body, since the caller's current
+ * token is revoked as part of the same rotation and would otherwise stop
+ * working the instant this request completes.
  */
 meRouter.patch(
   "/sessions/current",
@@ -107,7 +116,17 @@ meRouter.patch(
       res.status(400).json({ error: "biometricProtected must be a boolean" });
       return;
     }
-    await setSessionBiometricProtection(req.sessionId!, req.userId!, parsed.data.biometricProtected);
+    const rotated = await rotateSessionForBiometricProtection(
+      req.sessionId!,
+      req.userId!,
+      parsed.data.biometricProtected
+    );
+    if (!rotated) {
+      res.status(401).json({ error: "Invalid or expired token" });
+      return;
+    }
+    const replacementToken = signToken(req.userId!, rotated.tokenVersion, rotated.sessionId, rotated.ttlMs);
+    res.setHeader("X-New-Token", replacementToken);
     res.status(204).end();
   })
 );

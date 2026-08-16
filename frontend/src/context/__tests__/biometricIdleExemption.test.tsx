@@ -50,7 +50,7 @@ vi.mock("../../lib/api", async (importOriginal) => {
     listShifts: vi.fn(async () => ({ shifts: [] })),
     listDayExpenses: vi.fn(async () => ({ expenses: [] })),
     listWeekExtras: vi.fn(async () => ({ extras: [] })),
-    setSessionBiometricProtection: vi.fn(async () => {}),
+    setSessionBiometricProtection: vi.fn(async () => ({ token: "rotated-token" })),
   };
 });
 
@@ -127,7 +127,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   getStatus.mockResolvedValue(NOT_ENABLED);
   disableBiometric.mockResolvedValue(undefined);
-  apiSetSessionBiometricProtection.mockResolvedValue(undefined);
+  apiSetSessionBiometricProtection.mockResolvedValue({ token: "rotated-token" });
   // enableBiometricLoginAction reads api.getToken() directly (the current
   // in-memory token, regardless of "remembered" status) to hand to the
   // native adapter — a stateful stand-in so it reflects whatever login()
