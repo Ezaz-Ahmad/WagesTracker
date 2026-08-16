@@ -55,6 +55,12 @@ vi.mock("../../platform/shiftNotifications", () => ({
   clearPendingEndShift: vi.fn().mockResolvedValue(undefined),
   isShiftNotificationEnabled: () => true,
   setShiftNotificationEnabled: vi.fn(),
+  // The real default is `false` (the whole feature is temporarily paused —
+  // see isShiftNotificationFeatureEnabled's doc comment in
+  // platform/shiftNotifications.ts), but this file specifically exercises
+  // the still-fully-implemented posting/failure-notice wiring end to end,
+  // so it's forced on here, same as isShiftNotificationEnabled above.
+  isShiftNotificationFeatureEnabled: () => true,
 }));
 
 import * as api from "../../lib/api";
@@ -82,6 +88,11 @@ const USER = {
 async function logIn(user: ReturnType<typeof userEvent.setup>) {
   apiLogin.mockResolvedValue({ token: "ordinary-token", user: USER });
   render(<App />);
+  // The mobile welcome screen (see WelcomeScreen.tsx) now appears before
+  // every login, in front of AuthScreen — dismissed here via its
+  // always-present "Get started" button so the rest of this helper can
+  // reach the login form exactly as it did before that screen existed.
+  await user.click(await screen.findByRole("button", { name: "Get started" }));
   await user.type(await screen.findByLabelText("Email"), USER.email);
   await user.type(screen.getByLabelText("Password"), "correct horse battery staple");
   await user.click(screen.getByRole("button", { name: "Log in" }));

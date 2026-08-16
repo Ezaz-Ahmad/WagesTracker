@@ -5,6 +5,7 @@ import { ConfirmProvider } from "./components/ConfirmProvider";
 import { Logo } from "./components/Logo";
 import { EyeIcon, EyeOffIcon, LogoutIcon, RefreshIcon } from "./components/icons";
 import { AuthScreen } from "./screens/AuthScreen";
+import { WelcomeScreen } from "./screens/WelcomeScreen";
 import { WakingUpScreen } from "./components/WakingUpScreen";
 import { ScreenErrorBoundary } from "./components/ScreenErrorBoundary";
 import { StatusBanner } from "./components/StatusBanner";
@@ -217,7 +218,19 @@ function AuthedApp() {
 }
 
 function Root() {
-  const { status, authBusy, biometricBusy } = useApp();
+  const { status, authBusy, biometricPromptActive } = useApp();
+
+  // Shown once per "loggedOut" stretch, on top of AuthScreen — see
+  // WelcomeScreen's own doc comment. Reset back to "not yet dismissed"
+  // every time `status` freshly becomes "loggedOut" (covers both the very
+  // first cold launch, which starts "loading" then falls through to
+  // "loggedOut" below, and every later logout, which goes "loggedIn" ->
+  // "loggedOut") rather than only once ever, so it reappears after each
+  // logout exactly as asked for, instead of only the first install.
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false);
+  useEffect(() => {
+    if (status === "loggedOut") setWelcomeDismissed(false);
+  }, [status]);
 
   // Covers every path that can stall on a cold backend: the silent
   // session check on load (status === "loading") *and* an explicit
@@ -227,7 +240,7 @@ function Root() {
   // screen — it only escalates once a wait is actually starting to look
   // like a Render cold start rather than ordinary network latency.
   //
-  // `biometricBusy` is excluded from `status === "loading"` here on
+  // `biometricPromptActive` is excluded from `status === "loading"` here on
   // purpose: the automatic cold-launch Face ID/Touch ID attempt runs inside
   // that same "loading" window (see AppContext's restoreSession), and this
   // screen's "Connecting…"/"Waking the server…" copy describes server
@@ -235,13 +248,25 @@ function Root() {
   // looking at the system Face ID prompt would be actively misleading. The
   // screen stays blank (the same fallback already used for the initial
   // grace window below) for that stretch instead.
-  const isWaiting = (status === "loading" && !biometricBusy) || authBusy;
+  //
+  // This is deliberately the narrower `biometricPromptActive` flag, not the
+  // wider `biometricBusy` (which also covers AppContext's post-unlock
+  // `fetchMeWithToken` re-validation call). Using `biometricBusy` here used
+  // to leave the app on a blank white screen with nothing shown at all for
+  // the entire cold-start wait after a *successful* Face ID unlock — the
+  // system prompt was long gone, but the wider flag still suppressed this
+  // screen for the network wait that followed it. See
+  // `biometricPromptActive`'s own doc comment on AppContext.
+  const isWaiting = (status === "loading" && !biometricPromptActive) || authBusy;
   const showWakingScreen = useDelayedFlag(isWaiting, 500);
 
   if (showWakingScreen) return <WakingUpScreen />;
   // Still within the 500ms grace window of the initial session check —
   // previously blank here too, so no visible change on the fast path.
   if (status === "loading") return null;
+  if (status === "loggedOut" && !welcomeDismissed) {
+    return <WelcomeScreen onContinue={() => setWelcomeDismissed(true)} />;
+  }
   return status === "loggedIn" ? <AuthedApp /> : <AuthScreen />;
 }
 

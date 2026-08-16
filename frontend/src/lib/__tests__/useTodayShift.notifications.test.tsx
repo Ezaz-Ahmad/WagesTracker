@@ -51,11 +51,20 @@ vi.mock("../../context/AppContext", async (importOriginal) => {
 const postShiftStartedNotification = vi.fn().mockResolvedValue({ ok: true });
 const clearShiftNotification = vi.fn().mockResolvedValue(undefined);
 let notificationPreferenceEnabled: boolean;
+// The real default for isShiftNotificationFeatureEnabled() is `false` (the
+// feature is temporarily paused — see its doc comment in
+// platform/shiftNotifications.ts) but this file's whole purpose is proving
+// the still-fully-implemented posting logic itself works correctly, so it's
+// forced on in beforeEach below, same as every test in this file already
+// forces the per-device preference on. The one test that specifically
+// covers the kill-switch's own effect sets this back to false.
+let notificationFeatureEnabled: boolean;
 vi.mock("../../platform/shiftNotifications", () => ({
   postShiftStartedNotification: (...args: unknown[]) => postShiftStartedNotification(...args),
   clearShiftNotification: (...args: unknown[]) => clearShiftNotification(...args),
   isShiftNotificationEnabled: () => notificationPreferenceEnabled,
   setShiftNotificationEnabled: vi.fn(),
+  isShiftNotificationFeatureEnabled: () => notificationFeatureEnabled,
 }));
 
 let tokenValue: string | null;
@@ -80,6 +89,7 @@ beforeEach(() => {
   updateShift = vi.fn();
   tokenValue = "session-token";
   notificationPreferenceEnabled = true;
+  notificationFeatureEnabled = true;
   postShiftStartedNotification.mockClear();
   postShiftStartedNotification.mockResolvedValue({ ok: true });
   clearShiftNotification.mockClear();
@@ -141,6 +151,23 @@ describe("useTodayShift → shift-notification wiring on start()", () => {
     // on the adapter to silently swallow it.
     const user = userEvent.setup();
     notificationPreferenceEnabled = false;
+    createShift.mockResolvedValue({ id: "new-shift-1", date: "2026-08-09", location: "Downtown Store", signIn: "09:00:00", signOut: null });
+    render(<Harness />);
+
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
+
+    await waitFor(() => expect(createShift).toHaveBeenCalledTimes(1));
+    expect(postShiftStartedNotification).not.toHaveBeenCalled();
+  });
+
+  it("does not post a notification while the whole feature is temporarily disabled, even with the per-device preference on", async () => {
+    // isShiftNotificationFeatureEnabled() — the separate, temporary
+    // whole-feature kill-switch (see platform/shiftNotifications.ts) — is
+    // false by default in production right now. Distinct from the
+    // per-device preference test above: this proves the kill-switch itself
+    // gates posting, independent of whatever a user's own toggle says.
+    const user = userEvent.setup();
+    notificationFeatureEnabled = false;
     createShift.mockResolvedValue({ id: "new-shift-1", date: "2026-08-09", location: "Downtown Store", signIn: "09:00:00", signOut: null });
     render(<Harness />);
 

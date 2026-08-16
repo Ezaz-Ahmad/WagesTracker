@@ -115,6 +115,43 @@ export function clearPendingEndShift(): Promise<void> {
   return adapter().clearPendingEndShift();
 }
 
+/**
+ * Master kill-switch for the whole shift-in-progress notification feature —
+ * temporarily off while the feature is revisited (the notification wasn't
+ * reliably showing on-device even after the delivery-reporting fix in
+ * `docs/shift-notification-visibility-fix.md`). Rather than ship a Settings
+ * toggle and a background posting path that may silently do nothing for
+ * some users, the feature is paused at the two integration points that
+ * actually matter — `useTodayShift.start()` no longer calls
+ * `postShiftStartedNotification` at all, and `ShiftNotificationSettings`
+ * no longer renders a control for a feature that's off — while every other
+ * line of the implementation (this adapter contract, the native plugin, the
+ * per-device preference storage below, the pending-end-shift recovery flow)
+ * is untouched. Resuming later is a one-line flip back to `true` here;
+ * nothing else needs to change, and any per-device preference someone had
+ * already set via `setShiftNotificationEnabled` takes effect again
+ * immediately.
+ *
+ * A `let` with the test-only setter below (mirroring `configureShiftNotifications`'s
+ * own swap-for-tests pattern), not a hardcoded `const`, so tests can still
+ * exercise the fully-implemented underlying feature while it's dormant in
+ * production — see `useTodayShift.notifications.test.tsx` and
+ * `ShiftNotificationSettings.test.tsx`, which turn it on for the cases
+ * specifically about "when this feature is active, does it work," while
+ * every other test relies on the real (off) default, same as production.
+ */
+let shiftNotificationFeatureEnabled = false;
+
+export function isShiftNotificationFeatureEnabled(): boolean {
+  return shiftNotificationFeatureEnabled;
+}
+
+/** Test-only escape hatch for the kill-switch above — never called from
+ * production code. */
+export function setShiftNotificationFeatureEnabledForTesting(enabled: boolean): void {
+  shiftNotificationFeatureEnabled = enabled;
+}
+
 const SHIFT_NOTIFICATION_ENABLED_KEY = "wageTracker.shiftNotificationEnabled";
 
 /**

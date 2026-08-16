@@ -34,7 +34,12 @@ import Security
 ///     answer "is biometric login turned on, and for which account/kind" so
 ///     the Settings toggle and the login screen's icon can render correctly
 ///     without ever triggering a Face ID/Touch ID prompt just to draw the UI.
-///     Contains no secret — no token, no password.
+///     Contains no secret — no token, no password. Carries `email` alongside
+///     `accountId`/`accountLabel` specifically so the JS side can tell
+///     whether the *currently relevant* account (the one logged in, in
+///     Settings, or typed into the login form) is the same one this
+///     credential actually belongs to — see the "single account slot" note
+///     below for why that comparison matters.
 ///   - `credential` (kCredentialKey) — the actual session token, stored under
 ///     a `SecAccessControl` built with `.biometryCurrentSet`. Per Apple's
 ///     documentation this ties the item to the *exact* set of enrolled
@@ -47,11 +52,26 @@ import Security
 /// Single account slot by design: this is a personal wage-tracking app with
 /// no in-app account switching, so there is never more than one stored
 /// credential at a time. Enabling biometrics for a different account
-/// overwrites whatever was there — see `enable` below. The real
-/// account-isolation guarantee is not this app-level bookkeeping though; it
-/// is the Secure Enclave itself. `.biometryCurrentSet` means only a face/
-/// fingerprint matching the device's *current* enrollment can ever unlock
-/// the credential item, and every successful unlock is still re-validated
+/// overwrites whatever was there — see `enable` below.
+///
+/// That single slot is exactly what made a real cross-account bug possible
+/// before `email` was added to the metadata: `isEnabled()` reported
+/// "enabled: true" unconditionally whenever *any* account's credential
+/// occupied the slot, with no way for the JS side to tell whether it was
+/// actually the account currently being shown. In practice — enable Face ID
+/// for account A, then log into account B on the same device — the Settings
+/// screen and the login form for B both showed Face ID as already on, and
+/// tapping it authenticated as A. This plugin still only ever stores one
+/// credential (that part is unchanged; there is still no in-app account
+/// switcher to justify true multi-account storage), but `isEnabled()` now
+/// always returns the stored `email` too, so `AppContext`/`AuthScreen`/
+/// `BiometricLoginSettings` can compare it against whichever account is
+/// actually relevant and treat a mismatch as "not enabled for this
+/// account" rather than trusting the raw device-level flag. The real
+/// account-isolation guarantee for the credential itself is still the
+/// Secure Enclave: `.biometryCurrentSet` means only a face/fingerprint
+/// matching the device's *current* enrollment can ever unlock the
+/// credential item, and every successful unlock is still re-validated
 /// against the backend (see AppContext) before it is trusted — this plugin
 /// only ever hands back a token, never a signed-in session.
 @objc(BiometricAuth)
@@ -148,6 +168,11 @@ public class BiometricAuthPlugin: CAPPlugin, CAPBridgedPlugin {
         "enabled": true,
         "accountId": accountId,
         "accountLabel": meta["accountLabel"] as? String ?? "",
+        // Absent only for a credential written before this field existed —
+        // the JS-side account-match check treats a missing email the same
+        // as a mismatch (fail closed), which is why an already-enabled
+        // credential from before this change needs re-enabling once.
+        "email": meta["email"] as? String ?? "",
         "kind": kind
       ])
     } catch {
@@ -169,6 +194,10 @@ public class BiometricAuthPlugin: CAPPlugin, CAPBridgedPlugin {
   @objc func enable(_ call: CAPPluginCall) {
     guard let accountId = call.getString("accountId"), !accountId.isEmpty else {
       call.reject("Missing accountId", "invalid_argument")
+      return
+    }
+    guard let email = call.getString("email"), !email.isEmpty else {
+      call.reject("Missing email", "invalid_argument")
       return
     }
     guard let token = call.getString("token"), !token.isEmpty else {
@@ -196,7 +225,7 @@ public class BiometricAuthPlugin: CAPPlugin, CAPBridgedPlugin {
           try self.deleteItem(account: self.kCredentialKey)
 
           let kind = self.biometryKindString(context.biometryType)
-          let meta: [String: Any] = ["accountId": accountId, "accountLabel": accountLabel, "kind": kind]
+          let meta: [String: Any] = ["accountId": accountId, "accountLabel": accountLabel, "email": email, "kind": kind]
           let metaData = try JSONSerialization.data(withJSONObject: meta)
           try self.writeItem(account: self.kMetaKey, data: metaData, requireBiometry: false)
 

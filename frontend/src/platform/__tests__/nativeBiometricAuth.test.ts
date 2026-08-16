@@ -41,28 +41,40 @@ describe("NativeBiometricAuthAdapter", () => {
     });
   });
 
-  it("passes getStatus() straight through", async () => {
+  it("passes getStatus() straight through, including the account's email", async () => {
     const plugin = fakePlugin({
-      isEnabled: vi.fn(async () => ({ enabled: true, accountId: "u1", accountLabel: "Sam", kind: "faceId" as const })),
+      isEnabled: vi.fn(async () => ({
+        enabled: true,
+        accountId: "u1",
+        accountLabel: "Sam",
+        email: "sam@example.com",
+        kind: "faceId" as const,
+      })),
     });
     const adapter = new NativeBiometricAuthAdapter(plugin);
     await expect(adapter.getStatus()).resolves.toEqual({
       enabled: true,
       accountId: "u1",
       accountLabel: "Sam",
+      email: "sam@example.com",
       kind: "faceId",
     });
   });
 
   describe("enable", () => {
-    it("forwards accountId/accountLabel/token and reports the enabled kind on success", async () => {
+    it("forwards accountId/accountLabel/email/token and reports the enabled kind on success", async () => {
       const enable = vi.fn(async () => ({ kind: "faceId" as const }));
       const plugin = fakePlugin({ enable });
       const adapter = new NativeBiometricAuthAdapter(plugin);
 
-      const result = await adapter.enable("u1", "Sam Lee", "session-token");
+      const result = await adapter.enable("u1", "Sam Lee", "sam@example.com", "session-token");
 
-      expect(enable).toHaveBeenCalledWith({ accountId: "u1", accountLabel: "Sam Lee", token: "session-token" });
+      expect(enable).toHaveBeenCalledWith({
+        accountId: "u1",
+        accountLabel: "Sam Lee",
+        email: "sam@example.com",
+        token: "session-token",
+      });
       expect(result).toEqual({ outcome: "enabled", kind: "faceId" });
     });
 
@@ -70,7 +82,7 @@ describe("NativeBiometricAuthAdapter", () => {
       const plugin = fakePlugin({ enable: vi.fn(async () => { throw pluginRejection("user_cancelled", "cancelled"); }) });
       const adapter = new NativeBiometricAuthAdapter(plugin);
 
-      await expect(adapter.enable("u1", "Sam", "t")).resolves.toEqual({
+      await expect(adapter.enable("u1", "Sam", "sam@example.com", "t")).resolves.toEqual({
         outcome: "failed",
         reason: "user_cancelled",
         error: "cancelled",
@@ -81,7 +93,7 @@ describe("NativeBiometricAuthAdapter", () => {
       const plugin = fakePlugin({ enable: vi.fn(async () => { throw pluginRejection("some_future_code"); }) });
       const adapter = new NativeBiometricAuthAdapter(plugin);
 
-      const result = await adapter.enable("u1", "Sam", "t");
+      const result = await adapter.enable("u1", "Sam", "sam@example.com", "t");
       expect(result.outcome).toBe("failed");
       expect(result.reason).toBe("unknown_error");
     });

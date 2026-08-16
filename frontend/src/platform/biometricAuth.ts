@@ -27,11 +27,26 @@ export interface BiometricCapabilities {
 
 /** Non-prompting "is biometric login currently on, and for whom" read —
  * safe to call on every render (including the logged-out login screen) to
- * decide whether to show a toggle/icon at all. */
+ * decide whether to show a toggle/icon at all.
+ *
+ * `enabled` alone is a device-level fact, not an account-level one: this
+ * plugin stores at most one credential at a time (see
+ * `BiometricAuthPlugin.swift`'s "single account slot" note), so `enabled`
+ * stays true even while a *different* account's credential occupies that
+ * slot. Callers must not treat `enabled` as "enabled for the account I care
+ * about" on its own — compare `accountId` (when logged in, against
+ * `user.id`) or `email` (on the logged-out login form, against whatever
+ * email is currently typed/remembered) first. `AppContext`'s
+ * `isBiometricEnabledForCurrentUser` does this for the logged-in case;
+ * `AuthScreen` does its own email comparison for the logged-out case. */
 export interface BiometricStatus {
   enabled: boolean;
   accountId?: string;
   accountLabel?: string;
+  /** The email address biometric login was enabled for. Empty/absent for a
+   * credential stored before this field existed — treat that the same as a
+   * mismatch (fail closed) rather than assuming it matches. */
+  email?: string;
   kind?: BiometryKind;
 }
 
@@ -70,8 +85,8 @@ export interface BiometricAuthAdapter {
   getStatus(): Promise<BiometricStatus>;
   /** Prompts biometrics immediately (see the requirement this satisfies in
    * AppContext.enableBiometricLogin) and, only on success, stores `token`
-   * behind a biometric-gated credential bound to `accountId`. */
-  enable(accountId: string, accountLabel: string, token: string): Promise<BiometricEnableResult>;
+   * behind a biometric-gated credential bound to `accountId`/`email`. */
+  enable(accountId: string, accountLabel: string, email: string, token: string): Promise<BiometricEnableResult>;
   /** Prompts biometrics and, on success, returns the stored token. Never
    * throws for an ordinary cancellation/failure/lockout — those come back as
    * `{ outcome: "failed", reason }` so callers (the cold-launch auto-prompt
@@ -142,9 +157,10 @@ export function getBiometricStatus(): Promise<BiometricStatus> {
 export function enableBiometricLogin(
   accountId: string,
   accountLabel: string,
+  email: string,
   token: string
 ): Promise<BiometricEnableResult> {
-  return adapter().enable(accountId, accountLabel, token);
+  return adapter().enable(accountId, accountLabel, email, token);
 }
 
 export function authenticateWithBiometrics(): Promise<BiometricAuthenticateResult> {

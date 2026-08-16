@@ -1,5 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import { useShiftNotificationSetting } from "../lib/useTodayShift";
+import { isShiftNotificationFeatureEnabled } from "../platform/shiftNotifications";
 import { StableLabel } from "../components/StableLabel";
 
 /**
@@ -13,11 +14,17 @@ import { StableLabel } from "../components/StableLabel";
  * feature doesn't exist on web/PWA at all (`WebShiftNotificationAdapter` is
  * a no-op — see `platform/shiftNotifications.ts`), so there is nothing for
  * this control to toggle there.
+ *
+ * Also renders nothing at all while `isShiftNotificationFeatureEnabled()` is
+ * false — the whole feature is temporarily paused (see that flag's own doc
+ * comment), and a toggle for a feature that's currently a no-op would just
+ * be confusing. Removing this render-gate is the other half of resuming the
+ * feature, alongside flipping the flag itself back on.
  */
 export function ShiftNotificationSettings() {
   const { enabled, setEnabled } = useShiftNotificationSetting();
 
-  if (!Capacitor.isNativePlatform()) return null;
+  if (!Capacitor.isNativePlatform() || !isShiftNotificationFeatureEnabled()) return null;
 
   return (
     <div className="settings-section-card card">

@@ -8,6 +8,7 @@ import { getApiOrigin, getToken } from "./api";
 import {
   clearShiftNotification,
   isShiftNotificationEnabled,
+  isShiftNotificationFeatureEnabled,
   postShiftStartedNotification,
   setShiftNotificationEnabled,
 } from "../platform/shiftNotifications";
@@ -45,7 +46,13 @@ export function useTodayShift() {
     // per device (see isShiftNotificationEnabled) — checked here, not inside
     // the adapter, so a disabled preference means no notification call is
     // even attempted, not one that's silently swallowed downstream.
-    if (token && isShiftNotificationEnabled()) {
+    //
+    // isShiftNotificationFeatureEnabled() is the separate, temporary
+    // whole-feature kill-switch (see its own doc comment in
+    // platform/shiftNotifications.ts) — checked first so the feature being
+    // paused doesn't depend on, or disturb, anyone's saved per-device
+    // preference underneath it.
+    if (token && isShiftNotificationFeatureEnabled() && isShiftNotificationEnabled()) {
       // Fire-and-forget: postShiftStartedNotification never throws (see
       // NativeShiftNotificationAdapter) — a notification permission
       // problem or any other platform failure must never make it look like

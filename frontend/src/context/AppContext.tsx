@@ -136,13 +136,35 @@ interface AppContextValue {
    * Settings and the login screen can decide whether to render anything at
    * all without checking platform directly. See platform/biometricAuth.ts. */
   biometricCapabilities: BiometricCapabilities;
-  /** Non-prompting "is biometric login currently on for this device" — drives
-   * the Settings toggle state and whether the login-screen icon appears. */
+  /** Non-prompting "is biometric login currently on for this device" — a
+   * DEVICE-level fact, not an account-level one (see `BiometricStatus`'s own
+   * doc comment on why `enabled` alone can be true for a different account
+   * than the one currently relevant). The login screen, which doesn't know
+   * a logged-in `user` yet, does its own comparison against `biometricStatus.email`;
+   * Settings should use `isBiometricEnabledForCurrentUser` below instead of
+   * this raw value. */
   biometricStatus: BiometricStatus;
+  /** `biometricStatus.enabled` narrowed to "...and it's actually *this*
+   * logged-in account's credential, not a different account's left
+   * occupying the device's single credential slot." `false` while logged
+   * out (nothing to compare against) — see `biometricStatus`'s doc comment.
+   * Settings (`BiometricLoginSettings`) uses this instead of the raw
+   * `biometricStatus.enabled` so it can never show "Turn off Face ID" for
+   * an account that doesn't actually have it on. */
+  isBiometricEnabledForCurrentUser: boolean;
   /** True while a biometric prompt (enable or authenticate) is in flight —
    * used to disable the Settings toggle and the login-screen icon so a
    * second tap can't start a second concurrent prompt. */
   biometricBusy: boolean;
+  /** True only while the native Face ID/Touch ID system sheet is actually
+   * up — a narrower window than `biometricBusy`. `Root()` in App.tsx uses
+   * this (not `biometricBusy`) to decide whether to show the "waking the
+   * server" screen during the automatic cold-launch Face ID attempt: it
+   * must stay hidden while this is true (the system prompt is already the
+   * thing on screen) but must NOT stay hidden once this goes false again,
+   * even though `biometricBusy` is still true for the backend
+   * re-validation that follows a successful unlock. */
+  biometricPromptActive: boolean;
   /** Set by a failed/cancelled automatic or manual biometric login attempt;
    * distinct from `authError` (a failed password login) so retrying with a
    * password doesn't show a stale biometric message and vice versa. */
@@ -234,6 +256,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   });
   const [biometricStatus, setBiometricStatus] = useState<BiometricStatus>({ enabled: false });
   const [biometricBusy, setBiometricBusy] = useState(false);
+  // Narrower than biometricBusy — true only while the native Face ID/Touch
+  // ID system sheet itself is actually up, not for the rest of
+  // attemptBiometricAuthentication's work (re-validating the recovered
+  // token against the backend). See Root() in App.tsx: it must not show the
+  // "waking the server" screen while the system biometric prompt is on
+  // screen (that would be confusing), but it must show it — same as an
+  // ordinary password login — for the network wait that follows, which can
+  // be the same 30-60s Render cold-start wait either way. Using the wider
+  // biometricBusy for that second condition used to leave the app on a
+  // blank white screen for the entire cold-start wait after a successful
+  // Face ID unlock, with nothing telling the user anything was happening.
+  const [biometricPromptActive, setBiometricPromptActive] = useState(false);
   const [biometricLoginError, setBiometricLoginError] = useState<string | null>(null);
   // Gates the *automatic* cold-launch prompt to at most once per app load —
   // a fresh value every time this module/provider is freshly instantiated,
@@ -373,7 +407,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setBiometricBusy(true);
     setBiometricLoginError(null);
     try {
-      const result = await authenticateWithBiometrics();
+      let result;
+      setBiometricPromptActive(true);
+      try {
+        result = await authenticateWithBiometrics();
+      } finally {
+        // Cleared the moment the system sheet itself is done, success or
+        // not — everything from here on (re-validating the token against
+        // the backend below) is an ordinary network wait, not something the
+        // "don't show the waking-up screen over the Face ID prompt" guard
+        // in Root() needs to keep suppressing.
+        setBiometricPromptActive(false);
+      }
       if (result.outcome !== "success" || !result.token) {
         // Cancellation and an interrupted (backgrounded) prompt are ordinary,
         // expected outcomes — the user simply lands back on the normal
@@ -1138,7 +1183,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         );
       }
 
-      const result = await adapterEnableBiometricLogin(user.id, user.name, tokenForCredential);
+      const result = await adapterEnableBiometricLogin(user.id, user.name, user.email, tokenForCredential);
       if (result.outcome === "enabled") {
         // Biometrics becomes the persistent unlock method from here on — an
         // ordinary Remember-Me-persisted token left in Keychain alongside it
@@ -1220,6 +1265,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const clearBiometricLoginError = useCallback(() => setBiometricLoginError(null), []);
 
+  // See isBiometricEnabledForCurrentUser's own doc comment on AppContextValue.
+  // `accountId` is compared, not `email` — it's the stable identifier
+  // (`user.id`) rather than something a user could theoretically change; a
+  // missing/empty accountId (a credential stored before this field existed,
+  // or before biometrics was ever enabled at all) never matches a real
+  // logged-in user's id, so this fails closed by construction rather than
+  // needing an explicit "is this legacy data" branch.
+  const isBiometricEnabledForCurrentUser = biometricStatus.enabled && !!user && biometricStatus.accountId === user.id;
+
   const value = useMemo<AppContextValue>(
     () => ({
       status,
@@ -1244,7 +1298,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteAccount,
       biometricCapabilities,
       biometricStatus,
+      isBiometricEnabledForCurrentUser,
       biometricBusy,
+      biometricPromptActive,
       biometricLoginError,
       clearBiometricLoginError,
       enableBiometricLogin: enableBiometricLoginAction,
@@ -1296,7 +1352,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteAccount,
       biometricCapabilities,
       biometricStatus,
+      isBiometricEnabledForCurrentUser,
       biometricBusy,
+      biometricPromptActive,
       biometricLoginError,
       clearBiometricLoginError,
       enableBiometricLoginAction,

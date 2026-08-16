@@ -21,9 +21,22 @@ vi.mock("../../lib/useTodayShift", () => ({
   useShiftNotificationSetting: () => ({ enabled, setEnabled: (next: boolean) => setEnabled(next) }),
 }));
 
+// The real default is `false` — the whole feature is temporarily paused
+// (see isShiftNotificationFeatureEnabled's doc comment in
+// platform/shiftNotifications.ts) — but this file's job is proving the
+// still-fully-implemented toggle itself renders and works correctly, so
+// it's forced on here, same as `enabled`/`isNativePlatform` above. The one
+// test specifically about the kill-switch's own effect sets this back to
+// false.
+let featureEnabled: boolean;
+vi.mock("../../platform/shiftNotifications", () => ({
+  isShiftNotificationFeatureEnabled: () => featureEnabled,
+}));
+
 beforeEach(() => {
   isNativePlatform = true;
   enabled = true;
+  featureEnabled = true;
   setEnabled.mockClear();
 });
 
@@ -32,6 +45,12 @@ afterEach(cleanup);
 describe("ShiftNotificationSettings", () => {
   it("renders nothing at all on web/PWA", () => {
     isNativePlatform = false;
+    const { container } = render(<ShiftNotificationSettings />);
+    expect(container.firstChild).toBeNull();
+  });
+
+  it("renders nothing while the feature is temporarily disabled, even natively with the preference on", () => {
+    featureEnabled = false;
     const { container } = render(<ShiftNotificationSettings />);
     expect(container.firstChild).toBeNull();
   });
