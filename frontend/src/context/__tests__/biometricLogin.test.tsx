@@ -57,6 +57,7 @@ const apiGetToken = api.getToken as unknown as ReturnType<typeof vi.fn>;
 const apiSetToken = api.setToken as unknown as ReturnType<typeof vi.fn>;
 const apiLogin = api.login as unknown as ReturnType<typeof vi.fn>;
 const apiChangePassword = api.changePassword as unknown as ReturnType<typeof vi.fn>;
+const apiLogout = api.logout as unknown as ReturnType<typeof vi.fn>;
 
 const checkCapabilities = biometricAuth.checkBiometricCapabilities as unknown as ReturnType<typeof vi.fn>;
 const getStatus = biometricAuth.getBiometricStatus as unknown as ReturnType<typeof vi.fn>;
@@ -180,6 +181,43 @@ describe("cold-launch automatic biometric prompt", () => {
     expect(disableBiometric).toHaveBeenCalledOnce();
     expect(api.setToken).not.toHaveBeenCalled();
   });
+
+  it("does NOT clear the credential on a generic (non-401) backend validation error", async () => {
+    // A dropped connection or a momentarily-unreachable backend is not the
+    // same thing as an actually-invalid token — the recovered credential is
+    // still perfectly good, and clearing it here would silently turn
+    // biometric login off over nothing more than a network blip. Mirrors
+    // the same "only drop the session on an actual auth failure" principle
+    // `restoreSession`'s ordinary-token path already follows for `fetchMe`.
+    getStatus.mockResolvedValue(FACE_ID_ENABLED);
+    authenticate.mockResolvedValue(success("recovered-token"));
+    apiFetchMeWithToken.mockRejectedValue(new Error("Network request failed"));
+
+    render(<App />);
+
+    await screen.findByText(/Couldn't verify your saved sign-in/);
+    expect(disableBiometric).not.toHaveBeenCalled();
+    // The Face ID icon must still be offered afterward — nothing about
+    // biometric status was touched by this failure.
+    expect(screen.getByRole("button", { name: /Sign in with Face ID/ })).toBeTruthy();
+  });
+
+  it("shows no error banner and leaves biometric login enabled after an interrupted (backgrounded) prompt", async () => {
+    // Same AppContext-level condition as the "cancelled" case above
+    // (`reason !== "user_cancelled" && reason !== "app_backgrounded"`),
+    // exercised directly here rather than only at the native-adapter
+    // translation layer (see nativeBiometricAuth.test.ts) — an incoming
+    // call or switching apps mid-prompt is exactly as ordinary an outcome
+    // as the user tapping Cancel, and must be treated identically.
+    getStatus.mockResolvedValue(FACE_ID_ENABLED);
+    authenticate.mockResolvedValue({ outcome: "failed", reason: "app_backgrounded" });
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Sign in with Face ID/ });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(disableBiometric).not.toHaveBeenCalled();
+  });
 });
 
 describe("manual retry icon", () => {
@@ -200,6 +238,49 @@ describe("manual retry icon", () => {
   });
 });
 
+describe("concurrent biometric attempts never race each other", () => {
+  it("a manual retry while the automatic cold-launch prompt is still in flight does not start a second native prompt", async () => {
+    getStatus.mockResolvedValue(FACE_ID_ENABLED);
+    apiGetToken.mockReturnValue(null);
+
+    // Never resolves until this test explicitly settles it — simulates a
+    // native Face ID sheet that's still up on screen, mid-prompt.
+    let resolveAuthenticate: (result: BiometricAuthenticateResult) => void = () => {};
+    authenticate.mockImplementation(
+      () => new Promise<BiometricAuthenticateResult>((resolve) => { resolveAuthenticate = resolve; })
+    );
+
+    const user = userEvent.setup();
+    render(
+      <AppProvider>
+        <RememberMeHarness />
+      </AppProvider>
+    );
+
+    // The automatic cold-launch attempt fires on mount (no ordinary token,
+    // biometrics enabled per the mocks above) and hangs on the promise
+    // above, exactly like a native Face ID sheet still being up.
+    await waitFor(() => expect(authenticate).toHaveBeenCalledTimes(1));
+
+    // The harness's retry button has no `disabled` attribute (unlike the
+    // real login screen's icon, which AuthScreen already disables while
+    // `biometricBusy` — see BiometricLoginSettings for the same pattern on
+    // the enable side) — clicking it here exercises the underlying guard
+    // directly, standing in for a double-tap landing before React's next
+    // render, or the automatic prompt and a manual retry racing each other.
+    await user.click(screen.getByText("retry biometric"));
+    await user.click(screen.getByText("retry biometric"));
+
+    // Still exactly one native call — the two manual retries above must
+    // have bailed out immediately rather than starting a second (or third)
+    // concurrent prompt.
+    expect(authenticate).toHaveBeenCalledTimes(1);
+
+    resolveAuthenticate({ outcome: "failed", reason: "user_cancelled" });
+    await waitFor(() => expect(screen.getByTestId("status").textContent).toBe("loggedOut"));
+  });
+});
+
 /** Exposes just enough of AppContext to drive this scenario without going
  * through the Settings screen's biometric toggle, which only renders behind
  * `Capacitor.isNativePlatform()` (see BiometricLoginSettings.tsx) — false in
@@ -208,7 +289,7 @@ describe("manual retry icon", () => {
  * own contract (`enableBiometricLogin` demoting the persisted session), not
  * that specific button. */
 function RememberMeHarness() {
-  const { status, biometricStatus, login, enableBiometricLogin } = useApp();
+  const { status, biometricStatus, login, enableBiometricLogin, logout, retryBiometricLogin } = useApp();
   const [lastResult, setLastResult] = useState<string>("");
   return (
     <div>
@@ -225,6 +306,12 @@ function RememberMeHarness() {
         }
       >
         enable biometrics
+      </button>
+      <button type="button" onClick={() => void logout()}>
+        log out
+      </button>
+      <button type="button" onClick={() => void retryBiometricLogin()}>
+        retry biometric
       </button>
     </div>
   );
@@ -353,6 +440,80 @@ describe("Remember Me and biometric login", () => {
     // consistent — a storage failure while demoting must not also log them
     // out.
     expect(screen.getByTestId("status").textContent).toBe("loggedIn");
+  });
+});
+
+describe("Log out is a soft lock when biometric login is enabled", () => {
+  it("does not revoke the session or clear the credential, and Face ID signs back in", async () => {
+    // Same minimal persistence stand-in as the Remember Me describe block
+    // above — what matters here is that the token this test's mocked
+    // `api.logout` would otherwise revoke keeps working after logout.
+    let persisted: { token: string; remembered: boolean } | null = null;
+    apiSetToken.mockImplementation(async (token: string, remember: boolean) => {
+      persisted = { token, remembered: remember };
+    });
+    apiGetToken.mockImplementation(() => (persisted?.remembered ? persisted.token : null));
+
+    checkCapabilities.mockResolvedValue(FACE_ID_AVAILABLE);
+    getStatus.mockResolvedValue(NOT_ENABLED);
+    apiLogin.mockResolvedValue({ token: "ordinary-token", user: USER });
+    enableBiometric.mockResolvedValue({ outcome: "enabled", kind: "faceId" });
+
+    const user = userEvent.setup();
+    render(
+      <AppProvider>
+        <RememberMeHarness />
+      </AppProvider>
+    );
+
+    await user.click(screen.getByText("log in (remember me)"));
+    await waitFor(() => expect(screen.getByTestId("status").textContent).toBe("loggedIn"));
+
+    getStatus.mockResolvedValue(FACE_ID_ENABLED);
+    await user.click(screen.getByText("enable biometrics"));
+    await waitFor(() => expect(screen.getByTestId("biometric-enabled").textContent).toBe("true"));
+
+    await user.click(screen.getByText("log out"));
+    await waitFor(() => expect(screen.getByTestId("status").textContent).toBe("loggedOut"));
+
+    // The whole point of the soft lock: the backend session is left valid
+    // (no server-side revoke call) and the biometric credential is left in
+    // place (no disable call), unlike the old "logout always fully signs
+    // out" behavior.
+    expect(apiLogout).not.toHaveBeenCalled();
+    expect(disableBiometric).not.toHaveBeenCalled();
+    expect(screen.getByTestId("biometric-enabled").textContent).toBe("true");
+
+    // Prove it actually still works end-to-end, not just that the flags
+    // look right: Face ID recovers the same token that was never revoked,
+    // and the backend accepts it.
+    authenticate.mockResolvedValue(success("ordinary-token"));
+    apiFetchMeWithToken.mockResolvedValue({ user: USER });
+    await user.click(screen.getByText("retry biometric"));
+    await waitFor(() => expect(screen.getByTestId("status").textContent).toBe("loggedIn"));
+  });
+
+  it("still fully signs out (server revoke + credential clear) when biometric login was never enabled", async () => {
+    apiGetToken.mockReturnValue(null);
+    checkCapabilities.mockResolvedValue(FACE_ID_AVAILABLE);
+    getStatus.mockResolvedValue(NOT_ENABLED);
+    apiLogin.mockResolvedValue({ token: "ordinary-token", user: USER });
+
+    const user = userEvent.setup();
+    render(
+      <AppProvider>
+        <RememberMeHarness />
+      </AppProvider>
+    );
+
+    await user.click(screen.getByText("log in (remember me)"));
+    await waitFor(() => expect(screen.getByTestId("status").textContent).toBe("loggedIn"));
+
+    await user.click(screen.getByText("log out"));
+    await waitFor(() => expect(screen.getByTestId("status").textContent).toBe("loggedOut"));
+
+    expect(apiLogout).toHaveBeenCalled();
+    expect(disableBiometric).toHaveBeenCalled();
   });
 });
 
