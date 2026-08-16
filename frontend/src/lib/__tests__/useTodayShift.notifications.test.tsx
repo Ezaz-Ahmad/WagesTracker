@@ -37,9 +37,10 @@ let today: Date;
 let shifts: Shift[];
 let createShift: ReturnType<typeof vi.fn>;
 let updateShift: ReturnType<typeof vi.fn>;
+const reportShiftNotificationIssue = vi.fn();
 
 function useFakeApp(): AppCtx {
-  return { today, shifts, user: testUser, createShift, updateShift } as unknown as AppCtx;
+  return { today, shifts, user: testUser, createShift, updateShift, reportShiftNotificationIssue } as unknown as AppCtx;
 }
 
 vi.mock("../../context/AppContext", async (importOriginal) => {
@@ -47,7 +48,7 @@ vi.mock("../../context/AppContext", async (importOriginal) => {
   return { ...actual, useApp: () => useFakeApp() };
 });
 
-const postShiftStartedNotification = vi.fn().mockResolvedValue(undefined);
+const postShiftStartedNotification = vi.fn().mockResolvedValue({ ok: true });
 const clearShiftNotification = vi.fn().mockResolvedValue(undefined);
 let notificationPreferenceEnabled: boolean;
 vi.mock("../../platform/shiftNotifications", () => ({
@@ -80,7 +81,9 @@ beforeEach(() => {
   tokenValue = "session-token";
   notificationPreferenceEnabled = true;
   postShiftStartedNotification.mockClear();
+  postShiftStartedNotification.mockResolvedValue({ ok: true });
   clearShiftNotification.mockClear();
+  reportShiftNotificationIssue.mockClear();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-08-09T09:00:00"));
 });
@@ -165,6 +168,38 @@ describe("useTodayShift → shift-notification wiring on start()", () => {
     // click was actually processed rather than the test passing vacuously.
     await waitFor(() => expect(createShift).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(postShiftStartedNotification).toHaveBeenCalledTimes(1));
+  });
+
+  it("reports a shift-notification issue when the platform adapter resolves ok:false", async () => {
+    // Unlike the rejected-promise case above (a broken adapter violating its
+    // own contract), an `{ ok: false }` result is the adapter's normal,
+    // expected way of reporting a real platform failure (permission denied,
+    // a Keychain write error, etc.) — this must reach the person using the
+    // app, not just the console, or a silently-failed reminder looks
+    // identical to a working one from inside the app. See
+    // shiftNotificationNotice on AppContext.
+    const user = userEvent.setup();
+    postShiftStartedNotification.mockResolvedValueOnce({ ok: false, error: "Could not save the shift notification credential." });
+    createShift.mockResolvedValue({ id: "new-shift-1", date: "2026-08-09", location: "Downtown Store", signIn: "09:00:00", signOut: null });
+    render(<Harness />);
+
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
+
+    await waitFor(() => expect(reportShiftNotificationIssue).toHaveBeenCalledTimes(1));
+    expect(reportShiftNotificationIssue).toHaveBeenCalledWith(
+      "Shift started, but the reminder notification couldn't be shown: Could not save the shift notification credential."
+    );
+  });
+
+  it("does not report an issue when the platform adapter resolves ok:true", async () => {
+    const user = userEvent.setup();
+    createShift.mockResolvedValue({ id: "new-shift-1", date: "2026-08-09", location: "Downtown Store", signIn: "09:00:00", signOut: null });
+    render(<Harness />);
+
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
+
+    await waitFor(() => expect(postShiftStartedNotification).toHaveBeenCalledTimes(1));
+    expect(reportShiftNotificationIssue).not.toHaveBeenCalled();
   });
 });
 

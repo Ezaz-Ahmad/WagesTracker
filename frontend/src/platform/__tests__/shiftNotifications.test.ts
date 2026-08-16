@@ -17,7 +17,7 @@ import {
 // between files.
 afterEach(() => {
   configureShiftNotifications({
-    postShiftStarted: async () => {},
+    postShiftStarted: async () => ({ ok: true }),
     clearShiftNotification: async () => {},
     getPendingEndShift: async () => null,
     clearPendingEndShift: async () => {},
@@ -25,7 +25,7 @@ afterEach(() => {
 });
 
 describe("web (default) shift-notification adapter", () => {
-  it("postShiftStartedNotification() is a no-op that never throws", async () => {
+  it("postShiftStartedNotification() is a no-op that never throws, and reports ok: true", async () => {
     await expect(
       postShiftStartedNotification({
         shiftId: "s1",
@@ -33,7 +33,7 @@ describe("web (default) shift-notification adapter", () => {
         token: "t",
         startedAtLabel: "Started at 8:45 AM",
       }),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ ok: true });
   });
 
   it("clearShiftNotification() is a no-op that never throws", async () => {
@@ -55,6 +55,7 @@ describe("configureShiftNotifications", () => {
     const fake: ShiftNotificationAdapter = {
       postShiftStarted: async (info) => {
         posted.push(info);
+        return { ok: true };
       },
       clearShiftNotification: async () => {},
       getPendingEndShift: async () => ({ shiftId: "s1", signOut: "17:00:00" }),

@@ -65,7 +65,7 @@ vi.mock("../../platform/biometricAuth", () => ({
 vi.mock("../../platform/shiftNotifications", () => ({
   getPendingEndShift: vi.fn(async () => null),
   clearPendingEndShift: vi.fn(async () => {}),
-  postShiftStartedNotification: vi.fn(async () => {}),
+  postShiftStartedNotification: vi.fn(async () => ({ ok: true })),
   clearShiftNotification: vi.fn(async () => {}),
 }));
 

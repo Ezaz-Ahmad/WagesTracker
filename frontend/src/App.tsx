@@ -29,8 +29,23 @@ import type { Screen } from "./lib/types";
 const VIEWPORT_DEBUG = !__NATIVE_CONSUMER_BUILD__ && import.meta.env.VITE_VIEWPORT_DEBUG === "true";
 
 function AuthedApp() {
-  const { today, user, actionError, clearActionError, sessionNotice, dismissSessionNotice, logout, refresh, connected, retryConnectivity, earningsHidden, revealEarnings, hideEarningsNow } =
-    useApp();
+  const {
+    today,
+    user,
+    actionError,
+    clearActionError,
+    shiftNotificationNotice,
+    dismissShiftNotificationNotice,
+    sessionNotice,
+    dismissSessionNotice,
+    logout,
+    refresh,
+    connected,
+    retryConnectivity,
+    earningsHidden,
+    revealEarnings,
+    hideEarningsNow,
+  } = useApp();
   const [screen, setScreen] = useState<Screen>("home");
 
   const todayLabel = today.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
@@ -141,7 +156,7 @@ function AuthedApp() {
             login succeeded, and dressing it in red would read as a failure.
             Shown once and dismissible; nothing re-sets it, so switching tabs
             or re-rendering can't bring it back (AppContext.sessionNotice). */}
-        {(!connected || sessionNotice || actionError) && (
+        {(!connected || sessionNotice || actionError || shiftNotificationNotice) && (
           <div className="app-shell-banner" aria-label="Notifications">
             {!connected && (
             <StatusBanner tone="warning">
@@ -159,6 +174,11 @@ function AuthedApp() {
             {actionError && (
             <StatusBanner tone="danger" onDismiss={clearActionError} dismissLabel="Dismiss this error">
               {actionError}
+            </StatusBanner>
+            )}
+            {shiftNotificationNotice && (
+            <StatusBanner tone="warning" onDismiss={dismissShiftNotificationNotice} dismissLabel="Dismiss this notice">
+              {shiftNotificationNotice}
             </StatusBanner>
             )}
           </div>
