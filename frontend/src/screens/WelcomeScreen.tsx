@@ -26,19 +26,19 @@ interface WelcomeScreenProps {
  * enhancement only) or the "Get started" button beneath it, which is
  * always present and is what actually satisfies keyboard, switch-control,
  * and screen-reader access to the same action.
+ *
+ * The live drag itself is owned entirely by useSwipeUp, imperatively — this
+ * component never reads a per-pixel drag position out of it (see that
+ * hook's own doc comment on why routing that through React state made the
+ * gesture feel laggy). `dragging` is the one thing it does read, and it
+ * only ever flips twice per gesture, to dim the swipe hint while a drag is
+ * actually in progress.
  */
 export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
-  const { ref, dragY, dragging } = useSwipeUp<HTMLDivElement>(true, onContinue);
+  const { ref, dragging } = useSwipeUp<HTMLDivElement>(true, onContinue);
 
   return (
-    <div
-      ref={ref}
-      className="welcome-screen"
-      style={{
-        transform: dragY ? `translateY(-${dragY}px)` : undefined,
-        transition: dragging ? "none" : "transform 320ms cubic-bezier(0.22, 1, 0.36, 1)",
-      }}
-    >
+    <div ref={ref} className={dragging ? "welcome-screen is-dragging" : "welcome-screen"}>
       <div className="landing-shapes" aria-hidden="true">
         <span className="landing-shape landing-shape-1" />
         <span className="landing-shape landing-shape-2" />
@@ -47,17 +47,24 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
       <div className="welcome-content">
         <LandingHeroContent />
       </div>
-      <div className="welcome-cta">
+      <div className="welcome-cta anim-rise" style={{ ["--i" as string]: 12 }}>
         <button type="button" className="btn btn-primary btn-block welcome-continue-btn" onClick={onContinue}>
           Get started
         </button>
         {/* Decorative only — the button above is the real, accessible way
             to do the same thing, so this hint (and the swipe gesture it
             describes) is aria-hidden rather than a second announcement of
-            the same action. */}
+            the same action. A trio of chevrons rather than one, each
+            animating on its own delay, so the cue reads unmistakably as
+            "swipe up" (a rising, fading trail) rather than an ambiguous
+            single bob. */}
         <div className="welcome-swipe-hint" aria-hidden="true">
-          <ChevronDownIcon size={16} className="welcome-swipe-chevron" />
-          Swipe up to continue
+          <div className="welcome-swipe-chevrons">
+            <ChevronDownIcon size={13} className="welcome-swipe-chevron welcome-swipe-chevron-1" />
+            <ChevronDownIcon size={13} className="welcome-swipe-chevron welcome-swipe-chevron-2" />
+            <ChevronDownIcon size={13} className="welcome-swipe-chevron welcome-swipe-chevron-3" />
+          </div>
+          <span className="welcome-swipe-label">Swipe up to continue</span>
         </div>
       </div>
     </div>

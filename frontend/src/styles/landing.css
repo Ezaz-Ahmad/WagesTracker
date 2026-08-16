@@ -80,7 +80,36 @@
   background: var(--color-neutral-900);
   color: var(--color-bg);
   padding: max(var(--space-8), env(safe-area-inset-top)) var(--space-6) max(var(--space-6), env(safe-area-inset-bottom));
+  /* This surface owns the swipe-up gesture (useSwipeUp binds directly to
+     it) — telling the browser up front that it shouldn't try to interpret
+     a vertical drag here as its own scroll/refresh/zoom gesture means our
+     JS handler is the only thing racing to respond to a touch, instead of
+     competing with (and sometimes losing a frame or two to) native
+     gesture recognition first. There's nothing to scroll here regardless
+     (overflow: hidden above), so this gives up nothing.
+     Deliberately no entrance `animation` on this element itself, even
+     though it would be the obvious place for one: useSwipeUp writes both
+     `transform` and `opacity` on this exact element imperatively during a
+     drag, and a CSS animation targeting either property — even with
+     fill-mode `both`, and even well after it's finished "playing" — keeps
+     outranking those imperative writes in the cascade for as long as the
+     animation stays applied, which is forever, since nothing here ever
+     removes it. The staggered `anim-rise` entrance already on every piece
+     of `.welcome-content` (see LandingHero.tsx) and on `.welcome-cta` below
+     is what actually carries the "smooth arrival" feel; this element only
+     needs to stay untouched by CSS so the gesture stays fully responsive. */
+  touch-action: none;
 }
+/* Targets .welcome-swipe-hint specifically, not the whole .welcome-cta —
+   .welcome-cta itself carries `anim-rise`, and a CSS animation's
+   fill-mode: both end-state keeps outranking a plain opacity rule on the
+   very same element/property for as long as that animation stays applied
+   (the entrance animation here, permanently, since it never gets removed
+   after playing). .welcome-swipe-hint has no animation of its own, so
+   dimming it directly here actually takes effect — and it reads better
+   anyway: the button stays fully visible while dragging, only the
+   now-redundant "swipe up" hint fades. */
+.welcome-screen.is-dragging .welcome-swipe-hint { opacity: 0.35; transition: opacity 160ms var(--ease-standard); }
 
 .welcome-content {
   position: relative;
@@ -106,21 +135,40 @@
   width: 100%;
   padding-top: var(--space-4);
 }
-.welcome-continue-btn { min-height: 52px; border-radius: 13px; font-size: 15px; }
+.welcome-continue-btn { min-height: 52px; border-radius: 13px; font-size: 15px; touch-action: manipulation; }
+
+/* — swipe-up cue —
+   Three chevrons stacked in the same spot, each on its own animation
+   delay, rather than one chevron nudging up and down. The result reads as
+   a small rising, fading trail — chasing-arrows being the one shape almost
+   universally read as "swipe/scroll this direction" — which is a much
+   less ambiguous cue than a single icon bobbing in place. */
 .welcome-swipe-hint {
-  display: flex; align-items: center; gap: 6px;
-  font-size: 11.5px; letter-spacing: 0.04em;
-  color: color-mix(in srgb, var(--color-bg) 55%, transparent);
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  font-size: 13px; font-weight: 600; letter-spacing: 0.05em;
+  color: color-mix(in srgb, var(--color-bg) 68%, transparent);
 }
+.welcome-swipe-chevrons { position: relative; width: 22px; height: 28px; }
 /* ChevronDownIcon rotated 180deg rather than a dedicated chevron-up icon —
    one fewer icon component for the same shape. */
-.welcome-swipe-chevron { transform: rotate(180deg); animation: welcome-swipe-bob 1.8s ease-in-out infinite; }
-@keyframes welcome-swipe-bob {
-  0%, 100% { transform: rotate(180deg) translateY(0); }
-  50% { transform: rotate(180deg) translateY(-4px); }
+.welcome-swipe-chevron {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  animation: welcome-swipe-rise 1.5s var(--ease-out) infinite;
+}
+.welcome-swipe-chevron-1 { animation-delay: 0s; }
+.welcome-swipe-chevron-2 { animation-delay: 0.17s; }
+.welcome-swipe-chevron-3 { animation-delay: 0.34s; }
+@keyframes welcome-swipe-rise {
+  0% { transform: translate(-50%, -50%) rotate(180deg) translateY(9px); opacity: 0; }
+  22% { opacity: 1; }
+  75% { opacity: 0.55; }
+  100% { transform: translate(-50%, -50%) rotate(180deg) translateY(-11px); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .welcome-swipe-chevron { animation: none; }
+  .welcome-swipe-chevron { animation: none; opacity: 0.7; transform: translate(-50%, -50%) rotate(180deg); }
+  .welcome-swipe-chevron-2, .welcome-swipe-chevron-3 { display: none; }
 }
 
 @media (min-width: 960px) {
