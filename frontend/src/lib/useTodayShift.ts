@@ -1,8 +1,10 @@
 import { useApp } from "../context/AppContext";
 import { findOpenShift } from "./aggregate";
-import { isoDate, nowHHMMSS } from "./date";
+import { formatTime12, isoDate, nowHHMMSS } from "./date";
 import { useConfirm } from "../components/ConfirmProvider";
 import { isUnusuallyLongShift, LONG_SHIFT_WARNING } from "./shiftRules";
+import { getApiOrigin, getToken } from "./api";
+import { clearShiftNotification, postShiftStartedNotification } from "../platform/shiftNotifications";
 
 /**
  * Tracks the shift the Sign in/Sign out button (and the elapsed-time
@@ -29,7 +31,22 @@ export function useTodayShift() {
     // that (see routes/shifts.ts) and surfaces a clear "already open"
     // error instead of silently allowing a second one.
     if (active) return;
-    await createShift({ date: todayISO, location: user?.workLocationName || "", signIn: nowHHMMSS(), signOut: null });
+    const signIn = nowHHMMSS();
+    const shift = await createShift({ date: todayISO, location: user?.workLocationName || "", signIn, signOut: null });
+    if (!shift) return; // createShift already surfaced the error — nothing to notify about.
+    const token = getToken();
+    if (token) {
+      // Fire-and-forget: postShiftStartedNotification never throws (see
+      // NativeShiftNotificationAdapter) — a notification permission
+      // problem or any other platform failure must never make it look like
+      // starting the shift itself failed.
+      void postShiftStartedNotification({
+        shiftId: shift.id,
+        apiBaseUrl: getApiOrigin(),
+        token,
+        startedAtLabel: `Started at ${formatTime12(signIn)}`,
+      });
+    }
   };
 
   const end = async () => {
@@ -39,7 +56,13 @@ export function useTodayShift() {
     if (last && !last.signOut) {
       const signOut = nowHHMMSS();
       if (isUnusuallyLongShift(last.signIn, signOut) && !(await confirm(LONG_SHIFT_WARNING))) return;
-      await updateShift(last.id, { signOut });
+      const updated = await updateShift(last.id, { signOut });
+      if (updated) {
+        // The notification (and any native-held credential behind it) has
+        // done its job — the shift ended through the app itself, so there
+        // is nothing left for a background "Sign out" tap to finish later.
+        void clearShiftNotification();
+      }
     }
   };
 
