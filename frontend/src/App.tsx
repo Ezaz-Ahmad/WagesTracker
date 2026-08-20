@@ -15,6 +15,7 @@ import { EntryScreen } from "./screens/EntryScreen";
 import { ReportScreen } from "./screens/ReportScreen";
 import { HistoryScreen } from "./screens/HistoryScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
+import { SpendingScreen } from "./screens/SpendingScreen";
 import { useSwipeNav } from "./lib/useSwipeNav";
 import { usePullToRefresh } from "./lib/usePullToRefresh";
 import { useViewportHeight } from "./lib/useViewportHeight";
@@ -194,8 +195,9 @@ function AuthedApp() {
           <div className="swipe-track" style={trackStyle}>
             <div key={screen} className={screenTransitionClass}>
               <ScreenErrorBoundary key={screen}>
-                {screen === "home" && <HomeScreen />}
+                {screen === "home" && <HomeScreen onNavigate={setScreen} />}
                 {screen === "entry" && <EntryScreen />}
+                {screen === "spending" && <SpendingScreen />}
                 {screen === "report" && <ReportScreen />}
                 {screen === "history" && <HistoryScreen />}
                 {screen === "settings" && <SettingsScreen />}

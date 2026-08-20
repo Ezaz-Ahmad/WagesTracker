@@ -30,6 +30,12 @@ describe("account deletion", () => {
       .put("/api/week-extras/2026-01-05")
       .set("Authorization", `Bearer ${token}`)
       .send({ amount: 40, reason: "Holiday bonus" });
+    const categories = await request(app).get("/api/spending/categories").set("Authorization", `Bearer ${token}`);
+    await request(app)
+      .post("/api/spending/expenses")
+      .set("Authorization", `Bearer ${token}`)
+      .set("X-Client-Time-Zone", "UTC")
+      .send({ amountCents: 1250, categoryId: categories.body.categories[0].id, spentAt: "2026-01-05T12:00" });
   });
   afterAll(() => cleanupTestDb(dbPath));
 
@@ -49,17 +55,21 @@ describe("account deletion", () => {
   });
 
   it("removed the user's row from every table that referenced them, including their sessions", async () => {
-    const [users, shifts, dayExpenses, weekExtras, sessions] = await Promise.all([
+    const [users, shifts, dayExpenses, weekExtras, sessions, personalExpenses, spendingCategories] = await Promise.all([
       db.execute("SELECT COUNT(*) as c FROM users"),
       db.execute("SELECT COUNT(*) as c FROM shifts"),
       db.execute("SELECT COUNT(*) as c FROM day_expenses"),
       db.execute("SELECT COUNT(*) as c FROM week_extras"),
       db.execute("SELECT COUNT(*) as c FROM user_sessions"),
+      db.execute("SELECT COUNT(*) as c FROM personal_expenses"),
+      db.execute("SELECT COUNT(*) as c FROM spending_categories"),
     ]);
     expect(Number(users.rows[0].c)).toBe(0);
     expect(Number(shifts.rows[0].c)).toBe(0);
     expect(Number(dayExpenses.rows[0].c)).toBe(0);
     expect(Number(weekExtras.rows[0].c)).toBe(0);
     expect(Number(sessions.rows[0].c)).toBe(0);
+    expect(Number(personalExpenses.rows[0].c)).toBe(0);
+    expect(Number(spendingCategories.rows[0].c)).toBe(0);
   });
 });

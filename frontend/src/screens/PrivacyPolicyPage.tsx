@@ -1,6 +1,6 @@
 import { PublicPageShell } from "../components/PublicPageShell";
 
-const LAST_UPDATED = "14 August 2026";
+const LAST_UPDATED = "20 August 2026";
 
 export function PrivacyPolicyPage() {
   return (
@@ -26,6 +26,7 @@ export function PrivacyPolicyPage() {
           <li><strong>Account information:</strong> your name, email address, and securely hashed password.</li>
           <li><strong>Work profile:</strong> home and work addresses, workplace names, pay rate, week-start preference, and weekly goals.</li>
           <li><strong>Work records:</strong> shift dates and times, work locations, expenses, additional earnings, and the data used to create reports.</li>
+          <li><strong>Optional personal spending records:</strong> expense amounts, categories, dates and times, merchant or short-title information, notes, and payment-method labels that you choose to enter.</li>
           <li><strong>Security information:</strong> session identifiers, device or browser description, installation identifier, IP address, login and activity times, and session expiry or revocation status.</li>
           <li><strong>Technical request information:</strong> information ordinarily processed when you connect, such as IP address, user-agent, request path, timing, and security or error logs.</li>
         </ul>
@@ -35,7 +36,7 @@ export function PrivacyPolicyPage() {
       <section>
         <h2>How we use information</h2>
         <ul>
-          <li>Provide shift, wage, expense, goal, history, and report features.</li>
+          <li>Provide shift, wage, personal spending, goal, history, comparison, and report features.</li>
           <li>Authenticate your account and manage active sessions.</li>
           <li>Prevent abuse, investigate security events, and enforce service limits.</li>
           <li>Maintain, troubleshoot, and improve performance and reliability.</li>
@@ -50,14 +51,15 @@ export function PrivacyPolicyPage() {
           <strong>Vercel</strong> serves the compiled website and may process ordinary web-request information such as
           IP address, user-agent, requested URL, and request timing. <strong>Render</strong> hosts the Express API and
           processes API requests, authentication headers, IP address, user-agent, and operational logs.
-          <strong>Turso</strong> hosts the libSQL database containing account profiles, work records, and session
+          <strong>Turso</strong> hosts the libSQL database containing account profiles, work records, optional personal spending records, and session
           metadata described above. <strong>Google Fonts</strong> may receive ordinary request information when the
           application loads its externally hosted font files.
         </p>
         <p>
           These providers process information to deliver infrastructure and may operate systems outside Australia.
-          Weekly PDF reports are generated on your device from records returned by the API; Wage Tracker does not
-          upload a separately generated PDF file to its backend. Following a link to GitHub or the developer website
+          Weekly wage PDF reports are generated on your device from current work records returned by the API; Wage Tracker does not
+          upload a separately generated PDF file to its backend. Personal spending is not included in those employer-facing wage PDFs.
+          Following a link to GitHub or the developer website
           is governed by that destination's own privacy practices.
         </p>
         <p>
@@ -70,13 +72,14 @@ export function PrivacyPolicyPage() {
       <section>
         <h2>Retention and deletion</h2>
         <p>
-          Shift, expense, additional-earning, and report-related records are retained for up to five years and older
-          records are automatically removed. Account and profile information is retained while your account remains
-          active, or as otherwise required for security or legal reasons.
+          Shift, work-expense, additional-earning, and report-related records are retained for up to five years and older
+          records are automatically removed. Optional personal spending records and custom spending categories remain
+          available across historical periods until you delete the individual record or delete your account. Account and
+          profile information is retained while your account remains active, or as otherwise required for security or legal reasons.
         </p>
         <p>
           You can permanently delete your account from <strong>Settings → Data &amp; account → Delete account</strong>.
-          This deletes your account, sessions, shifts, expenses, and additional-earning records from the active
+          This deletes your account, sessions, shifts, work expenses, additional-earning records, personal expenses, and custom/default spending categories from the active
           service. Deletion cannot be undone.
         </p>
       </section>

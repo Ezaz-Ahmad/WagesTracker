@@ -11,11 +11,17 @@ All declared data is linked to the signed-in Wage Tracker account, used only for
 | Name | Account name | Account display and named PDF reports; API/Render and Turso |
 | Email address | Sign-in email | Authentication and account support; API/Render and Turso |
 | Physical address | Home and work addresses | Shared commute/work profile features; API/Render and Turso |
-| Other financial information | Pay rate, goals, shifts, expenses and other earnings | Wage calculations, history and reports; API/Render and Turso |
+| Other financial information | Pay rate, goals, shifts, work expenses, other earnings, and optional personal spending amounts/categories/dates/merchant titles/notes/payment-method labels | Wage calculations, personal spending history and comparisons, and reports; API/Render and Turso |
 | User ID | Internal account and session identifiers | Authentication, isolation and session security; API/Render and Turso |
 | Device ID | Random installation identifier | Session rotation and device management; API/Render and Turso |
 
-Vercel serves the web build and processes ordinary request metadata. Render hosts the API and processes request/authentication metadata and operational logs. Turso stores the account, work and session records listed above. Weekly PDF bytes are created on-device and are not uploaded as files. On iOS, the user explicitly chooses destinations through Apple’s standard share sheet.
+Vercel serves the web build and processes ordinary request metadata. Render hosts the API and processes request/authentication metadata and operational logs. Turso stores the account, work, optional personal-spending and session records listed above. Weekly wage PDF bytes are created on-device and are not uploaded as files; personal spending is not added to those wage PDFs. On iOS, the user explicitly chooses destinations through Apple’s standard share sheet.
+
+## Personal Spending Tracker review note (20 August 2026)
+
+This feature adds no native SDK, permission, advertising identifier, analytics event, bank connection, receipt/photo access or tracking. It therefore requires no new `NSPrivacyAccessedAPITypes` entry and no change to the committed `PrivacyInfo.xcprivacy` category set: the data remains covered by Apple's existing **Other Financial Info**, linked to the account, used for **App Functionality**, and not used for tracking.
+
+Before the next App Store submission, the Account Holder should update/reconfirm the App Store Connect App Privacy questionnaire's explanatory scope for **Other Financial Info** so it explicitly includes optional personal expense data. This PR deliberately does not change App Store Connect declarations or upload a build.
 
 ## Required-reason APIs
 

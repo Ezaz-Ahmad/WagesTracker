@@ -7,6 +7,7 @@ import { authRouter } from "./routes/auth.js";
 import { dayExpensesRouter } from "./routes/dayExpenses.js";
 import { meRouter } from "./routes/me.js";
 import { shiftsRouter } from "./routes/shifts.js";
+import { spendingRouter } from "./routes/spending.js";
 import { weekExtrasRouter } from "./routes/weekExtras.js";
 
 /**
@@ -102,6 +103,7 @@ export function createApp(): express.Express {
   app.use("/api/shifts", shiftsRouter);
   app.use("/api/day-expenses", dayExpensesRouter);
   app.use("/api/week-extras", weekExtrasRouter);
+  app.use("/api/spending", spendingRouter);
   app.use("/api/admin", adminRouter);
 
   app.use((_req, res) => {

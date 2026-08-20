@@ -82,6 +82,51 @@ await db.executeMultiple(`
 
   CREATE INDEX IF NOT EXISTS idx_week_extras_user_week ON week_extras(user_id, week_start);
 
+  -- Personal spending is deliberately separate from work-related
+  -- day_expenses. Amounts are integer cents and spent_date is the plain
+  -- local calendar date the user confirmed, so filtering can never move a
+  -- purchase across a day because of a UTC conversion.
+  CREATE TABLE IF NOT EXISTS spending_categories (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    icon TEXT NOT NULL,
+    colour TEXT NOT NULL,
+    is_default INTEGER NOT NULL DEFAULT 0,
+    seed_key TEXT,
+    archived_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(user_id, seed_key)
+  );
+
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_spending_categories_active_name
+    ON spending_categories(user_id, lower(name)) WHERE archived_at IS NULL;
+  CREATE INDEX IF NOT EXISTS idx_spending_categories_user
+    ON spending_categories(user_id, archived_at, name);
+
+  CREATE TABLE IF NOT EXISTS personal_expenses (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    category_id TEXT NOT NULL REFERENCES spending_categories(id) ON DELETE RESTRICT,
+    amount_cents INTEGER NOT NULL CHECK(amount_cents > 0),
+    spent_at TEXT NOT NULL,
+    spent_date TEXT NOT NULL,
+    time_zone TEXT NOT NULL,
+    merchant TEXT NOT NULL DEFAULT '',
+    note TEXT NOT NULL DEFAULT '',
+    payment_method TEXT,
+    client_request_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(user_id, client_request_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_personal_expenses_user_date
+    ON personal_expenses(user_id, spent_date DESC, spent_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_personal_expenses_user_category_date
+    ON personal_expenses(user_id, category_id, spent_date DESC);
+
   -- Database-backed sessions, layered on top of (not replacing) the existing
   -- JWT expiry/token_version protections — see backend/src/security/sessions.ts
   -- and requireAuth in backend/src/auth.ts. Every regular-user JWT now carries
