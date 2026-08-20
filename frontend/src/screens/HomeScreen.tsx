@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CURRENCY, useApp } from "../context/AppContext";
 import {
   buildWeekDaysComputed,
@@ -17,16 +17,19 @@ import { useCountUp } from "../lib/useCountUp";
 import { useLiveElapsedHours } from "../lib/useLiveElapsedHours";
 import { ElapsedTimer, ShiftButton } from "../components/ShiftButton";
 import { GoalRing } from "../components/GoalRing";
-import { FlameIcon, TrophyIcon } from "../components/icons";
+import { FlameIcon, PlusIcon, SpendingIcon, TrophyIcon } from "../components/icons";
 import { Skeleton } from "../components/Skeleton";
 import { Amount } from "../components/Amount";
 import { EarningsHiddenHint } from "../components/EarningsHiddenHint";
 import { ChartDataTable } from "../components/ChartDataTable";
+import * as api from "../lib/api";
+import type { Screen, SpendingSummary } from "../lib/types";
 
-export function HomeScreen() {
+export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => void } = {}) {
   const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras, earningsHidden } = useApp();
   const { active, last, start, end } = useTodayShift();
   const [busy, setBusy] = useState(false);
+  const [spendingSnapshot, setSpendingSnapshot] = useState<SpendingSummary | null>(null);
 
   // Every hook below must run on every render regardless of loading state —
   // React requires the same hooks in the same order every time, so the
@@ -40,6 +43,7 @@ export function HomeScreen() {
 
   const weekDays = buildWeekDays(today, weekStartsOn);
   const weekStartISO = isoDate(weekDays[0]);
+  const weekEndISO = isoDate(weekDays[6]);
   const shiftsByDate = groupByDate(shifts);
   const expensesByDate = groupExpensesByDate(dayExpenses);
   const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, CURRENCY, rate, expensesByDate);
@@ -137,6 +141,19 @@ export function HomeScreen() {
     displayHours: d.hours + (activeShiftInThisWeek && d.dateISO === last?.date ? liveHours : 0),
   }));
   const maxGlanceHours = Math.max(...glanceDays.map((d) => d.displayHours), 1);
+
+  useEffect(() => {
+    let cancelled = false;
+    // Some isolated Home tests intentionally replace the older API surface
+    // with a minimal mock. In the real application this function is always
+    // present; the guard keeps those focused legacy fixtures from needing to
+    // know about an optional snapshot they do not exercise.
+    if (typeof api.getSpendingSummary !== "function") return () => { cancelled = true; };
+    void api.getSpendingSummary(weekStartISO, weekEndISO)
+      .then((result) => { if (!cancelled) setSpendingSnapshot(result); })
+      .catch(() => { /* Snapshot is optional; the full Spending screen owns retry UI. */ });
+    return () => { cancelled = true; };
+  }, [weekStartISO, weekEndISO, shifts, dayExpenses, weekExtras, rate]);
 
   if (!user) return null;
   // Wait for the first shifts fetch before showing any totals — otherwise this
@@ -242,6 +259,20 @@ export function HomeScreen() {
           </div>
         </div>
       </div>
+
+      <section className="card elev-sm home-spending-snapshot anim-rise" aria-labelledby="home-spending-title" style={{ ["--i" as string]: 2 }}>
+        <div className="home-spending-heading">
+          <div className="home-spending-title-row"><SpendingIcon size={18} /><h2 id="home-spending-title" className="card-title">Personal spending</h2></div>
+          <button type="button" className="btn btn-primary home-spending-add" onClick={() => onNavigate?.("spending")}><PlusIcon size={16} /> Add expense</button>
+        </div>
+        {spendingSnapshot ? (
+          <div className="home-spending-values">
+            <div><span>Spent this week</span><strong>{CURRENCY}{fmt2(spendingSnapshot.totalSpendingCents / 100)}</strong></div>
+            <div><span>Recorded difference</span><strong>{spendingSnapshot.differenceCents < 0 ? "−" : ""}{CURRENCY}{fmt2(Math.abs(spendingSnapshot.differenceCents) / 100)}</strong></div>
+            <button type="button" className="btn btn-ghost" onClick={() => onNavigate?.("spending")}>View spending</button>
+          </div>
+        ) : <div className="card-meta">Open Spending to record and review personal expenses.</div>}
+      </section>
 
       <h2 className="section-title home-glance-title">Week at a glance</h2>
       <div className="section-hint">How this week's hours are spread out, day by day.</div>

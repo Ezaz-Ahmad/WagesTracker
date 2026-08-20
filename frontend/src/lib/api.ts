@@ -1,5 +1,17 @@
 import { getDeviceInstallationId } from "./deviceInstallation";
-import type { DayExpense, Shift, User, WeekExtra, WeekStart } from "./types";
+import type {
+  DayExpense,
+  PaymentMethod,
+  PersonalExpense,
+  Shift,
+  SpendingCategory,
+  SpendingColour,
+  SpendingIcon,
+  SpendingSummary,
+  User,
+  WeekExtra,
+  WeekStart,
+} from "./types";
 import {
   getStoredToken,
   isStoredTokenRemembered,
@@ -416,4 +428,84 @@ export function setWeekExtra(
   patch: { amount: number | null; reason: string }
 ): Promise<{ extra: WeekExtra | null }> {
   return request(`/week-extras/${weekStart}`, { method: "PUT", body: JSON.stringify(patch) });
+}
+
+function spendingWriteHeaders(): Record<string, string> {
+  return { [CLIENT_TIME_ZONE_HEADER]: Intl.DateTimeFormat().resolvedOptions().timeZone };
+}
+
+export function listSpendingCategories(includeArchived = false): Promise<{ categories: SpendingCategory[] }> {
+  return request(`/spending/categories${includeArchived ? "?includeArchived=true" : ""}`);
+}
+
+export function createSpendingCategory(input: {
+  name: string;
+  icon: SpendingIcon;
+  colour: SpendingColour;
+}): Promise<{ category: SpendingCategory }> {
+  return request("/spending/categories", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function patchSpendingCategory(
+  id: string,
+  patch: Partial<{ name: string; icon: SpendingIcon; colour: SpendingColour; archived: boolean }>
+): Promise<{ category: SpendingCategory }> {
+  return request(`/spending/categories/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) });
+}
+
+export function archiveSpendingCategory(id: string): Promise<void> {
+  return request(`/spending/categories/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export interface PersonalExpenseInput {
+  amountCents: number;
+  categoryId: string;
+  spentAt: string;
+  merchant?: string;
+  note?: string;
+  paymentMethod?: PaymentMethod | null;
+  clientRequestId?: string;
+}
+
+export function listPersonalExpenses(params: {
+  from?: string;
+  to?: string;
+  categoryId?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<{ expenses: PersonalExpense[]; page: number; pageSize: number; total: number; hasMore: boolean }> {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== "") query.set(key, String(value));
+  }
+  const suffix = query.size ? `?${query.toString()}` : "";
+  return request(`/spending/expenses${suffix}`);
+}
+
+export function createPersonalExpense(input: PersonalExpenseInput): Promise<{ expense: PersonalExpense }> {
+  return request("/spending/expenses", {
+    method: "POST",
+    headers: spendingWriteHeaders(),
+    body: JSON.stringify(input),
+  });
+}
+
+export function patchPersonalExpense(
+  id: string,
+  patch: Partial<Omit<PersonalExpenseInput, "clientRequestId">>
+): Promise<{ expense: PersonalExpense }> {
+  return request(`/spending/expenses/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: spendingWriteHeaders(),
+    body: JSON.stringify(patch),
+  });
+}
+
+export function deletePersonalExpense(id: string): Promise<void> {
+  return request(`/spending/expenses/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function getSpendingSummary(from: string, to: string): Promise<SpendingSummary> {
+  return request(`/spending/summary?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
 }

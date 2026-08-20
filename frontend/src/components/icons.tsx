@@ -71,6 +71,49 @@ export function SettingsIcon({ size = 20 }: IconProps) {
   );
 }
 
+/** Wallet/receipt mark for the personal Spending workspace. */
+export function SpendingIcon({ size = 20 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <path d="M4 6.5A2.5 2.5 0 016.5 4H18a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6.5z" />
+      <path d="M4 8h16M15 13h5" />
+      <circle cx="15" cy="13" r=".7" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+export function PlusIcon({ size = 18 }: IconProps) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" {...base}><path d="M12 5v14M5 12h14" /></svg>;
+}
+
+export function EditIcon({ size = 18 }: IconProps) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" {...base}><path d="M4 20l4.2-1 10-10a2.1 2.1 0 00-3-3l-10 10L4 20zM13.8 7.4l3 3" /></svg>;
+}
+
+export function TrashIcon({ size = 18 }: IconProps) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" {...base}><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5" /></svg>;
+}
+
+/** Safe glyph renderer for persisted category icon identifiers. The backend
+ * accepts the same closed allow-list, so stored data can never become SVG or
+ * HTML injected by a user. */
+export function CategoryGlyph({ icon, size = 18 }: IconProps & { icon: string }) {
+  const common = { width: size, height: size, viewBox: "0 0 24 24", ...base };
+  switch (icon) {
+    case "dining": return <svg {...common}><path d="M7 3v7M4 3v5a3 3 0 006 0V3M7 10v11M16 3v18M16 3c3 2 3 7 0 9" /></svg>;
+    case "groceries": return <svg {...common}><path d="M3 5h2l2 11h10l2-8H6M9 20h.01M16 20h.01" /></svg>;
+    case "transport": return <svg {...common}><path d="M5 16l1-8h12l1 8M4 16h16v3h-2M6 19H4v-3M7 12h10M8 8l1-3h6l1 3" /></svg>;
+    case "housing": return <svg {...common}><path d="M3 11l9-7 9 7M5 10v10h14V10M10 20v-6h4v6" /></svg>;
+    case "bills": return <svg {...common}><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3zM9 8h6M9 12h6" /></svg>;
+    case "shopping": return <svg {...common}><path d="M5 8h14l-1 12H6L5 8zM9 8V6a3 3 0 016 0v2" /></svg>;
+    case "health": return <svg {...common}><path d="M12 20S4 15 4 9a4 4 0 017-2.6L12 8l1-1.6A4 4 0 0120 9c0 6-8 11-8 11z" /></svg>;
+    case "entertainment": return <svg {...common}><rect x="4" y="5" width="16" height="14" rx="2" /><path d="M9 9l6 3-6 3V9z" /></svg>;
+    case "education": return <svg {...common}><path d="M3 9l9-5 9 5-9 5-9-5zM7 12v5c3 2 7 2 10 0v-5M21 9v6" /></svg>;
+    case "family": return <svg {...common}><circle cx="9" cy="8" r="3" /><circle cx="16" cy="9" r="2.5" /><path d="M3 20c.7-4 3-6 6-6s5.3 2 6 6M14 15c3 0 5 1.7 6 5" /></svg>;
+    default: return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M8 12h.01M12 12h.01M16 12h.01" /></svg>;
+  }
+}
+
 export function EyeIcon({ size = 18 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" {...base}>

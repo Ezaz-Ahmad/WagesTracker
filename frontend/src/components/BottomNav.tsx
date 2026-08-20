@@ -1,10 +1,11 @@
 import type { Screen } from "../lib/types";
-import { EntryIcon, HistoryIcon, HomeIcon, ReportIcon, SettingsIcon } from "./icons";
+import { EntryIcon, HistoryIcon, HomeIcon, ReportIcon, SettingsIcon, SpendingIcon } from "./icons";
 import { Logo } from "./Logo";
 
 export const TABS: { screen: Screen; label: string; Icon: typeof HomeIcon }[] = [
   { screen: "home", label: "Home", Icon: HomeIcon },
   { screen: "entry", label: "Entry", Icon: EntryIcon },
+  { screen: "spending", label: "Spending", Icon: SpendingIcon },
   { screen: "report", label: "Report", Icon: ReportIcon },
   { screen: "history", label: "History", Icon: HistoryIcon },
   { screen: "settings", label: "Settings", Icon: SettingsIcon },

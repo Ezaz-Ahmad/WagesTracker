@@ -88,6 +88,8 @@ adminRouter.delete(
     }
     await db.batch(
       [
+        { sql: "DELETE FROM personal_expenses WHERE user_id = ?", args: [req.params.id] },
+        { sql: "DELETE FROM spending_categories WHERE user_id = ?", args: [req.params.id] },
         { sql: "DELETE FROM shifts WHERE user_id = ?", args: [req.params.id] },
         { sql: "DELETE FROM day_expenses WHERE user_id = ?", args: [req.params.id] },
         { sql: "DELETE FROM week_extras WHERE user_id = ?", args: [req.params.id] },
