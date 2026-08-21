@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildChart, buildDayComputed, buildWeekDaysComputed, findOpenShift, isDateInWeek, weekExtraFor, weekTotals } from "../aggregate";
+import { buildChart, buildDayComputed, buildWeekDaysComputed, buildWeeklyHistory, findOpenShift, isDateInWeek, weekExtraFor, weekTotals } from "../aggregate";
 import { buildWeekDays, isoDate, startOfWeek } from "../date";
 import type { Shift, WeekExtra } from "../types";
 
@@ -249,5 +249,47 @@ describe("weekTotals", () => {
     expect(totals.hours).toBe(0);
     expect(totals.earnings).toBe(0);
     expect(totals.daysLogged).toBe(0);
+  });
+});
+
+describe("buildWeeklyHistory with a custom boundary", () => {
+  it("groups completed Tuesday–Monday cycles and keeps the current cycle out of History", () => {
+    const shifts: Shift[] = [
+      { id: "tue", date: "2026-08-18", location: "", signIn: "09:00", signOut: "13:00" },
+      { id: "mon", date: "2026-08-24", location: "", signIn: "09:00", signOut: "12:00" },
+      { id: "new-cycle", date: "2026-08-25", location: "", signIn: "09:00", signOut: "17:00" },
+    ];
+    const history = buildWeeklyHistory(
+      shifts,
+      new Date(2026, 7, 26),
+      "Tuesday",
+      20,
+      1,
+      undefined,
+      [{ date: "2026-08-24", fuelCost: 10 }],
+      [{ weekStart: "2026-08-18", amount: 15, reason: "Bonus" }]
+    );
+
+    expect(history).toEqual([
+      expect.objectContaining({
+        startISO: "2026-08-18",
+        endISO: "2026-08-24",
+        hours: 7,
+        earnings: 165,
+      }),
+    ]);
+  });
+
+  it("regroups the same dated records when the preference changes", () => {
+    const shifts: Shift[] = [
+      { id: "wed", date: "2026-08-19", location: "", signIn: "09:00", signOut: "13:00" },
+      { id: "thu", date: "2026-08-20", location: "", signIn: "09:00", signOut: "15:00" },
+    ];
+    const mondayHistory = buildWeeklyHistory(shifts, new Date(2026, 7, 24), "Monday", 20, 1);
+    const thursdayHistory = buildWeeklyHistory(shifts, new Date(2026, 7, 27), "Thursday", 20, 1);
+
+    expect(mondayHistory[0]).toMatchObject({ startISO: "2026-08-17", hours: 10 });
+    expect(thursdayHistory[0]).toMatchObject({ startISO: "2026-08-20", hours: 6 });
+    expect(shifts.map((shift) => shift.date)).toEqual(["2026-08-19", "2026-08-20"]);
   });
 });

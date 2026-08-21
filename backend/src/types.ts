@@ -1,3 +1,5 @@
+import type { WeekStart } from "./weekBoundary.js";
+
 export interface UserRow {
   id: string;
   name: string;
@@ -8,7 +10,7 @@ export interface UserRow {
   work_address: string;
   multiple_locations: number;
   other_locations: string;
-  week_starts_on: "Monday" | "Sunday";
+  week_starts_on: WeekStart;
   rate: number;
   goal_hours: number;
   goal_earnings: number;
@@ -25,7 +27,7 @@ export interface PublicUser {
   workAddress: string;
   multipleLocations: boolean;
   otherLocations: string;
-  weekStartsOn: "Monday" | "Sunday";
+  weekStartsOn: WeekStart;
   rate: number;
   goalHours: number;
   goalEarnings: number;
@@ -104,6 +106,7 @@ export interface WeekExtraRow {
   id: string;
   user_id: string;
   week_start: string;
+  effective_date: string;
   amount: number;
   reason: string;
   created_at: string;

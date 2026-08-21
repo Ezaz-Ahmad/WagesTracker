@@ -58,7 +58,7 @@ const USER = {
   workAddress: "",
   multipleLocations: false,
   otherLocations: "",
-  weekStartsOn: 1,
+  weekStartsOn: "Monday",
   rate: 20,
   goalHours: 40,
   goalEarnings: 800,

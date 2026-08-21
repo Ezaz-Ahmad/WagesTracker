@@ -73,6 +73,7 @@ await db.executeMultiple(`
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     week_start TEXT NOT NULL,
+    effective_date TEXT NOT NULL,
     amount REAL NOT NULL DEFAULT 0,
     reason TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL,
@@ -158,6 +159,29 @@ await db.executeMultiple(`
 // (per-day) before that concept moved to the week-level `week_extras` table
 // above. Nothing reads or writes it anymore; left in place rather than
 // attempting a DROP COLUMN migration, which is riskier than an unused column.
+
+// A weekly extra used to remember only its then-current `week_start`. When a
+// user changed their boundary, that date was not enough to re-bucket the lump
+// sum repeatedly without making it drift. `effective_date` is the stable
+// closing date of the week the extra was created for. Existing data is
+// backfilled once as old week_start + 6 days; future preference changes move
+// only the derived week_start key and never the amount, reason, or this stable
+// attribution date.
+try {
+  await db.execute("ALTER TABLE week_extras ADD COLUMN effective_date TEXT");
+} catch {
+  // already migrated (or present in a brand-new database)
+}
+await db.execute(
+  "UPDATE week_extras SET effective_date = date(week_start, '+6 days') WHERE effective_date IS NULL OR effective_date = ''"
+);
+try {
+  await db.execute(
+    "CREATE INDEX IF NOT EXISTS idx_week_extras_user_effective_date ON week_extras(user_id, effective_date)"
+  );
+} catch (e) {
+  console.warn("Could not create idx_week_extras_user_effective_date.", e instanceof Error ? e.message : e);
+}
 
 // Migration for databases created before `users.address` existed (the table
 // definition above only applies to brand-new databases via CREATE TABLE IF
@@ -334,5 +358,8 @@ export async function pruneExpiredShifts(): Promise<void> {
   const cutoffKey = cutoff.toISOString().slice(0, 10);
   await db.execute({ sql: "DELETE FROM shifts WHERE date < ?", args: [cutoffKey] });
   await db.execute({ sql: "DELETE FROM day_expenses WHERE date < ?", args: [cutoffKey] });
-  await db.execute({ sql: "DELETE FROM week_extras WHERE week_start < ?", args: [cutoffKey] });
+  await db.execute({
+    sql: "DELETE FROM week_extras WHERE COALESCE(effective_date, date(week_start, '+6 days')) < ?",
+    args: [cutoffKey],
+  });
 }

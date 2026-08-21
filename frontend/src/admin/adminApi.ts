@@ -1,4 +1,4 @@
-import type { Shift, User } from "../lib/types";
+import type { Shift, User, WeekStart } from "../lib/types";
 
 // Deliberately separate from lib/api.ts: a different token, a different storage key, and a
 // different base path (/api/admin), so an admin session and a regular user session on the
@@ -55,7 +55,7 @@ export interface AdminUserSummary {
   workAddress: string;
   multipleLocations: boolean;
   otherLocations: string;
-  weekStartsOn: "Monday" | "Sunday";
+  weekStartsOn: WeekStart;
   rate: number;
   goalHours: number;
   goalEarnings: number;

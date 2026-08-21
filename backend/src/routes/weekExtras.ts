@@ -5,6 +5,7 @@ import { asyncHandler } from "../asyncHandler.js";
 import { db, pruneExpiredShifts } from "../db.js";
 import { requireAuth, type AuthedRequest } from "../auth.js";
 import { toPublicWeekExtra, type WeekExtraRow } from "../types.js";
+import { addIsoDays, startOfWeekISO, type WeekStart } from "../weekBoundary.js";
 
 export const weekExtrasRouter = Router();
 weekExtrasRouter.use(requireAuth);
@@ -62,32 +63,60 @@ weekExtrasRouter.put(
     const weekStart = req.params.weekStart;
     const now = new Date().toISOString();
 
-    if (amount === 0) {
-      await db.execute({
-        sql: "DELETE FROM week_extras WHERE user_id = ? AND week_start = ?",
+    // Boundary validation and the write share one transaction. Otherwise a
+    // concurrent profile change could occur after validation but before the
+    // upsert, leaving a freshly written extra keyed to the old weekday.
+    const transaction = await db.transaction("write");
+    try {
+      const userResult = await transaction.execute({
+        sql: "SELECT week_starts_on FROM users WHERE id = ?",
+        args: [req.userId!],
+      });
+      const user = userResult.rows[0] as unknown as { week_starts_on: WeekStart } | undefined;
+      if (!user) {
+        res.status(404).json({ error: "User not found" });
+        return;
+      }
+      if (startOfWeekISO(weekStart, user.week_starts_on) !== weekStart) {
+        res.status(400).json({ error: `weekStart must be a ${user.week_starts_on}` });
+        return;
+      }
+
+      if (amount === 0) {
+        await transaction.execute({
+          sql: "DELETE FROM week_extras WHERE user_id = ? AND week_start = ?",
+          args: [req.userId!, weekStart],
+        });
+        await transaction.commit();
+        res.json({ extra: null });
+        return;
+      }
+      if (!reason) {
+        res.status(400).json({ error: "A reason is required for other earnings" });
+        return;
+      }
+
+      const id = randomUUID();
+      const effectiveDate = addIsoDays(weekStart, 6);
+      await transaction.execute({
+        sql: `INSERT INTO week_extras (id, user_id, week_start, effective_date, amount, reason, created_at, updated_at)
+              VALUES (@id, @userId, @weekStart, @effectiveDate, @amount, @reason, @now, @now)
+              ON CONFLICT(user_id, week_start) DO UPDATE SET amount = @amount, reason = @reason, updated_at = @now`,
+        args: { id, userId: req.userId!, weekStart, effectiveDate, amount, reason, now },
+      });
+
+      const result = await transaction.execute({
+        sql: "SELECT * FROM week_extras WHERE user_id = ? AND week_start = ?",
         args: [req.userId!, weekStart],
       });
-      res.json({ extra: null });
-      return;
+      const row = result.rows[0] as unknown as WeekExtraRow;
+      await transaction.commit();
+      res.json({ extra: toPublicWeekExtra(row) });
+    } catch (error) {
+      if (!(error instanceof RangeError)) throw error;
+      res.status(400).json({ error: "weekStart must be a real calendar date" });
+    } finally {
+      transaction.close();
     }
-    if (!reason) {
-      res.status(400).json({ error: "A reason is required for other earnings" });
-      return;
-    }
-
-    const id = randomUUID();
-    await db.execute({
-      sql: `INSERT INTO week_extras (id, user_id, week_start, amount, reason, created_at, updated_at)
-            VALUES (@id, @userId, @weekStart, @amount, @reason, @now, @now)
-            ON CONFLICT(user_id, week_start) DO UPDATE SET amount = @amount, reason = @reason, updated_at = @now`,
-      args: { id, userId: req.userId!, weekStart, amount, reason, now },
-    });
-
-    const result = await db.execute({
-      sql: "SELECT * FROM week_extras WHERE user_id = ? AND week_start = ?",
-      args: [req.userId!, weekStart],
-    });
-    const row = result.rows[0] as unknown as WeekExtraRow;
-    res.json({ extra: toPublicWeekExtra(row) });
   })
 );

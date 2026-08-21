@@ -20,6 +20,7 @@ import type {
   SpendingColour,
   SpendingIcon,
   SpendingSummary,
+  WeekStart,
 } from "../lib/types";
 
 type Period = "today" | "week" | "month" | "custom";
@@ -85,7 +86,7 @@ function paymentLabel(method: PaymentMethod | null): string | null {
   return { card: "Card", cash: "Cash", bank_transfer: "Bank transfer", other: "Other" }[method];
 }
 
-function rangeFor(period: Period, today: Date, weekStartsOn: "Monday" | "Sunday", customFrom: string, customTo: string) {
+export function spendingRangeFor(period: Period, today: Date, weekStartsOn: WeekStart, customFrom: string, customTo: string) {
   if (period === "today") {
     const date = isoDate(today);
     return { from: date, to: date };
@@ -139,7 +140,7 @@ export function SpendingScreen() {
   const historyInitializedRef = useRef(false);
 
   const range = useMemo(
-    () => rangeFor(period, today, user?.weekStartsOn ?? "Monday", customFrom, customTo),
+    () => spendingRangeFor(period, today, user?.weekStartsOn ?? "Monday", customFrom, customTo),
     [period, today, user?.weekStartsOn, customFrom, customTo]
   );
   const rangeValid = /^\d{4}-\d{2}-\d{2}$/.test(range.from) && /^\d{4}-\d{2}-\d{2}$/.test(range.to) && range.from <= range.to;

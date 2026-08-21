@@ -87,4 +87,32 @@ describe("week-extras (other earnings)", () => {
     const bList2 = await request(app).get("/api/week-extras").set("Authorization", `Bearer ${tokenB}`);
     expect(bList2.body.extras).toEqual([{ weekStart: WEEK_START, amount: 99, reason: "B's own bonus" }]);
   });
+
+  it("accepts only a real date aligned with the user's current boundary", async () => {
+    const changed = await request(app)
+      .patch("/api/me")
+      .set("Authorization", `Bearer ${tokenB}`)
+      .send({ weekStartsOn: "Tuesday" });
+    expect(changed.status).toBe(200);
+
+    const wrongWeekday = await request(app)
+      .put("/api/week-extras/2026-01-19")
+      .set("Authorization", `Bearer ${tokenB}`)
+      .send({ amount: 10, reason: "Wrong weekday" });
+    expect(wrongWeekday.status).toBe(400);
+    expect(wrongWeekday.body.error).toContain("Tuesday");
+
+    const impossibleDate = await request(app)
+      .put("/api/week-extras/2026-02-30")
+      .set("Authorization", `Bearer ${tokenB}`)
+      .send({ amount: 10, reason: "Impossible date" });
+    expect(impossibleDate.status).toBe(400);
+    expect(impossibleDate.body.error).toContain("real calendar date");
+
+    const valid = await request(app)
+      .put("/api/week-extras/2026-01-20")
+      .set("Authorization", `Bearer ${tokenB}`)
+      .send({ amount: 10, reason: "Tuesday bonus" });
+    expect(valid.status).toBe(200);
+  });
 });

@@ -1,4 +1,6 @@
-export type WeekStart = "Monday" | "Sunday";
+import type { WeekStart } from "./weekBoundary.mjs";
+
+export type { WeekStart };
 
 export interface User {
   id: string;

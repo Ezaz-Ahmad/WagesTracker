@@ -1,4 +1,5 @@
 import type { WeekStart } from "./types";
+import { startOfWeekISO } from "./weekBoundary.mjs";
 
 export function pad2(n: number): string {
   return String(n).padStart(2, "0");
@@ -29,11 +30,9 @@ export function sameDate(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
-/** Monday=1, Sunday=0 per Date#getDay(); returns the first day of the week containing `d`. */
+/** Returns the configured first day of the week containing `d`. */
 export function startOfWeek(d: Date, weekStartsOn: WeekStart): Date {
-  const startIdx = weekStartsOn === "Sunday" ? 0 : 1;
-  const diff = (d.getDay() - startIdx + 7) % 7;
-  return addDays(new Date(d.getFullYear(), d.getMonth(), d.getDate()), -diff);
+  return parseIsoDate(startOfWeekISO(isoDate(d), weekStartsOn));
 }
 
 export function buildWeekDays(anchor: Date, weekStartsOn: WeekStart): Date[] {

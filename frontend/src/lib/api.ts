@@ -234,7 +234,7 @@ export interface MePatch {
   goalEarnings?: number;
 }
 
-export function patchMe(patch: MePatch): Promise<{ user: User }> {
+export function patchMe(patch: MePatch): Promise<{ user: User; extras?: WeekExtra[] }> {
   return request("/me", { method: "PATCH", body: JSON.stringify(patch) });
 }
 

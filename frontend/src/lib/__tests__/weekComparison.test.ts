@@ -237,6 +237,20 @@ describe("week boundaries", () => {
     expect(after.previousTotal).toBe(250);
     expect(after.status).toBe("down");
   });
+
+  it("compares the exact current and previous Tuesday–Monday cycles", () => {
+    const result = compareWeekEarnings(base({
+      weekStartsOn: "Tuesday",
+      shifts: [
+        shift("2026-08-10", 4), // previous Tuesday 4 -> Monday 10
+        shift("2026-08-11", 8), // current Tuesday 11 -> Monday 17
+      ],
+    }));
+
+    expect(result.currentTotal).toBe(200);
+    expect(result.previousTotal).toBe(100);
+    expect(result.percentChange).toBe(100);
+  });
 });
 
 describe("recalculation after data changes", () => {
