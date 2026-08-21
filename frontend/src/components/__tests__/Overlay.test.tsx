@@ -3,8 +3,8 @@
 // Modal overlays must escape the app's transformed ancestor, and must lock
 // the element that actually scrolls.
 //
-// `.swipe-track` (App.tsx) always carries a `transform` — it is what the
-// tab-swipe and pull-to-refresh gestures translate. A transformed element
+// The app's screen subtree can carry an entrance `transform` (and the swipe
+// track historically carried a live gesture transform). A transformed element
 // becomes the containing block for its `position: fixed` descendants, so
 // every overlay rendered inside a screen was fixed to the *track* rather
 // than to the viewport. Measured on a 390x844 phone with the sessions sheet

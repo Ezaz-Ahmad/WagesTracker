@@ -145,10 +145,9 @@ button { font-family: inherit; }
   display: flex; flex-direction: column; box-shadow: var(--shadow-lg); position: relative;
   overflow: hidden;
 }
-/* — pull-to-refresh (Home only, see usePullToRefresh + App.tsx) — a small
-   circular badge parked just above .app-main's top edge; App.tsx drives its
-   position/scale/opacity directly off the live pull distance via inline
-   style, so this only needs to define what it looks like at rest. */
+/* — pull-to-refresh (Home only, see usePullToRefresh + App.tsx) — only this
+   small badge follows the gesture. The scroll pane and screen content never
+   translate, which avoids full-panel compositor jitter on iOS. */
 .pull-refresh-indicator {
   position: absolute; top: -44px; left: 50%; z-index: 1;
   width: 34px; height: 34px; border-radius: 50%;
@@ -156,6 +155,8 @@ button { font-family: inherit; }
   background: var(--color-accent-100); color: var(--color-accent-700);
   box-shadow: var(--shadow-sm);
   pointer-events: none;
+  opacity: 0;
+  transform: translate3d(-50%, 0, 0) scale(.72);
 }
 .pull-refresh-indicator.is-refreshing svg { animation: pull-refresh-spin 800ms linear infinite; }
 @keyframes pull-refresh-spin {
@@ -307,10 +308,9 @@ button { font-family: inherit; }
      the scrollbar's width. */
   scrollbar-gutter: stable;
 }
-/* Swipe-between-tabs drag target — only this layer moves; the scroll
-   container (.app-main) and everything outside it (nav, bottom bar) stay
-   put, so a swipe only ever "moves the options", never the page. */
-.swipe-track { will-change: transform; }
+/* The tab gesture is observation-only until release; this wrapper stays
+   geometrically and compositionally still throughout every touchmove. */
+.swipe-track { min-width: 0; }
 /* A floating glass dock instead of a flush, flat bar — it lifts off the
    bottom edge with its own margin, rounded corners, a blurred translucent
    fill, and a soft elevated shadow, so it reads as a distinct piece of UI
@@ -1191,8 +1191,8 @@ button { font-family: inherit; }
 /* — the day editor — a bottom sheet on phones, a centred modal from tablet
    up. Same two-shapes-one-component arrangement as the sessions drawer, and
    the same reason for going through <Overlay>: a fixed-position dialog
-   rendered inside .swipe-track's transform is contained by the track rather
-   than the viewport. */
+   rendered inside any screen entrance transform is contained by that screen
+   rather than the viewport. */
 .day-editor-backdrop {
   position: fixed; inset: 0; z-index: 70;
   display: flex; align-items: flex-end; justify-content: center;

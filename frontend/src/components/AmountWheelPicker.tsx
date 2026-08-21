@@ -238,9 +238,8 @@ export function AmountWheelPicker({
 
   // Rendered via a portal straight into <body>, bypassing wherever this
   // component happens to sit in the tree. EntryScreen renders inside
-  // App.tsx's `.swipe-track`, which always carries `will-change: transform`
-  // for the tab-swipe/pull-to-refresh gestures — and per the CSS spec, ANY
-  // transformed (or will-change: transform) ancestor becomes the containing
+  // App.tsx's animated screen subtree, which can carry an entrance transform
+  // — and per the CSS spec, ANY transformed ancestor becomes the containing
   // block for a `position: fixed` descendant instead of the real viewport.
   // Without the portal, this modal was centering and clamping itself against
   // that scrollable track's box, not the screen — hence the huge gap above

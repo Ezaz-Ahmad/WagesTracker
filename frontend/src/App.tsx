@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppProvider, useApp } from "./context/AppContext";
 import { BottomNav, TABS } from "./components/BottomNav";
 import { ConfirmProvider } from "./components/ConfirmProvider";
@@ -52,19 +52,19 @@ function AuthedApp() {
 
   const activeIndex = Math.max(0, TABS.findIndex((t) => t.screen === screen));
   const handleSwipeNavigate = useCallback((index: number) => setScreen(TABS[index].screen), []);
-  const { ref: swipeRef, dragX, dragging } = useSwipeNav<HTMLDivElement>(activeIndex, TABS.length, handleSwipeNavigate);
+  const { ref: swipeRef } = useSwipeNav<HTMLDivElement>(activeIndex, TABS.length, handleSwipeNavigate);
 
   // Pull-to-refresh — Home only, per the ask. Bound to the same scrollable
-  // pane as the swipe-tab gesture; the two never conflict because a single
-  // touch gesture locks to one axis or the other (see usePullToRefresh),
-  // never both. Refreshes data every pull; also silently reloads the page
+  // pane as the swipe-tab gesture. Neither gesture moves the pane itself:
+  // pull distance only animates the small indicator and tab navigation is
+  // committed on release. Refreshes data every pull; also silently reloads the page
   // if a newer build has been deployed since this tab was opened, so a pull
   // gets you both the latest numbers *and* the latest app, not just one.
   const handlePullRefresh = useCallback(async () => {
     await refresh();
     await reloadIfNewVersionDeployed();
   }, [refresh]);
-  const { pullY, pulling, refreshing } = usePullToRefresh(swipeRef, screen === "home", handlePullRefresh);
+  const { indicatorRef: pullIndicatorRef, refreshing } = usePullToRefresh(swipeRef, screen === "home", handlePullRefresh);
 
   // Which way the tab just changed (bottom-nav tap or a completed swipe both
   // land here) — drives a directional slide on mount instead of a plain
@@ -97,17 +97,6 @@ function AuthedApp() {
       cancelAnimationFrame(raf2);
     };
   }, []);
-
-  const trackStyle = useMemo(
-    () => ({
-      // Horizontal (tab swipe) and vertical (pull-to-refresh) drags share
-      // this one transform — safe to combine because a single gesture only
-      // ever drives one of the two axes at a time (see usePullToRefresh).
-      transform: `translate(${dragX}px, ${pullY}px)`,
-      transition: dragging || pulling ? "none" : "transform 320ms cubic-bezier(0.22, 1, 0.36, 1)",
-    }),
-    [dragX, dragging, pullY, pulling]
-  );
 
   return (
     <div className={`app-shell${entered ? " is-entered" : ""}`}>
@@ -183,16 +172,13 @@ function AuthedApp() {
           {screen === "home" && (
             <div
               className={`pull-refresh-indicator${refreshing ? " is-refreshing" : ""}`}
-              style={{
-                opacity: Math.min(1, pullY / 40),
-                transform: `translate(-50%, ${pullY}px) scale(${Math.min(1, 0.7 + pullY / 170)})`,
-              }}
+              ref={pullIndicatorRef}
               aria-hidden="true"
             >
               <RefreshIcon size={18} />
             </div>
           )}
-          <div className="swipe-track" style={trackStyle}>
+          <div className="swipe-track">
             <div key={screen} className={screenTransitionClass}>
               <ScreenErrorBoundary key={screen}>
                 {screen === "home" && <HomeScreen onNavigate={setScreen} />}

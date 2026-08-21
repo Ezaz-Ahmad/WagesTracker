@@ -45,8 +45,8 @@ export function DeleteAccountDialog({ onClose, onDelete }: DeleteAccountDialogPr
 
   return (
     // Portalled for the same reason as the sessions drawer: rendered in
-    // place, this dialog's fixed backdrop was contained by .swipe-track's
-    // transform rather than by the viewport, so it never covered the app
+    // place, this dialog's fixed backdrop could be contained by an animated
+    // screen transform rather than by the viewport, so it never covered the app
     // header and the page behind it kept scrolling. See components/Overlay.
     <Overlay>
         <div className={`dialog-backdrop${closing ? " is-closing" : ""}`} onClick={close}>

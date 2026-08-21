@@ -15,9 +15,9 @@ function scrollContainer(): HTMLElement {
  *
  * Both halves fix a real bug, and both come from the same place.
  *
- * **The portal.** `.swipe-track` (App.tsx) always carries a `transform` —
- * it's the element the tab-swipe and pull-to-refresh gestures translate. A
- * transformed element becomes the containing block for its `position: fixed`
+ * **The portal.** App screens can carry entrance transforms (and historically
+ * `.swipe-track` itself carried the live swipe/pull transform). A transformed
+ * element becomes the containing block for its `position: fixed`
  * descendants, so any overlay rendered inside a screen was fixed to *the
  * track*, not to the viewport. Measured on a 390x844 phone with the sessions
  * sheet open, its `inset: 0` backdrop resolved to a 1218px-tall box starting

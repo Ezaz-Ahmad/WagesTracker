@@ -25,6 +25,12 @@ import type {
 type Period = "today" | "week" | "month" | "custom";
 type View = "dashboard" | "history" | "categories";
 
+const VIEW_COPY: Record<View, string> = {
+  dashboard: "See where your money is going and how spending compares with earnings.",
+  history: "Find what you spent, where you spent it, and when it happened.",
+  categories: "Organise quick entry without changing your historical records.",
+};
+
 export const SPENDING_COLOURS: SpendingColour[] = [
   "#B45309", "#047857", "#1D4ED8", "#7C3AED", "#0E7490", "#BE123C",
   "#9F1239", "#6D28D9", "#0369A1", "#A16207", "#475569",
@@ -37,6 +43,19 @@ export const SPENDING_ICONS: SpendingIcon[] = [
 function formatMoney(cents: number): string {
   const sign = cents < 0 ? "−" : "";
   return `${sign}${CURRENCY}${(Math.abs(cents) / 100).toFixed(2)}`;
+}
+
+function formatWholeMoney(cents: number): string {
+  const sign = cents < 0 ? "−" : "";
+  return `${sign}${CURRENCY}${Math.round(Math.abs(cents) / 100).toLocaleString("en-AU")}`;
+}
+
+function formatRange(from: string, to: string): string {
+  const start = parseIsoDate(from);
+  const end = parseIsoDate(to);
+  const startText = start.toLocaleDateString("en-AU", { month: "short", day: "numeric" });
+  const endText = end.toLocaleDateString("en-AU", { month: "short", day: "numeric", year: "numeric" });
+  return `${startText} – ${endText}`;
 }
 
 function localDateTimeValue(date = new Date()): string {
@@ -95,7 +114,7 @@ function periodLabel(period: Period, from: string, to: string): string {
 export function SpendingScreen() {
   const { today, user } = useApp();
   const [view, setView] = useState<View>("dashboard");
-  const [period, setPeriod] = useState<Period>("week");
+  const [period, setPeriod] = useState<Period>("month");
   const [customFrom, setCustomFrom] = useState(isoDate(startOfWeek(today, user?.weekStartsOn ?? "Monday")));
   const [customTo, setCustomTo] = useState(isoDate(today));
   const [categories, setCategories] = useState<SpendingCategory[]>([]);
@@ -104,16 +123,20 @@ export function SpendingScreen() {
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [history, setHistory] = useState<PersonalExpense[]>([]);
   const [historyTotal, setHistoryTotal] = useState(0);
-  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [appliedCategoryFilter, setAppliedCategoryFilter] = useState("");
   const [search, setSearch] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
   const [editingExpense, setEditingExpense] = useState<PersonalExpense | null>(null);
   const [expenseFormOpen, setExpenseFormOpen] = useState(false);
   const [announcement, setAnnouncement] = useState("");
+  const summaryRequestRef = useRef(0);
+  const historyRequestRef = useRef(0);
+  const historyInitializedRef = useRef(false);
 
   const range = useMemo(
     () => rangeFor(period, today, user?.weekStartsOn ?? "Monday", customFrom, customTo),
@@ -128,50 +151,64 @@ export function SpendingScreen() {
 
   const loadSummary = useCallback(async () => {
     if (!rangeValid) return;
+    const requestId = ++summaryRequestRef.current;
     setSummaryLoading(true);
     setSummaryError(null);
     try {
-      setSummary(await api.getSpendingSummary(range.from, range.to));
+      const result = await api.getSpendingSummary(range.from, range.to);
+      if (requestId === summaryRequestRef.current) setSummary(result);
     } catch (error) {
-      setSummaryError(error instanceof Error ? error.message : "Couldn't load spending summary.");
+      if (requestId === summaryRequestRef.current) {
+        setSummaryError(error instanceof Error ? error.message : "Couldn't load spending summary.");
+      }
     } finally {
-      setSummaryLoading(false);
+      if (requestId === summaryRequestRef.current) setSummaryLoading(false);
     }
   }, [range.from, range.to, rangeValid]);
 
   const loadHistory = useCallback(async (requestedPage = 1, append = false) => {
     if (!rangeValid) return;
+    historyInitializedRef.current = true;
+    const requestId = ++historyRequestRef.current;
     setHistoryLoading(true);
     setHistoryError(null);
     try {
       const result = await api.listPersonalExpenses({
         from: range.from,
         to: range.to,
-        categoryId: categoryFilter || undefined,
+        categoryId: appliedCategoryFilter || undefined,
         search: appliedSearch || undefined,
         page: requestedPage,
         pageSize: 20,
       });
-      setHistory((current) => append ? [...current, ...result.expenses] : result.expenses);
-      setHistoryTotal(result.total);
-      setPage(result.page);
-      setHasMore(result.hasMore);
+      if (requestId === historyRequestRef.current) {
+        setHistory((current) => append ? [...current, ...result.expenses] : result.expenses);
+        setHistoryTotal(result.total);
+        setPage(result.page);
+        setHasMore(result.hasMore);
+      }
     } catch (error) {
-      setHistoryError(error instanceof Error ? error.message : "Couldn't load expense history.");
+      if (requestId === historyRequestRef.current) {
+        setHistoryError(error instanceof Error ? error.message : "Couldn't load expense history.");
+      }
     } finally {
-      setHistoryLoading(false);
+      if (requestId === historyRequestRef.current) setHistoryLoading(false);
     }
-  }, [range.from, range.to, rangeValid, categoryFilter, appliedSearch]);
+  }, [range.from, range.to, rangeValid, appliedCategoryFilter, appliedSearch]);
 
   useEffect(() => {
     void loadCategories().catch(() => setSummaryError("Couldn't load spending categories."));
   }, [loadCategories]);
 
   useEffect(() => { void loadSummary(); }, [loadSummary]);
-  useEffect(() => { void loadHistory(1); }, [loadHistory]);
+  useEffect(() => {
+    if (view === "history") void loadHistory(1);
+  }, [view, loadHistory]);
 
   const refreshAfterMutation = useCallback(async (message: string) => {
-    await Promise.all([loadSummary(), loadHistory(1), loadCategories()]);
+    const refreshes: Promise<unknown>[] = [loadSummary(), loadCategories()];
+    if (historyInitializedRef.current) refreshes.push(loadHistory(1));
+    await Promise.all(refreshes);
     setAnnouncement(message);
   }, [loadSummary, loadHistory, loadCategories]);
 
@@ -223,15 +260,19 @@ export function SpendingScreen() {
         ))}
       </div>
 
-      <PeriodControls
-        period={period}
-        onPeriod={setPeriod}
-        customFrom={customFrom}
-        customTo={customTo}
-        onCustomFrom={setCustomFrom}
-        onCustomTo={setCustomTo}
-        rangeValid={rangeValid}
-      />
+      <p className="spending-view-context">{VIEW_COPY[view]}</p>
+
+      {view !== "categories" && (
+        <PeriodControls
+          period={period}
+          onPeriod={setPeriod}
+          customFrom={customFrom}
+          customTo={customTo}
+          onCustomFrom={setCustomFrom}
+          onCustomTo={setCustomTo}
+          rangeValid={rangeValid}
+        />
+      )}
 
       <div className="visually-hidden" aria-live="polite" aria-atomic="true">{announcement}</div>
 
@@ -259,7 +300,10 @@ export function SpendingScreen() {
           onCategoryFilter={setCategoryFilter}
           search={search}
           onSearch={setSearch}
-          onSubmitSearch={() => setAppliedSearch(search.trim())}
+          onSubmitSearch={() => {
+            setAppliedSearch(search.trim());
+            setAppliedCategoryFilter(categoryFilter);
+          }}
           onRetry={() => void loadHistory(1)}
           onEdit={openEditExpense}
           onDelete={(expense) => void deleteExpense(expense)}
@@ -273,7 +317,9 @@ export function SpendingScreen() {
         <CategoryManager
           categories={categories}
           onChanged={async (message) => {
-            await Promise.all([loadCategories(), loadSummary(), loadHistory(1)]);
+            const refreshes: Promise<unknown>[] = [loadCategories(), loadSummary()];
+            if (historyInitializedRef.current) refreshes.push(loadHistory(1));
+            await Promise.all(refreshes);
             setAnnouncement(message);
           }}
         />
@@ -308,7 +354,7 @@ function PeriodControls(props: {
       <fieldset className="fieldset-plain">
         <legend className="visually-hidden">Dashboard period</legend>
         <div className="spending-periods">
-          {(["today", "week", "month", "custom"] as Period[]).map((item) => (
+          {(["month", "today", "week", "custom"] as Period[]).map((item) => (
             <label key={item} className={props.period === item ? "is-active" : ""}>
               <input type="radio" name="spending-period" checked={props.period === item} onChange={() => props.onPeriod(item)} />
               {item === "today" ? "Today" : item === "week" ? "This week" : item === "month" ? "This month" : "Custom range"}
@@ -346,40 +392,50 @@ function SpendingDashboard(props: {
   const summary = props.summary;
   if (!summary) return null;
   const change = summary.previous.spendingChangePercent;
+  const previousLabel = props.periodText === "this month"
+    ? "last month"
+    : props.periodText === "this week"
+      ? "last week"
+      : props.periodText === "today"
+        ? "yesterday"
+        : "the previous matching period";
   const insight = summary.transactionCount === 0
     ? `No personal expenses have been recorded for ${props.periodText}.`
     : summary.largestCategory
-      ? `Most of your recorded spending ${props.periodText} was ${summary.largestCategory.name}.`
+      ? `${summary.largestCategory.name} is your largest spending category ${props.periodText}.`
       : "Your recorded spending is ready to review.";
   const comparison = change === null
-    ? "No earlier recorded spending is available for comparison."
+    ? `There isn't enough recorded spending from ${previousLabel} to compare yet.`
     : change === 0
-      ? "Recorded spending was the same as the previous period."
-      : `You recorded ${Math.abs(change).toFixed(1)}% ${change < 0 ? "less" : "more"} spending than the previous period.`;
+      ? `You've spent the same amount as ${previousLabel}.`
+      : `You've spent ${Math.abs(change).toFixed(1)}% ${change < 0 ? "less" : "more"} than ${previousLabel}.`;
 
   return (
     <div className="spending-dashboard" aria-busy={props.loading || undefined}>
       {props.error && <StatusBanner tone="warning"><span>{props.error} Showing the last loaded totals.</span></StatusBanner>}
-      <div className="spending-summary-grid">
-        <SummaryCard label="Earnings recorded" value={formatMoney(summary.earningsCents)} detail={summary.earningsRecorded ? props.periodText : `${formatMoney(0)} earnings recorded`} />
-        <SummaryCard label="Personal spending" value={formatMoney(summary.totalSpendingCents)} detail={`${summary.transactionCount} ${summary.transactionCount === 1 ? "transaction" : "transactions"}`} />
-        <SummaryCard label="Difference" value={formatMoney(summary.differenceCents)} detail="Recorded earnings minus personal spending" neutral={summary.differenceCents < 0} />
-        <SummaryCard label="Spending of earnings" value={summary.spendingPercentage === null ? "—" : `${summary.spendingPercentage.toFixed(1)}%`} detail={summary.earningsCents === 0 ? "$0 earnings recorded" : "Of recorded earnings"} />
-      </div>
+      <section className="spending-overview" aria-labelledby="spending-overview-title">
+        <div className="spending-overview-heading">
+          <div>
+            <span className="card-kicker">Money overview</span>
+            <h2 id="spending-overview-title">{props.periodText === "this month" ? "This month at a glance" : "Your selected period"}</h2>
+          </div>
+          <div className="spending-range-chip">
+            {props.loading && <span className="spending-refreshing">Updating…</span>}
+            <span>{formatRange(summary.period.from, summary.period.to)}</span>
+          </div>
+        </div>
+        <div className="spending-summary-grid">
+          <SummaryCard tone="earnings" label="Recorded earnings" value={formatMoney(summary.earningsCents)} detail={summary.earningsRecorded ? `Earned ${props.periodText}` : "No earnings recorded yet"} />
+          <SummaryCard tone="spending" label="Personal spending" value={formatMoney(summary.totalSpendingCents)} detail={`${summary.transactionCount} ${summary.transactionCount === 1 ? "expense" : "expenses"}`} />
+          <SummaryCard tone={summary.differenceCents < 0 ? "warning" : "remaining"} label={summary.differenceCents < 0 ? "Over earnings" : "Remaining"} value={formatMoney(summary.differenceCents)} detail="Earnings minus personal spending" />
+          <SummaryCard tone="percentage" label="Earnings spent" value={summary.spendingPercentage === null ? "—" : `${summary.spendingPercentage.toFixed(1)}%`} detail={summary.earningsCents === 0 ? "Add earnings to compare" : "Of recorded earnings"} />
+        </div>
+      </section>
 
-      <div className="spending-secondary-grid">
-        <SummaryCard label="Daily average" value={formatMoney(summary.averageDailyCents)} detail={`Across ${summary.period.days} ${summary.period.days === 1 ? "day" : "days"}`} compact />
-        <SummaryCard label="Largest category" value={summary.largestCategory?.name ?? "—"} detail={summary.largestCategory ? formatMoney(summary.largestCategory.totalCents) : "No expenses in this period"} compact />
-        <SummaryCard label="Previous period" value={formatMoney(summary.previous.totalSpendingCents)} detail={comparison} compact />
-      </div>
-
-      <div className="spending-insight card elev-sm">
-        <strong>{insight}</strong>
-        <span>{comparison}</span>
-      </div>
+      <SpendingInsights summary={summary} insight={insight} comparison={comparison} previousLabel={previousLabel} />
 
       <div className="spending-chart-grid">
-        <CategoryBreakdown summary={summary} />
+        <CategoryBreakdown summary={summary} periodText={props.periodText} />
         <SpendingTrend summary={summary} />
       </div>
       <EarningsComparison summary={summary} />
@@ -388,9 +444,9 @@ function SpendingDashboard(props: {
   );
 }
 
-function SummaryCard({ label, value, detail, compact, neutral }: { label: string; value: string; detail: string; compact?: boolean; neutral?: boolean }) {
+function SummaryCard({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: "earnings" | "spending" | "remaining" | "warning" | "percentage" }) {
   return (
-    <div className={`card elev-sm spending-summary-card${compact ? " is-compact" : ""}${neutral ? " is-neutral" : ""}`}>
+    <div className={`card elev-sm spending-summary-card is-${tone}`}>
       <div className="card-kicker">{label}</div>
       <div className="spending-summary-value">{value}</div>
       <div className="card-meta">{detail}</div>
@@ -398,7 +454,31 @@ function SummaryCard({ label, value, detail, compact, neutral }: { label: string
   );
 }
 
-function CategoryBreakdown({ summary }: { summary: SpendingSummary }) {
+function SpendingInsights({ summary, insight, comparison, previousLabel }: {
+  summary: SpendingSummary;
+  insight: string;
+  comparison: string;
+  previousLabel: string;
+}) {
+  return (
+    <section className="card elev-sm spending-insights" aria-labelledby="spending-insights-title">
+      <div className="spending-insight-copy">
+        <span className="card-kicker">Useful right now</span>
+        <h2 id="spending-insights-title" className="card-title">Insights</h2>
+        <strong>{insight}</strong>
+        <span>{comparison}</span>
+      </div>
+      <dl className="spending-insight-stats">
+        <div><dt>Largest category</dt><dd>{summary.largestCategory?.name ?? "—"}<small>{summary.largestCategory ? formatMoney(summary.largestCategory.totalCents) : "No expenses yet"}</small></dd></div>
+        <div><dt>Average per day</dt><dd>{formatMoney(summary.averageDailyCents)}<small>Across {summary.period.days} {summary.period.days === 1 ? "day" : "days"}</small></dd></div>
+        <div><dt>Transactions</dt><dd>{summary.transactionCount}<small>{summary.transactionCount === 1 ? "Expense recorded" : "Expenses recorded"}</small></dd></div>
+        <div><dt>{previousLabel[0].toUpperCase() + previousLabel.slice(1)}</dt><dd>{formatMoney(summary.previous.totalSpendingCents)}<small>Recorded spending</small></dd></div>
+      </dl>
+    </section>
+  );
+}
+
+function CategoryBreakdown({ summary, periodText }: { summary: SpendingSummary; periodText: string }) {
   let progress = 0;
   const stops = summary.categories.map((category) => {
     const start = progress;
@@ -406,22 +486,24 @@ function CategoryBreakdown({ summary }: { summary: SpendingSummary }) {
     return `${category.colour} ${start}% ${progress}%`;
   });
   const description = summary.categories.length
-    ? `Category breakdown. ${summary.categories.map((item) => `${item.name}: ${formatMoney(item.totalCents)}`).join("; ")}.`
+    ? `Category breakdown. ${summary.categories.map((item) => `${item.name}: ${formatMoney(item.totalCents)}, ${((item.totalCents / summary.totalSpendingCents) * 100).toFixed(1)} percent`).join("; ")}.`
     : "Category breakdown. No personal expenses were recorded for this period.";
   return (
     <section className="card elev-sm spending-chart-card" aria-labelledby="category-breakdown-title">
-      <h2 id="category-breakdown-title" className="card-title">Category breakdown</h2>
+      <div className="spending-card-heading"><div><span className="card-kicker">Spending breakdown</span><h2 id="category-breakdown-title" className="card-title">Where your money went</h2></div><span>{summary.categories.length} {summary.categories.length === 1 ? "category" : "categories"}</span></div>
       <p className="visually-hidden">{description}</p>
       <div className="category-chart-layout">
         <div className="spending-donut" aria-hidden="true" style={{ background: stops.length ? `conic-gradient(${stops.join(",")})` : undefined }}>
-          <span>{summary.transactionCount}</span><small>expenses</small>
+          <span>{formatWholeMoney(summary.totalSpendingCents)}</span><small>Spent {periodText}</small>
         </div>
         <ul className="spending-legend" aria-label="Category totals">
           {summary.categories.length ? summary.categories.map((category) => (
             <li key={category.id}>
               <span className="category-colour-dot" style={{ backgroundColor: category.colour }} aria-hidden="true" />
               <CategoryGlyph icon={category.icon} size={16} />
-              <span>{category.name}</span><strong>{formatMoney(category.totalCents)}</strong>
+              <span className="spending-legend-name">{category.name}</span>
+              <strong>{formatMoney(category.totalCents)}</strong>
+              <span className="spending-legend-percent">{((category.totalCents / summary.totalSpendingCents) * 100).toFixed(1)}%</span>
             </li>
           )) : <li className="spending-empty-inline">No category spending yet.</li>}
         </ul>
@@ -430,21 +512,44 @@ function CategoryBreakdown({ summary }: { summary: SpendingSummary }) {
   );
 }
 
+function buildTrendBuckets(summary: SpendingSummary) {
+  const totalDays = Math.max(1, summary.period.days);
+  const bucketSize = totalDays <= 8 ? 1 : totalDays <= 62 ? 7 : Math.ceil(totalDays / 8);
+  const periodEnd = parseIsoDate(summary.period.to);
+  const buckets: { key: string; label: string; totalCents: number }[] = [];
+
+  for (let offset = 0; offset < totalDays; offset += bucketSize) {
+    const start = addDays(parseIsoDate(summary.period.from), offset);
+    const end = addDays(start, Math.min(bucketSize - 1, totalDays - offset - 1));
+    const boundedEnd = end > periodEnd ? periodEnd : end;
+    const from = isoDate(start);
+    const to = isoDate(boundedEnd);
+    const totalCents = summary.trend.reduce((total, item) => item.date >= from && item.date <= to ? total + item.totalCents : total, 0);
+    const label = bucketSize === 1
+      ? start.toLocaleDateString("en-AU", { weekday: "short" })
+      : `${start.toLocaleDateString("en-AU", { month: "short", day: "numeric" })}–${boundedEnd.toLocaleDateString("en-AU", { day: "numeric" })}`;
+    buckets.push({ key: from, label, totalCents });
+  }
+  return buckets;
+}
+
 function SpendingTrend({ summary }: { summary: SpendingSummary }) {
-  const max = Math.max(1, ...summary.trend.map((item) => item.totalCents));
+  const buckets = buildTrendBuckets(summary);
+  const max = Math.max(1, ...buckets.map((item) => item.totalCents));
   const description = summary.trend.length
     ? `Spending trend from ${summary.period.from} to ${summary.period.to}. ${summary.trend.map((item) => `${item.date}: ${formatMoney(item.totalCents)}`).join("; ")}.`
     : "Spending trend. No personal expenses were recorded for this period.";
   return (
     <section className="card elev-sm spending-chart-card" aria-labelledby="spending-trend-title">
-      <h2 id="spending-trend-title" className="card-title">Spending trend</h2>
+      <div className="spending-card-heading"><div><span className="card-kicker">Trend</span><h2 id="spending-trend-title" className="card-title">Spending over time</h2></div><span>{summary.period.days <= 8 ? "Daily" : "Grouped for clarity"}</span></div>
       <p className="visually-hidden">{description}</p>
       {summary.trend.length ? (
         <div className="spending-trend-bars" aria-hidden="true">
-          {summary.trend.map((item) => (
-            <div className="spending-trend-item" key={item.date} title={`${item.date}: ${formatMoney(item.totalCents)}`}>
+          {buckets.map((item) => (
+            <div className="spending-trend-item" key={item.key} title={`${item.label}: ${formatMoney(item.totalCents)}`}>
+              <strong>{formatWholeMoney(item.totalCents)}</strong>
               <div className="spending-trend-track"><span style={{ height: `${Math.max(5, (item.totalCents / max) * 100)}%` }} /></div>
-              <small>{item.date.slice(5).replace("-", "/")}</small>
+              <small>{item.label}</small>
             </div>
           ))}
         </div>
@@ -458,12 +563,19 @@ function SpendingTrend({ summary }: { summary: SpendingSummary }) {
 
 function EarningsComparison({ summary }: { summary: SpendingSummary }) {
   const max = Math.max(summary.earningsCents, summary.totalSpendingCents, 1);
+  const spendingPerDollar = summary.earningsCents > 0 ? summary.totalSpendingCents / summary.earningsCents : null;
+  const takeaway = summary.earningsCents === 0
+    ? "Record earnings for this period to see a direct comparison."
+    : summary.differenceCents >= 0
+      ? `You have ${formatMoney(summary.differenceCents)} remaining after personal spending.`
+      : `Personal spending is ${formatMoney(Math.abs(summary.differenceCents))} above recorded earnings.`;
   return (
     <section className="card elev-sm spending-comparison" aria-labelledby="earnings-comparison-title">
-      <div>
-        <h2 id="earnings-comparison-title" className="card-title">Earnings versus spending</h2>
-        <p>Recorded earnings {formatMoney(summary.earningsCents)}; personal spending {formatMoney(summary.totalSpendingCents)}; difference {formatMoney(summary.differenceCents)}.</p>
+      <div className="spending-card-heading">
+        <div><span className="card-kicker">Cash flow</span><h2 id="earnings-comparison-title" className="card-title">Earnings versus spending</h2></div>
+        <span className={`spending-difference-pill${summary.differenceCents < 0 ? " is-negative" : ""}`}>{formatMoney(summary.differenceCents)} difference</span>
       </div>
+      <p>{takeaway}{spendingPerDollar !== null ? ` ${formatMoney(Math.round(spendingPerDollar * 100))} of every ${formatMoney(100)} earned went to personal spending.` : ""}</p>
       <div className="comparison-bars" aria-hidden="true">
         <div><span>Earnings</span><div><i style={{ width: `${(summary.earningsCents / max) * 100}%` }} /></div><strong>{formatMoney(summary.earningsCents)}</strong></div>
         <div><span>Spending</span><div><i className="is-spending" style={{ width: `${(summary.totalSpendingCents / max) * 100}%` }} /></div><strong>{formatMoney(summary.totalSpendingCents)}</strong></div>
@@ -594,17 +706,19 @@ function ExpenseDialog({ categories, expense, onClose, onSaved }: {
     <Overlay>
       <div className="spending-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
         <div className="spending-dialog" role="dialog" aria-modal="true" aria-labelledby="expense-dialog-title" ref={dialogRef} tabIndex={-1}>
-          <div className="spending-dialog-header"><div><span className="card-kicker">Personal spending</span><h2 id="expense-dialog-title">{expense ? "Edit expense" : "Add expense"}</h2></div><button type="button" className="btn btn-icon btn-ghost" onClick={onClose} aria-label="Close expense form"><CloseIcon /></button></div>
-          <form onSubmit={submit} noValidate>
-            {error && <StatusBanner tone="danger">{error}</StatusBanner>}
-            <div className="field spending-amount-field"><label htmlFor="expense-amount">Amount</label><span>{CURRENCY}</span><input ref={amountRef} id="expense-amount" className="input" inputMode="decimal" autoComplete="off" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" aria-describedby="expense-amount-hint" required /><small id="expense-amount-hint">Enter the exact personal expense amount.</small></div>
-            <fieldset className="fieldset-plain spending-category-picker"><legend>Category</legend><div>{activeCategories.map((category) => <label className={categoryId === category.id ? "is-selected" : ""} key={category.id} style={{ ["--category-colour" as string]: category.colour }}><input type="radio" name="expense-category" value={category.id} checked={categoryId === category.id} onChange={() => setCategoryId(category.id)} /><CategoryGlyph icon={category.icon} size={18} /><span>{category.name}</span>{category.archived && <small>Archived</small>}</label>)}</div></fieldset>
-            <div className="spending-form-grid">
-              <div className="field"><label htmlFor="expense-date">Date and time</label><input id="expense-date" className="input" type="datetime-local" value={spentAt} max={localDateTimeValue()} onChange={(e) => setSpentAt(e.target.value)} required /></div>
-              <div className="field"><label htmlFor="expense-payment">Payment method <span>(optional)</span></label><select id="expense-payment" className="input" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod | "")}><option value="">Not specified</option><option value="card">Card</option><option value="cash">Cash</option><option value="bank_transfer">Bank transfer</option><option value="other">Other</option></select></div>
+          <div className="spending-dialog-header"><div><span className="card-kicker">Personal spending</span><h2 id="expense-dialog-title">{expense ? "Edit expense" : "Add expense"}</h2><p>{expense ? "Update the details below." : "Record it now. You can edit it any time."}</p></div><button type="button" className="btn btn-icon btn-ghost" onClick={onClose} aria-label="Close expense form"><CloseIcon /></button></div>
+          <form className="spending-dialog-form" onSubmit={submit} noValidate>
+            <div className="spending-dialog-body">
+              {error && <StatusBanner tone="danger">{error}</StatusBanner>}
+              <div className="field spending-amount-field"><label htmlFor="expense-amount">Amount</label><span>{CURRENCY}</span><input ref={amountRef} id="expense-amount" className="input" inputMode="decimal" autoComplete="off" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" aria-describedby="expense-amount-hint" required /><small id="expense-amount-hint">Enter the exact personal expense amount.</small></div>
+              <fieldset className="fieldset-plain spending-category-picker"><legend>Category</legend><div>{activeCategories.map((category) => <label className={categoryId === category.id ? "is-selected" : ""} key={category.id} style={{ ["--category-colour" as string]: category.colour }}><input type="radio" name="expense-category" value={category.id} checked={categoryId === category.id} onChange={() => setCategoryId(category.id)} /><CategoryGlyph icon={category.icon} size={18} /><span>{category.name}</span>{category.archived && <small>Archived</small>}</label>)}</div></fieldset>
+              <div className="spending-form-grid">
+                <div className="field"><label htmlFor="expense-date">Date and time</label><input id="expense-date" className="input" type="datetime-local" value={spentAt} max={localDateTimeValue()} onChange={(e) => setSpentAt(e.target.value)} required /></div>
+                <div className="field"><label htmlFor="expense-payment">Payment method <span>(optional)</span></label><select id="expense-payment" className="input" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod | "")}><option value="">Not specified</option><option value="card">Card</option><option value="cash">Cash</option><option value="bank_transfer">Bank transfer</option><option value="other">Other</option></select></div>
+              </div>
+              <div className="field"><label htmlFor="expense-merchant">Merchant or short title <span>(optional)</span></label><input id="expense-merchant" className="input" maxLength={100} value={merchant} onChange={(e) => setMerchant(e.target.value)} placeholder="e.g. Weekly groceries" /></div>
+              <div className="field"><label htmlFor="expense-note">Note <span>(optional)</span></label><textarea id="expense-note" className="input" maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Anything useful to remember" /></div>
             </div>
-            <div className="field"><label htmlFor="expense-merchant">Merchant or short title <span>(optional)</span></label><input id="expense-merchant" className="input" maxLength={100} value={merchant} onChange={(e) => setMerchant(e.target.value)} placeholder="e.g. Weekly groceries" /></div>
-            <div className="field"><label htmlFor="expense-note">Note <span>(optional)</span></label><textarea id="expense-note" className="input" maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Anything useful to remember" /></div>
             <div className="spending-dialog-actions"><button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button><button type="submit" className="btn btn-primary" disabled={busy}>{busy ? "Saving…" : expense ? "Save changes" : "Add expense"}</button></div>
           </form>
         </div>
@@ -651,9 +765,13 @@ function CategoryManager({ categories, onChanged }: { categories: SpendingCatego
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Couldn't update the category."); }
   }
 
+  const activeCount = categories.filter((category) => !category.archived).length;
+  const archivedCount = categories.length - activeCount;
+
   return (
     <section className="spending-categories" aria-labelledby="spending-categories-title">
       <div className="spending-section-heading"><div><h2 id="spending-categories-title">Spending categories</h2><p>Customise quick entry without losing labels on historical expenses.</p></div></div>
+      <div className="category-status-row" aria-label="Category status"><span><strong>{activeCount}</strong> active</span><span><strong>{archivedCount}</strong> archived</span></div>
       <div className="spending-category-layout">
         <form className="card elev-sm category-editor" onSubmit={submit}>
           <h3>{editing ? "Edit category" : "Create a custom category"}</h3>
@@ -663,7 +781,7 @@ function CategoryManager({ categories, onChanged }: { categories: SpendingCatego
           <fieldset className="fieldset-plain category-colour-options"><legend>Colour</legend><div>{SPENDING_COLOURS.map((item) => <label className={colour === item ? "is-selected" : ""} key={item} style={{ backgroundColor: item }}><input type="radio" name="category-colour" checked={colour === item} onChange={() => setColour(item)} /><span className="visually-hidden">Colour {item}</span></label>)}</div></fieldset>
           <div className="category-editor-actions">{editing && <button className="btn btn-secondary" type="button" onClick={reset}>Cancel</button>}<button className="btn btn-primary" type="submit" disabled={busy}>{busy ? "Saving…" : editing ? "Save changes" : "Create category"}</button></div>
         </form>
-        <div className="card elev-sm category-list-card"><h3>Your categories</h3><ul className="category-management-list">{categories.map((category) => <li key={category.id} className={category.archived ? "is-archived" : ""}><span className="expense-category-icon" style={{ color: category.colour }}><CategoryGlyph icon={category.icon} size={19} /></span><div><strong>{category.name}</strong><span>{category.isDefault ? "Default" : "Custom"}{category.archived ? " · Archived" : " · Active"}</span></div><button type="button" className="btn btn-icon btn-ghost" onClick={() => beginEdit(category)} aria-label={`Edit ${category.name}`}><EditIcon size={16} /></button>{category.archived ? <button type="button" className="btn btn-secondary category-state-btn" onClick={() => void setArchived(category, false)}>Restore</button> : <button type="button" className="btn btn-secondary category-state-btn" data-confirm={`Archive ${category.name}? It will remain on historical expenses.`} onClick={() => void setArchived(category, true)}>Archive</button>}</li>)}</ul></div>
+        <div className="card elev-sm category-list-card"><div className="category-list-heading"><h3>Your categories</h3><p>Archived categories stay attached to past expenses.</p></div><ul className="category-management-list">{categories.map((category) => <li key={category.id} className={category.archived ? "is-archived" : ""}><span className="expense-category-icon" style={{ color: category.colour }}><CategoryGlyph icon={category.icon} size={19} /></span><div><strong>{category.name}</strong><span>{category.isDefault ? "Default" : "Custom"}{category.archived ? " · Archived" : " · Active"}</span></div><button type="button" className="btn btn-icon btn-ghost" onClick={() => beginEdit(category)} aria-label={`Edit ${category.name}`}><EditIcon size={16} /></button>{category.archived ? <button type="button" className="btn btn-secondary category-state-btn" onClick={() => void setArchived(category, false)}>Restore</button> : <button type="button" className="btn btn-secondary category-state-btn" data-confirm={`Archive ${category.name}? It will remain on historical expenses.`} onClick={() => void setArchived(category, true)}>Archive</button>}</li>)}</ul></div>
       </div>
     </section>
   );
