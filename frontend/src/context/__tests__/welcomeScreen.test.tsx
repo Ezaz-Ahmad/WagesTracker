@@ -45,6 +45,20 @@ import * as api from "../../lib/api";
 import App from "../../App";
 
 const apiLogin = api.login as unknown as ReturnType<typeof vi.fn>;
+const originalMatchMedia = window.matchMedia;
+
+function setDesktopViewport(): void {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: query === "(min-width: 960px)",
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(() => true),
+  })) as unknown as typeof window.matchMedia;
+}
 
 const USER = {
   id: "u1",
@@ -67,9 +81,20 @@ beforeEach(() => {
   (api.getToken as unknown as ReturnType<typeof vi.fn>).mockReturnValue(null);
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  window.matchMedia = originalMatchMedia;
+});
 
 describe("welcome screen placement in the real login flow", () => {
+  it("renders the login form directly on desktop instead of a CSS-hidden welcome screen", async () => {
+    setDesktopViewport();
+    render(<App />);
+
+    expect(await screen.findByLabelText("Email")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Get started" })).toBeNull();
+  });
+
   it("shows before the login form on a cold, logged-out launch", async () => {
     render(<App />);
 

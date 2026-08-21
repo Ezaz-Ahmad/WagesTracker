@@ -8,10 +8,10 @@ interface WelcomeScreenProps {
 
 /**
  * A full-screen, mobile-only intro shown before every login — see App.tsx's
- * Root, which mounts this whenever `status === "loggedOut"` and resets its
- * own dismissed-state back to "shown" every time a fresh "loggedOut" is
- * entered, so this reappears after every logout too, not just the very
- * first time the app is ever opened.
+ * Root, which mounts this on narrow viewports whenever `status ===
+ * "loggedOut"` and resets its own dismissed-state back to "shown" every
+ * time a fresh "loggedOut" is entered, so this reappears after every logout
+ * too, not just the very first time the app is ever opened.
  *
  * Only actually visible on narrow viewports (hidden via the same
  * `min-width: 960px` breakpoint AuthScreen's own dark hero panel

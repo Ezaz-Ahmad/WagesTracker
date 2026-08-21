@@ -9,6 +9,8 @@ build/
 backend/data/
 .DS_Store
 *.tsbuildinfo
+test-results/
+playwright-report/
 
 # Apple signing and distribution material must never enter source control.
 *.p12

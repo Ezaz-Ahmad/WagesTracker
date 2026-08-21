@@ -63,3 +63,7 @@ jobs:
         run: npm run test -w frontend
       - name: Build
         run: npm run build -w frontend
+      - name: Install Chromium for production-bundle smoke test
+        run: npx playwright install --with-deps chromium
+      - name: Browser smoke test
+        run: npm run test:smoke -w frontend
