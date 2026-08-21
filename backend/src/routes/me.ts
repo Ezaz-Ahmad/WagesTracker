@@ -16,7 +16,8 @@ import {
   sessionBelongsToUser,
   SESSION_TTL_MS,
 } from "../security/sessions.js";
-import { toPublicSession, toPublicUser, type UserRow } from "../types.js";
+import { toPublicSession, toPublicUser, toPublicWeekExtra, type UserRow, type WeekExtraRow } from "../types.js";
+import { WEEK_DAYS, addIsoDays, startOfWeekISO, type WeekStart } from "../weekBoundary.js";
 
 export const meRouter = Router();
 meRouter.use(requireAuth);
@@ -138,7 +139,7 @@ const patchSchema = z.object({
   workAddress: z.string().trim().max(300).optional(),
   multipleLocations: z.boolean().optional(),
   otherLocations: z.string().trim().max(300).optional(),
-  weekStartsOn: z.enum(["Monday", "Sunday"]).optional(),
+  weekStartsOn: z.enum(WEEK_DAYS).optional(),
   rate: z.number().min(0).max(1000).optional(),
   goalHours: z.number().min(0).max(200).optional(),
   goalEarnings: z.number().min(0).max(100000).optional(),
@@ -182,10 +183,91 @@ meRouter.patch(
       params[key] = value;
     }
 
-    await db.execute({ sql: `UPDATE users SET ${setClauses.join(", ")} WHERE id = @id`, args: params });
-    const result = await db.execute({ sql: "SELECT * FROM users WHERE id = ?", args: [req.userId!] });
-    const row = result.rows[0] as unknown as UserRow;
-    res.json({ user: toPublicUser(row) });
+    // A week-start change and every weekly-extra reassociation are one write
+    // transaction. The raw dated shifts/expenses/spending rows are never
+    // touched. Only each extra's derived lookup key changes; its stable
+    // effective_date, amount, reason, and audit timestamps remain intact.
+    const transaction = await db.transaction("write");
+    let row: UserRow;
+    let reassociatedExtras: ReturnType<typeof toPublicWeekExtra>[] | undefined;
+    try {
+      const currentResult = await transaction.execute({
+        sql: "SELECT week_starts_on FROM users WHERE id = ?",
+        args: [req.userId!],
+      });
+      const current = currentResult.rows[0] as unknown as { week_starts_on: WeekStart } | undefined;
+      if (!current) {
+        await transaction.rollback();
+        res.status(404).json({ error: "User not found" });
+        return;
+      }
+
+      const nextWeekStart = updates.weekStartsOn;
+      if (nextWeekStart && nextWeekStart !== current.week_starts_on) {
+        const extrasResult = await transaction.execute({
+          sql: "SELECT id, week_start, effective_date FROM week_extras WHERE user_id = ? ORDER BY week_start",
+          args: [req.userId!],
+        });
+        const reassociations: Array<{ id: string; effectiveDate: string; weekStart: string }> = [];
+        const targetDates = new Set<string>();
+
+        try {
+          for (const raw of extrasResult.rows) {
+            const extra = raw as unknown as { id: string; week_start: string; effective_date: string | null };
+            const effectiveDate = extra.effective_date || addIsoDays(extra.week_start, 6);
+            const weekStart = startOfWeekISO(effectiveDate, nextWeekStart);
+            if (targetDates.has(weekStart)) {
+              await transaction.rollback();
+              res.status(409).json({
+                error: "Two saved weekly extras would overlap under that week start. No settings or records were changed.",
+              });
+              return;
+            }
+            targetDates.add(weekStart);
+            reassociations.push({ id: extra.id, effectiveDate, weekStart });
+          }
+        } catch (error) {
+          if (!(error instanceof RangeError)) throw error;
+          await transaction.rollback();
+          res.status(409).json({
+            error: "A saved weekly extra has an invalid historical date. No settings or records were changed.",
+          });
+          return;
+        }
+
+        if (reassociations.length > 0) {
+          // Move keys out of the date namespace first. This prevents a
+          // temporary UNIQUE(user_id, week_start) collision even if an old
+          // client once saved a non-aligned date. Nothing outside this
+          // transaction can observe the temporary values.
+          await transaction.execute({
+            sql: "UPDATE week_extras SET week_start = '__reassociate__' || id WHERE user_id = ?",
+            args: [req.userId!],
+          });
+          await transaction.batch(
+            reassociations.map((extra) => ({
+              sql: "UPDATE week_extras SET week_start = ?, effective_date = ? WHERE id = ? AND user_id = ?",
+              args: [extra.weekStart, extra.effectiveDate, extra.id, req.userId!],
+            }))
+          );
+        }
+      }
+
+      await transaction.execute({ sql: `UPDATE users SET ${setClauses.join(", ")} WHERE id = @id`, args: params });
+      const result = await transaction.execute({ sql: "SELECT * FROM users WHERE id = ?", args: [req.userId!] });
+      row = result.rows[0] as unknown as UserRow;
+      if (nextWeekStart && nextWeekStart !== current.week_starts_on) {
+        const extras = await transaction.execute({
+          sql: "SELECT * FROM week_extras WHERE user_id = ? ORDER BY week_start",
+          args: [req.userId!],
+        });
+        reassociatedExtras = (extras.rows as unknown as WeekExtraRow[]).map(toPublicWeekExtra);
+      }
+      await transaction.commit();
+    } finally {
+      transaction.close();
+    }
+    res.json({ user: toPublicUser(row), ...(reassociatedExtras ? { extras: reassociatedExtras } : {}) });
   })
 );
 

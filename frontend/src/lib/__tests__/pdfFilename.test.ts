@@ -26,6 +26,12 @@ describe("weeklyPdfFilename", () => {
     expect(weeklyPdfFilename("Sam Lee", "2026-01-04", "2026-01-10")).toBe("Sam Lee-2026-01-04-to-2026-01-10.pdf");
   });
 
+  it("preserves a completed Tuesday–Monday range resolved by History", () => {
+    expect(weeklyPdfFilename("Sam Lee", "2026-08-18", "2026-08-24")).toBe(
+      "Sam Lee-2026-08-18-to-2026-08-24.pdf"
+    );
+  });
+
   it("sorts chronologically in a file manager", () => {
     // The real reason for ISO dates over the old prose range
     // ("aug-3-aug-9-2026"), which sorts alphabetically by month name.

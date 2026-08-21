@@ -102,6 +102,22 @@ describe("Settings hub — category navigation", () => {
 
     expect((screen.getByLabelText("Your name") as HTMLInputElement).value).toBe("Changed Name");
   });
+
+  it("offers all seven week starts and explains the selected cycle dynamically", async () => {
+    const user = userEvent.setup();
+    render(<SettingsScreen />);
+
+    const select = screen.getByLabelText("Week starts on") as HTMLSelectElement;
+    expect(Array.from(select.options).map((option) => option.value)).toEqual([
+      "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+    ]);
+    expect(screen.getByText(/weekly cycle across earnings, goals, history, reports and spending/i)).toBeTruthy();
+
+    await user.selectOptions(select, "Tuesday");
+    expect(screen.getByText("Your week runs Tuesday to Monday.")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() => expect(updateSettingsImpl).toHaveBeenCalledWith(expect.objectContaining({ weekStartsOn: "Tuesday" })));
+  });
 });
 
 describe("Settings hub — save-result contract", () => {

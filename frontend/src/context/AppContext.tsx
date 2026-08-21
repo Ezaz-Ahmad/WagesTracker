@@ -833,7 +833,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateSettings = useCallback(
     async (patch: api.MePatch): Promise<void> => {
       try {
-        const { user } = await api.patchMe(patch);
+        const { user, extras } = await api.patchMe(patch);
+        // A boundary change transactionally re-keys weekly extras on the
+        // backend. Apply that returned snapshot in the same render as the
+        // new profile so no screen briefly combines the new cycle with stale
+        // old week-start keys while the background reload follows.
+        if (extras) setWeekExtras(extras);
         setUser(user);
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) {

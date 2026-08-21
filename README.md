@@ -22,7 +22,9 @@ Backend is hosted on **Render**, frontend on **Vercel**, database on **Turso**. 
 
 #### Shared earnings and historical periods
 
-Spending does not create an income table or a second wage record. Its summary reads the same authenticated `shifts`, `day_expenses`, `week_extras` and current pay rate used by Home, History, Report and newly generated wage PDFs. Completed-shift duration, fuel reimbursement and weekly-extra rules match the established canonical calculation, including the user's Monday/Sunday week boundary. Editing a historical shift, work expense, weekly extra or pay rate changes the next Spending summary automatically; editing personal spending never mutates wages.
+Spending does not create an income table or a second wage record. Its summary reads the same authenticated `shifts`, `day_expenses`, `week_extras` and current pay rate used by Home, History, Report and newly generated wage PDFs. Completed-shift duration, fuel reimbursement and weekly-extra rules match the established canonical calculation, including the user's configurable week boundary (any day from Monday through Sunday). Editing a historical shift, work expense, weekly extra or pay rate changes the next Spending summary automatically; editing personal spending never mutates wages.
+
+Changing that boundary never rewrites dated shifts, fuel expenses or personal spending. Weekly extras keep a stable `effective_date` equal to their original cycle's closing date; the backend transactionally re-keys only their derived `week_start`, so repeated preference changes preserve the same row, amount and reason without drift or orphaning.
 
 Dates are stored and filtered as the plain local calendar day the user confirmed, accompanied by the validated `X-Client-Time-Zone` IANA zone, so a UTC conversion cannot move a late-night expense into another day. Amounts are integer cents from API boundary through persistence and aggregation.
 

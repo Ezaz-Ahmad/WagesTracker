@@ -78,6 +78,30 @@ describe("buildWeekReportData", () => {
     expect(report.days).toHaveLength(7);
   });
 
+  it("uses the exact Tuesday–Monday range for current and completed-week PDF data", () => {
+    const user = makeUser({ weekStartsOn: "Tuesday" });
+    const today = new Date(2026, 7, 26); // Wednesday in the Aug 25–31 cycle
+    const current = buildWeekReportData(user, [], today, CURRENCY, [], []);
+    const completed = buildWeekReportData(user, [], today, CURRENCY, [], [], {
+      weekAnchor: new Date(2026, 7, 18),
+    });
+
+    expect(current).toMatchObject({
+      weekStartISO: "2026-08-25",
+      weekEndISO: "2026-08-31",
+      weekRangeLabel: "Aug 25 – Aug 31, 2026",
+    });
+    expect(completed).toMatchObject({
+      weekStartISO: "2026-08-18",
+      weekEndISO: "2026-08-24",
+      weekRangeLabel: "Aug 18 – Aug 24, 2026",
+    });
+    expect(completed.days.map((day) => day.dateISO)).toEqual([
+      "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21",
+      "2026-08-22", "2026-08-23", "2026-08-24",
+    ]);
+  });
+
   it("never carries a token, password hash, or admin-only data — only the public report shape", () => {
     const user = makeUser();
     const today = new Date(2026, 0, 5);

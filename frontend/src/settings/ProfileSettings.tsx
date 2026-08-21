@@ -3,6 +3,7 @@ import { useApp } from "../context/AppContext";
 import { useDirtyForm } from "../lib/useDirtyForm";
 import type { WeekStart } from "../lib/types";
 import { SettingsSaveBar } from "./SettingsSaveBar";
+import { WEEK_DAYS, weekEndDay } from "../lib/weekBoundary.mjs";
 
 interface ProfileDraft {
   name: string;
@@ -68,29 +69,24 @@ export function ProfileSettings() {
         />
         <div className="field-hint">Shown on your PDF reports, under your name — not the work location below.</div>
       </div>
-      <fieldset className="fieldset-plain field field-spaced">
-        <legend>Week starts on</legend>
-        <div className="seg">
-          <label className="seg-opt">
-            <input
-              type="radio"
-              name="weekstart"
-              checked={values.weekStartsOn === "Monday"}
-              onChange={() => update({ weekStartsOn: "Monday" })}
-            />
-            Monday
-          </label>
-          <label className="seg-opt">
-            <input
-              type="radio"
-              name="weekstart"
-              checked={values.weekStartsOn === "Sunday"}
-              onChange={() => update({ weekStartsOn: "Sunday" })}
-            />
-            Sunday
-          </label>
+      <div className="field field-spaced">
+        <label htmlFor="settings-week-start">Week starts on</label>
+        <select
+          id="settings-week-start"
+          className="input"
+          value={values.weekStartsOn}
+          onChange={(event) => update({ weekStartsOn: event.target.value as WeekStart })}
+          aria-describedby="settings-week-start-hint settings-week-range-hint"
+        >
+          {WEEK_DAYS.map((day) => <option key={day} value={day}>{day}</option>)}
+        </select>
+        <div id="settings-week-start-hint" className="field-hint">
+          This determines your weekly cycle across earnings, goals, history, reports and spending.
         </div>
-      </fieldset>
+        <div id="settings-week-range-hint" className="field-hint">
+          Your week runs {values.weekStartsOn} to {weekEndDay(values.weekStartsOn)}.
+        </div>
+      </div>
 
       <SettingsSaveBar saving={saving} dirty={dirty} success={success} error={error} onSave={handleSave} />
     </div>
