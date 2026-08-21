@@ -18,6 +18,7 @@ import { SettingsScreen } from "./screens/SettingsScreen";
 import { SpendingScreen } from "./screens/SpendingScreen";
 import { useSwipeNav } from "./lib/useSwipeNav";
 import { usePullToRefresh } from "./lib/usePullToRefresh";
+import { useMatchMedia } from "./lib/useMatchMedia";
 import { useViewportHeight } from "./lib/useViewportHeight";
 import { ViewportDebugOverlay } from "./components/ViewportDebugOverlay";
 import { reloadIfNewVersionDeployed } from "./lib/checkForUpdate";
@@ -200,6 +201,7 @@ function AuthedApp() {
 
 function Root() {
   const { status, authBusy, biometricPromptActive } = useApp();
+  const isDesktop = useMatchMedia("(min-width: 960px)");
 
   // Shown once per "loggedOut" stretch, on top of AuthScreen — see
   // WelcomeScreen's own doc comment. Reset back to "not yet dismissed"
@@ -245,7 +247,13 @@ function Root() {
   // Still within the 500ms grace window of the initial session check —
   // previously blank here too, so no visible change on the fast path.
   if (status === "loading") return null;
-  if (status === "loggedOut" && !welcomeDismissed) {
+  // WelcomeScreen is deliberately hidden by CSS from 960px upward because
+  // AuthScreen already includes the same marketing panel beside its form on
+  // desktop. Keep the render gate aligned with that breakpoint: rendering a
+  // CSS-hidden WelcomeScreen *instead of* AuthScreen leaves a successfully
+  // mounted React tree with no visible UI — the production white-screen
+  // failure this condition prevents.
+  if (status === "loggedOut" && !welcomeDismissed && !isDesktop) {
     return <WelcomeScreen onContinue={() => setWelcomeDismissed(true)} />;
   }
   return status === "loggedIn" ? <AuthedApp /> : <AuthScreen />;

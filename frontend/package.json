@@ -10,6 +10,7 @@
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:smoke": "npm run build && playwright test",
     "ios:build:web": "cross-env VITE_APP_TARGET=ios VITE_API_URL=https://wage-tracker-api.onrender.com npm run build",
     "ios:copy:web": "npm run ios:build:web && cap copy ios",
     "ios:sync": "npm run ios:build:web && cap sync ios && node scripts/normalize-capacitor-spm-path.mjs",
@@ -35,6 +36,7 @@
   "devDependencies": {
     "@capacitor/assets": "3.0.5",
     "@capacitor/cli": "8.4.2",
+    "@playwright/test": "^1.62.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.3",
     "@types/jest-axe": "^3.5.9",
