@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CURRENCY, useApp } from "../context/AppContext";
 import {
   buildWeekDaysComputed,
@@ -17,7 +17,7 @@ import { useCountUp } from "../lib/useCountUp";
 import { useLiveElapsedHours } from "../lib/useLiveElapsedHours";
 import { ElapsedTimer, ShiftButton } from "../components/ShiftButton";
 import { GoalRing } from "../components/GoalRing";
-import { FlameIcon, PlusIcon, SpendingIcon, TrophyIcon } from "../components/icons";
+import { FlameIcon, SpendingIcon, TrophyIcon } from "../components/icons";
 import { Skeleton } from "../components/Skeleton";
 import { Amount } from "../components/Amount";
 import { EarningsHiddenHint } from "../components/EarningsHiddenHint";
@@ -25,11 +25,41 @@ import { ChartDataTable } from "../components/ChartDataTable";
 import * as api from "../lib/api";
 import type { Screen, SpendingSummary } from "../lib/types";
 
+function homeSnapshotCategories(summary: SpendingSummary) {
+  if (summary.categories.length <= 4) return summary.categories;
+  const leading = summary.categories.slice(0, 3);
+  const remaining = summary.categories.slice(3);
+  return [
+    ...leading,
+    {
+      id: "home-other-categories",
+      name: "Other categories",
+      icon: "other" as const,
+      colour: "#475569" as const,
+      totalCents: remaining.reduce((total, category) => total + category.totalCents, 0),
+      transactionCount: remaining.reduce((total, category) => total + category.transactionCount, 0),
+    },
+  ];
+}
+
+function donutBackground(summary: SpendingSummary): string | undefined {
+  if (summary.totalSpendingCents <= 0) return undefined;
+  let progress = 0;
+  const stops = homeSnapshotCategories(summary).map((category) => {
+    const start = progress;
+    progress += (category.totalCents / summary.totalSpendingCents) * 100;
+    return `${category.colour} ${start}% ${progress}%`;
+  });
+  return `conic-gradient(${stops.join(",")})`;
+}
+
 export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => void } = {}) {
   const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras, earningsHidden } = useApp();
   const { active, last, start, end } = useTodayShift();
   const [busy, setBusy] = useState(false);
   const [spendingSnapshot, setSpendingSnapshot] = useState<SpendingSummary | null>(null);
+  const [spendingSnapshotLoading, setSpendingSnapshotLoading] = useState(true);
+  const spendingRequestRef = useRef(0);
 
   // Every hook below must run on every render regardless of loading state —
   // React requires the same hooks in the same order every time, so the
@@ -43,7 +73,8 @@ export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => vo
 
   const weekDays = buildWeekDays(today, weekStartsOn);
   const weekStartISO = isoDate(weekDays[0]);
-  const weekEndISO = isoDate(weekDays[6]);
+  const monthStartISO = isoDate(new Date(today.getFullYear(), today.getMonth(), 1));
+  const monthEndISO = isoDate(new Date(today.getFullYear(), today.getMonth() + 1, 0));
   const shiftsByDate = groupByDate(shifts);
   const expensesByDate = groupExpensesByDate(dayExpenses);
   const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, CURRENCY, rate, expensesByDate);
@@ -143,17 +174,22 @@ export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => vo
   const maxGlanceHours = Math.max(...glanceDays.map((d) => d.displayHours), 1);
 
   useEffect(() => {
-    let cancelled = false;
+    const requestId = ++spendingRequestRef.current;
     // Some isolated Home tests intentionally replace the older API surface
     // with a minimal mock. In the real application this function is always
     // present; the guard keeps those focused legacy fixtures from needing to
     // know about an optional snapshot they do not exercise.
-    if (typeof api.getSpendingSummary !== "function") return () => { cancelled = true; };
-    void api.getSpendingSummary(weekStartISO, weekEndISO)
-      .then((result) => { if (!cancelled) setSpendingSnapshot(result); })
-      .catch(() => { /* Snapshot is optional; the full Spending screen owns retry UI. */ });
-    return () => { cancelled = true; };
-  }, [weekStartISO, weekEndISO, shifts, dayExpenses, weekExtras, rate]);
+    if (typeof api.getSpendingSummary !== "function") return;
+    setSpendingSnapshotLoading(true);
+    void api.getSpendingSummary(monthStartISO, monthEndISO)
+      .then((result) => {
+        if (requestId === spendingRequestRef.current) setSpendingSnapshot(result);
+      })
+      .catch(() => { /* Snapshot is optional; the full Spending screen owns retry UI. */ })
+      .finally(() => {
+        if (requestId === spendingRequestRef.current) setSpendingSnapshotLoading(false);
+      });
+  }, [monthStartISO, monthEndISO, shifts, dayExpenses, weekExtras, rate]);
 
   if (!user) return null;
   // Wait for the first shifts fetch before showing any totals — otherwise this
@@ -196,6 +232,8 @@ export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => vo
           </>
         )
       : "Tap to start your shift.";
+  const spendingMonthLabel = today.toLocaleDateString("en-AU", { month: "long" });
+  const snapshotCategories = spendingSnapshot ? homeSnapshotCategories(spendingSnapshot) : [];
 
   return (
     <div className="screen-wide">
@@ -260,18 +298,32 @@ export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => vo
         </div>
       </div>
 
-      <section className="card elev-sm home-spending-snapshot anim-rise" aria-labelledby="home-spending-title" style={{ ["--i" as string]: 2 }}>
+      <section className="card elev-sm home-spending-snapshot anim-rise" aria-labelledby="home-spending-title" aria-busy={spendingSnapshotLoading || undefined} style={{ ["--i" as string]: 2 }}>
         <div className="home-spending-heading">
-          <div className="home-spending-title-row"><SpendingIcon size={18} /><h2 id="home-spending-title" className="card-title">Personal spending</h2></div>
-          <button type="button" className="btn btn-primary home-spending-add" onClick={() => onNavigate?.("spending")}><PlusIcon size={16} /> Add expense</button>
+          <div className="home-spending-title-row"><SpendingIcon size={18} /><div><span className="card-kicker">Monthly snapshot</span><h2 id="home-spending-title" className="card-title">Personal spending — {spendingMonthLabel}</h2></div></div>
+          {spendingSnapshotLoading && spendingSnapshot && <span className="home-spending-updating">Updating…</span>}
         </div>
         {spendingSnapshot ? (
-          <div className="home-spending-values">
-            <div><span>Spent this week</span><strong>{CURRENCY}{fmt2(spendingSnapshot.totalSpendingCents / 100)}</strong></div>
-            <div><span>Recorded difference</span><strong>{spendingSnapshot.differenceCents < 0 ? "−" : ""}{CURRENCY}{fmt2(Math.abs(spendingSnapshot.differenceCents) / 100)}</strong></div>
-            <button type="button" className="btn btn-ghost" onClick={() => onNavigate?.("spending")}>View spending</button>
+          <div className="home-spending-content">
+            <p className="visually-hidden">Personal spending for {spendingMonthLabel}: {CURRENCY}{fmt2(spendingSnapshot.totalSpendingCents / 100)}. {snapshotCategories.map((category) => `${category.name} ${((category.totalCents / Math.max(1, spendingSnapshot.totalSpendingCents)) * 100).toFixed(1)} percent`).join(", ")}.</p>
+            <div className="home-spending-chart-row">
+              <div className="home-spending-donut" aria-hidden="true" style={{ background: donutBackground(spendingSnapshot) }}>
+                <strong>{CURRENCY}{Math.round(spendingSnapshot.totalSpendingCents / 100).toLocaleString("en-AU")}</strong><span>spent</span>
+              </div>
+              <ul className="home-spending-legend" aria-label={`${spendingMonthLabel} spending by category`}>
+                {snapshotCategories.length ? snapshotCategories.map((category) => (
+                  <li key={category.id}><span style={{ backgroundColor: category.colour }} aria-hidden="true" /><span>{category.name}</span><strong>{((category.totalCents / spendingSnapshot.totalSpendingCents) * 100).toFixed(0)}%</strong></li>
+                )) : <li className="home-spending-empty">No expenses recorded this month.</li>}
+              </ul>
+            </div>
+            <div className="home-spending-values">
+              <div><span>Recorded earnings</span><strong><Amount>{CURRENCY}{fmt2(spendingSnapshot.earningsCents / 100)}</Amount></strong></div>
+              <div><span>Monthly spending</span><strong>{CURRENCY}{fmt2(spendingSnapshot.totalSpendingCents / 100)}</strong></div>
+              <div><span>{spendingSnapshot.differenceCents < 0 ? "Over earnings" : "Remaining"}</span><strong><Amount>{spendingSnapshot.differenceCents < 0 ? "−" : ""}{CURRENCY}{fmt2(Math.abs(spendingSnapshot.differenceCents) / 100)}</Amount></strong></div>
+            </div>
+            <button type="button" className="btn btn-secondary home-spending-cta" onClick={() => onNavigate?.("spending")}>View full spending dashboard <span aria-hidden="true">→</span></button>
           </div>
-        ) : <div className="card-meta">Open Spending to record and review personal expenses.</div>}
+        ) : spendingSnapshotLoading ? <div className="home-spending-loading"><span className="spinner" /> Loading this month's spending…</div> : <div className="card-meta">Open Spending to record and review personal expenses.</div>}
       </section>
 
       <h2 className="section-title home-glance-title">Week at a glance</h2>

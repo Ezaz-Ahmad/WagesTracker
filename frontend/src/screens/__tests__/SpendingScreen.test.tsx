@@ -67,7 +67,7 @@ const expense: PersonalExpense = {
 };
 
 const summary: SpendingSummary = {
-  period: { from: "2026-08-17", to: "2026-08-23", previousFrom: "2026-08-10", previousTo: "2026-08-16", days: 7 },
+  period: { from: "2026-08-01", to: "2026-08-31", previousFrom: "2026-07-01", previousTo: "2026-07-31", days: 31 },
   earningsCents: 100_000,
   earningsRecorded: true,
   totalSpendingCents: 25_500,
@@ -106,16 +106,21 @@ describe("SpendingScreen", () => {
     expect(screen.getAllByText("$255.00").length).toBeGreaterThan(0);
     expect(screen.getAllByText("$745.00").length).toBeGreaterThan(0);
     expect(screen.getByText("25.5%")).toBeTruthy();
-    expect(screen.getByText(/Most of your recorded spending this week was Groceries/i)).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Category breakdown" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Spending trend" })).toBeTruthy();
+    expect(screen.getByText(/Groceries is your largest spending category this month/i)).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Where your money went" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Spending over time" })).toBeTruthy();
     expect(screen.getByText("Fresh Market")).toBeTruthy();
   });
 
-  it("switches periods using the same Monday week range and supports a custom range", async () => {
+  it("opens on the whole current month, preserves a session choice, and supports a custom range", async () => {
     const user = userEvent.setup();
     renderScreen();
+    await waitFor(() => expect(mocks.getSummary).toHaveBeenCalledWith("2026-08-01", "2026-08-31"));
+    expect((screen.getByLabelText("This month") as HTMLInputElement).checked).toBe(true);
+    await user.click(screen.getByLabelText("This week"));
     await waitFor(() => expect(mocks.getSummary).toHaveBeenCalledWith("2026-08-17", "2026-08-23"));
+    await user.click(screen.getByRole("tab", { name: "History" }));
+    expect((screen.getByLabelText("This week") as HTMLInputElement).checked).toBe(true);
     await user.click(screen.getByLabelText("Today"));
     await waitFor(() => expect(mocks.getSummary).toHaveBeenCalledWith("2026-08-20", "2026-08-20"));
     await user.click(screen.getByLabelText("Custom range"));
@@ -132,6 +137,8 @@ describe("SpendingScreen", () => {
     await user.click(screen.getByRole("button", { name: "Add expense" }));
     const dialog = screen.getByRole("dialog", { name: "Add expense" });
     expect(dialog).toBeTruthy();
+    expect(dialog.querySelector(".spending-dialog-body")).toBeTruthy();
+    expect(dialog.querySelector(".spending-dialog-actions")).toBeTruthy();
     expect(within(dialog).getByLabelText("Groceries")).toBeTruthy();
     expect(within(dialog).queryByLabelText(/Old category/)).toBeNull();
     await user.type(screen.getByLabelText("Amount"), "0");
@@ -173,7 +180,7 @@ describe("SpendingScreen", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  it("edits and confirms deletion of an expense, refreshing every aggregate", async () => {
+  it("edits and confirms deletion while refreshing visible aggregates without a hidden History request", async () => {
     const user = userEvent.setup();
     renderScreen();
     await screen.findByText("Fresh Market");
@@ -188,7 +195,7 @@ describe("SpendingScreen", () => {
     await user.click(screen.getByRole("button", { name: "Yes, continue" }));
     await waitFor(() => expect(mocks.deleteExpense).toHaveBeenCalledWith("expense-1"));
     expect(mocks.getSummary.mock.calls.length).toBeGreaterThan(1);
-    expect(mocks.listExpenses.mock.calls.length).toBeGreaterThan(1);
+    expect(mocks.listExpenses).not.toHaveBeenCalled();
   });
 
   it("filters complete history by category and merchant search", async () => {
@@ -224,7 +231,7 @@ describe("SpendingScreen", () => {
     expect(await screen.findByText(/Summary unavailable/)).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Retry" }));
     expect((await screen.findAllByText("$1000.00")).length).toBeGreaterThan(0);
-    expect((screen.getByLabelText("This week") as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByLabelText("This month") as HTMLInputElement).checked).toBe(true);
   });
 
   it("has no detectable accessibility violations in the loaded dashboard", async () => {
