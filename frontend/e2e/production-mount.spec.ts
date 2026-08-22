@@ -31,7 +31,9 @@ async function captureRuntimeErrors(page: Page): Promise<string[]> {
   return errors;
 }
 
-async function mockAuthenticatedApi(page: Page): Promise<void> {
+async function mockAuthenticatedApi(page: Page, options: { summaryDelayMs?: number } = {}) {
+  let summaryRequests = 0;
+  let categoryRequests = 0;
   await page.addInitScript(() => {
     localStorage.setItem("wageTracker.token", "production-smoke-token");
     localStorage.setItem("wageTracker.lastActivity", String(Date.now()));
@@ -45,10 +47,15 @@ async function mockAuthenticatedApi(page: Page): Promise<void> {
     else if (pathname === "/api/shifts") body = { shifts: [] };
     else if (pathname === "/api/day-expenses") body = { expenses: [] };
     else if (pathname === "/api/week-extras") body = { extras: [] };
-    else if (pathname === "/api/spending/categories") body = { categories: [] };
+    else if (pathname === "/api/spending/categories") {
+      categoryRequests += 1;
+      body = { categories: [] };
+    }
     else if (pathname === "/api/spending/expenses") {
       body = { expenses: [], page: 1, pageSize: 20, total: 0, hasMore: false };
     } else if (pathname === "/api/spending/summary") {
+      summaryRequests += 1;
+      if (options.summaryDelayMs) await new Promise((resolve) => setTimeout(resolve, options.summaryDelayMs));
       body = {
         period: {
           from: "2026-08-01",
@@ -75,6 +82,11 @@ async function mockAuthenticatedApi(page: Page): Promise<void> {
 
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
   });
+
+  return {
+    summaryRequests: () => summaryRequests,
+    categoryRequests: () => categoryRequests,
+  };
 }
 
 test("desktop cold logged-out bundle mounts a visible login screen", async ({ page }) => {
@@ -103,15 +115,34 @@ test("mobile cold logged-out bundle shows the welcome flow and reaches login", a
 
 test("existing authenticated session mounts Home and Spending from the production bundle", async ({ page }) => {
   const errors = await captureRuntimeErrors(page);
-  await mockAuthenticatedApi(page);
+  const requests = await mockAuthenticatedApi(page, { summaryDelayMs: 250 });
 
   await page.goto("/");
 
   await expect(page.getByRole("heading", { name: "This week" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Main" })).toBeVisible();
+  await expect(page.getByLabel("Loading this month's spending")).toBeVisible();
+  await expect(page.getByText("Loading this month's spending…")).toHaveCount(0);
+  await expect(page.locator(".home-spending-donut")).toBeVisible();
+  expect(requests.summaryRequests()).toBe(1);
 
   await page.getByRole("button", { name: "Spending", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Spending", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "This month at a glance" })).toBeVisible();
+  await expect(page.locator(".spending-dashboard-skeleton")).toHaveCount(0);
+  expect(requests.summaryRequests()).toBe(1);
+  expect(requests.categoryRequests()).toBe(1);
+
+  const mainNav = page.getByRole("navigation", { name: "Main" });
+  await mainNav.getByRole("button", { name: "History", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "History", exact: true })).toBeVisible();
+  await mainNav.getByRole("button", { name: "Home", exact: true }).click();
+  await expect(page.locator(".home-spending-donut")).toBeVisible();
+  await expect(page.locator(".home-spending-skeleton")).toHaveCount(0);
+  await mainNav.getByRole("button", { name: "Spending", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "This month at a glance" })).toBeVisible();
+  await expect(page.locator(".spending-dashboard-skeleton")).toHaveCount(0);
+  expect(requests.summaryRequests()).toBe(1);
+  expect(requests.categoryRequests()).toBe(1);
   expect(errors).toEqual([]);
 });

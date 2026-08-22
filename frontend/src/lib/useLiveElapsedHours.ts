@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useLiveNow } from "./liveClock";
 
 /**
  * The actual math behind `useLiveElapsedHours`, pulled out as a plain
@@ -33,14 +33,7 @@ export function computeElapsedHours(signInHHMM: string, now: Date = new Date()):
  * of jumping only once the shift is signed out and persisted.
  */
 export function useLiveElapsedHours(active: boolean, signInHHMM: string | null): number {
-  const [, tick] = useState(0);
-
-  useEffect(() => {
-    if (!active) return;
-    const id = setInterval(() => tick((n) => n + 1), 1000);
-    return () => clearInterval(id);
-  }, [active]);
-
+  const nowMs = useLiveNow(active && !!signInHHMM);
   if (!active || !signInHHMM) return 0;
-  return computeElapsedHours(signInHHMM);
+  return computeElapsedHours(signInHHMM, new Date(nowMs));
 }

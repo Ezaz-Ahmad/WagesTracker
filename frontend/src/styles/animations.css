@@ -98,7 +98,7 @@
 
 /* — screen transitions — */
 @keyframes screen-in {
-  from { opacity: 0; transform: translateY(12px); }
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
 .screen-transition { animation: screen-in var(--dur-slow) var(--ease-out) both; }
@@ -108,11 +108,11 @@
    from the side you're conceptually moving toward, matching the live-drag
    preview during an actual swipe instead of just fading/rising in place. */
 @keyframes screen-in-fwd {
-  from { opacity: 0; transform: translateX(26px); }
+  from { opacity: 0; transform: translateX(10px); }
   to { opacity: 1; transform: translateX(0); }
 }
 @keyframes screen-in-back {
-  from { opacity: 0; transform: translateX(-26px); }
+  from { opacity: 0; transform: translateX(-10px); }
   to { opacity: 1; transform: translateX(0); }
 }
 .screen-transition.dir-fwd { animation: screen-in-fwd var(--dur-slow) var(--ease-out) both; }

@@ -78,7 +78,7 @@ export function ReportScreen() {
   if (!user) return null;
   if (!shiftsLoaded) {
     return (
-      <div className="screen-wide screen-transition">
+      <div className="screen-wide">
         <h1 className="section-title">Progress report</h1>
         <Skeleton className="skeleton-card" style={{ height: 76 }} />
         <Skeleton className="skeleton-chart" />

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AppProvider, useApp } from "./context/AppContext";
 import { BottomNav, TABS } from "./components/BottomNav";
 import { ConfirmProvider } from "./components/ConfirmProvider";
@@ -22,6 +22,7 @@ import { useMatchMedia } from "./lib/useMatchMedia";
 import { useViewportHeight } from "./lib/useViewportHeight";
 import { ViewportDebugOverlay } from "./components/ViewportDebugOverlay";
 import { reloadIfNewVersionDeployed } from "./lib/checkForUpdate";
+import { useStableScreenTransition } from "./lib/useStableScreenTransition";
 import type { Screen } from "./lib/types";
 
 // Build-time constant. Vite inlines `import.meta.env.VITE_VIEWPORT_DEBUG`, so
@@ -71,12 +72,7 @@ function AuthedApp() {
   // land here) — drives a directional slide on mount instead of a plain
   // fade, so tapping a tab feels like the same physical motion as swiping to
   // it, not two different transitions depending on how you got there.
-  const prevIndexRef = useRef(activeIndex);
-  const direction = activeIndex === prevIndexRef.current ? 0 : activeIndex > prevIndexRef.current ? 1 : -1;
-  useEffect(() => {
-    prevIndexRef.current = activeIndex;
-  }, [activeIndex]);
-  const screenTransitionClass = `screen-transition${direction === 1 ? " dir-fwd" : direction === -1 ? " dir-back" : ""}`;
+  const screenTransitionClass = useStableScreenTransition(screen);
 
   // Purely cosmetic: the shell fades in rather than snapping in. This used
   // to double as the (unsuccessful) fix for the post-login bottom-nav gap —

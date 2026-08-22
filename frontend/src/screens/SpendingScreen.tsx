@@ -13,6 +13,12 @@ import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
 import { addDays, isoDate, parseIsoDate, shortLabel, startOfWeek } from "../lib/date";
 import { useFocusTrap } from "../lib/useFocusTrap";
+import {
+  invalidateSpendingCategories,
+  invalidateSpendingSummaries,
+  useSpendingCategories,
+  useSpendingSummary,
+} from "../lib/spendingDataCache";
 import type {
   PaymentMethod,
   PersonalExpense,
@@ -114,14 +120,11 @@ function periodLabel(period: Period, from: string, to: string): string {
 
 export function SpendingScreen() {
   const { today, user } = useApp();
+  const cacheScope = user?.id ?? "logged-out";
   const [view, setView] = useState<View>("dashboard");
   const [period, setPeriod] = useState<Period>("month");
   const [customFrom, setCustomFrom] = useState(isoDate(startOfWeek(today, user?.weekStartsOn ?? "Monday")));
   const [customTo, setCustomTo] = useState(isoDate(today));
-  const [categories, setCategories] = useState<SpendingCategory[]>([]);
-  const [summary, setSummary] = useState<SpendingSummary | null>(null);
-  const [summaryLoading, setSummaryLoading] = useState(true);
-  const [summaryError, setSummaryError] = useState<string | null>(null);
   const [history, setHistory] = useState<PersonalExpense[]>([]);
   const [historyTotal, setHistoryTotal] = useState(0);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -135,7 +138,6 @@ export function SpendingScreen() {
   const [editingExpense, setEditingExpense] = useState<PersonalExpense | null>(null);
   const [expenseFormOpen, setExpenseFormOpen] = useState(false);
   const [announcement, setAnnouncement] = useState("");
-  const summaryRequestRef = useRef(0);
   const historyRequestRef = useRef(0);
   const historyInitializedRef = useRef(false);
 
@@ -144,28 +146,19 @@ export function SpendingScreen() {
     [period, today, user?.weekStartsOn, customFrom, customTo]
   );
   const rangeValid = /^\d{4}-\d{2}-\d{2}$/.test(range.from) && /^\d{4}-\d{2}-\d{2}$/.test(range.to) && range.from <= range.to;
-
-  const loadCategories = useCallback(async () => {
-    const result = await api.listSpendingCategories(true);
-    setCategories(result.categories);
-  }, []);
-
-  const loadSummary = useCallback(async () => {
-    if (!rangeValid) return;
-    const requestId = ++summaryRequestRef.current;
-    setSummaryLoading(true);
-    setSummaryError(null);
-    try {
-      const result = await api.getSpendingSummary(range.from, range.to);
-      if (requestId === summaryRequestRef.current) setSummary(result);
-    } catch (error) {
-      if (requestId === summaryRequestRef.current) {
-        setSummaryError(error instanceof Error ? error.message : "Couldn't load spending summary.");
-      }
-    } finally {
-      if (requestId === summaryRequestRef.current) setSummaryLoading(false);
-    }
-  }, [range.from, range.to, rangeValid]);
+  const {
+    data: summary,
+    loading: summaryLoading,
+    error: summaryError,
+    refresh: refreshSummary,
+  } = useSpendingSummary(cacheScope, range.from, range.to, !!user && rangeValid);
+  const {
+    data: cachedCategories,
+    loading: categoriesLoading,
+    error: categoriesError,
+    refresh: refreshCategories,
+  } = useSpendingCategories(cacheScope, !!user);
+  const categories = cachedCategories ?? [];
 
   const loadHistory = useCallback(async (requestedPage = 1, append = false) => {
     if (!rangeValid) return;
@@ -198,20 +191,16 @@ export function SpendingScreen() {
   }, [range.from, range.to, rangeValid, appliedCategoryFilter, appliedSearch]);
 
   useEffect(() => {
-    void loadCategories().catch(() => setSummaryError("Couldn't load spending categories."));
-  }, [loadCategories]);
-
-  useEffect(() => { void loadSummary(); }, [loadSummary]);
-  useEffect(() => {
     if (view === "history") void loadHistory(1);
   }, [view, loadHistory]);
 
   const refreshAfterMutation = useCallback(async (message: string) => {
-    const refreshes: Promise<unknown>[] = [loadSummary(), loadCategories()];
+    invalidateSpendingSummaries(cacheScope);
+    const refreshes: Promise<unknown>[] = [refreshSummary()];
     if (historyInitializedRef.current) refreshes.push(loadHistory(1));
-    await Promise.all(refreshes);
+    await Promise.allSettled(refreshes);
     setAnnouncement(message);
-  }, [loadSummary, loadHistory, loadCategories]);
+  }, [cacheScope, refreshSummary, loadHistory]);
 
   function openAddExpense() {
     setEditingExpense(null);
@@ -277,12 +266,21 @@ export function SpendingScreen() {
 
       <div className="visually-hidden" aria-live="polite" aria-atomic="true">{announcement}</div>
 
+      {categoriesError && (
+        <StatusBanner tone={cachedCategories ? "warning" : "danger"}>
+          <span>
+            {categoriesError}{cachedCategories ? " Showing the last loaded categories." : ""}{" "}
+            <button type="button" className="banner-inline-action" onClick={() => void refreshCategories().catch(() => {})}>Retry</button>
+          </span>
+        </StatusBanner>
+      )}
+
       {view === "dashboard" && (
         <SpendingDashboard
           summary={summary}
           loading={summaryLoading}
           error={summaryError}
-          onRetry={() => void loadSummary()}
+          onRetry={() => void refreshSummary().catch(() => {})}
           periodText={periodLabel(period, range.from, range.to)}
           onEdit={openEditExpense}
           onDelete={(expense) => void deleteExpense(expense)}
@@ -297,6 +295,7 @@ export function SpendingScreen() {
           loading={historyLoading}
           error={historyError}
           categories={categories}
+          categoriesLoading={categoriesLoading}
           categoryFilter={categoryFilter}
           onCategoryFilter={setCategoryFilter}
           search={search}
@@ -318,9 +317,11 @@ export function SpendingScreen() {
         <CategoryManager
           categories={categories}
           onChanged={async (message) => {
-            const refreshes: Promise<unknown>[] = [loadCategories(), loadSummary()];
+            invalidateSpendingCategories(cacheScope);
+            invalidateSpendingSummaries(cacheScope);
+            const refreshes: Promise<unknown>[] = [refreshCategories(), refreshSummary()];
             if (historyInitializedRef.current) refreshes.push(loadHistory(1));
-            await Promise.all(refreshes);
+            await Promise.allSettled(refreshes);
             setAnnouncement(message);
           }}
         />
@@ -385,7 +386,7 @@ function SpendingDashboard(props: {
   onAdd: () => void;
 }) {
   if (props.loading && !props.summary) {
-    return <div className="spending-loading" aria-busy="true"><span className="spinner" /> Loading spending dashboard…</div>;
+    return <SpendingDashboardSkeleton />;
   }
   if (props.error && !props.summary) {
     return <StatusBanner tone="danger"><span>{props.error} <button type="button" className="banner-inline-action" onClick={props.onRetry}>Retry</button></span></StatusBanner>;
@@ -413,7 +414,9 @@ function SpendingDashboard(props: {
 
   return (
     <div className="spending-dashboard" aria-busy={props.loading || undefined}>
-      {props.error && <StatusBanner tone="warning"><span>{props.error} Showing the last loaded totals.</span></StatusBanner>}
+      <div className={`spending-cache-status${props.error ? " is-visible" : ""}`} aria-live="polite">
+        {props.error && <span>{props.error} Showing the last loaded totals. <button type="button" className="banner-inline-action" onClick={props.onRetry}>Retry</button></span>}
+      </div>
       <section className="spending-overview" aria-labelledby="spending-overview-title">
         <div className="spending-overview-heading">
           <div>
@@ -421,7 +424,7 @@ function SpendingDashboard(props: {
             <h2 id="spending-overview-title">{props.periodText === "this month" ? "This month at a glance" : "Your selected period"}</h2>
           </div>
           <div className="spending-range-chip">
-            {props.loading && <span className="spending-refreshing">Updating…</span>}
+            <span className={`spending-refreshing${props.loading ? " is-visible" : ""}`} aria-live="polite">Updating…</span>
             <span>{formatRange(summary.period.from, summary.period.to)}</span>
           </div>
         </div>
@@ -441,6 +444,39 @@ function SpendingDashboard(props: {
       </div>
       <EarningsComparison summary={summary} />
       <ExpenseListSection title="Recent expenses" expenses={summary.recentExpenses} onEdit={props.onEdit} onDelete={props.onDelete} onAdd={props.onAdd} />
+    </div>
+  );
+}
+
+function SpendingDashboardSkeleton() {
+  return (
+    <div className="spending-dashboard spending-dashboard-skeleton" aria-busy="true" aria-label="Loading spending dashboard">
+      <span className="visually-hidden">Loading spending dashboard</span>
+      <div className="spending-cache-status" aria-hidden="true" />
+      <section className="spending-overview" aria-hidden="true">
+        <div className="spending-overview-heading">
+          <div className="skeleton-copy-group"><span className="data-skeleton is-kicker" /><span className="data-skeleton is-heading" /></div>
+          <span className="data-skeleton is-chip" />
+        </div>
+        <div className="spending-summary-grid">
+          {[0, 1, 2, 3].map((item) => (
+            <div className="card spending-summary-card spending-summary-skeleton" key={item}>
+              <span className="data-skeleton is-kicker" />
+              <span className="data-skeleton is-value" />
+              <span className="data-skeleton is-line" />
+            </div>
+          ))}
+        </div>
+      </section>
+      <div className="card spending-insights spending-panel-skeleton" aria-hidden="true">
+        <span className="data-skeleton is-kicker" /><span className="data-skeleton is-heading" /><span className="data-skeleton is-line is-wide" /><span className="data-skeleton is-line" />
+      </div>
+      <div className="spending-chart-grid" aria-hidden="true">
+        <div className="card spending-chart-card spending-chart-skeleton"><span className="data-skeleton is-heading" /><span className="data-skeleton is-donut" /><span className="data-skeleton is-line is-wide" /></div>
+        <div className="card spending-chart-card spending-chart-skeleton"><span className="data-skeleton is-heading" /><div className="data-skeleton-bars"><i /><i /><i /><i /><i /></div></div>
+      </div>
+      <div className="card spending-comparison spending-panel-skeleton" aria-hidden="true"><span className="data-skeleton is-heading" /><span className="data-skeleton is-line is-wide" /><span className="data-skeleton is-line" /></div>
+      <div className="card spending-transactions spending-panel-skeleton" aria-hidden="true"><span className="data-skeleton is-heading" /><span className="data-skeleton is-line is-wide" /><span className="data-skeleton is-line is-wide" /></div>
     </div>
   );
 }
@@ -591,6 +627,7 @@ function ExpenseHistory(props: {
   loading: boolean;
   error: string | null;
   categories: SpendingCategory[];
+  categoriesLoading: boolean;
   categoryFilter: string;
   onCategoryFilter: (value: string) => void;
   search: string;
@@ -608,7 +645,7 @@ function ExpenseHistory(props: {
       <div className="spending-section-heading"><div><h2 id="expense-history-title">Expense history</h2><p>{props.total} recorded {props.total === 1 ? "expense" : "expenses"} in this period.</p></div></div>
       <form className="spending-filters card" onSubmit={(event) => { event.preventDefault(); props.onSubmitSearch(); }}>
         <label>Search merchant or title<input className="input" type="search" value={props.search} onChange={(e) => props.onSearch(e.target.value)} placeholder="e.g. supermarket" /></label>
-        <label>Category<select className="input" value={props.categoryFilter} onChange={(e) => props.onCategoryFilter(e.target.value)}><option value="">All categories</option>{props.categories.map((category) => <option value={category.id} key={category.id}>{category.name}{category.archived ? " (archived)" : ""}</option>)}</select></label>
+        <label>Category<select className="input" value={props.categoryFilter} disabled={props.categoriesLoading && props.categories.length === 0} onChange={(e) => props.onCategoryFilter(e.target.value)}><option value="">{props.categoriesLoading && props.categories.length === 0 ? "Loading categories…" : "All categories"}</option>{props.categories.map((category) => <option value={category.id} key={category.id}>{category.name}{category.archived ? " (archived)" : ""}</option>)}</select></label>
         <button type="submit" className="btn btn-secondary">Apply filters</button>
       </form>
       {props.error && <StatusBanner tone="danger"><span>{props.error} <button className="banner-inline-action" type="button" onClick={props.onRetry}>Retry</button></span></StatusBanner>}

@@ -25,6 +25,50 @@ import { isUnusuallyLongShift, LONG_SHIFT_WARNING } from "../lib/shiftRules";
 
 type Row = ShiftComputed & { tempId?: string };
 
+function LiveEntryWeekTotal(props: {
+  active: boolean;
+  signIn: string | null;
+  activeShiftInThisWeek: boolean;
+  savedHours: number;
+  savedEarnings: number;
+  rate: number;
+  weekFuelCost: number;
+  otherAmount: number;
+  otherReason: string | null;
+}) {
+  const ticking = props.active && props.activeShiftInThisWeek;
+  const liveHours = useLiveElapsedHours(ticking, props.signIn);
+  const totalHours = props.savedHours + liveHours;
+  const totalEarnings = props.savedEarnings + liveHours * props.rate;
+  const settledEarnings = useCountUp(ticking ? props.savedEarnings : totalEarnings, 650);
+  const displayEarnings = ticking ? totalEarnings : settledEarnings;
+
+  return (
+    <div className="card elev-sm week-total-card anim-rise">
+      <div className="week-total-row">
+        <span>Total this week</span>
+        <span className="count-value live-entry-total-slot" style={{ fontWeight: 800 }}>
+          {fmt2(totalHours)}h · <Amount>{CURRENCY}{fmt2(displayEarnings)}</Amount>
+        </span>
+      </div>
+      <EarningsHiddenHint />
+      {(props.weekFuelCost > 0 || props.otherAmount > 0) && (
+        <div className="week-extras-breakdown">
+          {props.weekFuelCost > 0 && (
+            <div className="week-extras-row"><span><FuelIcon size={12} /> Fuel cost</span><Amount>{CURRENCY}{fmt2(props.weekFuelCost)}</Amount></div>
+          )}
+          {props.otherAmount > 0 && (
+            <div className="week-extras-row">
+              <span><ExtraEarningIcon size={12} /> Other earnings{props.otherReason ? ` — ${props.otherReason}` : ""}</span>
+              <Amount>{CURRENCY}{fmt2(props.otherAmount)}</Amount>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function EntryScreen() {
   const confirm = useConfirm();
   const {
@@ -96,16 +140,7 @@ export function EntryScreen() {
   // so without this check its live hours would show up in this week first
   // and then visibly jump back to the previous week the moment it's signed
   // out and actually saved under its real date.
-  const liveHours = useLiveElapsedHours(active, last?.signIn ?? null);
   const activeShiftInThisWeek = !!last && isDateInWeek(last.date, weekDays);
-  const effectiveLiveHours = activeShiftInThisWeek ? liveHours : 0;
-  const totalHours = savedHours + effectiveLiveHours;
-  const totalEarnings = savedEarnings + effectiveLiveHours * rate;
-  // Show the exact live value every tick instead of easing toward it while a
-  // shift is active — an ongoing eased chase toward a moving target reads as
-  // "stuck," not live.
-  const totalEarningsSmoothed = useCountUp(totalEarnings, 650);
-  const totalEarningsAnim = active ? totalEarnings : totalEarningsSmoothed;
 
   // Keeps the picker's starting value in sync with the saved amount until
   // the user actually opens the section this session (otherOpen still
@@ -121,7 +156,7 @@ export function EntryScreen() {
   // array, or they'll flicker from $0 to the real total the instant it loads.
   if (!shiftsLoaded || !todayDay) {
     return (
-      <div className="screen-narrow screen-transition">
+      <div className="screen-narrow">
         <h1 className="section-title">This week's hours</h1>
         <Skeleton className="skeleton-card" />
         <Skeleton className="skeleton-row" />
@@ -525,36 +560,17 @@ export function EntryScreen() {
         </div>
       </div>
 
-      <div className="card elev-sm week-total-card anim-rise">
-        <div className="week-total-row">
-          <span>Total this week</span>
-          <span className="count-value" style={{ fontWeight: 800 }}>
-            {fmt2(totalHours)}h · <Amount>{CURRENCY}{fmt2(totalEarningsAnim)}</Amount>
-          </span>
-        </div>
-        <EarningsHiddenHint />
-        {(weekFuelCost > 0 || otherAmount > 0) && (
-          <div className="week-extras-breakdown">
-            {weekFuelCost > 0 && (
-              <div className="week-extras-row">
-                <span>
-                  <FuelIcon size={12} /> Fuel cost
-                </span>
-                <Amount>{CURRENCY}{fmt2(weekFuelCost)}</Amount>
-              </div>
-            )}
-            {otherAmount > 0 && (
-              <div className="week-extras-row">
-                <span>
-                  <ExtraEarningIcon size={12} /> Other earnings
-                  {currentWeekExtra?.reason ? ` — ${currentWeekExtra.reason}` : ""}
-                </span>
-                <Amount>{CURRENCY}{fmt2(otherAmount)}</Amount>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      <LiveEntryWeekTotal
+        active={active}
+        signIn={last?.signIn ?? null}
+        activeShiftInThisWeek={activeShiftInThisWeek}
+        savedHours={savedHours}
+        savedEarnings={savedEarnings}
+        rate={rate}
+        weekFuelCost={weekFuelCost}
+        otherAmount={otherAmount}
+        otherReason={currentWeekExtra?.reason ?? null}
+      />
 
       {fuelPickerDate &&
         (() => {

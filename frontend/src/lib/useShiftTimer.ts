@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
 import { formatElapsed } from "./date";
-import { computeElapsedHours } from "./useLiveElapsedHours";
+import { useLiveElapsedHours } from "./useLiveElapsedHours";
 
 /**
  * The on-screen HH:MM:SS shift clock. Reuses `computeElapsedHours` (the
@@ -14,14 +13,7 @@ import { computeElapsedHours } from "./useLiveElapsedHours";
  * totals can never disagree with each other.
  */
 export function useShiftTimer(active: boolean, signInHHMM: string | null): string {
-  const [, tick] = useState(0);
-
-  useEffect(() => {
-    if (!active) return;
-    const id = setInterval(() => tick((n) => n + 1), 1000);
-    return () => clearInterval(id);
-  }, [active]);
-
+  const elapsedHours = useLiveElapsedHours(active, signInHHMM);
   if (!active || !signInHHMM) return "00:00:00";
-  return formatElapsed(computeElapsedHours(signInHHMM) * 3_600_000);
+  return formatElapsed(elapsedHours * 3_600_000);
 }
