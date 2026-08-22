@@ -222,7 +222,7 @@ function Root() {
   // `biometricPromptActive` is excluded from `status === "loading"` here on
   // purpose: the automatic cold-launch Face ID/Touch ID attempt runs inside
   // that same "loading" window (see AppContext's restoreSession), and this
-  // screen's "Connecting…"/"Waking the server…" copy describes server
+  // screen's connection/workspace stages describe server
   // cold-starts specifically — showing it while the user is actually
   // looking at the system Face ID prompt would be actively misleading. The
   // screen stays blank (the same fallback already used for the initial

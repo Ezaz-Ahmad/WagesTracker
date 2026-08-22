@@ -24,6 +24,8 @@ import { BubbleLoader } from "../components/BubbleLoader";
 import { StatusBanner } from "../components/StatusBanner";
 import { ChartDataTable } from "../components/ChartDataTable";
 import { StableLabel } from "../components/StableLabel";
+import { EmptyState } from "../components/EmptyState";
+import { ReportIcon } from "../components/icons";
 
 type Metric = "earnings" | "hours";
 type Period = "week" | "month" | "year";
@@ -92,6 +94,7 @@ export function ReportScreen() {
   }
 
   const metricLabel = metric === "earnings" ? "earnings" : "hours";
+  const hasTrendData = history.some((week) => (metric === "earnings" ? week.earnings : week.hours) > 0);
   // The one-line name for the line chart. Deliberately describes the shape
   // and range rather than reciting every value — the full figures are in
   // the table beneath it, and an aria-label that reads out eight numbers is
@@ -205,6 +208,7 @@ export function ReportScreen() {
             published once, properly, as a real table for anyone who can't
             use the picture. The table is the source of truth for assistive
             tech; the drawing is the enhancement. */}
+        {hasTrendData ? <>
         <svg viewBox="0 0 320 150" width="100%" className="chart-svg" role="img" aria-label={chartSummary}>
           <defs>
             <linearGradient id="reportAreaFade" x1="0" y1="0" x2="0" y2="1">
@@ -268,6 +272,16 @@ export function ReportScreen() {
             value: metric === "earnings" && earningsHidden ? "Hidden" : p.valueLabel,
           }))}
         />
+        </> : (
+          <div className="report-chart-empty">
+            <EmptyState
+              compact
+              icon={<ReportIcon size={25} />}
+              title="Your trend starts here"
+              description="Complete your first weekly cycle to compare this week with earlier weeks."
+            />
+          </div>
+        )}
       </div>
 
       <div className="card elev-sm anim-rise" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 2 }}>

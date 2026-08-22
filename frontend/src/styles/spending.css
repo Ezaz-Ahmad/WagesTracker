@@ -77,7 +77,7 @@
 .spending-donut::after {
   content: "";
   position: absolute;
-  inset: 23%;
+  inset: 20%;
   border-radius: 50%;
   background: var(--color-surface);
 }
@@ -85,8 +85,21 @@
 .home-spending-donut span,
 .spending-donut span,
 .spending-donut small { position: relative; z-index: 1; }
-.home-spending-donut strong { font: 800 clamp(16px, 4.5vw, 22px)/1 var(--font-heading); }
-.home-spending-donut span { margin-top: 3px; font-size: 9px; color: color-mix(in srgb, var(--color-text) 62%, transparent); }
+.home-spending-donut-center {
+  position: relative; z-index: 1; width: 59%; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 4px;
+}
+.home-spending-donut-center strong {
+  max-width: 100%; font: 800 19px/1 var(--font-heading); letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.home-spending-donut-center.is-medium strong { font-size: 14px; letter-spacing: -0.045em; }
+.home-spending-donut-center.is-tight strong { font-size: 12px; letter-spacing: -0.055em; }
+.home-spending-donut-center.is-compact strong { font-size: 18px; }
+.home-spending-donut-center span {
+  max-width: 10ch; margin: 0; font-size: 7.5px; font-weight: 600; line-height: 1.15;
+  letter-spacing: 0.02em; color: color-mix(in srgb, var(--color-text) 62%, transparent);
+}
 .home-spending-legend { min-width: 0; list-style: none; margin: 0; padding: 0; }
 .home-spending-legend li {
   min-height: 34px;

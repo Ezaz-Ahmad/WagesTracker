@@ -183,6 +183,26 @@ describe("mobile inputs never trigger iOS auto-zoom", () => {
   });
 });
 
+describe("production interaction and surface system", () => {
+  it("keeps shared buttons and fields at the 44px touch-target floor", () => {
+    expect(block(tokensCss, ".btn")).toContain("min-height: 44px");
+    expect(block(tokensCss, ".input")).toContain("min-height: 44px");
+  });
+
+  it("gives shared cards a real surface edge and non-zero radius", () => {
+    const card = block(tokensCss, ".card");
+    expect(card).toContain("border-radius: var(--radius-md)");
+    expect(card).toMatch(/border:\s*1px/);
+    expect(tokensCss).toMatch(/--radius-md:\s*(?!0px)\d+px/);
+  });
+
+  it("does not lift every static elevated card on desktop hover", () => {
+    const hoverStart = animationsCss.indexOf(".elev-sm:hover");
+    const hoverRule = animationsCss.slice(hoverStart, animationsCss.indexOf("}", hoverStart));
+    expect(hoverRule).not.toContain("transform:");
+  });
+});
+
 describe("reduced motion", () => {
   it("still collapses every transition and animation for prefers-reduced-motion", () => {
     // The shell's fade-in is cosmetic, but it is a transition, so the

@@ -5,6 +5,8 @@ import { Skeleton } from "../components/Skeleton";
 import { EarningsHiddenHint } from "../components/EarningsHiddenHint";
 import { WeekCard } from "../history/WeekCard";
 import { DayEditorSheet, type DayEditorTarget } from "../history/DayEditorSheet";
+import { EmptyState } from "../components/EmptyState";
+import { HistoryIcon } from "../components/icons";
 
 /**
  * Completed weeks, most recent first.
@@ -88,9 +90,11 @@ export function HistoryScreen() {
 
       {weeks.length === 0 ? (
         <div className="card anim-rise">
-          <p className="card-body" style={{ margin: 0 }}>
-            No completed weeks yet — your first full week will show up here once it ends.
-          </p>
+          <EmptyState
+            icon={<HistoryIcon size={25} />}
+            title="No completed weeks yet"
+            description="Your first weekly summary will appear here when your current weekly cycle ends."
+          />
         </div>
       ) : (
         <ul className="history-week-list">

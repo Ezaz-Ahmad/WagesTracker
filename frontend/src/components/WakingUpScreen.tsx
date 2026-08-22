@@ -12,11 +12,61 @@ const RING_STROKE = 8;
  * like a stalled, nearly-complete determinate bar. */
 const INDETERMINATE_ARC_FRACTION = 0.26;
 
-const RETRY_PHASES: ReadonlySet<HealthWakeupPhase> = new Set(["offline", "failed"]);
+const RETRY_PHASES: ReadonlySet<HealthWakeupPhase> = new Set(["long", "offline", "failed"]);
 
 function formatElapsed(sec: number): string {
   const whole = Math.max(0, Math.floor(sec));
-  return `${whole} second${whole === 1 ? "" : "s"} elapsed`;
+  const minutes = Math.floor(whole / 60);
+  const seconds = String(whole % 60).padStart(2, "0");
+  return `${minutes}:${seconds} elapsed`;
+}
+
+const WAKEUP_COPY: Record<HealthWakeupPhase, { heading: string; caption: string; hint: string }> = {
+  connecting: {
+    heading: "Connecting securely",
+    caption: "Checking your Wage Tracker service…",
+    hint: "",
+  },
+  waking: {
+    heading: "Starting your workspace",
+    caption: "Your workspace was resting and is waking up.",
+    hint: "A cold start can take around a minute. You can keep this screen open.",
+  },
+  slow: {
+    heading: "Still starting",
+    caption: "Your workspace is still responding.",
+    hint: "This is slower than usual, but we’re continuing to try automatically.",
+  },
+  long: {
+    heading: "Taking longer than usual",
+    caption: "The service has not responded yet.",
+    hint: "We’ll keep trying, or you can restart the connection below.",
+  },
+  connected: {
+    heading: "Almost ready",
+    caption: "Loading your latest shifts and account information…",
+    hint: "",
+  },
+  offline: {
+    heading: "You’re offline",
+    caption: "Reconnect to the internet, then try again.",
+    hint: "",
+  },
+  failed: {
+    heading: "We couldn’t start your workspace",
+    caption: "The service didn’t respond. Try again in a moment.",
+    hint: "",
+  },
+};
+
+const STAGES = ["Connection", "Workspace", "Account"] as const;
+
+function stageState(phase: HealthWakeupPhase, index: number): "complete" | "current" | "pending" {
+  if (phase === "connected") return index < 2 ? "complete" : "current";
+  if (phase === "waking" || phase === "slow" || phase === "long") {
+    return index === 0 ? "complete" : index === 1 ? "current" : "pending";
+  }
+  return index === 0 ? "current" : "pending";
 }
 
 /** The ring's own visual center piece — an indeterminate spinning arc while
@@ -84,7 +134,7 @@ function ConnectionRing({ phase, reducedMotion }: { phase: HealthWakeupPhase; re
  * genuine in-between number, so this screen never shows one. Every value on
  * screen while waiting is something we actually know: which attempt is in
  * flight and how long we've really been waiting (see useHealthWakeup). The
- * ring only ever completes and shows 100% once a real success arrives.
+ * ring only ever completes once a real success arrives.
  */
 export function WakingUpScreen() {
   const { phase, attempt, elapsedSec, retryBusy, retry } = useHealthWakeup();
@@ -102,32 +152,16 @@ export function WakingUpScreen() {
     prevPhaseRef.current = phase;
   }, [phase]);
 
-  const heading =
-    phase === "offline" ? "No internet connection" : phase === "failed" ? "Unable to connect" : "Getting Wage Tracker ready";
-
-  const caption =
-    phase === "connecting"
-      ? "Connecting…"
-      : phase === "waking"
-        ? "Waking the server…"
-        : phase === "slow"
-          ? "Taking a little longer…"
-          : phase === "connected"
-            ? "Connected — loading your account…"
-            : phase === "offline"
-              ? "Check your connection and try again."
-              : "We couldn't reach the server. Check your connection and try again.";
+  const { heading, caption, hint } = WAKEUP_COPY[phase];
 
   const meta =
-    phase === "connecting"
-      ? "Connection attempt 1"
-      : phase === "waking" || phase === "slow"
+    phase === "connecting" || phase === "waking" || phase === "slow" || phase === "long"
         ? `Attempt ${attempt} · ${formatElapsed(elapsedSec)}`
         : phase === "connected"
-          ? "100%"
+          ? "Service ready"
           : "";
 
-  const showSlowHint = phase === "slow";
+  const showHint = hint.length > 0;
   const showRetry = RETRY_PHASES.has(phase);
 
   return (
@@ -141,7 +175,19 @@ export function WakingUpScreen() {
 
         <ConnectionRing phase={phase} reducedMotion={reducedMotion} />
 
-        <div className="wakeup-text" role="status" aria-live="polite" aria-label="Connecting to the Wage Tracker server">
+        <ol className="wakeup-stages" aria-hidden="true">
+          {STAGES.map((stage, index) => {
+            const state = stageState(phase, index);
+            return (
+              <li className={`is-${state}`} key={stage}>
+                <span>{state === "complete" ? <CheckIcon size={12} /> : index + 1}</span>
+                <small>{stage}</small>
+              </li>
+            );
+          })}
+        </ol>
+
+        <div className="wakeup-text" role="status" aria-live="polite" aria-label="Preparing Wage Tracker">
           <h1 className="wakeup-heading">{heading}</h1>
           {/* Keyed so each distinct caption crossfades in on its own, instead
               of the text silently jumping mid-sentence. */}
@@ -153,8 +199,8 @@ export function WakingUpScreen() {
               text actually has something to say (the "slow" phase) doesn't
               grow the card or nudge anything below it — only its opacity
               changes. */}
-          <p className={`wakeup-slow-hint${showSlowHint ? " is-visible" : ""}`} aria-hidden={showSlowHint ? undefined : true}>
-            The server may have been idle. You can keep this screen open.
+          <p className={`wakeup-slow-hint${showHint ? " is-visible" : ""}`} aria-hidden={showHint ? undefined : true}>
+            {hint || "Wage Tracker is preparing your workspace."}
           </p>
           {/* Visually shows the real attempt/elapsed figures (and, only once
               truly connected, "100%") but is deliberately excluded from the
@@ -166,12 +212,18 @@ export function WakingUpScreen() {
           </p>
         </div>
 
-        {showRetry && (
-          <button ref={retryBtnRef} type="button" className="btn btn-primary wakeup-retry-btn" onClick={retry} disabled={retryBusy}>
-            {retryBusy && <span className="wakeup-spinner" aria-hidden="true" />}
-            <StableLabel current={retryBusy ? "Retrying…" : "Retry"} longest="Retrying…" />
-          </button>
-        )}
+        <div className="wakeup-action-slot">
+          {showRetry ? (
+            <button ref={retryBtnRef} type="button" className="btn btn-primary wakeup-retry-btn" onClick={retry} disabled={retryBusy}>
+              {retryBusy && <span className="wakeup-spinner" aria-hidden="true" />}
+              <StableLabel current={retryBusy ? "Retrying…" : "Retry"} longest="Retrying…" />
+            </button>
+          ) : (
+            <span className="wakeup-action-note" aria-hidden="true">
+              {phase === "connected" ? "Finishing up…" : "Preparing automatically — no action needed"}
+            </span>
+          )}
+        </div>
       </div>
     </main>
   );

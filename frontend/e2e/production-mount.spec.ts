@@ -31,7 +31,7 @@ async function captureRuntimeErrors(page: Page): Promise<string[]> {
   return errors;
 }
 
-async function mockAuthenticatedApi(page: Page, options: { summaryDelayMs?: number } = {}) {
+async function mockAuthenticatedApi(page: Page, options: { summaryDelayMs?: number; spendingTotalCents?: number } = {}) {
   let summaryRequests = 0;
   let categoryRequests = 0;
   await page.addInitScript(() => {
@@ -56,6 +56,7 @@ async function mockAuthenticatedApi(page: Page, options: { summaryDelayMs?: numb
     } else if (pathname === "/api/spending/summary") {
       summaryRequests += 1;
       if (options.summaryDelayMs) await new Promise((resolve) => setTimeout(resolve, options.summaryDelayMs));
+      const spendingTotalCents = options.spendingTotalCents ?? 0;
       body = {
         period: {
           from: "2026-08-01",
@@ -66,14 +67,18 @@ async function mockAuthenticatedApi(page: Page, options: { summaryDelayMs?: numb
         },
         earningsCents: 0,
         earningsRecorded: false,
-        totalSpendingCents: 0,
-        differenceCents: 0,
+        totalSpendingCents: spendingTotalCents,
+        differenceCents: -spendingTotalCents,
         spendingPercentage: null,
         averageDailyCents: 0,
-        transactionCount: 0,
-        largestCategory: null,
+        transactionCount: spendingTotalCents > 0 ? 1 : 0,
+        largestCategory: spendingTotalCents > 0
+          ? { id: "rent", name: "Rent & housing", icon: "housing", colour: "#7C3AED", totalCents: spendingTotalCents, transactionCount: 1 }
+          : null,
         previous: { earningsCents: 0, totalSpendingCents: 0, spendingChangePercent: null },
-        categories: [],
+        categories: spendingTotalCents > 0
+          ? [{ id: "rent", name: "Rent & housing", icon: "housing", colour: "#7C3AED", totalCents: spendingTotalCents, transactionCount: 1 }]
+          : [],
         trend: [],
         recentExpenses: [],
       };
@@ -144,5 +149,28 @@ test("existing authenticated session mounts Home and Spending from the productio
   await expect(page.locator(".spending-dashboard-skeleton")).toHaveCount(0);
   expect(requests.summaryRequests()).toBe(1);
   expect(requests.categoryRequests()).toBe(1);
+  expect(errors).toEqual([]);
+});
+
+test("mobile production bundle keeps an exact four-figure spending total inside its donut", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  const errors = await captureRuntimeErrors(page);
+  await mockAuthenticatedApi(page, { spendingTotalCents: 107_356 });
+
+  await page.goto("/");
+
+  const donut = page.locator(".home-spending-donut");
+  const center = page.locator(".home-spending-donut-center");
+  await expect(donut).toBeVisible();
+  await expect(center).toContainText("$1,073.56");
+  await expect(center).toHaveClass(/is-medium/);
+
+  const donutBox = await donut.boundingBox();
+  const amountBox = await center.locator("strong").boundingBox();
+  expect(donutBox).not.toBeNull();
+  expect(amountBox).not.toBeNull();
+  expect(amountBox!.x).toBeGreaterThanOrEqual(donutBox!.x);
+  expect(amountBox!.x + amountBox!.width).toBeLessThanOrEqual(donutBox!.x + donutBox!.width);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
   expect(errors).toEqual([]);
 });

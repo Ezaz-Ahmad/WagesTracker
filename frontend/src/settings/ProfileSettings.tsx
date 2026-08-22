@@ -69,7 +69,8 @@ export function ProfileSettings() {
         />
         <div className="field-hint">Shown on your PDF reports, under your name — not the work location below.</div>
       </div>
-      <div className="field field-spaced">
+      <div className="field field-spaced weekly-cycle-field">
+        <span className="weekly-cycle-eyebrow" aria-hidden="true">Weekly cycle</span>
         <label htmlFor="settings-week-start">Week starts on</label>
         <select
           id="settings-week-start"

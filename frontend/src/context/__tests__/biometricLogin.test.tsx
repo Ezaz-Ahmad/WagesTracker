@@ -178,7 +178,7 @@ describe("cold-launch automatic biometric prompt", () => {
     // backend re-validation of the recovered token) is still pending —
     // exactly the gap the bug lived in. WakingUpScreen must appear once the
     // 500ms grace window passes, not stay blank.
-    await screen.findByText(/Getting Wage Tracker ready/, {}, { timeout: 2000 });
+    await screen.findByText(/Connecting securely/, {}, { timeout: 2000 });
 
     resolveFetchMe({ user: USER });
     await screen.findByRole("navigation", { name: "Main" });

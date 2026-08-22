@@ -9,7 +9,7 @@
 // what actually renders and is exposed to assistive tech.
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SLOW_AFTER_SECONDS } from "../../lib/useHealthWakeup";
+import { LONG_WAIT_AFTER_SECONDS, SLOW_AFTER_SECONDS } from "../../lib/useHealthWakeup";
 import { WakingUpScreen } from "../WakingUpScreen";
 
 vi.mock("../../lib/api", () => ({ pingHealth: vi.fn() }));
@@ -51,13 +51,13 @@ describe("WakingUpScreen — connecting", () => {
     pingHealthMock.mockImplementation(() => new Promise(() => {}));
     render(<WakingUpScreen />);
 
-    expect(screen.getByRole("heading", { name: "Getting Wage Tracker ready" })).toBeTruthy();
-    expect(screen.getByText("Connecting…")).toBeTruthy();
-    expect(screen.getByText("Connection attempt 1")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Connecting securely" })).toBeTruthy();
+    expect(screen.getByText("Checking your Wage Tracker service…")).toBeTruthy();
+    expect(screen.getByText("Attempt 1 · 0:00 elapsed")).toBeTruthy();
 
     const status = screen.getByRole("status");
     expect(status.getAttribute("aria-live")).toBe("polite");
-    expect(status.getAttribute("aria-label")).toBe("Connecting to the Wage Tracker server");
+    expect(status.getAttribute("aria-label")).toBe("Preparing Wage Tracker");
 
     // No manufactured percentage anywhere, and no indeterminate element
     // exposing a fake numeric value.
@@ -84,9 +84,24 @@ describe("WakingUpScreen — slow server", () => {
       });
     }
 
-    expect(screen.getByText("Taking a little longer…")).toBeTruthy();
-    const hint = screen.getByText(/The server may have been idle/);
+    expect(screen.getByText("Still starting")).toBeTruthy();
+    const hint = screen.getByText(/slower than usual/i);
     expect(hint.getAttribute("aria-hidden")).toBeNull();
+  });
+
+  it("acknowledges a long wait and offers a restart while automatic checks continue", async () => {
+    pingHealthMock.mockResolvedValue(false);
+    render(<WakingUpScreen />);
+
+    for (let i = 0; i < Math.ceil((LONG_WAIT_AFTER_SECONDS + 5) / 3); i++) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000);
+      });
+    }
+
+    expect(screen.getByRole("heading", { name: "Taking longer than usual" })).toBeTruthy();
+    expect(screen.getByText(/keep trying/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^retry$/i })).toBeTruthy();
   });
 });
 
@@ -97,15 +112,16 @@ describe("WakingUpScreen — connected", () => {
     expect(screen.queryByText("100%")).toBeNull();
   });
 
-  it("shows 100% and a checkmark only after a genuine successful response", async () => {
+  it("shows a ready state and checkmark only after a genuine successful response", async () => {
     pingHealthMock.mockResolvedValue(true);
     const { container } = render(<WakingUpScreen />);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
 
-    expect(screen.getByText("Connected — loading your account…")).toBeTruthy();
-    expect(screen.getByText("100%")).toBeTruthy();
+    expect(screen.getByText("Loading your latest shifts and account information…")).toBeTruthy();
+    expect(screen.getByText("Service ready")).toBeTruthy();
+    expect(screen.queryByText(/%/)).toBeNull();
     expect(container.querySelector(".connection-ring-check")).toBeTruthy();
   });
 });
@@ -115,8 +131,8 @@ describe("WakingUpScreen — offline", () => {
     setOnline(false);
     render(<WakingUpScreen />);
 
-    expect(screen.getByRole("heading", { name: "No internet connection" })).toBeTruthy();
-    const caption = screen.getByText("Check your connection and try again.");
+    expect(screen.getByRole("heading", { name: "You’re offline" })).toBeTruthy();
+    const caption = screen.getByText("Reconnect to the internet, then try again.");
     expect(caption.textContent).not.toMatch(/server/i);
     expect(pingHealthMock).not.toHaveBeenCalled();
 
@@ -136,8 +152,8 @@ describe("WakingUpScreen — max-wait failure", () => {
       });
     }
 
-    expect(screen.getByRole("heading", { name: "Unable to connect" })).toBeTruthy();
-    expect(screen.getByText(/We couldn't reach the server/)).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "We couldn’t start your workspace" })).toBeTruthy();
+    expect(screen.getByText(/service didn’t respond/i)).toBeTruthy();
     expect(screen.getByRole("button", { name: /^retry$/i })).toBeTruthy();
   });
 });
@@ -150,6 +166,6 @@ describe("WakingUpScreen — reduced motion", () => {
     expect(container.querySelector(".connection-ring.is-static")).toBeTruthy();
     // Text updates still work under reduced motion — the caption is present
     // and readable, just without the spin.
-    expect(screen.getByText("Connecting…")).toBeTruthy();
+    expect(screen.getByText("Checking your Wage Tracker service…")).toBeTruthy();
   });
 });

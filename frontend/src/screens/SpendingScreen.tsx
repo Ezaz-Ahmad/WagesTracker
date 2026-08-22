@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Overlay } from "../components/Overlay";
 import { StatusBanner } from "../components/StatusBanner";
 import {
@@ -140,6 +140,19 @@ export function SpendingScreen() {
   const [announcement, setAnnouncement] = useState("");
   const historyRequestRef = useRef(0);
   const historyInitializedRef = useRef(false);
+  const screenRef = useRef<HTMLDivElement>(null);
+  const previousViewRef = useRef<View>(view);
+
+  // Dashboard, History and Categories share one mounted screen, so changing
+  // the local tab does not trigger App's normal screen-level scroll reset.
+  // Reset the sole app scroller synchronously to keep each view anchored at
+  // its own heading instead of inheriting the previous view's deep position.
+  useLayoutEffect(() => {
+    if (previousViewRef.current === view) return;
+    const scroller = screenRef.current?.closest(".app-main");
+    if (scroller instanceof HTMLElement) scroller.scrollTop = 0;
+    previousViewRef.current = view;
+  }, [view]);
 
   const range = useMemo(
     () => spendingRangeFor(period, today, user?.weekStartsOn ?? "Monday", customFrom, customTo),
@@ -224,7 +237,7 @@ export function SpendingScreen() {
   if (!user) return null;
 
   return (
-    <div className="screen-wide spending-screen">
+    <div className="screen-wide spending-screen" ref={screenRef}>
       <div className="spending-heading-row">
         <div>
           <h1 className="section-title">Spending</h1>
