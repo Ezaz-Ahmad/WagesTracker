@@ -8,6 +8,7 @@ import type { DayExpense, Shift, User, WeekExtra } from "../lib/types";
 import { getConnectivityStatus, subscribeConnectivity } from "../platform/connectivity";
 import { subscribeAppResume } from "../platform/appLifecycle";
 import { AutomaticRefreshGate } from "../platform/automaticRefresh";
+import { clearSpendingDataCache, invalidateSpendingSummaries } from "../lib/spendingDataCache";
 import {
   checkBiometricCapabilities,
   getBiometricStatus,
@@ -662,6 +663,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSessions([]);
     setSessionNotice(null);
     setStatus("loggedOut");
+    clearSpendingDataCache();
     hideEarningsNow();
   }, [biometricStatus.enabled, clearTokenSafely, clearBiometricCredential, hideEarningsNow]);
 
@@ -677,6 +679,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const { user: freshUser } = await api.fetchMe();
       setUser(freshUser);
       await reloadShifts(freshUser, today);
+      invalidateSpendingSummaries(freshUser.id);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         await logout();
@@ -802,6 +805,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setWeekExtras([]);
     setShiftsLoaded(false);
     setStatus("loggedOut");
+    clearSpendingDataCache();
     hideEarningsNow();
   }, [clearTokenSafely, clearBiometricCredential, hideEarningsNow]);
 
@@ -840,6 +844,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // old week-start keys while the background reload follows.
         if (extras) setWeekExtras(extras);
         setUser(user);
+        invalidateSpendingSummaries(user.id);
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) {
           await logout();
@@ -945,6 +950,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       rethrowingAction(async () => {
         const { shift } = await api.createShift(input);
         setShifts((prev) => [...prev, shift]);
+        invalidateSpendingSummaries();
         return shift;
       }),
     [rethrowingAction]
@@ -955,6 +961,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       rethrowingAction(async () => {
         const { shift } = await api.patchShift(id, patch);
         setShifts((prev) => prev.map((s) => (s.id === id ? shift : s)));
+        invalidateSpendingSummaries();
         return shift;
       }),
     [rethrowingAction]
@@ -965,6 +972,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       rethrowingAction(async () => {
         await api.deleteShift(id);
         setShifts((prev) => prev.filter((s) => s.id !== id));
+        invalidateSpendingSummaries();
       }),
     [rethrowingAction]
   );
@@ -974,6 +982,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         const { shift } = await api.createShift(input);
         setShifts((prev) => [...prev, shift]);
+        invalidateSpendingSummaries();
         return shift;
       } catch (e) {
         await handleActionError(e, "Couldn't save shift");
@@ -988,6 +997,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         const { shift } = await api.patchShift(id, patch);
         setShifts((prev) => prev.map((s) => (s.id === id ? shift : s)));
+        invalidateSpendingSummaries();
         return shift;
       } catch (e) {
         await handleActionError(e, "Couldn't update shift");
@@ -1002,6 +1012,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         await api.deleteShift(id);
         setShifts((prev) => prev.filter((s) => s.id !== id));
+        invalidateSpendingSummaries();
       } catch (e) {
         await handleActionError(e, "Couldn't remove shift");
       }
@@ -1020,6 +1031,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
       try {
         await api.setDayExpense(date, fuelCost);
+        invalidateSpendingSummaries();
       } catch (e) {
         setDayExpenses(prev);
         throw e;
@@ -1052,6 +1064,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
       try {
         await api.setWeekExtra(weekStart, { amount, reason });
+        invalidateSpendingSummaries();
         return true;
       } catch (e) {
         setWeekExtras(prev);

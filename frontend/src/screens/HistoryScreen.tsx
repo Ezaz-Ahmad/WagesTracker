@@ -56,7 +56,7 @@ export function HistoryScreen() {
   if (!user) return null;
   if (!shiftsLoaded) {
     return (
-      <div className="screen-narrow screen-transition">
+      <div className="screen-narrow">
         <h1 className="section-title">History</h1>
         <div className="section-hint">Completed weeks, most recent first.</div>
         <Skeleton className="skeleton-week-card" />

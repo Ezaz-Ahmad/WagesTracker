@@ -13,6 +13,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   BASELINE_TOLERANCE_PX,
+  STEADY_STATE_HEIGHT_TOLERANCE_PX,
   GUARD_MAX_HOLD_MS,
   GUARD_STABLE_ACCEPT_MS,
   ORIENTATION_SETTLE_MS,
@@ -694,6 +695,22 @@ describe("every publish path goes through the same decision", () => {
     window.dispatchEvent(new Event("resize"));
     await flush();
     expect(published()).toBe(700);
+    stop();
+  });
+
+  it("ignores 1–2px steady-state viewport noise but records its source and decision", async () => {
+    const stop = startViewportSync();
+    const noisyHeight = 900 - STEADY_STATE_HEIGHT_TOLERANCE_PX;
+    setInner(noisyHeight);
+    vv.moveTo(noisyHeight);
+    await flush();
+    expect(published()).toBe(900);
+    expect(evaluatePublish().reason).toBe("steady-state-jitter");
+    const lastPublish = [...getViewportDiagnostics().events].reverse().find((event) => event.kind === "publish");
+    expect(lastPublish?.detail).toContain("old=900");
+    expect(lastPublish?.detail).toContain(`new=${noisyHeight}`);
+    expect(lastPublish?.detail).toContain("source=");
+    expect(lastPublish?.detail).toContain("reason=steady-state-jitter");
     stop();
   });
 

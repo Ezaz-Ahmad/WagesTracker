@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 const stylesDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const spendingCss = readFileSync(resolve(stylesDir, "spending.css"), "utf8");
 const appCss = readFileSync(resolve(stylesDir, "app.css"), "utf8");
+const animationsCss = readFileSync(resolve(stylesDir, "animations.css"), "utf8");
 
 function block(css: string, selector: string): string {
   const start = css.indexOf(`${selector} {`);
@@ -41,5 +42,23 @@ describe("Spending touch-stability layout", () => {
     const track = block(appCss, ".swipe-track");
     expect(track).not.toMatch(/transform/);
     expect(track).not.toMatch(/will-change/);
+  });
+
+  it("reserves geometry for initial skeletons and background refresh labels", () => {
+    expect(spendingCss).toContain(".spending-summary-skeleton");
+    expect(spendingCss).toContain(".home-spending-skeleton-legend");
+    expect(block(spendingCss, ".spending-cache-status")).toContain("min-height:");
+    expect(spendingCss).toMatch(/\.home-spending-updating,\s*\.spending-refreshing\s*\{[^}]*min-width:/);
+  });
+
+  it("keeps tab motion small and limited to transform plus opacity", () => {
+    expect(animationsCss).toContain("translateX(10px)");
+    expect(animationsCss).toContain("translateX(-10px)");
+    for (const name of ["screen-in", "screen-in-fwd", "screen-in-back"]) {
+      const start = animationsCss.indexOf(`@keyframes ${name}`);
+      const next = animationsCss.indexOf("@keyframes", start + 1);
+      const keyframes = animationsCss.slice(start, next < 0 ? undefined : next);
+      expect(keyframes).not.toMatch(/(?:width|height|margin|padding|top|left):/);
+    }
   });
 });

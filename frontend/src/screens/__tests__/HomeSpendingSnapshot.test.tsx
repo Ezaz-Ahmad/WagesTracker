@@ -4,6 +4,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { useApp } from "../../context/AppContext";
 import type { SpendingSummary, User } from "../../lib/types";
+import { resetSpendingDataCacheForTests } from "../../lib/spendingDataCache";
 import { HomeScreen } from "../HomeScreen";
 
 type AppCtx = ReturnType<typeof useApp>;
@@ -70,6 +71,7 @@ const monthlySummary: SpendingSummary = {
 };
 
 beforeEach(() => {
+  resetSpendingDataCacheForTests();
   getSpendingSummary.mockReset();
   getSpendingSummary.mockResolvedValue(monthlySummary);
 });
@@ -77,6 +79,27 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Home monthly personal-spending snapshot", () => {
+  it("reserves the donut, legend, values, and action geometry on the first load", () => {
+    getSpendingSummary.mockReturnValue(new Promise(() => {}));
+    const { container } = render(<HomeScreen />);
+    expect(screen.getByLabelText("Loading this month's spending")).toBeTruthy();
+    expect(container.querySelector(".home-spending-skeleton .is-donut")).toBeTruthy();
+    expect(container.querySelectorAll(".home-spending-skeleton-legend .is-line")).toHaveLength(4);
+    expect(container.querySelectorAll(".home-spending-skeleton .home-spending-values > div")).toHaveLength(3);
+    expect(screen.queryByText("Loading this month's spending…")).toBeNull();
+  });
+
+  it("shows the cached monthly snapshot synchronously after a remount", async () => {
+    const first = render(<HomeScreen />);
+    await screen.findByText("Groceries");
+    expect(getSpendingSummary).toHaveBeenCalledTimes(1);
+    first.unmount();
+    render(<HomeScreen />);
+    expect(screen.getByText("Groceries")).toBeTruthy();
+    expect(screen.queryByLabelText("Loading this month's spending")).toBeNull();
+    expect(getSpendingSummary).toHaveBeenCalledTimes(1);
+  });
+
   it("requests the complete current calendar month and renders a compact category snapshot", async () => {
     const navigate = vi.fn();
     render(<HomeScreen onNavigate={navigate} />);

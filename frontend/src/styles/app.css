@@ -365,6 +365,13 @@ button { font-family: inherit; }
 }
 .progress-track { height: 8px; background: var(--color-neutral-200); }
 .progress-fill { height: 100%; background: var(--color-accent); }
+.live-number-slot,
+.live-hours-slot,
+.live-progress-slot { font-variant-numeric: tabular-nums; }
+.live-number-slot { min-width: 8.5ch; }
+.live-hours-slot { min-height: 1.4em; }
+.live-progress-slot { min-width: 4ch; text-align: right; }
+.live-entry-total-slot { min-width: 17ch; text-align: right; font-variant-numeric: tabular-nums; }
 
 /* — waking up (cold-start) screen — shown instead of a blank page while we
    wait to learn if there's a valid session; see WakingUpScreen.tsx and

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { CURRENCY, useApp } from "../context/AppContext";
 import {
   buildWeekDaysComputed,
@@ -22,8 +22,10 @@ import { Skeleton } from "../components/Skeleton";
 import { Amount } from "../components/Amount";
 import { EarningsHiddenHint } from "../components/EarningsHiddenHint";
 import { ChartDataTable } from "../components/ChartDataTable";
-import * as api from "../lib/api";
-import type { Screen, SpendingSummary } from "../lib/types";
+import { useSpendingSummary } from "../lib/spendingDataCache";
+import type { DayExpense, Screen, Shift, SpendingSummary, WeekExtra, WeekStart } from "../lib/types";
+
+type HomeDay = ReturnType<typeof buildWeekDaysComputed>[number];
 
 function homeSnapshotCategories(summary: SpendingSummary) {
   if (summary.categories.length <= 4) return summary.categories;
@@ -53,13 +55,136 @@ function donutBackground(summary: SpendingSummary): string | undefined {
   return `conic-gradient(${stops.join(",")})`;
 }
 
+function clampProgress(hours: number, goalHours: number): number {
+  const raw = goalHours > 0 ? Math.round((hours / goalHours) * 100) : 0;
+  return Number.isFinite(raw) ? Math.max(0, Math.min(100, raw)) : 0;
+}
+
+function LiveWeekSummaryCard(props: {
+  active: boolean;
+  signIn: string | null;
+  activeShiftInThisWeek: boolean;
+  savedHours: number;
+  savedEarnings: number;
+  rate: number;
+  goalHours: number;
+  today: Date;
+  weekStartsOn: WeekStart;
+  shifts: Shift[];
+  dayExpenses: DayExpense[];
+  weekExtras: WeekExtra[];
+  earningsHidden: boolean;
+}) {
+  const ticking = props.active && props.activeShiftInThisWeek;
+  const liveHours = useLiveElapsedHours(ticking, props.signIn);
+  const totalHours = props.savedHours + liveHours;
+  const totalEarnings = props.savedEarnings + liveHours * props.rate;
+  const progressPct = clampProgress(totalHours, props.goalHours);
+  // Do not continuously retarget an rAF count-up while a shift is running.
+  // The live value is exact; the tween remains for one-off settled changes.
+  const earningsSmoothed = useCountUp(ticking ? props.savedEarnings : totalEarnings, 650);
+  const progressSmoothed = Math.round(useCountUp(ticking ? clampProgress(props.savedHours, props.goalHours) : progressPct, 550));
+  const displayEarnings = ticking ? totalEarnings : earningsSmoothed;
+  const displayProgress = ticking ? progressPct : progressSmoothed;
+  const comparison = compareWeekEarnings({
+    today: props.today,
+    weekStartsOn: props.weekStartsOn,
+    shifts: props.shifts,
+    dayExpenses: props.dayExpenses,
+    weekExtras: props.weekExtras,
+    rate: props.rate,
+    liveEarnings: liveHours * props.rate,
+  });
+
+  return (
+    <div className="card elev-sm anim-rise" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 0 }}>
+      <div className="week-card-top">
+        <div className="week-amount count-value live-number-slot">
+          <Amount>{CURRENCY}{fmt2(displayEarnings)}</Amount>
+        </div>
+        {props.earningsHidden ? (
+          <div className="week-trend is-muted">Earnings hidden</div>
+        ) : (
+          <div className={`week-trend is-${comparison.direction}`} title={comparison.isEstimate ? "Includes the shift currently in progress" : undefined}>
+            {comparison.direction === "up" ? "▲ " : comparison.direction === "down" ? "▼ " : ""}
+            {comparison.label}
+            {comparison.isEstimate && comparison.direction !== "none" ? " (est.)" : ""}
+          </div>
+        )}
+      </div>
+      <EarningsHiddenHint />
+      <div className="card-meta live-hours-slot" style={{ marginTop: 2 }}>
+        {fmt2(totalHours)}h logged · goal {props.goalHours}h
+      </div>
+      <div className="hr" style={{ margin: "var(--space-3) 0" }} />
+      <div className="progress-label-row" id="home-goal-progress-label">
+        <span>Hours toward goal</span>
+        <span className="count-value live-progress-slot">{displayProgress}%</span>
+      </div>
+      <div className="progress-track" role="progressbar" aria-valuenow={progressPct} aria-valuemin={0} aria-valuemax={100} aria-labelledby="home-goal-progress-label">
+        <div className="progress-fill" style={{ width: `${progressPct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function WeekGlanceCard(props: {
+  days: HomeDay[];
+  earningsHidden: boolean;
+}) {
+  const glanceDays = props.days.map((day) => ({
+    ...day,
+    displayHours: day.hours,
+  }));
+  const maxGlanceHours = Math.max(...glanceDays.map((day) => day.displayHours), 1);
+
+  return (
+    <div className="card elev-sm anim-rise glance-card" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 2 }}>
+      <div className="glance-bars" aria-hidden="true">
+        {glanceDays.map((day, index) => {
+          const pct = Math.max(4, Math.round((day.displayHours / maxGlanceHours) * 100));
+          const worked = day.displayHours > 0;
+          return (
+            <div
+              key={day.dateISO}
+              className={`glance-bar-col${day.isToday ? " is-today" : ""}`}
+              style={{ ["--i" as string]: index }}
+              title={`${day.dayAbbr} ${day.dateLabel} — ${worked ? `${fmt2(day.displayHours)}h${props.earningsHidden ? "" : ` · ${day.moneyLabel}`}` : "No entry"}`}
+            >
+              <div className="glance-bar-track"><div className={`glance-bar-fill${worked ? " is-worked" : ""}`} style={{ height: `${pct}%` }} /></div>
+              <div className="glance-bar-label">{day.dayAbbr.charAt(0)}</div>
+            </div>
+          );
+        })}
+      </div>
+      <ChartDataTable
+        caption="Hours worked each day this week"
+        labelHeading="Day"
+        valueHeading="Hours"
+        rows={glanceDays.map((day) => ({ label: `${day.dayAbbr} ${day.dateLabel}`, value: day.displayHours > 0 ? `${fmt2(day.displayHours)}h` : "No entry" }))}
+      />
+    </div>
+  );
+}
+
+function HomeSpendingSkeleton() {
+  return (
+    <div className="home-spending-content home-spending-skeleton" aria-label="Loading this month's spending" aria-busy="true">
+      <span className="visually-hidden">Loading this month's spending</span>
+      <div className="home-spending-chart-row" aria-hidden="true">
+        <span className="data-skeleton is-donut" />
+        <div className="home-spending-skeleton-legend">{[0, 1, 2, 3].map((item) => <span className="data-skeleton is-line" key={item} />)}</div>
+      </div>
+      <div className="home-spending-values" aria-hidden="true">{[0, 1, 2].map((item) => <div key={item}><span className="data-skeleton is-kicker" /><strong className="data-skeleton is-value" /></div>)}</div>
+      <span className="data-skeleton home-spending-skeleton-button" aria-hidden="true" />
+    </div>
+  );
+}
+
 export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => void } = {}) {
   const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras, earningsHidden } = useApp();
   const { active, last, start, end } = useTodayShift();
   const [busy, setBusy] = useState(false);
-  const [spendingSnapshot, setSpendingSnapshot] = useState<SpendingSummary | null>(null);
-  const [spendingSnapshotLoading, setSpendingSnapshotLoading] = useState(true);
-  const spendingRequestRef = useRef(0);
 
   // Every hook below must run on every render regardless of loading state —
   // React requires the same hooks in the same order every time, so the
@@ -75,6 +200,12 @@ export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => vo
   const weekStartISO = isoDate(weekDays[0]);
   const monthStartISO = isoDate(new Date(today.getFullYear(), today.getMonth(), 1));
   const monthEndISO = isoDate(new Date(today.getFullYear(), today.getMonth() + 1, 0));
+  const {
+    data: spendingSnapshot,
+    loading: spendingSnapshotLoading,
+    error: spendingSnapshotError,
+    refresh: refreshSpendingSnapshot,
+  } = useSpendingSummary(user?.id ?? "logged-out", monthStartISO, monthEndISO, !!user);
   const shiftsByDate = groupByDate(shifts);
   const expensesByDate = groupExpensesByDate(dayExpenses);
   const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, CURRENCY, rate, expensesByDate);
@@ -94,51 +225,12 @@ export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => vo
   // counting its live hours here too would show them in the new week first
   // and then have the total visibly jump backward the moment it's signed
   // out and the real, previous-week-dated total takes over.
-  const liveHours = useLiveElapsedHours(active, last?.signIn ?? null);
   const activeShiftInThisWeek = !!last && isDateInWeek(last.date, weekDays);
-  const effectiveLiveHours = activeShiftInThisWeek ? liveHours : 0;
-  const totalHours = savedHours + effectiveLiveHours;
-  const totalEarnings = savedEarnings + effectiveLiveHours * rate;
 
   const history = buildWeeklyHistory(shifts, today, weekStartsOn, rate, 7, new Date(createdAt), dayExpenses, weekExtras);
   const metGoalCount = history.filter((w) => w.earnings >= goalEarnings).length;
 
-  // Derived here, in render, from the same context state the headline uses —
-  // so it re-computes on every change that can move it (a shift saved or
-  // deleted, sign-in/out, fuel or other-earnings edits, a rate change, the
-  // week-start preference, a manual refresh, and the day/week rollover that
-  // `today` picks up from AppContext's minute timer) without needing a single
-  // explicit subscription. The live shift's earnings are passed in so the
-  // comparison counts exactly what the headline above it counts.
-  const weekComparison = compareWeekEarnings({
-    today,
-    weekStartsOn,
-    shifts,
-    dayExpenses,
-    weekExtras,
-    rate,
-    liveEarnings: effectiveLiveHours * rate,
-  });
-
-  // Clamped *and* guarded against a non-finite result. A malformed shift
-  // from the server makes totalHours NaN, which used to surface as a
-  // harmless `width: NaN%` the browser ignored — but the same value now
-  // feeds aria-valuenow, where NaN is an outright invalid ARIA value (axe:
-  // aria-valid-attr-value) rather than something quietly dropped. Falling
-  // back to 0 shows an empty bar, which is the honest reading of "we can't
-  // compute your progress".
-  const rawProgressPct = goalHours > 0 ? Math.round((totalHours / goalHours) * 100) : 0;
-  const progressPct = Number.isFinite(rawProgressPct) ? Math.max(0, Math.min(100, rawProgressPct)) : 0;
   const todayDay = days.find((d) => d.isToday);
-
-  // While a shift is active, show the exact live number every tick rather than
-  // easing toward it — the eased animation is great for one-off jumps (like a
-  // settled total after signing out) but reads as "stuck"/not-live when it's
-  // chasing a target that moves every second.
-  const earningsSmoothed = useCountUp(totalEarnings, 650);
-  const earningsAnim = active ? totalEarnings : earningsSmoothed;
-  const progressPctSmoothed = Math.round(useCountUp(progressPct, 550));
-  const progressPctAnim = active ? progressPct : progressPctSmoothed;
   const daysLoggedAnim = Math.round(useCountUp(daysLogged, 450));
   const metGoalAnim = Math.round(useCountUp(metGoalCount, 450));
 
@@ -160,44 +252,13 @@ export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => vo
     }
   }
 
-  // Week-at-a-glance bar heights, scaled to the tallest day. The open
-  // shift's live hours go on the bar for the date it actually *started* on
-  // (last?.date) rather than always on "today"'s bar — the two differ
-  // exactly when a shift is still running after midnight, and attributing
-  // it to today's bar would show it in the wrong place (and, across a week
-  // boundary, potentially not on this screen's week at all — see
-  // activeShiftInThisWeek above) compared to where it lands once saved.
-  const glanceDays = days.map((d) => ({
-    ...d,
-    displayHours: d.hours + (activeShiftInThisWeek && d.dateISO === last?.date ? liveHours : 0),
-  }));
-  const maxGlanceHours = Math.max(...glanceDays.map((d) => d.displayHours), 1);
-
-  useEffect(() => {
-    const requestId = ++spendingRequestRef.current;
-    // Some isolated Home tests intentionally replace the older API surface
-    // with a minimal mock. In the real application this function is always
-    // present; the guard keeps those focused legacy fixtures from needing to
-    // know about an optional snapshot they do not exercise.
-    if (typeof api.getSpendingSummary !== "function") return;
-    setSpendingSnapshotLoading(true);
-    void api.getSpendingSummary(monthStartISO, monthEndISO)
-      .then((result) => {
-        if (requestId === spendingRequestRef.current) setSpendingSnapshot(result);
-      })
-      .catch(() => { /* Snapshot is optional; the full Spending screen owns retry UI. */ })
-      .finally(() => {
-        if (requestId === spendingRequestRef.current) setSpendingSnapshotLoading(false);
-      });
-  }, [monthStartISO, monthEndISO, shifts, dayExpenses, weekExtras, rate]);
-
   if (!user) return null;
   // Wait for the first shifts fetch before showing any totals — otherwise this
   // briefly renders $0 from the empty initial `shifts` array and then jumps to
   // the real number the instant the fetch resolves, which reads as a flicker.
   if (!shiftsLoaded || !todayDay) {
     return (
-      <div className="screen-wide screen-transition">
+      <div className="screen-wide">
         <h1 className="section-title">This week</h1>
         <div className="home-top-grid">
           <Skeleton className="skeleton-card" />
@@ -239,52 +300,21 @@ export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => vo
     <div className="screen-wide">
       <h1 className="section-title">This week</h1>
       <div className="home-top-grid">
-        <div className="card elev-sm anim-rise" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 0 }}>
-          <div className="week-card-top">
-            <div className="week-amount count-value">
-              <Amount>{CURRENCY}{fmt2(earningsAnim)}</Amount>
-            </div>
-            {/* Hidden entirely while earnings are masked: a percentage change
-                is financial information too, and blurring the dollar amount
-                while announcing "up 20%" would defeat the point. */}
-            {earningsHidden ? (
-              <div className="week-trend is-muted">Earnings hidden</div>
-            ) : (
-              <div
-                className={`week-trend is-${weekComparison.direction}`}
-                title={weekComparison.isEstimate ? "Includes the shift currently in progress" : undefined}
-              >
-                {weekComparison.direction === "up" ? "▲ " : weekComparison.direction === "down" ? "▼ " : ""}
-                {weekComparison.label}
-                {weekComparison.isEstimate && weekComparison.direction !== "none" ? " (est.)" : ""}
-              </div>
-            )}
-          </div>
-          <EarningsHiddenHint />
-          <div className="card-meta" style={{ marginTop: 2 }}>
-            {fmt2(totalHours)}h logged · goal {user.goalHours}h
-          </div>
-          <div className="hr" style={{ margin: "var(--space-3) 0" }} />
-          <div className="progress-label-row" id="home-goal-progress-label">
-            <span>Hours toward goal</span>
-            <span className="count-value">{progressPctAnim}%</span>
-          </div>
-          {/* Was a pair of anonymous divs. The percentage beside the label
-              happens to be readable, but nothing connected it to the bar or
-              told assistive tech this was a progress indicator at all.
-              aria-valuenow uses the settled figure, not the count-up
-              animation value, so it never announces an intermediate frame. */}
-          <div
-            className="progress-track"
-            role="progressbar"
-            aria-valuenow={progressPct}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-labelledby="home-goal-progress-label"
-          >
-            <div className="progress-fill" style={{ width: `${progressPct}%` }} />
-          </div>
-        </div>
+        <LiveWeekSummaryCard
+          active={active}
+          signIn={last?.signIn ?? null}
+          activeShiftInThisWeek={activeShiftInThisWeek}
+          savedHours={savedHours}
+          savedEarnings={savedEarnings}
+          rate={rate}
+          goalHours={goalHours}
+          today={today}
+          weekStartsOn={weekStartsOn}
+          shifts={shifts}
+          dayExpenses={dayExpenses}
+          weekExtras={weekExtras}
+          earningsHidden={earningsHidden}
+        />
 
         <div className="card elev-sm anim-rise" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 1 }}>
           <div className="today-card-row">
@@ -301,7 +331,11 @@ export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => vo
       <section className="card elev-sm home-spending-snapshot anim-rise" aria-labelledby="home-spending-title" aria-busy={spendingSnapshotLoading || undefined} style={{ ["--i" as string]: 2 }}>
         <div className="home-spending-heading">
           <div className="home-spending-title-row"><SpendingIcon size={18} /><div><span className="card-kicker">Monthly snapshot</span><h2 id="home-spending-title" className="card-title">Personal spending — {spendingMonthLabel}</h2></div></div>
-          {spendingSnapshotLoading && spendingSnapshot && <span className="home-spending-updating">Updating…</span>}
+          {spendingSnapshotError && spendingSnapshot ? (
+            <button type="button" className="home-spending-refresh-state is-warning" onClick={() => void refreshSpendingSnapshot().catch(() => {})} title={spendingSnapshotError}>Retry refresh</button>
+          ) : (
+            <span className={`home-spending-updating${spendingSnapshotLoading && spendingSnapshot ? " is-visible" : ""}`} aria-live="polite">Updating…</span>
+          )}
         </div>
         {spendingSnapshot ? (
           <div className="home-spending-content">
@@ -323,48 +357,17 @@ export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => vo
             </div>
             <button type="button" className="btn btn-secondary home-spending-cta" onClick={() => onNavigate?.("spending")}>View full spending dashboard <span aria-hidden="true">→</span></button>
           </div>
-        ) : spendingSnapshotLoading ? <div className="home-spending-loading"><span className="spinner" /> Loading this month's spending…</div> : <div className="card-meta">Open Spending to record and review personal expenses.</div>}
+        ) : spendingSnapshotLoading ? <HomeSpendingSkeleton /> : spendingSnapshotError ? (
+          <div className="home-spending-error" role="alert"><span>{spendingSnapshotError}</span><button type="button" className="btn btn-secondary" onClick={() => void refreshSpendingSnapshot().catch(() => {})}>Retry</button></div>
+        ) : <div className="card-meta">Open Spending to record and review personal expenses.</div>}
       </section>
 
       <h2 className="section-title home-glance-title">Week at a glance</h2>
       <div className="section-hint">How this week's hours are spread out, day by day.</div>
-      <div className="card elev-sm anim-rise glance-card" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 2 }}>
-        {/* The bars carried their information in `title` attributes on
-            <div>s — a tooltip, which is unreachable by touch, unreliable
-            for screen readers, and never shown on keyboard focus. The
-            drawing is hidden from assistive tech and the same day-by-day
-            figures are published as a table below it. */}
-        <div className="glance-bars" aria-hidden="true">
-          {glanceDays.map((d, i) => {
-            const pct = Math.max(4, Math.round((d.displayHours / maxGlanceHours) * 100));
-            const worked = d.displayHours > 0;
-            return (
-              <div
-                key={d.dateISO}
-                className={`glance-bar-col${d.isToday ? " is-today" : ""}`}
-                style={{ ["--i" as string]: i }}
-                title={`${d.dayAbbr} ${d.dateLabel} — ${
-                  worked ? `${fmt2(d.displayHours)}h${earningsHidden ? "" : ` · ${d.moneyLabel}`}` : "No entry"
-                }`}
-              >
-                <div className="glance-bar-track">
-                  <div className={`glance-bar-fill${worked ? " is-worked" : ""}`} style={{ height: `${pct}%` }} />
-                </div>
-                <div className="glance-bar-label">{d.dayAbbr.charAt(0)}</div>
-              </div>
-            );
-          })}
-        </div>
-        <ChartDataTable
-          caption="Hours worked each day this week"
-          labelHeading="Day"
-          valueHeading="Hours"
-          rows={glanceDays.map((d) => ({
-            label: `${d.dayAbbr} ${d.dateLabel}`,
-            value: d.displayHours > 0 ? `${fmt2(d.displayHours)}h` : "No entry",
-          }))}
-        />
-      </div>
+      <WeekGlanceCard
+        days={days}
+        earningsHidden={earningsHidden}
+      />
 
       <div className="stat-grid">
         <div className="card stat-tile stat-tile-ring anim-rise" style={{ ["--i" as string]: 3 }}>

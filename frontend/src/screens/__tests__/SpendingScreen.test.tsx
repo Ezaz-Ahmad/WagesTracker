@@ -6,6 +6,7 @@ import { axe, toHaveNoViolations } from "jest-axe";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConfirmProvider } from "../../components/ConfirmProvider";
 import type { PersonalExpense, SpendingCategory, SpendingSummary } from "../../lib/types";
+import { resetSpendingDataCacheForTests } from "../../lib/spendingDataCache";
 import { SpendingScreen } from "../SpendingScreen";
 
 expect.extend(toHaveNoViolations);
@@ -87,6 +88,7 @@ function renderScreen() {
 }
 
 beforeEach(() => {
+  resetSpendingDataCacheForTests();
   vi.resetAllMocks();
   mocks.listCategories.mockResolvedValue({ categories });
   mocks.listExpenses.mockResolvedValue({ expenses: [expense], page: 1, pageSize: 20, total: 1, hasMore: false });
@@ -100,6 +102,29 @@ beforeEach(() => {
 });
 
 describe("SpendingScreen", () => {
+  it("uses a dashboard-shaped skeleton for the first load instead of a blank text loader", async () => {
+    let resolveSummary!: (value: SpendingSummary) => void;
+    mocks.getSummary.mockReturnValue(new Promise((resolve) => { resolveSummary = resolve; }));
+    const { container } = renderScreen();
+    expect(screen.getByLabelText("Loading spending dashboard")).toBeTruthy();
+    expect(container.querySelectorAll(".spending-summary-skeleton")).toHaveLength(4);
+    expect(screen.queryByText("Loading spending dashboard…")).toBeNull();
+    resolveSummary(summary);
+    expect((await screen.findAllByText("$1000.00")).length).toBeGreaterThan(0);
+  });
+
+  it("renders a cached dashboard synchronously after navigation remount without refetching", async () => {
+    const first = renderScreen();
+    expect((await screen.findAllByText("$1000.00")).length).toBeGreaterThan(0);
+    expect(mocks.getSummary).toHaveBeenCalledTimes(1);
+    first.unmount();
+
+    renderScreen();
+    expect(screen.getAllByText("$1000.00").length).toBeGreaterThan(0);
+    expect(screen.queryByLabelText("Loading spending dashboard")).toBeNull();
+    expect(mocks.getSummary).toHaveBeenCalledTimes(1);
+  });
+
   it("shows canonical earnings, spending, difference, percentage, insights, charts, and recent expenses", async () => {
     renderScreen();
     expect((await screen.findAllByText("$1000.00")).length).toBeGreaterThan(0);

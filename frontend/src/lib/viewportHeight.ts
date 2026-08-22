@@ -73,6 +73,11 @@ export const KEYBOARD_INSET_THRESHOLD_PX = 80;
  * genuinely shortened viewport slip through as "recovered". */
 export const BASELINE_TOLERANCE_PX = 4;
 
+/** Ignore fractional/tiny steady-state height noise from iOS. A 1–2px
+ * visualViewport fluctuation is not a meaningful geometry change, but writing
+ * it into the shell height forces a full layout and can look like a shake. */
+export const STEADY_STATE_HEIGHT_TOLERANCE_PX = 2;
+
 /** How close to zero `offsetTop` must be to count as "not moving". */
 export const OFFSET_TOLERANCE_PX = 2;
 
@@ -164,7 +169,8 @@ export type PublishReason =
   | "orientation-in-flux"
   | "recovery-holding-baseline"
   | "recovery-offset-nonzero"
-  | "viewport-zoomed";
+  | "viewport-zoomed"
+  | "steady-state-jitter";
 
 export interface PublishDecision {
   publish: boolean;
@@ -209,6 +215,7 @@ let baseline: Baseline | null = null;
 let recovery: RecoveryState | null = null;
 let orientationInFluxUntil = 0;
 let pendingFrame: number | null = null;
+let pendingSource = "scheduled";
 let lastDecision: PublishDecision | null = null;
 let lastSettle: SettleResult | null = null;
 
@@ -517,6 +524,15 @@ export function evaluatePublish(
     return { publish: true, height: metrics.height, reason: "recovered" };
   }
 
+  if (
+    baseline &&
+    metrics.width === baseline.width &&
+    metrics.height !== baseline.height &&
+    Math.abs(metrics.height - baseline.height) <= STEADY_STATE_HEIGHT_TOLERANCE_PX
+  ) {
+    return { publish: false, height: metrics.height, reason: "steady-state-jitter" };
+  }
+
   return { publish: true, height: metrics.height, reason: "unobstructed" };
 }
 
@@ -534,9 +550,10 @@ function px(value: number): string {
 
 /** Inline-style read, so there's no module cache to go stale and no layout
  * flush — and no redundant write when the value hasn't moved. */
-function setVar(root: HTMLElement, name: string, value: string): void {
-  if (root.style.getPropertyValue(name) === value) return;
+function setVar(root: HTMLElement, name: string, value: string): boolean {
+  if (root.style.getPropertyValue(name) === value) return false;
   root.style.setProperty(name, value);
+  return true;
 }
 
 export function getPublishedHeightPx(): number | null {
@@ -547,15 +564,17 @@ export function getPublishedHeightPx(): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function applyDecision(force: boolean): PublishDecision {
+function applyDecision(force: boolean, source: string): PublishDecision {
   const metrics = readViewportMetrics();
   const decision = evaluatePublish(metrics, { force });
   lastDecision = decision;
 
   const root = document.documentElement;
+  const previousHeight = getPublishedHeightPx();
+  let wroteHeight = false;
   if (root) {
     if (decision.publish) {
-      setVar(root, VIEWPORT_HEIGHT_VAR, px(decision.height));
+      wroteHeight = setVar(root, VIEWPORT_HEIGHT_VAR, px(decision.height));
       baseline = { height: decision.height, width: metrics.width };
       if (decision.reason === "recovered" || decision.reason === "recovery-long-hold-accepted") {
         releaseKeyboardRecovery(decision.reason);
@@ -566,8 +585,10 @@ function applyDecision(force: boolean): PublishDecision {
 
   logEvent(
     "publish",
-    `${decision.publish ? "set" : "hold"} ${Math.round(decision.height)} (${decision.reason})` +
-      ` vv=${Math.round(metrics.height)} inner=${Math.round(metrics.innerHeight)}`
+    `${wroteHeight ? "write" : decision.publish ? "unchanged" : "hold"}` +
+      ` old=${previousHeight ?? "none"} new=${Math.round(decision.height * 100) / 100}` +
+      ` source=${source} reason=${decision.reason}` +
+      ` vv=${Math.round(metrics.height * 100) / 100} inner=${Math.round(metrics.innerHeight * 100) / 100}`
   );
   return decision;
 }
@@ -579,18 +600,20 @@ function applyDecision(force: boolean): PublishDecision {
  * that must be correct before the next paint. `force` is for a confirmed
  * geometry change only.
  */
-export function syncViewportHeight(options: { immediate?: boolean; force?: boolean } = {}): void {
+export function syncViewportHeight(options: { immediate?: boolean; force?: boolean; source?: string } = {}): void {
   if (!hasWindow()) return;
   const force = options.force === true;
+  const source = options.source ?? "manual";
   if (options.immediate || typeof requestAnimationFrame !== "function") {
     cancelPendingFrame();
-    applyDecision(force);
+    applyDecision(force, source);
     return;
   }
+  pendingSource = source;
   if (pendingFrame !== null) return;
   pendingFrame = requestAnimationFrame(() => {
     pendingFrame = null;
-    applyDecision(force);
+    applyDecision(force, pendingSource);
   });
 }
 
@@ -612,14 +635,14 @@ export function startViewportSync(): () => void {
   const handle = (kind: string) => (): void => {
     if (disposed) return;
     logEvent("event", kind);
-    syncViewportHeight();
+    syncViewportHeight({ source: kind });
   };
 
   /** For events whose effect lands after the event turn. */
   const handleDeferred = (kind: string, force = false) => (): void => {
     if (disposed) return;
     logEvent("event", kind);
-    syncViewportHeight({ force });
+    syncViewportHeight({ force, source: kind });
     for (const delay of DEFERRED_RESYNC_MS) {
       const timer = setTimeout(() => {
         timers.delete(timer);
@@ -627,7 +650,7 @@ export function startViewportSync(): () => void {
         // Deliberately NOT forced: the deferred re-measures were one of the
         // paths that published the stale shortened height, so they get the
         // same scrutiny as everything else.
-        syncViewportHeight({ immediate: true });
+        syncViewportHeight({ immediate: true, source: `${kind}.deferred-${delay}` });
       }, delay);
       timers.add(timer);
     }
@@ -642,7 +665,7 @@ export function startViewportSync(): () => void {
     for (const delay of [...DEFERRED_RESYNC_MS, ORIENTATION_SETTLE_MS + 60]) {
       const timer = setTimeout(() => {
         timers.delete(timer);
-        if (!disposed) syncViewportHeight({ immediate: true });
+        if (!disposed) syncViewportHeight({ immediate: true, source: `orientationchange.deferred-${delay}` });
       }, delay);
       timers.add(timer);
     }
@@ -680,7 +703,7 @@ export function startViewportSync(): () => void {
   document.addEventListener("visibilitychange", handleVisibility);
 
   logEvent("lifecycle", `sync started standalone=${isStandalonePWA()}`);
-  syncViewportHeight({ immediate: true });
+  syncViewportHeight({ immediate: true, source: "sync-start" });
 
   return () => {
     disposed = true;
@@ -705,7 +728,7 @@ function finishSettle(reason: SettleReason, startedAt: number): SettleResult {
   // Guarded, never forced: if the viewport is still reporting the shortened
   // height at this point, the baseline stays published and the guard stays
   // up to catch the real recovery whenever it arrives.
-  syncViewportHeight({ immediate: true });
+  syncViewportHeight({ immediate: true, source: `settle-${reason}` });
   const result: SettleResult = {
     reason,
     publishedHeight: getPublishedHeightPx(),
