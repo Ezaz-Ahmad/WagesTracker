@@ -55,6 +55,23 @@ function donutBackground(summary: SpendingSummary): string | undefined {
   return `conic-gradient(${stops.join(",")})`;
 }
 
+export function formatHomeDonutAmount(totalCents: number): { display: string; full: string; fit: "regular" | "medium" | "tight" | "compact" } {
+  const dollars = Math.max(0, totalCents) / 100;
+  const full = `${CURRENCY}${dollars.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (dollars >= 100_000) {
+    const compact = dollars.toLocaleString("en-AU", { notation: "compact", maximumFractionDigits: 1 });
+    return { display: `${CURRENCY}${compact}`, full, fit: "compact" };
+  }
+  if (full.length >= 10) return { display: full, full, fit: "tight" };
+  if (full.length >= 8) return { display: full, full, fit: "medium" };
+  return { display: full, full, fit: "regular" };
+}
+
+function categoryPercentage(categoryCents: number, totalCents: number): string {
+  const percentage = (categoryCents / Math.max(1, totalCents)) * 100;
+  return `${percentage > 0 && percentage < 10 ? percentage.toFixed(1) : percentage.toFixed(0)}%`;
+}
+
 function clampProgress(hours: number, goalHours: number): number {
   const raw = goalHours > 0 ? Math.round((hours / goalHours) * 100) : 0;
   return Number.isFinite(raw) ? Math.max(0, Math.min(100, raw)) : 0;
@@ -295,6 +312,7 @@ export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => vo
       : "Tap to start your shift.";
   const spendingMonthLabel = today.toLocaleDateString("en-AU", { month: "long" });
   const snapshotCategories = spendingSnapshot ? homeSnapshotCategories(spendingSnapshot) : [];
+  const donutAmount = spendingSnapshot ? formatHomeDonutAmount(spendingSnapshot.totalSpendingCents) : null;
 
   return (
     <div className="screen-wide">
@@ -341,12 +359,14 @@ export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => vo
           <div className="home-spending-content">
             <p className="visually-hidden">Personal spending for {spendingMonthLabel}: {CURRENCY}{fmt2(spendingSnapshot.totalSpendingCents / 100)}. {snapshotCategories.map((category) => `${category.name} ${((category.totalCents / Math.max(1, spendingSnapshot.totalSpendingCents)) * 100).toFixed(1)} percent`).join(", ")}.</p>
             <div className="home-spending-chart-row">
-              <div className="home-spending-donut" aria-hidden="true" style={{ background: donutBackground(spendingSnapshot) }}>
-                <strong>{CURRENCY}{Math.round(spendingSnapshot.totalSpendingCents / 100).toLocaleString("en-AU")}</strong><span>spent</span>
+              <div className="home-spending-donut" aria-hidden="true" style={{ background: donutBackground(spendingSnapshot) }} title={donutAmount?.full}>
+                <div className={`home-spending-donut-center is-${donutAmount?.fit}`}>
+                  <strong>{donutAmount?.display}</strong><span>Spent this month</span>
+                </div>
               </div>
               <ul className="home-spending-legend" aria-label={`${spendingMonthLabel} spending by category`}>
                 {snapshotCategories.length ? snapshotCategories.map((category) => (
-                  <li key={category.id}><span style={{ backgroundColor: category.colour }} aria-hidden="true" /><span>{category.name}</span><strong>{((category.totalCents / spendingSnapshot.totalSpendingCents) * 100).toFixed(0)}%</strong></li>
+                  <li key={category.id}><span style={{ backgroundColor: category.colour }} aria-hidden="true" /><span>{category.name}</span><strong>{categoryPercentage(category.totalCents, spendingSnapshot.totalSpendingCents)}</strong></li>
                 )) : <li className="home-spending-empty">No expenses recorded this month.</li>}
               </ul>
             </div>

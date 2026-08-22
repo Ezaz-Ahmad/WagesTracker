@@ -91,7 +91,6 @@
 @media (hover: hover) and (pointer: fine) {
   .elev-sm:hover,
   .elev-md:hover {
-    transform: translateY(-2px);
     box-shadow: var(--shadow-md);
   }
 }

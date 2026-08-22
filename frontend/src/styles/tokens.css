@@ -1,14 +1,16 @@
-/* Modernist — design-system tokens and component classes. This file is the source of truth for the system's look; retune it here and see readme.md. */
+/* Wage Tracker design-system tokens and component classes. This file is the
+   source of truth for the product's visual language; retune it here and see
+   readme.md. */
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap');
 
 :root {
   --banner-duration: 8000ms;
-  --color-bg: #f3f2f2;
-  --color-surface: #eae9e9;
+  --color-bg: #f6f4f3;
+  --color-surface: #fffdfc;
   --color-text: #201e1d;
   --color-accent: #ec3013;
   --color-accent-2: #e15b47;
-  --color-divider: color-mix(in srgb, #201e1d 40%, transparent);
+  --color-divider: color-mix(in srgb, #201e1d 16%, transparent);
 
   /* Tonal ramps — generated in OKLCH on one shared lightness scale, so the
      same step of any role matches the others in visual value. */
@@ -61,14 +63,12 @@
   --space-6: 24.0px;
   --space-8: 32.0px;
 
-  --radius-sm: 0px;
-  --radius-md: 0px;
-  --radius-lg: 0px;
-  /* Buttons deliberately opt out of the system's flat 0-radius edges —
-     rounded, with real depth (gradient/shadow below), so the things you
-     actually tap read as tappable, modern surfaces rather than flat
-     outlines. Everything else (cards, inputs, tags) keeps the sharp
-     Modernist look above. */
+  /* One restrained radius scale. Smaller controls stay compact while cards
+     and modal surfaces get enough softness to read as touch-first without
+     becoming bubbly or toy-like. */
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
   --radius-btn: 14px;
 
   /* Elevation — derived from the ground: soft ink-tinted shadows on a
@@ -255,7 +255,7 @@ figcaption {
 
 /* — rules — */
 .hr {
-  height: 2px; border: 0; margin: var(--space-4) 0;
+  height: 1px; border: 0; margin: var(--space-4) 0;
   background: var(--color-divider);
 }
 
@@ -267,7 +267,7 @@ figcaption {
   font-size: 14px; line-height: 1.2; color: var(--color-text); /* matches the .input's 14px —
      the pair sits side by side in sign-up rows */
   background: transparent; border: 1px solid transparent;
-  padding: 10px calc(var(--space-3) * 1.35);
+  min-height: 44px; padding: 10px calc(var(--space-3) * 1.35);
   border-radius: var(--radius-btn);
 }
 .btn svg { display: block; }
@@ -332,7 +332,7 @@ figcaption {
   color: color-mix(in srgb, var(--color-text) 68%, transparent);
 }
 .input {
-  width: 100%; min-height: 40px; padding: 8px 12px; font: inherit;
+  width: 100%; min-height: 44px; padding: 9px 12px; font: inherit;
   font-size: 14px; color: var(--color-text); caret-color: var(--color-accent);
   background: color-mix(in srgb, var(--color-text) 4%, var(--color-bg));
   border: 1px solid transparent; border-radius: 12px;
@@ -447,7 +447,8 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 /* — cards — */
 .card {
   display: flex; flex-direction: column; gap: var(--space-2);
-  padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-surface);
+  padding: var(--space-4); border-radius: var(--radius-md); background: var(--color-surface);
+  border: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent);
 }
 .card-kicker { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent-text); }
 .card-title {
@@ -478,7 +479,7 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 .nav {
   display: flex; align-items: center; gap: var(--space-4);
   padding: var(--space-3) var(--space-4);
-  border-bottom: 2px solid var(--color-divider);
+  border-bottom: 1px solid var(--color-divider);
 }
 .nav-brand {
   display: inline-flex; align-items: center; gap: 9px;

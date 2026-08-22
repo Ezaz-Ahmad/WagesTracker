@@ -109,7 +109,28 @@ describe("Home monthly personal-spending snapshot", () => {
     expect(screen.getByText("Groceries")).toBeTruthy();
     expect(screen.getByText("78%")).toBeTruthy();
     expect(screen.getByText("22%")).toBeTruthy();
-    expect(screen.getByText("$255.00")).toBeTruthy();
+    expect(screen.getAllByText("$255.00").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /View full spending dashboard/ })).toBeTruthy();
+  });
+
+  it.each([
+    [10_000, "$100.00", "regular", "$100.00"],
+    [107_356, "$1,073.56", "medium", "$1,073.56"],
+    [1_000_000, "$10,000.00", "tight", "$10,000.00"],
+    [10_000_000, "$100K", "compact", "$100,000.00"],
+  ])("keeps a %s-cent total readable inside the donut", async (totalSpendingCents, display, fit, full) => {
+    getSpendingSummary.mockResolvedValue({
+      ...monthlySummary,
+      totalSpendingCents,
+      categories: [{ ...monthlySummary.categories[0], totalCents: totalSpendingCents }],
+    });
+    const { container } = render(<HomeScreen />);
+    await waitFor(() => expect(container.querySelector(".home-spending-donut-center")).toBeTruthy());
+
+    const donut = container.querySelector(".home-spending-donut") as HTMLElement;
+    const center = container.querySelector(".home-spending-donut-center") as HTMLElement;
+    expect(center.textContent).toContain(display);
+    expect(center.classList.contains(`is-${fit}`)).toBe(true);
+    expect(donut.title).toBe(full);
   });
 });

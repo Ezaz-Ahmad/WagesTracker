@@ -10,7 +10,7 @@ import { pingHealth } from "./api";
  * from those two real numbers — never a fake progress figure. Only a real
  * successful health response ever produces "connected".
  */
-export type HealthWakeupPhase = "connecting" | "waking" | "slow" | "connected" | "offline" | "failed";
+export type HealthWakeupPhase = "connecting" | "waking" | "slow" | "long" | "connected" | "offline" | "failed";
 
 /** Per-attempt request timeout, in ms — matches the previous implementation. */
 const PING_TIMEOUT_MS = 10000;
@@ -18,7 +18,11 @@ const PING_TIMEOUT_MS = 10000;
 const RETRY_DELAY_MS = 2500;
 /** After this many real seconds of trying, swap in a message acknowledging
  * it's taking a while rather than silently cycling with no explanation. */
-export const SLOW_AFTER_SECONDS = 50;
+export const SLOW_AFTER_SECONDS = 20;
+/** At this point the service is outside its normal cold-start window. Keep
+ * retrying automatically, but give the user an honest manual restart option
+ * instead of leaving them in an unexplained wait. */
+export const LONG_WAIT_AFTER_SECONDS = 60;
 /** After this many real seconds with no successful response, stop the
  * automatic loop and hand control to the user via Retry rather than
  * looping forever. */
@@ -191,7 +195,9 @@ export function useHealthWakeup(): HealthWakeupState {
   const phase: HealthWakeupPhase =
     status === "connected" || status === "offline" || status === "failed"
       ? status
-      : elapsedSec >= SLOW_AFTER_SECONDS
+      : elapsedSec >= LONG_WAIT_AFTER_SECONDS
+        ? "long"
+        : elapsedSec >= SLOW_AFTER_SECONDS
         ? "slow"
         : attempt <= 1
           ? "connecting"

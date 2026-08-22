@@ -324,12 +324,12 @@ button { font-family: inherit; }
   padding: 6px;
   border-radius: 24px;
   background: color-mix(in srgb, var(--color-bg) 88%, transparent);
-  backdrop-filter: blur(22px) saturate(180%);
-  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  backdrop-filter: blur(12px) saturate(135%);
+  -webkit-backdrop-filter: blur(12px) saturate(135%);
   border: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent);
   box-shadow:
-    0 18px 34px -16px color-mix(in srgb, #000 34%, transparent),
-    0 3px 10px -4px color-mix(in srgb, #000 16%, transparent),
+    0 14px 28px -18px color-mix(in srgb, #000 30%, transparent),
+    0 2px 8px -5px color-mix(in srgb, #000 14%, transparent),
     inset 0 1px 0 color-mix(in srgb, #fff 55%, transparent);
 }
 .app-bottomnav-btn {
@@ -363,8 +363,8 @@ button { font-family: inherit; }
   display: flex; justify-content: space-between; font-size: 11px; text-transform: uppercase;
   letter-spacing: 0.06em; opacity: 0.72; margin-bottom: 6px;
 }
-.progress-track { height: 8px; background: var(--color-neutral-200); }
-.progress-fill { height: 100%; background: var(--color-accent); }
+.progress-track { height: 8px; overflow: hidden; border-radius: 999px; background: var(--color-neutral-200); }
+.progress-fill { height: 100%; border-radius: inherit; background: var(--color-accent); }
 .live-number-slot,
 .live-hours-slot,
 .live-progress-slot { font-variant-numeric: tabular-nums; }
@@ -401,7 +401,7 @@ button { font-family: inherit; }
 }
 .wakeup-card {
   position: relative; width: min(380px, calc(100vw - 32px));
-  display: flex; flex-direction: column; align-items: center; gap: var(--space-4);
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
   padding: var(--space-6) var(--space-5);
   background: color-mix(in srgb, var(--color-bg) 92%, white 8%);
   border: 1px solid color-mix(in srgb, var(--color-text) 9%, transparent);
@@ -467,6 +467,34 @@ button { font-family: inherit; }
   animation: fade-in var(--dur-base) var(--ease-standard) both;
 }
 
+/* Three real milestones replace the old fake percentage. The current step
+   is highlighted, completed steps carry a check, and no step claims partial
+   completion the health endpoint cannot actually report. */
+.wakeup-stages {
+  width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  list-style: none; margin: 0; padding: 0;
+}
+.wakeup-stages li {
+  position: relative; min-width: 0; display: flex; flex-direction: column;
+  align-items: center; gap: 5px; color: var(--color-neutral-500);
+}
+.wakeup-stages li:not(:last-child)::after {
+  content: ""; position: absolute; z-index: 0; top: 12px;
+  left: calc(50% + 14px); width: calc(100% - 28px); height: 1px;
+  background: var(--color-neutral-300);
+}
+.wakeup-stages li.is-complete:not(:last-child)::after { background: color-mix(in srgb, var(--color-success) 55%, var(--color-neutral-300)); }
+.wakeup-stages li > span {
+  position: relative; z-index: 1; width: 24px; height: 24px; display: grid; place-items: center;
+  border-radius: 50%; border: 1px solid var(--color-neutral-300); background: var(--color-surface);
+  font: 700 10px/1 var(--font-heading); font-variant-numeric: tabular-nums;
+}
+.wakeup-stages li.is-current { color: var(--color-accent-700); }
+.wakeup-stages li.is-current > span { border-color: var(--color-accent); box-shadow: 0 0 0 3px var(--color-accent-100); }
+.wakeup-stages li.is-complete { color: var(--color-success-700); }
+.wakeup-stages li.is-complete > span { color: #fff; border-color: var(--color-success); background: var(--color-success); }
+.wakeup-stages small { overflow: hidden; text-overflow: ellipsis; font-size: 10px; line-height: 1.2; }
+
 .wakeup-text {
   width: 100%; display: flex; flex-direction: column; align-items: center; gap: 4px;
   text-align: center;
@@ -474,7 +502,7 @@ button { font-family: inherit; }
      + the slow-hint line, which is always mounted — see the component —
      rather than inserted/removed) so no phase transition ever grows or
      shrinks the card. */
-  min-height: 118px;
+  min-height: 126px;
 }
 .wakeup-heading {
   margin: 0; font-size: 18px; letter-spacing: -0.01em;
@@ -495,6 +523,12 @@ button { font-family: inherit; }
   margin: 2px 0 0; font-size: 11px; letter-spacing: 0.02em;
   min-height: 1.4em;
   color: color-mix(in srgb, var(--color-text) 50%, transparent);
+}
+.wakeup-action-slot { min-height: 44px; display: grid; place-items: center; }
+.wakeup-action-note {
+  display: inline-flex; min-height: 32px; align-items: center; padding: 6px 11px;
+  border-radius: 999px; background: color-mix(in srgb, var(--color-text) 4%, transparent);
+  color: color-mix(in srgb, var(--color-text) 52%, transparent); font-size: 10.5px;
 }
 .wakeup-retry-btn { margin-top: 2px; min-width: 128px; min-height: 44px; }
 .wakeup-spinner {
@@ -620,22 +654,16 @@ button { font-family: inherit; }
   position: relative;
   overflow: hidden;
   background:
-    radial-gradient(130% 160% at 86% 8%, color-mix(in srgb, var(--color-accent) 20%, transparent), transparent 60%),
-    linear-gradient(
-      155deg,
-      color-mix(in srgb, var(--color-accent) 11%, var(--color-bg)),
-      color-mix(in srgb, var(--color-accent) 2%, var(--color-bg)) 72%
-    );
-  border: 1px solid color-mix(in srgb, var(--color-accent) 15%, transparent);
+    radial-gradient(90% 130% at 90% 0%, color-mix(in srgb, var(--color-accent) 7%, transparent), transparent 62%),
+    var(--color-surface);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 20%, var(--color-divider));
   border-radius: 24px;
   padding: var(--space-6);
   margin-bottom: var(--space-4);
   display: flex; align-items: center; justify-content: space-between; gap: var(--space-4);
   box-shadow:
-    0 20px 40px -22px color-mix(in srgb, var(--color-accent) 46%, transparent),
-    0 2px 12px -4px color-mix(in srgb, #000 12%, transparent),
-    inset 0 1px 0 color-mix(in srgb, white 60%, transparent),
-    inset 0 0 0 1px color-mix(in srgb, white 22%, transparent);
+    0 16px 30px -24px color-mix(in srgb, var(--color-text) 38%, transparent),
+    inset 4px 0 0 color-mix(in srgb, var(--color-accent) 82%, transparent);
 }
 .entry-today-sub {
   margin: 0 0 3px; opacity: 1; color: var(--color-accent-800); font-weight: 600;
@@ -1102,6 +1130,24 @@ button { font-family: inherit; }
 .period-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 6px; }
 .period-bar-label { font-size: 10px; opacity: 0.72; }
 .period-bar-fill { width: 100%; }
+
+/* Empty datasets are a normal first-use condition, not an error. This
+   shared treatment keeps them useful and intentional without turning them
+   into oversized illustrations. */
+.empty-state {
+  min-height: 224px; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 8px; padding: var(--space-5); text-align: center;
+}
+.empty-state.is-compact { min-height: 205px; }
+.empty-state-icon {
+  width: 52px; height: 52px; display: grid; place-items: center; margin-bottom: var(--space-1);
+  border-radius: 50%; color: var(--color-accent-700); background: var(--color-accent-100);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 16%, transparent);
+}
+.empty-state-title { font: 800 16px/1.25 var(--font-heading); }
+.empty-state-description { max-width: 38ch; margin: 0; font-size: 12.5px; line-height: 1.5; color: color-mix(in srgb, var(--color-text) 66%, transparent); }
+.empty-state-action { margin-top: var(--space-2); }
+.report-chart-empty { min-height: 286px; display: grid; place-items: center; }
 
 /* — per-screen error boundary fallback (ScreenErrorBoundary) — */
 .screen-error-card {

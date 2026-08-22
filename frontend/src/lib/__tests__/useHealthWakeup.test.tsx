@@ -10,7 +10,7 @@
 // time.
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MAX_WAIT_SECONDS, SLOW_AFTER_SECONDS, useHealthWakeup } from "../useHealthWakeup";
+import { LONG_WAIT_AFTER_SECONDS, MAX_WAIT_SECONDS, SLOW_AFTER_SECONDS, useHealthWakeup } from "../useHealthWakeup";
 
 vi.mock("../api", () => ({ pingHealth: vi.fn() }));
 import { pingHealth } from "../api";
@@ -134,6 +134,18 @@ describe("useHealthWakeup — automatic retry loop", () => {
       });
     }
     expect(screen.getByTestId("phase").textContent).toBe("slow");
+  });
+
+  it("moves to the long-wait phase before the automatic loop gives up", async () => {
+    pingHealthMock.mockResolvedValue(false);
+    render(<Harness />);
+
+    for (let i = 0; i < Math.ceil((LONG_WAIT_AFTER_SECONDS + 5) / 3); i++) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000);
+      });
+    }
+    expect(screen.getByTestId("phase").textContent).toBe("long");
   });
 });
 

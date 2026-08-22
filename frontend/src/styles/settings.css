@@ -125,6 +125,17 @@
 
 .settings-section-card { gap: 0; }
 .settings-section-card .field-spaced { margin-bottom: var(--space-3); }
+.weekly-cycle-field {
+  position: relative; margin-top: var(--space-1); padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 18%, var(--color-divider));
+  background: color-mix(in srgb, var(--color-accent) 3%, var(--color-surface));
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--color-accent) 70%, transparent);
+}
+.weekly-cycle-eyebrow {
+  display: block; margin-bottom: 3px; color: var(--color-accent-text);
+  font-size: 9px; font-weight: 800; line-height: 1.2; letter-spacing: 0.09em; text-transform: uppercase;
+}
 .settings-subsection-title { font-size: 15px; margin-bottom: var(--space-1); }
 .settings-subsection-head {
   display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2);

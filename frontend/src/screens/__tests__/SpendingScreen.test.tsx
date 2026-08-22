@@ -156,6 +156,21 @@ describe("SpendingScreen", () => {
     await waitFor(() => expect(mocks.getSummary).toHaveBeenCalledWith("2026-08-03", "2026-08-09"));
   });
 
+  it("starts each internal spending view at the top of the app scroller", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <div className="app-main">
+        <ConfirmProvider><SpendingScreen /></ConfirmProvider>
+      </div>
+    );
+    await screen.findByText("Fresh Market");
+    const scroller = container.querySelector(".app-main") as HTMLElement;
+    scroller.scrollTop = 480;
+
+    await user.click(screen.getByRole("tab", { name: "History" }));
+    expect(scroller.scrollTop).toBe(0);
+  });
+
   it("validates quick-entry amounts and excludes archived categories from new expenses", async () => {
     const user = userEvent.setup();
     renderScreen();

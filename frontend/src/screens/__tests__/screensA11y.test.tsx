@@ -54,13 +54,14 @@ const SHIFTS: Shift[] = [
 ];
 
 let earningsHidden = false;
+let appShifts = SHIFTS;
 
 function useFakeApp(): AppCtx {
   return {
     status: "loggedIn",
     user: USER,
     today: TODAY,
-    shifts: SHIFTS,
+    shifts: appShifts,
     shiftsLoading: false,
     shiftsLoaded: true,
     dayExpenses: [{ date: "2026-02-02", fuelCost: 12 }],
@@ -127,6 +128,7 @@ const AXE_OPTIONS = { rules: { "color-contrast": { enabled: false } } };
 
 afterEach(() => {
   earningsHidden = false;
+  appShifts = SHIFTS;
   cleanup();
 });
 
@@ -177,6 +179,14 @@ describe("chart alternatives", () => {
     // periods" control is on Weeks — the trend table and the period table
     // describe the same series. Assert on the one inside the trend card.
     await waitFor(() => expect(screen.getAllByRole("table", { name: /Weekly earnings, oldest first/ }).length).toBeGreaterThan(0));
+  });
+
+  it("Report explains when there is not yet enough history to form a trend", () => {
+    appShifts = [];
+    render(<ReportScreen />);
+    expect(screen.getByText("Your trend starts here")).toBeTruthy();
+    expect(screen.getByText(/Complete your first weekly cycle/)).toBeTruthy();
+    expect(document.querySelector(".chart-svg")).toBeNull();
   });
 
   it("Report's chart table masks earnings while the privacy toggle is on", async () => {
