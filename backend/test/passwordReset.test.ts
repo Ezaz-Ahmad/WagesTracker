@@ -14,6 +14,7 @@ describe("password recovery", () => {
   let outbox: { to: string; subject: string; text: string; html: string; tag?: string }[];
   let waitForEmail: () => Promise<void>;
   let hashPassword: (password: string) => Promise<string>;
+  let digestRecoveryCredential: (credential: string) => string;
   let accountCounter = 0;
 
   beforeAll(async () => {
@@ -23,6 +24,7 @@ describe("password recovery", () => {
     ({ app, db, dbPath } = await createTestApp());
     ({ waitForPendingPasswordResetEmails: waitForEmail } = await import("../src/routes/passwordReset.js"));
     ({ hashPassword } = await import("../src/security/passwordHashing.js"));
+    ({ digestRecoveryCredential } = await import("../src/security/passwordResetTokens.js"));
     const transport = await import("../src/email/transport.js");
     outbox = transport.testOutbox.outbox;
   });
@@ -97,10 +99,11 @@ describe("password recovery", () => {
     expect(rawLookup.rows).toHaveLength(0);
     const hashLookup = await db.execute({
       sql: "SELECT user_id FROM password_reset_tokens WHERE token_hash = ?",
-      args: [createHash("sha256").update(rawToken).digest("hex")],
+      args: [digestRecoveryCredential(rawToken)],
     });
     expect(hashLookup.rows).toHaveLength(1);
     expect(String((hashLookup.rows[0] as unknown as { user_id: string }).user_id)).toBe(account.id);
+    expect(digestRecoveryCredential(rawToken)).not.toBe(createHash("sha256").update(rawToken).digest("hex"));
   });
 
   it("responds without waiting for a slow mail provider", async () => {
@@ -193,7 +196,7 @@ describe("password recovery", () => {
     const token = latestToken(account.email);
     await db.execute({
       sql: "UPDATE password_reset_tokens SET expires_at = ? WHERE token_hash = ?",
-      args: [new Date(Date.now() - 60_000).toISOString(), createHash("sha256").update(token).digest("hex")],
+      args: [new Date(Date.now() - 60_000).toISOString(), digestRecoveryCredential(token)],
     });
 
     for (const candidate of [token, "", "!!!!", "x".repeat(600), "../../etc/passwd"]) {

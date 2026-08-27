@@ -13,10 +13,10 @@ import {
 import { hashPassword, verifyPassword } from "../security/passwordHashing.js";
 import { validatePassword } from "../security/passwordPolicy.js";
 import {
-  hashPasswordResetToken,
-  invalidatePasswordResetToken,
-  isPasswordResetToken,
-  issuePasswordResetToken,
+  digestRecoveryCredential,
+  invalidateRecoveryCredential,
+  isRecoveryCredential,
+  issueRecoveryCredential,
 } from "../security/passwordResetTokens.js";
 import type { UserRow } from "../types.js";
 
@@ -48,12 +48,12 @@ async function processPasswordResetRequest(email: string): Promise<void> {
   const user = result.rows[0] as unknown as UserRow | undefined;
   if (!user) return;
 
-  const rawToken = await issuePasswordResetToken(user.id, PASSWORD_RESET_TTL_MS);
+  const recoveryCredential = await issueRecoveryCredential(user.id, PASSWORD_RESET_TTL_MS);
   try {
-    await sendPasswordResetEmail({ to: user.email, name: user.name, rawToken });
+    await sendPasswordResetEmail({ to: user.email, name: user.name, rawToken: recoveryCredential });
   } catch (error) {
     // Never leave a usable link behind when its delivery failed.
-    await invalidatePasswordResetToken(rawToken).catch(() => undefined);
+    await invalidateRecoveryCredential(recoveryCredential).catch(() => undefined);
     throw error;
   }
 }
@@ -123,7 +123,7 @@ passwordResetRouter.post(
   "/reset-password/validate",
   asyncHandler(async (req, res) => {
     const parsed = validateTokenSchema.safeParse(req.body);
-    if (!parsed.success || !isPasswordResetToken(parsed.data.token)) {
+    if (!parsed.success || !isRecoveryCredential(parsed.data.token)) {
       res.status(400).json(INVALID_RESET_TOKEN);
       return;
     }
@@ -131,7 +131,7 @@ passwordResetRouter.post(
     const result = await db.execute({
       sql: `SELECT 1 FROM password_reset_tokens
             WHERE token_hash = ? AND used_at IS NULL AND invalidated_at IS NULL AND expires_at > ?`,
-      args: [hashPasswordResetToken(parsed.data.token), new Date().toISOString()],
+      args: [digestRecoveryCredential(parsed.data.token), new Date().toISOString()],
     });
     if (result.rows.length === 0) {
       res.status(400).json(INVALID_RESET_TOKEN);
@@ -151,12 +151,12 @@ passwordResetRouter.post(
     }
 
     const { token, password } = parsed.data;
-    if (!isPasswordResetToken(token)) {
+    if (!isRecoveryCredential(token)) {
       res.status(400).json(INVALID_RESET_TOKEN);
       return;
     }
 
-    const tokenHash = hashPasswordResetToken(token);
+    const tokenHash = digestRecoveryCredential(token);
     const lookupNowIso = new Date().toISOString();
     const liveToken = await db.execute({
       sql: `SELECT u.* FROM password_reset_tokens t

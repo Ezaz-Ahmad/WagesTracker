@@ -154,9 +154,9 @@ await db.executeMultiple(`
 
   CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
 
-  -- Only a SHA-256 hash of each random reset token is retained. The raw
-  -- credential exists only in the email and in the browser/app memory after
-  -- the link is opened.
+  -- Only a keyed HMAC-SHA-256 digest of each random reset credential is
+  -- retained. The bearer credential exists only in the email and in the
+  -- browser/app memory after the link is opened.
   CREATE TABLE IF NOT EXISTS password_reset_tokens (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
