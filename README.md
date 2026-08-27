@@ -248,6 +248,8 @@ npm run dev
 
 This starts the backend on `http://localhost:4000` and the frontend on `http://localhost:5173` together. Open the frontend URL — in dev, Vite proxies `/api` requests to the backend (see `frontend/vite.config.ts`), so no extra config is needed.
 
+Password recovery is usable locally without an email-service account: development defaults to a console mail transport, so the backend terminal prints the reset email and link. That transport is refused when `NODE_ENV=production`; production must use the Resend configuration described below.
+
 Useful scripts (run from the root):
 
 - `npm run dev` — backend + frontend, both in watch mode
@@ -274,13 +276,15 @@ Capacitor 8.4.2 remains intentionally pinned while the application establishes a
 
 `ios:build:web` supplies `VITE_APP_TARGET=ios` and the exact production API `https://wage-tracker-api.onrender.com`. The release guard rejects missing, HTTP, localhost, development, live-reload or unknown-target configuration. The generated Capacitor config contains no `server.url`, and the native plist adds neither broad App Transport Security exceptions nor protected-resource permission descriptions. Final WagesTracker icon and splash files are regenerated from committed 1024×1024 and 2732×2732 sources with `@capacitor/assets`. The application privacy manifest declares the app's linked functionality data and the Filesystem timestamp API's approved C617.1 reason; the review mapping is documented in `docs/ios-privacy-mapping.md`.
 
+Password-reset Universal Links add the Associated Domains entitlement for `applinks:wages-tracker-frontend.vercel.app`. The deployed frontend serves `/.well-known/apple-app-site-association` as JSON, with the real Apple Team ID injected by the Vercel build. Associated Domains must also be enabled for `com.ezazahmad.wagestracker` in the Apple Developer portal before a new signed build is archived; otherwise links open the same reset page in Safari instead.
+
 Developers without a Mac can rely on `.github/workflows/ios-simulator.yml`. On every pull request to `main`, its macOS 26 runner installs the locked npm graph, verifies deterministic brand assets and the privacy plist, validates the shared frontend, builds the iOS target, synchronizes Capacitor, resolves SPM packages and compiles an unsigned arm64 Simulator `.app` with signing disabled. It then inspects the artifact for the production API, privacy manifests, expected plugins, final assets, forbidden localhost configuration and unnecessary permission keys. Logs are retained for 14 days and a successful unsigned Simulator artifact for 7 days.
 
 Signed delivery is isolated in the manual-only protected-main `.github/workflows/ios-testflight.yml` workflow and documented in [`docs/ios-testflight-delivery.md`](docs/ios-testflight-delivery.md). Pull requests, forks and ordinary pushes never enter its `testflight` environment or receive Apple credentials. The signed workflow validates and uploads to TestFlight only; physical-iPhone testing, App Store submission and public release remain manual future steps.
 
 ## Testing and CI
 
-The project has **815 automated tests: 239 backend and 576 frontend**. Backend integration/API tests (`backend/test/`) use [Vitest](https://vitest.dev/) and [Supertest](https://github.com/ladjs/supertest) to exercise the real Express app end to end over HTTP; each test file gets its own isolated, throwaway temporary SQLite database (see `backend/test/testApp.ts`) so runs never share or pollute data. Coverage includes authentication/password security, database-backed sessions and device limits, ownership isolation, historical wage data, personal-spending defaults/CRUD/archiving/filtering/pagination/summary/idempotency/account deletion, work expenses and other earnings, canonical earnings comparisons, overlap and duration rules, timezone-aware date validation, exact production CORS policy, platform adapters, native release safeguards, accessibility, and public privacy/support pages.
+The project has **923 automated tests: 271 backend and 652 frontend**. Backend integration/API tests (`backend/test/`) use [Vitest](https://vitest.dev/) and [Supertest](https://github.com/ladjs/supertest) to exercise the real Express app end to end over HTTP; each test file gets its own isolated, throwaway temporary SQLite database (see `backend/test/testApp.ts`) so runs never share or pollute data. Coverage includes authentication/password security and recovery, database-backed sessions and device limits, ownership isolation, historical wage data, personal-spending defaults/CRUD/archiving/filtering/pagination/summary/idempotency/account deletion, work expenses and other earnings, canonical earnings comparisons, overlap and duration rules, timezone-aware date validation, exact production CORS policy, platform adapters, native release safeguards, accessibility, and public privacy/support pages.
 
 Most frontend tests are pure-logic tests (`frontend/src/lib/__tests__/`) run in a plain Node environment (no DOM) for speed — wage/duration calculations, week aggregation, PDF report data, password-policy validation, the session-management API client (including that the session list is refreshed against the replacement token right after a password change), and friendly device-label parsing (`parseUserAgent.test.ts` — Windows/macOS/Android/iOS across Chrome, Safari, and Firefox, including the iOS in-app-browser tokens like `CriOS`/`FxiOS`/`EdgiOS`, plus empty/unrecognized/oversized user-agent strings).
 
@@ -290,6 +294,7 @@ The rest are real component tests, rendering actual screens/components with [jsd
 - `screens/__tests__/SettingsFocusManagement.test.tsx` — the mobile open-a-category/Back focus handoff: opening a category moves focus to the detail heading, returning to the list restores focus to the category button that opened it, and desktop category switching never steals focus at all.
 - `screens/__tests__/EntryScreenAccordion.test.tsx` — the Entry screen's day accordion is a real `<button>` trigger (not a `div role="button"`) with Clear as a sibling action rather than nested inside it, stays fully keyboard-operable (Enter toggles it), and clicking Clear never has a side effect on the accordion's own open/closed state.
 - `settings/__tests__/SessionList.test.tsx` and `settings/__tests__/DeleteAccountDialog.test.tsx` — the Security & Sessions list and the account-deletion confirmation dialog.
+- `backend/test/passwordReset.test.ts`, `backend/test/passwordResetRateLimit.test.ts`, `screens/__tests__/AuthScreenRecovery.test.tsx`, `screens/__tests__/ResetPasswordPage.test.tsx`, and `platform/__tests__/deepLinks.test.ts` — neutral/non-enumerating reset requests, hash-only token storage, expiry/supersession/single-use and simultaneous-consume behavior, session/JWT revocation, authenticated-change invalidation, delivery-failure secrecy, abuse limits, responsive auth/reset UI, password validation, token removal from the address bar, and native warm/cold-link routing primitives.
 - `context/__tests__/deviceLimitNotice.test.tsx` — the device-limit notice, end to end: a real login form submission through the real provider into the real authenticated shell. `POST /auth/login` returns a `notice` field when signing in evicted the least recently used device; the client used to destructure only `{ token, user }` and drop it, so the explanation was never shown to anyone. Covers the notice reaching the screen as an informational `role="status"` banner rather than an error, saying nothing at all on an ordinary login, naming no session identifier, surviving a tab change while undismissed, staying gone once dismissed, and being dismissable from the keyboard.
 - `context/__tests__/currentSessionRevocation.test.tsx` — revoking the session backing this device ends in the login screen immediately (token and last-activity timestamp both cleared, no follow-up session fetch against a session that no longer exists), revoking someone else's leaves the app signed in and refreshes the list, and a failed revoke propagates rather than being mistaken for "your session is gone".
 - `screens/__tests__/screensA11y.test.tsx` — axe checks for Home, Report, History, Entry and Auth, plus Report with earnings hidden; that each chart has a textual equivalent and the drawing itself is not also announced; that the goal bar is a real `progressbar` with a finite value; and that every screen has exactly one `<h1>` and never skips a heading level.
@@ -346,6 +351,11 @@ On-device checklist: install the build to the Home Screen, log out, focus the pa
 | `ARGON2_MEMORY_COST_KIB` | no | Argon2id memory cost in KiB for new password hashes, defaults to `19456` (19 MiB) — the OWASP-recommended minimum. See [Authentication and password security](#authentication-and-password-security) |
 | `ARGON2_TIME_COST` | no | Argon2id iteration count, defaults to `2` |
 | `ARGON2_PARALLELISM` | no | Argon2id parallelism factor, defaults to `1` |
+| `RESEND_API_KEY` | **yes for production password recovery** | server-only Resend API key. Never use a `VITE_` prefix and never add it to the frontend or iOS project |
+| `MAIL_FROM` | **yes for production password recovery** | sender on a domain verified in Resend, e.g. `Wage Tracker <no-reply@example.com>` |
+| `MAIL_REPLY_TO` | no | optional reply/support address for transactional mail |
+| `APP_BASE_URL` | **yes for production password recovery** | public HTTPS frontend origin used to build reset links, currently `https://wages-tracker-frontend.vercel.app` |
+| `MAIL_PROVIDER` | no | inferred automatically; `resend` may be set explicitly. `console` and `memory` are refused in production |
 
 ### Frontend (`frontend/.env`, copy from `frontend/.env.example`)
 
@@ -356,16 +366,22 @@ On-device checklist: install the build to the Home Screen, log out, focus the pa
 | `VITE_CAPACITOR_SERVER_URL` | development only | optional future live-reload URL. Any value fails a native production build and must never ship |
 | `VITE_VIEWPORT_DEBUG` | diagnostics only | `true` includes the temporary viewport overlay in a web diagnostic build. Native production builds reject it |
 
+`APPLE_TEAM_ID` is also required in the **Vercel build environment** only if reset links should open the installed iPhone app directly. It is not a Vite variable and is not a secret; the build substitutes it into the Apple association file. The reset page remains fully usable in mobile Safari when it is unset.
+
 ## Authentication and password security
 
 Regular-user authentication (separate from the admin panel below, which has its own isolated auth — see [Admin panel](#admin-panel)):
 
 - **Password policy** — enforced server-side in `backend/src/security/passwordPolicy.ts` (the single source of truth; a frontend copy in `frontend/src/lib/passwordPolicy.ts` gives inline feedback on the signup form and in Settings as you type, and is never trusted on its own — the backend re-validates independently). New and changed passwords must be 15–128 Unicode code points, with no forced composition rules — uppercase, numbers, and symbols are all optional, and spaces and full Unicode are allowed. Passwords are never trimmed or otherwise modified before hashing, since leading/trailing spaces are legal characters. Candidates are checked against a maintainable blocklist (`backend/src/security/commonPasswords.ts`) two different ways: general common/weak passwords (e.g. "welcometothejungle") are rejected only on an exact, NFC-normalized match against the *whole* password — not a substring match, so a genuine passphrase that happens to contain an ordinary word (e.g. "...dark chocolate chip cookies...") is never falsely rejected — while obvious app-specific values like "wagetracker" are still caught as a substring anywhere in the password, in any decorated form. This policy applies only when a password is *set* — signup and the change-password endpoint below — never to login, so accounts created before this policy existed keep working with their original, shorter password.
 - **Password hashing: Argon2id, with legacy bcrypt still supported for verification** — new passwords (every signup and every password change) are hashed with Argon2id, the current OWASP-recommended default, using `hash-wasm` (`backend/src/security/passwordHashing.ts`) — a pure WebAssembly implementation with no native/compiled bindings, chosen for the same portability reason this project uses `bcryptjs` instead of native `bcrypt`. Parameters follow OWASP's minimum guidance (19 MiB memory, 2 iterations, parallelism 1) and are configurable via `ARGON2_MEMORY_COST_KIB`/`ARGON2_TIME_COST`/`ARGON2_PARALLELISM`. Accounts created before this migration still have a bcrypt hash (`$2a$`/`$2b$`/`$2y$`) — `verifyPassword` detects which format a stored hash is and checks it correctly either way (bcrypt's own `compare` is still used for those, asynchronously rather than the blocking `compareSync`, so a slow check doesn't hold up the rest of an already-busy event loop as long — though under real concurrent load it can still contend with other async work, so this isn't a guarantee of zero impact). A successful login against a legacy bcrypt hash transparently rehashes the password with Argon2id and overwrites the stored hash, so the user base migrates itself through normal use rather than needing a bulk migration or forced reset. Account deletion's password confirmation goes through the same dual-format `verifyPassword`, so it works unchanged for either kind of account.
-- **Changing your password** — `PATCH /api/me/password` (authenticated, in Settings under "Change password") takes `currentPassword` and `newPassword`, verifies the current password (against whichever hash format it's currently stored as), validates the new one against the policy above, rejects reusing the current password, and always stores the new hash as Argon2id regardless of the account's previous format. Responds `204 No Content`.
+- **Changing your password** — `PATCH /api/me/password` (authenticated, in Settings under "Change password") takes `currentPassword` and `newPassword`, verifies the current password (against whichever hash format it's currently stored as), validates the new one against the policy above, rejects reusing the current password, always stores the new hash as Argon2id, and invalidates any outstanding recovery link for the account. Responds `204 No Content`.
 - **Session invalidation on password change** — every user row has a `token_version` column, and every regular-user JWT carries a matching `tokenVersion` claim checked on each request. Changing your password increments the column, which instantly invalidates every JWT issued before the change — including on other devices — without waiting for their natural 30-day expiry, and (as of the database-backed sessions layer below) also explicitly revokes every session row tied to the account. The device that made the change isn't logged out: the change-password response includes a replacement token in an `X-New-Token` response header (not the JSON body, since the endpoint itself returns 204), which the frontend stores and keeps using automatically, backed by a freshly created session. This mechanism is specific to regular-user tokens; admin tokens are untouched.
+- **Forgot/reset password** — the responsive login card has a 44px-touch-target `Forgot password?` action and a neutral confirmation flow. `POST /api/auth/forgot-password` always returns the same status and message for existing, missing, differently-cased, and malformed addresses, and email work is detached from the HTTP response so provider latency does not become a simple account-enumeration timing signal. Independent per-IP (5 per 15 minutes) and hashed per-address (3 per hour) limits stop address-list probing and mail flooding without storing plaintext addresses in the limiter. A configuration outage is reported uniformly as `503 EMAIL_UNAVAILABLE` for every valid address.
+- **Reset-token security** — reset tokens contain 32 cryptographically random bytes, work once, expire after 25 minutes, and are stored only as SHA-256 hashes in `password_reset_tokens`; a database copy contains no usable link. Requesting another email supersedes the previous link. The raw credential is placed in the URL fragment (`/reset-password#token=...`), which browsers do not send in HTTP requests or Referer headers, and token validation uses a POST body rather than a token-bearing URL path. The page removes the fragment before first paint and never writes the token to browser/device storage or logs.
+- **Completing recovery** — the backend re-applies the same password policy as signup/change-password and leaves the link usable after a weak or unchanged-password attempt. Token consumption, Argon2id password replacement, `token_version` increment, revocation of every database session, and invalidation of other reset links are one write transaction. Concurrent submissions can therefore produce only one success. Recovery deliberately does not create a session; the user signs in again with the new password. A best-effort security email confirms that the password changed without containing either password.
+- **Desktop, mobile web, and iPhone app** — `/reset-password` uses the existing responsive public-page shell and works in any browser. The iOS target also declares the production frontend as an Associated Domain; Capacitor handles warm and cold Universal Links and keeps their token in memory only. If the Apple capability or `APPLE_TEAM_ID` deployment step is incomplete, the same HTTPS link safely falls back to the responsive Safari page.
 
-This covers password strength, hashing, and session invalidation on password change — it does not include multi-factor authentication, email verification, or password recovery, none of which exist in the app yet.
+Multi-factor authentication and new-account email verification are not included in this recovery-only change; existing signup, login, and authenticated change-password contracts remain unchanged.
 
 ## Sessions
 
@@ -467,18 +483,30 @@ Two things it's already configured to handle:
 
 Set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` on the service (Environment tab) using the values from the Turso setup above. Render's free plan has no persistent disk, but that no longer matters here — the database lives on Turso, not on this service's local filesystem, so restarts/redeploys/spin-downs don't touch your data.
 
+For password-recovery email, create a Resend account, add and verify a sending domain, then create a sending API key. On the Render service's **Environment** page set:
+
+- `RESEND_API_KEY` to that key (server secret).
+- `MAIL_FROM` to a sender on the verified domain, for example `Wage Tracker <no-reply@yourdomain.com>`.
+- `MAIL_REPLY_TO` optionally to the support inbox.
+- `APP_BASE_URL` to `https://wages-tracker-frontend.vercel.app` with no path.
+
+The Blueprint declares these variables but does not and cannot provide the secret values. Until the first, second, and fourth are valid, normal authentication remains available and valid forgot-password requests return a clear 503 instead of claiming an email was sent.
+
 ### Frontend — Vercel
 
 Import this repo into Vercel. In the import settings, set **Root Directory** to `frontend` — this is important, it's a monorepo, and without it Vercel will try to auto-detect the `backend` Express app as a *second* deployable "service" in the same project. Don't deploy that: Vercel runs it as serverless functions, which breaks the SQLite file (no persistent disk, no shared filesystem between invocations) and the graceful-shutdown/`server.listen()` code in `backend/src/index.ts`. The backend only runs correctly on Render.
 
-Once Root Directory is set to `frontend`, `frontend/vercel.json` supplies the build command and output directory automatically. Add one environment variable before deploying: `VITE_API_URL` = your Render backend URL (e.g. `https://wage-tracker-api.onrender.com`).
+Once Root Directory is set to `frontend`, `frontend/vercel.json` supplies the build command, output directory, SPA fallback, and Apple association-file headers automatically. Add `VITE_API_URL` = your Render backend URL (e.g. `https://wage-tracker-api.onrender.com`). To make reset links open the installed iPhone app directly, also add `APPLE_TEAM_ID` (the 10-character Team ID shown under Apple Developer Membership); it is used only by the post-build association-file generator.
+
+In Apple Developer → Certificates, Identifiers & Profiles → Identifiers → `com.ezazahmad.wagestracker`, enable **Associated Domains**, save, refresh the signing profile/automatic signing in Xcode, and ship a new signed build. Verify `https://wages-tracker-frontend.vercel.app/.well-known/apple-app-site-association` returns JSON containing `<TEAM_ID>.com.ezazahmad.wagestracker`, then test one reset link from Mail on a physical iPhone. No Apple setup is needed for the responsive web reset flow itself.
 
 ### Order of operations
 
 1. Create the Turso database and grab its URL + token (see above).
-2. Deploy the backend to Render with `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` set; the exact production CORS allowlist is already defined in `render.yaml`.
-3. Deploy the frontend to Vercel, with `VITE_API_URL` set to the Render URL from step 2.
-4. Verify both the web application and `/api/health`; no wildcard or placeholder CORS value is required.
+2. Configure Resend and deploy the backend to Render with the Turso variables plus `RESEND_API_KEY`, `MAIL_FROM`, and `APP_BASE_URL`; the exact CORS allowlist is already in `render.yaml`.
+3. Deploy the frontend to Vercel with `VITE_API_URL`, plus `APPLE_TEAM_ID` if native Universal Links are wanted.
+4. Enable Associated Domains for the iOS App ID and create a new signed iOS build if the link should open the app.
+5. Verify the web app, `/api/health`, the Apple association file, and a complete request-email-reset-login cycle using a real mailbox.
 
 ### Other hosts (not currently used)
 
@@ -492,7 +520,9 @@ The repo also has `railway.json` (Railway, as a backend alternative to Render) a
 - [x] `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` set on the backend — data lives on Turso, independent of Render's ephemeral filesystem
 - [x] `VITE_API_URL` set on the frontend build to the backend's URL
 - [x] Backend `/api/health` returns `{"ok": true}`
-- [x] Rate limiting is on by default (300 req/15min general, 20 req/15min on signup+login only, 10 req/15min on `/api/admin/login`) — adjust in `backend/src/app.ts`/`backend/src/routes/admin.ts` if it's too strict/loose for your traffic
+- [ ] Resend sending domain verified; `RESEND_API_KEY`, `MAIL_FROM`, and `APP_BASE_URL` set on Render
+- [ ] `APPLE_TEAM_ID` set on Vercel and Associated Domains enabled for the iOS App ID (optional for web; required for direct app opening)
+- [x] Rate limiting is on by default (300 req/15min general, 20 req/15min on signup+login, 5 req/15min per IP and 3/hour per address for reset email, 15 req/15min for reset-token validation/submission, 10 req/15min on `/api/admin/login`)
 - [ ] `ADMIN_PASSWORD` set on the backend — optional; the admin panel (`/admin`) stays disabled (login always 401s) without it
 
 # Device timezone on shift writes

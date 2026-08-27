@@ -4,6 +4,9 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { adminRouter } from "./routes/admin.js";
 import { authRouter } from "./routes/auth.js";
+import { passwordResetRouter } from "./routes/passwordReset.js";
+import { warnIfPasswordRecoveryUnconfigured } from "./email/emailService.js";
+import { recoveryEmailLimiter, recoveryIpLimiter } from "./security/rateLimitPolicy.js";
 import { dayExpensesRouter } from "./routes/dayExpenses.js";
 import { meRouter } from "./routes/me.js";
 import { shiftsRouter } from "./routes/shifts.js";
@@ -35,6 +38,7 @@ export function createApp(): express.Express {
   if (!process.env.ADMIN_PASSWORD) {
     console.warn("[warn] ADMIN_PASSWORD is not set. The admin panel (/admin) will be inaccessible until it is.");
   }
+  warnIfPasswordRecoveryUnconfigured();
 
   const app = express();
 
@@ -98,6 +102,14 @@ export function createApp(): express.Express {
   // its local token (see sessions.test.ts for the exact scenario).
   app.use("/api/auth/signup", authLimiter);
   app.use("/api/auth/login", authLimiter);
+  app.use(
+    "/api/auth/forgot-password",
+    recoveryIpLimiter("forgotPasswordPerIp"),
+    recoveryEmailLimiter("forgotPasswordPerEmail")
+  );
+  // Covers both POST /reset-password and POST /reset-password/validate.
+  app.use("/api/auth/reset-password", recoveryIpLimiter("resetPassword"));
+  app.use("/api/auth", passwordResetRouter);
   app.use("/api/auth", authRouter);
   app.use("/api/me", meRouter);
   app.use("/api/shifts", shiftsRouter);

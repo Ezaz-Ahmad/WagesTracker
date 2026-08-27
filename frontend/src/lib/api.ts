@@ -119,9 +119,11 @@ export async function pingHealth(timeoutMs: number = 10000, externalSignal?: Abo
 
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  code?: string;
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -147,7 +149,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const message = errorBody.code === "INVALID_CLIENT_TIME_ZONE"
       ? TIME_ZONE_FALLBACK_MESSAGE
       : errorBody.error || `Request failed (${res.status})`;
-    throw new ApiError(message, res.status);
+    throw new ApiError(message, res.status, errorBody.code);
   }
   return body as T;
 }
@@ -177,6 +179,32 @@ export function signup(input: SignupInput): Promise<{ token: string; user: User 
   return request("/auth/signup", {
     method: "POST",
     body: JSON.stringify({ ...input, ...(deviceInstallationId ? { deviceInstallationId } : {}) }),
+  });
+}
+
+/** Requests a reset without revealing whether the address has an account.
+ * The backend intentionally returns the same success shape either way. */
+export function requestPasswordReset(email: string): Promise<{ message: string }> {
+  return request("/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+/** Checks a token without consuming it. POST keeps the credential out of
+ * access-log URLs while still allowing the page to avoid showing a form for
+ * an already-expired link. */
+export function checkPasswordResetToken(token: string): Promise<{ valid: true }> {
+  return request("/auth/reset-password/validate", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+}
+
+export function resetPassword(token: string, password: string): Promise<{ message: string }> {
+  return request("/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ token, password }),
   });
 }
 

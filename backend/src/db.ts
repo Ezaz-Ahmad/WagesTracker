@@ -153,6 +153,22 @@ await db.executeMultiple(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
+
+  -- Only a SHA-256 hash of each random reset token is retained. The raw
+  -- credential exists only in the email and in the browser/app memory after
+  -- the link is opened.
+  CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used_at TEXT,
+    invalidated_at TEXT
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user
+    ON password_reset_tokens(user_id, used_at, invalidated_at, expires_at);
 `);
 
 // An earlier iteration of day_expenses briefly had an `other_earning` column

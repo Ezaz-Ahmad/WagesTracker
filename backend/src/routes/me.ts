@@ -356,6 +356,13 @@ meRouter.patch(
           sql: "UPDATE users SET password_hash = ?, token_version = ? WHERE id = ?",
           args: [newPasswordHash, newTokenVersion, req.userId!],
         },
+        // A link requested before this authenticated password change must
+        // not remain able to replace the newly chosen password afterwards.
+        {
+          sql: `UPDATE password_reset_tokens SET invalidated_at = ?
+                WHERE user_id = ? AND used_at IS NULL AND invalidated_at IS NULL`,
+          args: [nowIso, req.userId!],
+        },
         // Must run BEFORE the INSERT below, in the same transaction: this
         // revokes every currently-unrevoked session for the user, and the
         // new session created next must not be caught by that same sweep.
@@ -417,6 +424,7 @@ meRouter.delete(
         { sql: "DELETE FROM shifts WHERE user_id = ?", args: [req.userId!] },
         { sql: "DELETE FROM day_expenses WHERE user_id = ?", args: [req.userId!] },
         { sql: "DELETE FROM week_extras WHERE user_id = ?", args: [req.userId!] },
+        { sql: "DELETE FROM password_reset_tokens WHERE user_id = ?", args: [req.userId!] },
         { sql: "DELETE FROM user_sessions WHERE user_id = ?", args: [req.userId!] },
         { sql: "DELETE FROM users WHERE id = ?", args: [req.userId!] },
       ],

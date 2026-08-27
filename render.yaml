@@ -27,6 +27,14 @@ services:
         value: https://wages-tracker-frontend.vercel.app,capacitor://localhost
       - key: ADMIN_PASSWORD
         sync: false # a strong password of your choosing — gates the admin panel at <frontend-url>/admin
+      - key: RESEND_API_KEY
+        sync: false # server-only Resend API key; never expose this to Vite or the iOS bundle
+      - key: MAIL_FROM
+        sync: false # e.g. Wage Tracker <no-reply@your-verified-domain.com>
+      - key: MAIL_REPLY_TO
+        sync: false # optional support/reply address
+      - key: APP_BASE_URL
+        value: https://wages-tracker-frontend.vercel.app
     # No `disk:` block needed: the database lives on Turso (see TURSO_DATABASE_URL above), not on this
     # service's local filesystem, so the free plan's lack of persistent disk no longer matters — data
     # survives restarts and redeploys either way.
