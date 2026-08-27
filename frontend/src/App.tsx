@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { AppProvider, useApp } from "./context/AppContext";
 import { BottomNav, TABS } from "./components/BottomNav";
 import { ConfirmProvider } from "./components/ConfirmProvider";
@@ -216,7 +216,11 @@ function Root() {
   // "loggedOut") rather than only once ever, so it reappears after each
   // logout exactly as asked for, instead of only the first install.
   const [welcomeDismissed, setWelcomeDismissed] = useState(false);
-  useEffect(() => {
+  // Reset before the browser can paint or accept a tap. A passive effect can
+  // run after the newly rendered welcome screen is already interactive; a
+  // fast "Get started" tap in that gap would set this to true, only for the
+  // pending reset to set it back to false and show the welcome screen again.
+  useLayoutEffect(() => {
     if (status === "loggedOut") setWelcomeDismissed(false);
   }, [status]);
 
