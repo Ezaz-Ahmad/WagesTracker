@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { createApp } from "./app.js";
 import { db, pruneExpiredShifts } from "./db.js";
+import { waitForPendingPasswordResetEmails } from "./routes/passwordReset.js";
 
 // Last-resort safety net: every route already goes through asyncHandler (see
 // asyncHandler.ts), which turns a rejected route handler into a normal 500
@@ -31,11 +32,22 @@ const server = app.listen(PORT, () => {
   console.log(`Wage Tracker API listening on http://localhost:${PORT}`);
 });
 
+let isShuttingDown = false;
+
 function shutdown(signal: string) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
   console.log(`${signal} received, shutting down gracefully...`);
-  server.close(() => {
-    db.close();
-    process.exit(0);
+  server.close(async () => {
+    try {
+      // Forgot-password responses intentionally do not wait on email delivery.
+      // Give work already accepted by this process a chance to finish before
+      // closing its database connection during a deploy or normal shutdown.
+      await waitForPendingPasswordResetEmails();
+    } finally {
+      db.close();
+      process.exit(0);
+    }
   });
   // Force-exit if connections don't drain in time.
   setTimeout(() => process.exit(1), 10_000).unref();

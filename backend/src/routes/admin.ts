@@ -93,6 +93,7 @@ adminRouter.delete(
         { sql: "DELETE FROM shifts WHERE user_id = ?", args: [req.params.id] },
         { sql: "DELETE FROM day_expenses WHERE user_id = ?", args: [req.params.id] },
         { sql: "DELETE FROM week_extras WHERE user_id = ?", args: [req.params.id] },
+        { sql: "DELETE FROM password_reset_tokens WHERE user_id = ?", args: [req.params.id] },
         { sql: "DELETE FROM user_sessions WHERE user_id = ?", args: [req.params.id] },
         { sql: "DELETE FROM users WHERE id = ?", args: [req.params.id] },
       ],

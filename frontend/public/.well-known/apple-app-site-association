@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["$(APPLE_TEAM_ID).com.ezazahmad.wagestracker"],
+        "components": [
+          {
+            "/": "/reset-password",
+            "comment": "Password reset links open the installed app directly on its reset screen."
+          }
+        ]
+      }
+    ]
+  }
+}

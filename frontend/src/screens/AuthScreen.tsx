@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { CURRENCY, useApp } from "../context/AppContext";
-import { getRememberedEmail } from "../lib/api";
+import { getRememberedEmail, requestPasswordReset } from "../lib/api";
 import { FaceIdIcon, LockIcon, TouchIdIcon } from "../components/icons";
 import { LandingHeroContent } from "../components/LandingHero";
 import { PasswordInput } from "../components/PasswordInput";
@@ -10,7 +10,7 @@ import { Logo } from "../components/Logo";
 import { StatusBanner } from "../components/StatusBanner";
 import { MIN_PASSWORD_LENGTH, validatePassword } from "../lib/passwordPolicy";
 
-type Mode = "login" | "signup";
+type Mode = "login" | "signup" | "forgot";
 
 function biometryName(kind: "faceId" | "touchId" | "none"): string {
   if (kind === "faceId") return "Face ID";
@@ -43,6 +43,9 @@ export function AuthScreen() {
   const [otherLocations, setOtherLocations] = useState("");
   const [rate, setRate] = useState("");
   const [remember, setRemember] = useState(true);
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
 
   // `biometricStatus.enabled` is a device-level fact, not an account-level
   // one — this plugin stores at most one credential at a time (see
@@ -70,7 +73,26 @@ export function AuthScreen() {
 
   function switchMode(next: Mode) {
     clearAuthError();
+    setRecoveryError(null);
+    setRecoveryMessage(null);
     setMode(next);
+  }
+
+  async function handleForgotPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (recoveryBusy || !email.trim()) return;
+    setRecoveryBusy(true);
+    setRecoveryError(null);
+    try {
+      const result = await requestPasswordReset(email.trim());
+      // This is the backend's deliberately-neutral wording. Do not branch
+      // on account existence here—the API intentionally never reveals it.
+      setRecoveryMessage(result.message);
+    } catch (error) {
+      setRecoveryError(error instanceof Error ? error.message : "We couldn't request a reset email. Please try again.");
+    } finally {
+      setRecoveryBusy(false);
+    }
   }
 
   function handleLogin(e: React.FormEvent) {
@@ -130,21 +152,23 @@ export function AuthScreen() {
               <span className="auth-secure-badge"><LockIcon size={12} /> Secure</span>
             </div>
 
-            <div className="seg landing-mode-toggle">
-              <label className="seg-opt">
-                <input type="radio" name="authmode" checked={mode === "login"} onChange={() => switchMode("login")} />
-                Log in
-              </label>
-              <label className="seg-opt">
-                <input
-                  type="radio"
-                  name="authmode"
-                  checked={mode === "signup"}
-                  onChange={() => switchMode("signup")}
-                />
-                Create account
-              </label>
-            </div>
+            {mode !== "forgot" && (
+              <div className="seg landing-mode-toggle">
+                <label className="seg-opt">
+                  <input type="radio" name="authmode" checked={mode === "login"} onChange={() => switchMode("login")} />
+                  Log in
+                </label>
+                <label className="seg-opt">
+                  <input
+                    type="radio"
+                    name="authmode"
+                    checked={mode === "signup"}
+                    onChange={() => switchMode("signup")}
+                  />
+                  Create account
+                </label>
+              </div>
+            )}
 
             {/* Only ever visible once biometric login has previously been
                 enabled for this device — biometricStatus.enabled is always
@@ -195,7 +219,75 @@ export function AuthScreen() {
               </StatusBanner>
             )}
 
-            {mode === "login" ? (
+            {recoveryError && (
+              <StatusBanner tone="danger" onDismiss={() => setRecoveryError(null)} dismissLabel="Dismiss this message">
+                {recoveryError}
+              </StatusBanner>
+            )}
+
+            {mode === "forgot" ? (
+              recoveryMessage ? (
+                <div key="recovery-sent" className="anim-rise">
+                  <div className="auth-form-heading">
+                    <span className="auth-form-eyebrow">Check your email</span>
+                    <h2 className="auth-form-title">Reset instructions requested</h2>
+                    <p role="status">{recoveryMessage}</p>
+                  </div>
+                  <p className="auth-sent-address">
+                    Requested for <strong>{email.trim()}</strong>
+                  </p>
+                  <p className="field-hint auth-recovery-guidance">
+                    For privacy, Wage Tracker shows this confirmation for every address. Check your spam folder if the
+                    email does not arrive, then try again later or create an account.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-block"
+                    style={{ justifyContent: "center" }}
+                    onClick={() => switchMode("login")}
+                  >
+                    Back to log in
+                  </button>
+                </div>
+              ) : (
+                <form key="forgot" className="anim-rise" onSubmit={handleForgotPassword}>
+                  <div className="auth-form-heading">
+                    <span className="auth-form-eyebrow">Account recovery</span>
+                    <h2 className="auth-form-title">Forgot your password?</h2>
+                    <p>Enter your email and we'll send a secure, single-use link for choosing a new password.</p>
+                  </div>
+                  <div className="field field-spaced">
+                    <label htmlFor="forgot-email">Email</label>
+                    <input
+                      id="forgot-email"
+                      className="input"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      autoComplete="email"
+                      required
+                      autoFocus
+                    />
+                  </div>
+                  <button
+                    className="btn btn-primary btn-block"
+                    type="submit"
+                    disabled={recoveryBusy || !email.trim()}
+                    style={{ justifyContent: "center" }}
+                  >
+                    {recoveryBusy ? <BubbleLoader label="Requesting reset link" /> : "Send reset link"}
+                  </button>
+                  <button
+                    type="button"
+                    className="auth-text-link auth-text-link-block"
+                    onClick={() => switchMode("login")}
+                  >
+                    Back to log in
+                  </button>
+                </form>
+              )
+            ) : mode === "login" ? (
               <form key="login" className="anim-rise" onSubmit={handleLogin}>
                 <div className="auth-form-heading">
                   <span className="auth-form-eyebrow">Welcome back</span>
@@ -215,12 +307,18 @@ export function AuthScreen() {
                   />
                 </div>
                 <div className="field field-spaced">
-                  <label htmlFor="login-password">Password</label>
+                  <div className="field-label-row">
+                    <label htmlFor="login-password">Password</label>
+                    <button type="button" className="auth-text-link" onClick={() => switchMode("forgot")}>
+                      Forgot password?
+                    </button>
+                  </div>
                   <PasswordInput
                     id="login-password"
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
                     required
                   />
                 </div>

@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { AppProvider, useApp } from "./context/AppContext";
 import { BottomNav, TABS } from "./components/BottomNav";
 import { ConfirmProvider } from "./components/ConfirmProvider";
 import { Logo } from "./components/Logo";
 import { EyeIcon, EyeOffIcon, LogoutIcon, RefreshIcon } from "./components/icons";
 import { AuthScreen } from "./screens/AuthScreen";
+import { ResetPasswordPage } from "./screens/ResetPasswordPage";
+import { getDeepLink, subscribeDeepLink, type DeepLinkRoute } from "./platform/deepLinks";
 import { WelcomeScreen } from "./screens/WelcomeScreen";
 import { WakingUpScreen } from "./components/WakingUpScreen";
 import { ScreenErrorBoundary } from "./components/ScreenErrorBoundary";
@@ -195,8 +197,15 @@ function AuthedApp() {
   );
 }
 
+function useDeepLink(): DeepLinkRoute | null {
+  const [deepLink, setDeepLink] = useState<DeepLinkRoute | null>(getDeepLink);
+  useEffect(() => subscribeDeepLink(setDeepLink), []);
+  return deepLink;
+}
+
 function Root() {
   const { status, authBusy, biometricPromptActive } = useApp();
+  const deepLink = useDeepLink();
   const isDesktop = useMatchMedia("(min-width: 960px)");
 
   // Shown once per "loggedOut" stretch, on top of AuthScreen — see
@@ -207,7 +216,11 @@ function Root() {
   // "loggedOut") rather than only once ever, so it reappears after each
   // logout exactly as asked for, instead of only the first install.
   const [welcomeDismissed, setWelcomeDismissed] = useState(false);
-  useEffect(() => {
+  // Reset before the browser can paint or accept a tap. A passive effect can
+  // run after the newly rendered welcome screen is already interactive; a
+  // fast "Get started" tap in that gap would set this to true, only for the
+  // pending reset to set it back to false and show the welcome screen again.
+  useLayoutEffect(() => {
     if (status === "loggedOut") setWelcomeDismissed(false);
   }, [status]);
 
@@ -239,6 +252,14 @@ function Root() {
   const isWaiting = (status === "loading" && !biometricPromptActive) || authBusy;
   const showWakingScreen = useDelayedFlag(isWaiting, 500);
 
+  // A Universal Link is an explicit navigation request and takes priority
+  // over a restored session or the mobile welcome gate.
+  if (deepLink?.screen === "reset-password") {
+    // A second Universal Link can arrive while the first reset screen is
+    // still mounted. Key by the credential so React discards the first
+    // screen's validation/form state and verifies the new link instead.
+    return <ResetPasswordPage key={deepLink.token} token={deepLink.token} />;
+  }
   if (showWakingScreen) return <WakingUpScreen />;
   // Still within the 500ms grace window of the initial session check —
   // previously blank here too, so no visible change on the fast path.

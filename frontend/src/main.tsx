@@ -52,6 +52,8 @@ if (__NATIVE_CONSUMER_BUILD__ && Capacitor.isNativePlatform()) {
   configureConnectivityAdapter(new connectivity.NativeConnectivityAdapter());
   configureAppLifecycleAdapter(new lifecycle.NativeAppLifecycleAdapter());
   configureBiometricAuth(new biometrics.NativeBiometricAuthAdapter());
+  const { startDeepLinkListener } = await import("./platform/deepLinks");
+  void startDeepLinkListener();
 }
 await initializeTokenStorage();
 
@@ -62,6 +64,10 @@ async function route() {
   }
   if (path === "/privacy") return <PrivacyPolicyPage />;
   if (path === "/support") return <SupportPage />;
+  if (path === "/reset-password") {
+    const { ResetPasswordPage } = await import("./screens/ResetPasswordPage");
+    return <ResetPasswordPage />;
+  }
   return <App />;
 }
 
