@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import type { Shift, User } from "../lib/types";
 import { AdminApiError, deleteUser, fetchAllUsers, fetchUserDetail, type AdminUserSummary } from "./adminApi";
 import { Logo } from "../components/Logo";
+import { Overlay } from "../components/Overlay";
 import { useDismissTransition } from "../lib/useDismissTransition";
+import { useFocusTrap } from "../lib/useFocusTrap";
 
 const CURRENCY = "$";
 
@@ -38,6 +40,8 @@ export function AdminDashboard({
   // vanishing the instant their state clears — see useDismissTransition.
   const detailDismiss = useDismissTransition(180);
   const deleteDismiss = useDismissTransition(180);
+  const detailTrapRef = useFocusTrap<HTMLDivElement>(Boolean(detail), closeDetail);
+  const deleteTrapRef = useFocusTrap<HTMLDivElement>(Boolean(deleteTarget), closeDeleteDialog);
 
   useEffect(() => {
     void loadUsers();
@@ -117,7 +121,7 @@ export function AdminDashboard({
 
   return (
     <div className="admin-shell">
-      <div className="nav admin-nav">
+      <header className="nav admin-nav">
         <span className="nav-brand">
           <Logo size={20} />
           Wage Tracker — Admin
@@ -125,12 +129,17 @@ export function AdminDashboard({
         <button className="btn btn-secondary" onClick={onLogout}>
           Log out
         </button>
-      </div>
+      </header>
 
-      <div className="admin-frame screen-transition">
+      <main className="admin-frame screen-transition">
         {loadError && (
           <div className="form-error" style={{ marginBottom: "var(--space-3)" }}>
             {loadError}
+          </div>
+        )}
+        {detailError && !detail && (
+          <div className="form-error" role="alert" style={{ marginBottom: "var(--space-3)" }}>
+            {detailError}
           </div>
         )}
 
@@ -146,10 +155,12 @@ export function AdminDashboard({
         </div>
 
         <div className="row-baseline admin-toolbar">
-          <h6 className="section-title" style={{ margin: 0 }}>
+          <h1 className="section-title" style={{ margin: 0 }}>
             All users
-          </h6>
+          </h1>
+          <label className="sr-only" htmlFor="admin-user-search">Search users</label>
           <input
+            id="admin-user-search"
             className="input admin-search"
             type="text"
             placeholder="Search by name or email…"
@@ -178,7 +189,7 @@ export function AdminDashboard({
                   <th>Goals</th>
                   <th>Shifts</th>
                   <th>Joined</th>
-                  <th></th>
+                  <th><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -211,18 +222,24 @@ export function AdminDashboard({
             </table>
           </div>
         )}
-      </div>
+      </main>
 
       {detail && (
+        <Overlay>
         <div
           className={`dialog-backdrop${detailDismiss.closing ? " is-closing" : ""}`}
           onClick={closeDetail}
         >
           <div
+            ref={detailTrapRef}
             className={`dialog admin-detail-dialog${detailDismiss.closing ? " is-closing" : ""}`}
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-user-detail-title"
+            tabIndex={-1}
           >
-            <div className="dialog-title">{detail.user.name}</div>
+            <h2 className="dialog-title" id="admin-user-detail-title">{detail.user.name}</h2>
             <p className="dialog-body" style={{ margin: 0 }}>
               {detail.user.email} · {detail.user.workLocationName || "No work location set"}
               <br />
@@ -264,24 +281,33 @@ export function AdminDashboard({
             </div>
           </div>
         </div>
+        </Overlay>
       )}
 
       {deleteTarget && (
+        <Overlay>
         <div className={`dialog-backdrop${deleteDismiss.closing ? " is-closing" : ""}`} onClick={closeDeleteDialog}>
           <div
+            ref={deleteTrapRef}
             className={`dialog${deleteDismiss.closing ? " is-closing" : ""}`}
             onClick={(e) => e.stopPropagation()}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="admin-delete-title"
+            aria-describedby="admin-delete-description"
+            tabIndex={-1}
           >
-            <div className="dialog-title">Delete {deleteTarget.name}?</div>
-            <p className="dialog-body">
-              This permanently deletes this user's account and all {deleteTarget.shiftCount} logged shift
-              {deleteTarget.shiftCount === 1 ? "" : "s"}. There's no way to undo this. Type{" "}
+            <h2 className="dialog-title" id="admin-delete-title">Delete {deleteTarget.name}?</h2>
+            <p className="dialog-body" id="admin-delete-description">
+              This permanently deletes this user's profile, settings, sessions, shifts, expenses, and spending
+              categories. There's no way to undo this. Type{" "}
               <strong>{deleteTarget.email}</strong> to confirm.
             </p>
             {deleteError && <div className="form-error">{deleteError}</div>}
             <div className="field">
-              <label>Confirm email</label>
+              <label htmlFor="admin-delete-confirm-email">Confirm email</label>
               <input
+                id="admin-delete-confirm-email"
                 className="input"
                 type="text"
                 autoFocus
@@ -303,6 +329,7 @@ export function AdminDashboard({
             </div>
           </div>
         </div>
+        </Overlay>
       )}
     </div>
   );

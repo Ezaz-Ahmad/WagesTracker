@@ -64,8 +64,8 @@ export function DeleteAccountDialog({ onClose, onDelete }: DeleteAccountDialogPr
             Delete your account?
           </div>
           <p id="delete-account-desc" className="dialog-body">
-            This permanently deletes your account, your saved settings, and every shift you've logged. There's no way
-            to undo this. Enter your password to confirm.
+            This permanently deletes your profile, saved settings, sessions, shifts, expenses, and spending
+            categories. There's no way to undo this. Enter your password to confirm.
           </p>
           {error && (
             <div className="banner banner-danger" role="alert">

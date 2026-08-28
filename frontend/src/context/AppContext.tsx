@@ -343,11 +343,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // (never forced to session-only here; that demotion is a deliberate,
     // separate step only enableBiometricLoginAction's own success path
     // performs).
+    // Session-ending paths clear or invalidate the token before reaching
+    // this cleanup. In that state there is nothing authenticated to rotate,
+    // and attempting the PATCH would create a predictable 401 in the
+    // browser console on every ordinary logout/account deletion. The local
+    // credential has already been removed above, so stop cleanly. Explicit
+    // "turn biometrics off" and rollback paths still have a live token and
+    // therefore continue through the server-side rotation below.
+    if (!api.getToken()) return;
+
     try {
       const { token: reverted } = await api.setSessionBiometricProtection(false);
       await api.setToken(reverted, api.isRemembered());
     } catch (error) {
-      console.error("Could not clear this session's biometric-protection flag", error);
+      // A token can be revoked between the local check and the request (for
+      // example by a password reset on another device). That is already the
+      // desired terminal state and is not an application error worth
+      // surfacing in the console. Other failures remain diagnostic.
+      if (!(error instanceof ApiError && error.status === 401)) {
+        console.error("Could not clear this session's biometric-protection flag", error);
+      }
     }
   }, []);
 

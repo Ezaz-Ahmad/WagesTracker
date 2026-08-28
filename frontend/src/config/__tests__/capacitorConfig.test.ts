@@ -23,9 +23,9 @@ describe("Capacitor production configuration", () => {
     });
     expect(xcodeProject).toContain("PRODUCT_BUNDLE_IDENTIFIER = com.ezazahmad.wagestracker;");
     expect(xcodeProject).toContain("IPHONEOS_DEPLOYMENT_TARGET = 15.0;");
-    expect(xcodeProject).toContain("MARKETING_VERSION = 1.16.0;");
-    expect(frontendPackage.version).toBe("1.16.0");
-    expect(packageLock.packages.frontend.version).toBe("1.16.0");
+    expect(frontendPackage.version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(xcodeProject).toContain(`MARKETING_VERSION = ${frontendPackage.version};`);
+    expect(packageLock.packages.frontend.version).toBe(frontendPackage.version);
     expect(xcodeProject).toContain("TARGETED_DEVICE_FAMILY = 1;");
     expect(xcodeProject).not.toContain('TARGETED_DEVICE_FAMILY = "1,2";');
     expect(swiftPackage).toContain('capacitor-swift-pm.git", exact: "8.4.2"');

@@ -33,6 +33,7 @@ vi.mock("../../lib/api", async (importOriginal) => {
     fetchMeWithToken: vi.fn(),
     changePassword: vi.fn(),
     logout: vi.fn(async () => {}),
+    setSessionBiometricProtection: vi.fn(),
     listSessions: vi.fn(async () => ({ sessions: [] })),
     listShifts: vi.fn(async () => ({ shifts: [] })),
     listDayExpenses: vi.fn(async () => ({ expenses: [] })),
@@ -65,6 +66,7 @@ const apiSetToken = api.setToken as unknown as ReturnType<typeof vi.fn>;
 const apiLogin = api.login as unknown as ReturnType<typeof vi.fn>;
 const apiChangePassword = api.changePassword as unknown as ReturnType<typeof vi.fn>;
 const apiLogout = api.logout as unknown as ReturnType<typeof vi.fn>;
+const apiSetSessionBiometricProtection = api.setSessionBiometricProtection as unknown as ReturnType<typeof vi.fn>;
 
 const checkCapabilities = biometricAuth.checkBiometricCapabilities as unknown as ReturnType<typeof vi.fn>;
 const getStatus = biometricAuth.getBiometricStatus as unknown as ReturnType<typeof vi.fn>;
@@ -587,6 +589,10 @@ describe("Log out is a soft lock when biometric login is enabled", () => {
 
     expect(apiLogout).toHaveBeenCalled();
     expect(disableBiometric).toHaveBeenCalled();
+    // The token has already been removed and the backend logout is already
+    // revoking the session. Cleanup must not issue an unauthenticated PATCH
+    // that can only return 401 and pollute the production console.
+    expect(apiSetSessionBiometricProtection).not.toHaveBeenCalled();
   });
 });
 

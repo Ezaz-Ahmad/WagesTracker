@@ -74,6 +74,7 @@ for (const requiredStep of [
   /npm run verify:libsql/u,
   /npm ls @libsql\/darwin-arm64 --all/u,
   /npm run ios:testflight:verify -w frontend/u,
+  /npm run ios:aasa:test -w frontend/u,
   /npm run ios:distribution:test -w frontend/u,
   /npm run typecheck\b/u,
   /npm run test\b/u,
@@ -106,15 +107,24 @@ requireMatch(workflow, /IOS_BUILD_NUMBER="\$GITHUB_RUN_NUMBER"/u, "build number 
 requireAbsent(workflow, /IOS_BUILD_NUMBER=.*GITHUB_RUN_ATTEMPT/u, "build number must not include the non-monotonic run attempt");
 requireMatch(workflow, /MARKETING_VERSION="\$IOS_APP_VERSION"/u, "archive must receive the environment marketing version");
 requireMatch(workflow, /CURRENT_PROJECT_VERSION="\$IOS_BUILD_NUMBER"/u, "archive must receive the unique build number");
+requireMatch(workflow, /EXPECTED_APP_VERSION="\$\(node -p "require\('\.\/frontend\/package\.json'\)\.version"\)"/u, "workflow version must come from frontend package metadata");
+requireMatch(workflow, /IOS_APP_VERSION" == "\$EXPECTED_APP_VERSION/u, "release environment version must equal package metadata");
+requireMatch(workflow, /PROFILE_ASSOCIATED_DOMAIN/u, "profile installation must inspect Associated Domains");
+requireMatch(workflow, /applinks:wages-tracker-frontend\.vercel\.app/u, "profile must contain the production Universal Link domain");
 requireMatch(workflow, /CODE_SIGN_STYLE=Manual/u, "archive must use explicit manual signing");
 requireMatch(workflow, /CODE_SIGN_IDENTITY="Apple Distribution"/u, "archive must use Apple Distribution signing");
 requireMatch(workflow, /method[\s\S]*app-store-connect/u, "export must target App Store Connect");
 
-if (frontendPackage.version !== "1.16.0" || lockfile.packages?.frontend?.version !== "1.16.0") {
-  throw new Error("TestFlight configuration invalid: frontend and lockfile versions must remain 1.16.0");
+const releaseVersion = frontendPackage.version;
+if (!/^\d+\.\d+\.\d+$/u.test(releaseVersion)) {
+  throw new Error(`TestFlight configuration invalid: frontend version is not semantic: ${releaseVersion}`);
 }
+if (lockfile.packages?.frontend?.version !== releaseVersion) {
+  throw new Error("TestFlight configuration invalid: frontend and lockfile versions must match");
+}
+const escapedReleaseVersion = releaseVersion.replaceAll(".", "\\.");
 for (const pattern of [
-  /MARKETING_VERSION = 1\.16\.0;/u,
+  new RegExp(`MARKETING_VERSION = ${escapedReleaseVersion};`, "u"),
   /PRODUCT_BUNDLE_IDENTIFIER = com\.ezazahmad\.wagestracker;/u,
   /IPHONEOS_DEPLOYMENT_TARGET = 15\.0;/u,
   /TARGETED_DEVICE_FAMILY = 1;/u,

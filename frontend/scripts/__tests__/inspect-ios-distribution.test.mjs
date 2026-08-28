@@ -1,35 +1,52 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
 import { assertDistributionEntitlements } from "../lib/ios-distribution-entitlements.mjs";
-
-if (process.platform !== "darwin") {
-  throw new Error("The distribution plist regression suite must run on macOS with plutil");
-}
 
 const expected = {
   bundleId: "com.ezazahmad.wagestracker",
   teamId: "XYN7FY5RB8",
+  associatedDomain: "applinks:wages-tracker-frontend.vercel.app",
 };
 
 function fixtureEntitlements(name) {
-  const path = fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
-  return JSON.parse(execFileSync("plutil", ["-extract", "Entitlements", "json", "-o", "-", path], {
-    encoding: "utf8",
-  }));
-}
+  const fixtures = {
+    correct: {
+      "application-identifier": "XYN7FY5RB8.com.ezazahmad.wagestracker",
+      "com.apple.developer.team-identifier": "XYN7FY5RB8",
+      "beta-reports-active": true,
+      "com.apple.developer.associated-domains": ["applinks:wages-tracker-frontend.vercel.app"],
+      "get-task-allow": false,
+    },
+    incorrect: {
+      "application-identifier": "WRONGTEAM.com.ezazahmad.wagestracker",
+      "com.apple.developer.team-identifier": "WRONGTEAM",
+      "beta-reports-active": false,
+      "com.apple.developer.associated-domains": ["applinks:wages-tracker-frontend.vercel.app"],
+      "get-task-allow": true,
+    },
+    misleadingNested: {
+      "application-identifier": "XYN7FY5RB8.com.ezazahmad.wagestracker",
+      com: { apple: { developer: { "team-identifier": "XYN7FY5RB8" } } },
+      "beta-reports-active": true,
+    },
+    missing: {
+      "application-identifier": "XYN7FY5RB8.com.ezazahmad.wagestracker",
+      "beta-reports-active": true,
+    },
+    signedApplication: {
+      "application-identifier": "XYN7FY5RB8.com.ezazahmad.wagestracker",
+      "com.apple.developer.team-identifier": "XYN7FY5RB8",
+      "beta-reports-active": true,
+      "com.apple.developer.associated-domains": ["applinks:wages-tracker-frontend.vercel.app"],
+    },
+  };
 
-function plistDocument(name) {
-  const path = fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
-  return JSON.parse(execFileSync("plutil", ["-convert", "json", "-o", "-", path], {
-    encoding: "utf8",
-  }));
+  return structuredClone(fixtures[name]);
 }
 
 test("accepts correct literal dotted entitlement keys", () => {
   assert.doesNotThrow(() => assertDistributionEntitlements(
-    fixtureEntitlements("distribution-entitlements-correct.plist"),
+    fixtureEntitlements("correct"),
     expected,
     "profile",
   ));
@@ -37,18 +54,19 @@ test("accepts correct literal dotted entitlement keys", () => {
 
 test("accepts literal dotted keys from signed application entitlements", () => {
   assert.doesNotThrow(() => assertDistributionEntitlements(
-    plistDocument("signed-entitlements-correct.plist"),
+    fixtureEntitlements("signedApplication"),
     expected,
     "signed application",
   ));
 });
 
 test("rejects each missing required entitlement", () => {
-  const fixture = fixtureEntitlements("distribution-entitlements-correct.plist");
+  const fixture = fixtureEntitlements("correct");
   for (const key of [
     "application-identifier",
     "com.apple.developer.team-identifier",
     "beta-reports-active",
+    "com.apple.developer.associated-domains",
   ]) {
     const entitlements = { ...fixture };
     delete entitlements[key];
@@ -60,7 +78,7 @@ test("rejects each missing required entitlement", () => {
 
   assert.throws(
     () => assertDistributionEntitlements(
-      fixtureEntitlements("distribution-entitlements-missing.plist"),
+      fixtureEntitlements("missing"),
       expected,
       "profile",
     ),
@@ -69,7 +87,7 @@ test("rejects each missing required entitlement", () => {
 });
 
 test("rejects each incorrect distribution entitlement value", () => {
-  const fixture = fixtureEntitlements("distribution-entitlements-correct.plist");
+  const fixture = fixtureEntitlements("correct");
   for (const [key, value] of [
     ["application-identifier", "WRONGTEAM.com.ezazahmad.wagestracker"],
     ["com.apple.developer.team-identifier", "WRONGTEAM"],
@@ -84,7 +102,7 @@ test("rejects each incorrect distribution entitlement value", () => {
 
   assert.throws(
     () => assertDistributionEntitlements(
-      fixtureEntitlements("distribution-entitlements-incorrect.plist"),
+      fixtureEntitlements("incorrect"),
       expected,
       "profile",
     ),
@@ -95,10 +113,22 @@ test("rejects each incorrect distribution entitlement value", () => {
 test("rejects a misleading nested structure in place of a literal dotted key", () => {
   assert.throws(
     () => assertDistributionEntitlements(
-      fixtureEntitlements("distribution-entitlements-misleading-nested.plist"),
+      fixtureEntitlements("misleadingNested"),
       expected,
       "profile",
     ),
     /missing required entitlement com\.apple\.developer\.team-identifier/u,
+  );
+});
+
+test("rejects a profile or signed app without the production Universal Link domain", () => {
+  const fixture = fixtureEntitlements("correct");
+  assert.throws(
+    () => assertDistributionEntitlements(
+      { ...fixture, "com.apple.developer.associated-domains": ["applinks:example.invalid"] },
+      expected,
+      "profile",
+    ),
+    /Associated Domains entitlement must include applinks:wages-tracker-frontend\.vercel\.app/u,
   );
 });

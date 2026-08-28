@@ -13,9 +13,10 @@ describe("public App Store pages", () => {
     const { container } = render(<PrivacyPolicyPage />);
 
     expect(screen.getByRole("heading", { level: 1, name: "Privacy Policy" })).toBeTruthy();
-    expect(screen.getByText(/Last updated: 20 August 2026/)).toBeTruthy();
+    expect(screen.getByText(/Last updated: 28 August 2026/)).toBeTruthy();
     expect(screen.getByText(/Optional personal spending records:/)).toBeTruthy();
     expect(screen.getByText(/Personal spending is not included in those employer-facing wage PDFs/)).toBeTruthy();
+    expect(screen.getByText("Resend").parentElement?.textContent).toContain("transactional message content");
     expect(screen.getByText(/Settings → Data & account → Delete account/)).toBeTruthy();
     expect(screen.getByText(/Vercel/)).toBeTruthy();
     expect(screen.getByText(/Render/)).toBeTruthy();
@@ -35,6 +36,7 @@ describe("public App Store pages", () => {
       .toBe("https://github.com/Ezaz-Ahmad/WagesTracker/issues/new");
     expect(screen.getByText(/GitHub issues are public/)).toBeTruthy();
     expect(screen.getByText(/Never include personal information/)).toBeTruthy();
+    expect(screen.getByText(/Forgot password\?/)).toBeTruthy();
     expect(screen.getByRole("link", { name: "Privacy Policy" }).getAttribute("href")).toBe("/privacy");
     expect(await axe(container, { rules: { "color-contrast": { enabled: false } } })).toHaveNoViolations();
   });

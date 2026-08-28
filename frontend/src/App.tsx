@@ -34,7 +34,7 @@ import type { Screen } from "./lib/types";
 //   VITE_VIEWPORT_DEBUG=true npm run build -w frontend
 const VIEWPORT_DEBUG = !__NATIVE_CONSUMER_BUILD__ && import.meta.env.VITE_VIEWPORT_DEBUG === "true";
 
-function AuthedApp() {
+export function AuthedApp() {
   const {
     today,
     user,
@@ -57,6 +57,14 @@ function AuthedApp() {
   const activeIndex = Math.max(0, TABS.findIndex((t) => t.screen === screen));
   const handleSwipeNavigate = useCallback((index: number) => setScreen(TABS[index].screen), []);
   const { ref: swipeRef } = useSwipeNav<HTMLDivElement>(activeIndex, TABS.length, handleSwipeNavigate);
+
+  // Each tab is a new screen, not another section in one long document.
+  // Reset the shell's sole scroll container before the next screen paints so
+  // a user cannot arrive halfway down a destination after leaving a long
+  // Entry, Spending, or Settings view.
+  useLayoutEffect(() => {
+    if (swipeRef.current) swipeRef.current.scrollTop = 0;
+  }, [screen, swipeRef]);
 
   // Pull-to-refresh — Home only, per the ask. Bound to the same scrollable
   // pane as the swipe-tab gesture. Neither gesture moves the pane itself:

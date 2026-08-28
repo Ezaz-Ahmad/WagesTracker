@@ -20,6 +20,7 @@ export function assertDistributionEntitlements(entitlements, expected, source) {
   const applicationIdentifier = requiredEntitlement(entitlements, "application-identifier", source);
   const teamIdentifier = requiredEntitlement(entitlements, "com.apple.developer.team-identifier", source);
   const betaReportsActive = requiredEntitlement(entitlements, "beta-reports-active", source);
+  const associatedDomains = requiredEntitlement(entitlements, "com.apple.developer.associated-domains", source);
 
   assertEqual(
     applicationIdentifier,
@@ -28,6 +29,11 @@ export function assertDistributionEntitlements(entitlements, expected, source) {
   );
   assertEqual(teamIdentifier, expected.teamId, `${source} entitlement team`);
   assertEqual(betaReportsActive, true, `${source} TestFlight entitlement`);
+  if (!Array.isArray(associatedDomains) || !associatedDomains.includes(expected.associatedDomain)) {
+    throw new Error(
+      `${source} Associated Domains entitlement must include ${expected.associatedDomain}`,
+    );
+  }
 
   if (hasOwn(entitlements, "get-task-allow")) {
     assertEqual(entitlements["get-task-allow"], false, `${source} debug entitlement`);

@@ -175,6 +175,48 @@
   .welcome-screen { display: none; }
 }
 
+/* The default welcome composition fits modern tall phones. Compact phones
+   need a denser arrangement, and iPhone SE-class heights cannot show the
+   illustrative preview as well as the real CTA and gesture cue. Keep the
+   actionable content visible instead of clipping it below an overflow-hidden
+   fixed screen. */
+@media (max-width: 959px) and (max-height: 880px) {
+  .welcome-screen {
+    padding: max(var(--space-4), env(safe-area-inset-top)) var(--space-5)
+      max(var(--space-3), env(safe-area-inset-bottom));
+  }
+  .welcome-content { justify-content: flex-start; }
+  .welcome-content .landing-kicker { margin-bottom: var(--space-3); }
+  .welcome-content .landing-headline {
+    font-size: clamp(36px, 10.5vw, 42px);
+    margin-bottom: var(--space-3);
+  }
+  .welcome-content .landing-subtext {
+    line-height: 1.45;
+    margin-bottom: var(--space-4);
+  }
+  .welcome-content .landing-features {
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+  }
+  .welcome-content .landing-preview-card { padding: var(--space-3); }
+  .welcome-cta { gap: var(--space-2); padding-top: var(--space-2); }
+  .welcome-swipe-chevrons { height: 22px; }
+}
+
+@media (max-width: 959px) and (max-height: 700px) {
+  .welcome-screen { padding-top: max(var(--space-3), env(safe-area-inset-top)); }
+  .welcome-content .landing-headline { font-size: clamp(32px, 10vw, 38px); }
+  .welcome-content .landing-subtext { font-size: 14px; margin-bottom: var(--space-3); }
+  .welcome-content .landing-features { gap: var(--space-2); margin-bottom: 0; }
+  .welcome-content .landing-feature-body { display: none; }
+  .welcome-content .landing-feature { align-items: center; }
+  .welcome-content .landing-feature-icon { width: 32px; height: 32px; }
+  .welcome-content .landing-preview-card { display: none; }
+  .welcome-continue-btn { min-height: 48px; }
+  .welcome-swipe-label { font-size: 12px; }
+}
+
 /* — decorative floating shapes — */
 .landing-shapes { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
 .landing-shape { position: absolute; background: var(--color-accent); }

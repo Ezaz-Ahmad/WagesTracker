@@ -79,13 +79,13 @@ A `/api/health` response only ever tells the browser one of two things: it hasn'
 
 ## Product status and roadmap
 
-Wage Tracker is a production web application and installable PWA with a committed Capacitor iOS shell. Version 1.16.0 has been signed, uploaded through the protected TestFlight workflow and verified successfully on a physical Face ID iPhone (including end-to-end biometric login); it is not yet publicly available in the App Store. This Spending branch is newer than that verified TestFlight build and does not upload another build. The mobile strategy keeps product logic in one tested React/TypeScript codebase and introduces thin platform adapters only where web and native behaviour genuinely differ.
+Wage Tracker is a production web application and installable PWA with a committed Capacitor iOS shell. The current source release is **1.17.0**, which adds password recovery and the final responsive/accessibility corrections. The web deployment, signed TestFlight upload, real-mail recovery flow, Universal Link opening, and physical-device regression are operational release gates; 1.17.0 must not be described as released until those gates have passed. The mobile strategy keeps product logic in one tested React/TypeScript codebase and introduces thin platform adapters only where web and native behaviour genuinely differ.
 
 | Capability | Current status | Planned delivery |
 | --- | --- | --- |
 | Responsive web application | Live on Vercel | Continues as the fastest release channel |
 | Installable PWA | Available from supported browsers | Maintained alongside native applications |
-| iPhone application | v1.16.0 signed TestFlight build physically verified; later main changes and this Spending branch are not in that build | Validate the next signed candidate, then App Store review |
+| iPhone application | 1.17.0 source candidate; signed upload and physical-device verification still required | Run the protected TestFlight workflow, complete the device checklist, then consider App Store review |
 | Android application | Planned after iOS | Same Capacitor foundation, internal testing, then Google Play |
 | Shared backend | Live on Render with Turso | One versioned HTTPS API for web, iOS, and Android |
 
@@ -125,7 +125,7 @@ Only platform boundaries receive adapters. Authentication uses unchanged browser
 1. **Store-readiness foundation - complete** - publish privacy/support pages, allow native API origins, introduce platform-neutral token/PDF boundaries, and verify authentication and account-deletion flows.
 2. **iOS shell and cloud-build foundation - complete** - add the thin, iPhone-only Capacitor/Xcode project, Remember Me storage in Keychain, reproducible SPM dependencies, and an unsigned Simulator build on GitHub-hosted macOS.
 3. **iOS product integration - complete** - add native PDF sharing, lifecycle/connectivity handling, final icons/splash assets, and the reviewed iOS privacy manifest.
-4. **iOS delivery - in progress** - protected signing and TestFlight upload are operational and v1.16.0 was physically verified; a future explicitly approved candidate still needs full device regression and App Store submission.
+4. **iOS delivery - in progress** - protected signing and TestFlight upload are operational; the 1.17.0 candidate still needs a fresh workflow dispatch, real-device regression, password-recovery verification and Universal Link verification before release.
 5. **Android delivery** - add the Android project from the same Capacitor codebase, use Android Keystore-backed session storage, test through Google Play's internal track, and prepare a production release.
 6. **Operational maturity** - add mobile crash reporting, privacy-preserving release telemetry, dependency and security scanning, documented rollback procedures, and versioned release notes.
 
@@ -145,6 +145,8 @@ flowchart LR
 Application changes should enter through a feature branch and pull request, with CI passing before merge. Web/API deployment and beta-build creation may be automated from the protected main branch; public mobile-store releases remain explicit, versioned decisions. Every TestFlight or App Store upload receives a unique build number, and release tags identify the source commit used to produce it.
 
 ## Architecture
+
+The maintained system, trust-boundary, authentication/recovery, wage/spending/report, CI/delivery, secret-placement, and repository-responsibility diagrams are in [`docs/architecture.md`](docs/architecture.md). The summary below is intentionally high level; the architecture document is authoritative.
 
 ### Current production architecture
 
@@ -222,7 +224,7 @@ The native foundation defines platform-neutral token-storage and PDF-delivery co
 - `src/admin/` — a self-contained admin panel (own login, own API client, own token) reached at `/admin`; see [Admin panel](#admin-panel)
 - Every build is stamped with the `package.json` version plus the exact git commit hash and commit date it was built from (`vite.config.ts` computes these at build time; see `lib/appVersion.ts`) — shown in Settings and in the PDF footer, so it's always possible to confirm which build is actually live without digging through deployed JS
 
-**Data**: SQLite (via libSQL/Turso in production, a local file in dev) — no separate database server to run. Schema/migrations live in `backend/src/db.ts`. Shifts older than 5 years are pruned automatically by a daily job; a user can permanently delete their own account and every shift from Settings, or an admin can do the same for any account from the [admin panel](#admin-panel).
+**Data**: SQLite (via libSQL/Turso in production, a local file in dev) — no separate database server to run. Schema/migrations live in `backend/src/db.ts`. Shift/wage-input records older than 5 years are pruned automatically; reports are generated on device and are not stored; personal spending persists until the user removes it or deletes the account. Self-service and admin deletion explicitly remove profile, settings, sessions, reset tokens, shifts, wage inputs, expenses, and categories.
 
 **Hosting**: Render (backend, Node web service) + Vercel (frontend, static Vite build) + Turso (database).
 
@@ -232,9 +234,11 @@ The native foundation defines platform-neutral token-storage and PDF-delivery co
 
 ## Versioning
 
-`frontend/package.json`'s `version` is bumped by hand on every commit that changes app behavior or code — patch (`1.1.0` → `1.1.1`) for fixes and small changes, minor (`1.1.0` → `1.2.0`) for a new feature, major for breaking changes. Pure docs/config-only commits (like a README tweak) don't bump it, since nothing about the running app changed. This is a project convention, not an automated tool — there's no npm publish step here, so a full [Conventional Commits](https://www.conventionalcommits.org/) + semantic-release setup would be more infrastructure than the project needs.
+The public marketing version follows semantic versioning: major for a breaking/fundamental redesign, minor for new functionality, and patch for compatible fixes. Every release that contains code, UI, feature, or behaviour changes receives a new version; documentation-only maintenance can retain the current version. The 1.17.0 release is a minor bump because it introduces password recovery.
 
-What *does* update automatically, on every single build with no exceptions, is the git commit hash and commit date the build was produced from (computed in `vite.config.ts`, exposed via `frontend/src/lib/appVersion.ts`). That's the part that actually proves which exact code is live — shown together with the version number in Settings and the PDF footer, e.g. `v1.1.0 (ba15955) · Aug 6, 2026`.
+`frontend/package.json` is the release source of truth. The same value must appear in `package-lock.json` and both Xcode build configurations. `frontend/scripts/verify-testflight-config.mjs` derives the expected value dynamically and fails if package metadata, lockfile, Xcode or the protected workflow diverges. The `testflight` GitHub environment variable `IOS_APP_VERSION` must match it. Before release, `git grep` for the previous version and review every result rather than copying a stale value forward.
+
+The git commit hash and commit date update automatically on every build (computed in `vite.config.ts`, exposed through `frontend/src/lib/appVersion.ts`) and appear with the version in Settings and the PDF footer. TestFlight build numbers are separate: each fresh manual workflow dispatch uses the monotonically increasing `github.run_number`. Never use **Re-run jobs** for a signed delivery; fix the cause and start a new workflow dispatch so a processed build number is never reused. See [`docs/ios-testflight-delivery.md`](docs/ios-testflight-delivery.md).
 
 ## Local development
 
@@ -284,7 +288,7 @@ Signed delivery is isolated in the manual-only protected-main `.github/workflows
 
 ## Testing and CI
 
-The project has **923 automated tests: 271 backend and 652 frontend**. Backend integration/API tests (`backend/test/`) use [Vitest](https://vitest.dev/) and [Supertest](https://github.com/ladjs/supertest) to exercise the real Express app end to end over HTTP; each test file gets its own isolated, throwaway temporary SQLite database (see `backend/test/testApp.ts`) so runs never share or pollute data. Coverage includes authentication/password security and recovery, database-backed sessions and device limits, ownership isolation, historical wage data, personal-spending defaults/CRUD/archiving/filtering/pagination/summary/idempotency/account deletion, work expenses and other earnings, canonical earnings comparisons, overlap and duration rules, timezone-aware date validation, exact production CORS policy, platform adapters, native release safeguards, accessibility, and public privacy/support pages.
+The tracked `npm test` gate has **932 automated tests: 271 backend tests, 658 frontend Vitest tests, and 3 Universal Link generator tests**. Backend integration/API tests (`backend/test/`) use [Vitest](https://vitest.dev/) and [Supertest](https://github.com/ladjs/supertest) to exercise the real Express app end to end over HTTP; each test file gets its own isolated, throwaway temporary SQLite database (see `backend/test/testApp.ts`) so runs never share or pollute data. Additional release gates include four Playwright smoke tests, the cross-platform distribution-entitlement regression suite, and macOS inspection of the built application. Coverage includes authentication/password security and recovery, database-backed sessions and device limits, ownership isolation, historical wage data, personal-spending defaults/CRUD/archiving/filtering/pagination/summary/idempotency/account deletion, work expenses and other earnings, canonical earnings comparisons, overlap and duration rules, timezone-aware date validation, exact production CORS policy, platform adapters, native release safeguards, accessibility, and public privacy/support pages.
 
 Most frontend tests are pure-logic tests (`frontend/src/lib/__tests__/`) run in a plain Node environment (no DOM) for speed — wage/duration calculations, week aggregation, PDF report data, password-policy validation, the session-management API client (including that the session list is refreshed against the replacement token right after a password change), and friendly device-label parsing (`parseUserAgent.test.ts` — Windows/macOS/Android/iOS across Chrome, Safari, and Firefox, including the iOS in-app-browser tokens like `CriOS`/`FxiOS`/`EdgiOS`, plus empty/unrecognized/oversized user-agent strings).
 
@@ -356,6 +360,9 @@ On-device checklist: install the build to the Home Screen, log out, focus the pa
 | `MAIL_REPLY_TO` | no | optional reply/support address for transactional mail |
 | `APP_BASE_URL` | **yes for production password recovery** | public HTTPS frontend origin used to build reset links, currently `https://wages-tracker-frontend.vercel.app` |
 | `MAIL_PROVIDER` | no | inferred automatically; `resend` may be set explicitly. `console` and `memory` are refused in production |
+| `RATE_LIMIT_FORGOT_PASSWORD_IP` | no | positive-integer override for forgot-password requests per IP in 15 minutes; defaults to `5`. Intended mainly for isolated tests; keep the production default unless capacity planning justifies a reviewed change |
+| `RATE_LIMIT_FORGOT_PASSWORD_EMAIL` | no | positive-integer override for forgot-password requests per normalized email in one hour; defaults to `3`. Limiter keys contain only a SHA-256 digest, never the plaintext address |
+| `RATE_LIMIT_RESET_PASSWORD` | no | positive-integer override for reset-token validation/submission requests per IP in 15 minutes; defaults to `15` |
 
 ### Frontend (`frontend/.env`, copy from `frontend/.env.example`)
 
@@ -366,7 +373,15 @@ On-device checklist: install the build to the Home Screen, log out, focus the pa
 | `VITE_CAPACITOR_SERVER_URL` | development only | optional future live-reload URL. Any value fails a native production build and must never ship |
 | `VITE_VIEWPORT_DEBUG` | diagnostics only | `true` includes the temporary viewport overlay in a web diagnostic build. Native production builds reject it |
 
-`APPLE_TEAM_ID` is also required in the **Vercel build environment** only if reset links should open the installed iPhone app directly. It is not a Vite variable and is not a secret; the build substitutes it into the Apple association file. The reset page remains fully usable in mobile Safari when it is unset.
+The post-build Universal Link generator also reads these server-side build variables. They are not exposed through `import.meta.env` and must not use a `VITE_` prefix:
+
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `APPLE_TEAM_ID` | **yes on Vercel Production** | public 10-character Apple Team ID substituted into the association file. It is metadata, not a secret |
+| `VERCEL_ENV` | supplied by Vercel | Vercel sets this to `production` for the production deployment; the generator then refuses to publish a placeholder or missing Team ID |
+| `REQUIRE_APPLE_TEAM_ID` | local/CI safety override only | set to `true` to apply the same fail-closed check outside Vercel, for example during a production preflight build |
+
+The reset page remains fully usable in mobile Safari when Universal Links are not configured, but a production Vercel build from this release will now fail until `APPLE_TEAM_ID` is present.
 
 ## Authentication and password security
 
@@ -405,7 +420,7 @@ A full-screen, dark-themed intro (`screens/WelcomeScreen.tsx`) shown before ever
 
 ## Biometric login (Face ID / Touch ID)
 
-> **Status:** built on `feature/ios-biometric-login`, targeting the release after `v1.16.0`. Not part of the current TestFlight build. Since then, two follow-up fixes: the stored credential is now scoped so "enabled" reflects the account actually signed in, not just whatever's in the device's one Keychain slot (`docs/biometric-account-scoping-fix.md`), and a successful Face ID/Touch ID unlock on a cold backend now shows the same waking-up screen a password login does, instead of a blank screen (`docs/ios-white-screen-after-faceid-fix.md`).
+> **Status:** biometric login and its account-scoping, idle-exemption, long-lived protected-session, soft-lock, and cold-backend fixes are merged into the 1.17.0 source candidate. Automated adapter/context/UI coverage passes; physical Face ID/Touch ID behaviour remains part of the signed TestFlight device gate.
 
 Native iOS only — Settings → Security shows a "Biometric login" control on-device; it never appears on web/PWA (`platform/biometricAuth.ts`'s web adapter always reports unavailable, so there is nothing to render). There is no separate third-party plugin: `@aparajita/capacitor-secure-storage` (the app's existing Keychain dependency) has no `LocalAuthentication`/biometric-gated access-control support at all, so this uses a small, purpose-built native bridge (`ios/App/App/BiometricAuthPlugin.swift`) compiled directly into the App target instead — Apple's `LocalAuthentication` and `Security` frameworks only, no new npm dependency, no version-alignment surface to audit.
 
@@ -453,7 +468,7 @@ It's built to be fully isolated from regular user accounts, not a "role" on top 
 - Not linked from anywhere in the regular app UI; reaching it means knowing the URL and the password.
 - Its login endpoint (`POST /api/admin/login`) has its own tight rate limit (10 attempts/15min) separate from the general API limiter, since a shared admin password is a higher-value brute-force target than any one user's password.
 
-What it shows: every user (name, email, work info, rate, goals, join date, shift count), a searchable table, and a "View" drill-down per user with their full shift history. Deleting a user requires typing their email into the confirmation dialog first — deletion is immediate and permanent (same explicit shift-then-user delete as the self-service "Delete account" flow in Settings, not a soft delete).
+What it shows: every user (name, email, work info, rate, goals, join date, shift count), a labelled searchable table, and an accessible "View" drill-down per user with their full shift history. Deleting a user requires typing their email into the focus-trapped confirmation dialog first — deletion is immediate and permanently removes profile/settings, sessions, reset tokens, shifts, wage inputs, personal expenses, and spending categories.
 
 **Setup:** set `ADMIN_PASSWORD` in `backend/.env` (local) or on the Render service (production) — see the Backend config table above. Leave it unset to disable the panel entirely (the login endpoint always returns 401 without it).
 
@@ -520,8 +535,8 @@ The repo also has `railway.json` (Railway, as a backend alternative to Render) a
 - [x] `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` set on the backend — data lives on Turso, independent of Render's ephemeral filesystem
 - [x] `VITE_API_URL` set on the frontend build to the backend's URL
 - [x] Backend `/api/health` returns `{"ok": true}`
-- [ ] Resend sending domain verified; `RESEND_API_KEY`, `MAIL_FROM`, and `APP_BASE_URL` set on Render
-- [ ] `APPLE_TEAM_ID` set on Vercel and Associated Domains enabled for the iOS App ID (optional for web; required for direct app opening)
+- [x] Resend sending domain verified; production variable names are present on Render (real-mail delivery still must be proved with the release account)
+- [ ] `APPLE_TEAM_ID=XYN7FY5RB8` set for Vercel Production and the frontend redeployed; the live file currently still exposes the placeholder. Associated Domains is enabled for the iOS App ID, but the regenerated profile and signed app must pass the automated entitlement inspection
 - [x] Rate limiting is on by default (300 req/15min general, 20 req/15min on signup+login, 5 req/15min per IP and 3/hour per address for reset email, 15 req/15min for reset-token validation/submission, 10 req/15min on `/api/admin/login`)
 - [ ] `ADMIN_PASSWORD` set on the backend — optional; the admin panel (`/admin`) stays disabled (login always 401s) without it
 
