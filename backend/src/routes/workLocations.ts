@@ -126,7 +126,10 @@ workLocationsRouter.post(
       }
       throw error;
     }
-    const result = await db.execute({ sql: "SELECT * FROM work_locations WHERE id = ?", args: [id] });
+    const result = await db.execute({
+      sql: "SELECT * FROM work_locations WHERE id = ? AND user_id = ?",
+      args: [id, req.userId!],
+    });
     res.status(201).json({ location: toPublicWorkLocation(result.rows[0] as unknown as WorkLocationRow) });
   })
 );
@@ -191,7 +194,10 @@ workLocationsRouter.patch(
       }
       throw error;
     }
-    const result = await db.execute({ sql: "SELECT * FROM work_locations WHERE id = ?", args: [req.params.id] });
+    const result = await db.execute({
+      sql: "SELECT * FROM work_locations WHERE id = ? AND user_id = ?",
+      args: [req.params.id, req.userId!],
+    });
     res.json({ location: toPublicWorkLocation(result.rows[0] as unknown as WorkLocationRow) });
   })
 );

@@ -671,7 +671,35 @@ button { font-family: inherit; }
 }
 .entry-today-card > div:first-child { min-width: 0; flex: 1; }
 .entry-clock-location { display: grid; gap: 5px; max-width: 320px; margin-top: var(--space-3); }
-.entry-clock-location label { font-size: 11px; font-weight: 700; }
+.entry-clock-location-label { font-size: 11px; font-weight: 700; }
+.location-picker-trigger {
+  width: 100%; min-height: 54px; height: auto; padding: 9px 11px;
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 9px;
+  text-align: left; cursor: pointer;
+  border-color: color-mix(in srgb, var(--color-text) 13%, transparent);
+}
+.location-picker-trigger:hover { border-color: color-mix(in srgb, var(--color-accent) 45%, transparent); }
+.location-picker-trigger-icon {
+  width: 30px; height: 30px; display: grid; place-items: center; border-radius: 10px;
+  color: var(--color-accent-700); background: var(--color-accent-100);
+}
+.location-picker-trigger-copy { min-width: 0; display: grid; gap: 2px; }
+.location-picker-trigger-name {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 13px; font-weight: 750; color: var(--color-text);
+}
+.location-picker-trigger:not(.has-value) .location-picker-trigger-name {
+  color: color-mix(in srgb, var(--color-text) 55%, transparent); font-weight: 600;
+}
+.location-picker-trigger-meta {
+  min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 2px 7px;
+  font-size: 10.5px; line-height: 1.35; color: color-mix(in srgb, var(--color-text) 58%, transparent);
+}
+.location-picker-trigger-meta > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.location-picker-trigger-meta > span + span::before { content: "•"; margin-right: 7px; opacity: .55; }
+.location-picker-trigger-meta .is-empty { color: color-mix(in srgb, var(--color-text) 48%, transparent); }
+.location-picker-trigger-chevron { flex: none; color: color-mix(in srgb, var(--color-text) 45%, transparent); transition: transform var(--dur-fast) var(--ease-standard); }
+.location-picker-trigger[aria-expanded="true"] .location-picker-trigger-chevron { transform: rotate(180deg); }
 .home-clock-location { display: grid; gap: 4px; max-width: 280px; margin-top: var(--space-2); font-size: 11px; font-weight: 700; }
 .elapsed-timer {
   font-family: var(--font-heading); font-weight: 800; font-size: 30px; letter-spacing: 0.01em;
@@ -841,6 +869,7 @@ button { font-family: inherit; }
   color: color-mix(in srgb, var(--color-text) 45%, transparent);
 }
 .shift-location, .shift-time { width: 100%; }
+.shift-field-location .location-picker-trigger { min-height: 52px; }
 /* `.input`'s default border is transparent (the fill alone is normally
    enough to read as a field) — that falls apart for an empty native
    `<input type="time">` on iOS/Android, which renders no "--:--" content of
@@ -870,7 +899,16 @@ button { font-family: inherit; }
 .week-total-row { display: flex; justify-content: space-between; font-size: 14px; }
 
 /* — fuel cost — */
-.fuel-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-1); }
+.fuel-row {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3); margin-top: var(--space-1);
+  padding: var(--space-3); border-radius: 13px;
+  background: color-mix(in srgb, var(--color-accent) 4%, var(--color-bg));
+  border: 1px solid color-mix(in srgb, var(--color-accent) 10%, var(--color-divider));
+}
+.fuel-row-info { flex: 1 1 240px; min-width: 0; display: grid; gap: 4px; }
+.fuel-row-detail { font-size: 10.5px; line-height: 1.45; color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+.fuel-row-actions { flex: none; display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-1); }
 .fuel-toggle { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: color-mix(in srgb, var(--color-text) 65%, transparent); }
 .fuel-toggle svg { opacity: 0.8; }
 .fuel-toggle:has(input:checked) { color: var(--color-accent-700); }
@@ -982,6 +1020,118 @@ button { font-family: inherit; }
 .other-amount.fuel-amount-btn:hover { background: var(--color-neutral-200); }
 .other-amount.fuel-amount-btn:active { background: var(--color-neutral-300); }
 .fuel-amount-value { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* — work-location picker — bottom sheet on phones, centred modal on larger
+   screens. The list is deliberately richer than a native select: address and
+   default fuel allowance are decision-making information, not hidden setup. */
+.location-picker-backdrop {
+  position: fixed; inset: 0; z-index: 1100;
+  display: flex; align-items: flex-end; justify-content: center;
+  background: color-mix(in srgb, #000 48%, transparent);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  animation: day-editor-fade-in var(--dur-base, 200ms) var(--ease-out, ease);
+}
+.location-picker-backdrop.is-closing { animation: day-editor-fade-out 170ms var(--ease-standard, ease) forwards; }
+.location-picker-sheet {
+  width: 100%; max-width: 580px;
+  max-height: min(90vh, calc(var(--app-viewport-height, 100dvh) - 12px));
+  display: flex; flex-direction: column; overflow: hidden;
+  border-radius: 24px 24px 0 0; background: var(--color-bg);
+  box-shadow: 0 -20px 54px -24px color-mix(in srgb, #000 64%, transparent);
+  animation: day-editor-up var(--dur-slow, 280ms) var(--ease-out, ease);
+}
+.location-picker-sheet.is-closing { animation: day-editor-down 180ms var(--ease-standard, ease) forwards; pointer-events: none; }
+.location-picker-handle {
+  width: 38px; height: 4px; flex: none; margin: 8px auto 0; border-radius: 999px;
+  background: color-mix(in srgb, var(--color-text) 18%, transparent);
+}
+.location-picker-header {
+  flex: none; display: flex; align-items: flex-start; gap: var(--space-2);
+  padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--color-divider);
+}
+.location-picker-heading { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: var(--space-3); }
+.location-picker-heading-icon {
+  width: 38px; height: 38px; flex: none; display: grid; place-items: center; border-radius: 12px;
+  color: var(--color-accent-700); background: var(--color-accent-100);
+}
+.location-picker-heading h2 { margin: 0; font-family: var(--font-heading); font-size: 18px; }
+.location-picker-heading p { margin: 3px 0 0; font-size: 11.5px; line-height: 1.45; color: color-mix(in srgb, var(--color-text) 58%, transparent); }
+.location-picker-close { flex: none; width: 44px; height: 44px; padding: 0; border-radius: 50%; }
+.location-picker-list {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  list-style: none; margin: 0; padding: var(--space-3) var(--space-4);
+  display: grid; align-content: start; gap: var(--space-2);
+}
+.location-picker-list > li { min-width: 0; }
+.location-picker-option {
+  width: 100%; min-height: 72px; padding: 11px 12px;
+  display: grid; grid-template-columns: auto minmax(0, 1fr) 24px; align-items: center; gap: 11px;
+  text-align: left; color: var(--color-text); background: var(--color-surface);
+  border: 1px solid var(--color-divider); border-radius: 14px; cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+}
+button.location-picker-option:hover { border-color: color-mix(in srgb, var(--color-accent) 42%, var(--color-divider)); }
+button.location-picker-option:active { transform: scale(.992); }
+.location-picker-option.is-selected {
+  border-color: color-mix(in srgb, var(--color-accent) 50%, var(--color-divider));
+  background: color-mix(in srgb, var(--color-accent) 6%, var(--color-bg));
+}
+.location-picker-option.is-archived { cursor: default; border-style: dashed; }
+.location-picker-option-icon {
+  width: 34px; height: 34px; display: grid; place-items: center; border-radius: 11px;
+  color: color-mix(in srgb, var(--color-text) 58%, transparent); background: var(--color-neutral-100);
+}
+.location-picker-option.is-selected .location-picker-option-icon { color: var(--color-accent-700); background: var(--color-accent-100); }
+.location-picker-option-content { min-width: 0; display: grid; gap: 3px; }
+.location-picker-option-title-row { min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.location-picker-option-title-row strong { min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
+.location-picker-status {
+  flex: none; padding: 2px 6px; border-radius: 999px; font-size: 8.5px; font-weight: 800;
+  letter-spacing: .04em; text-transform: uppercase; color: var(--color-accent-800); background: var(--color-accent-100);
+}
+.location-picker-address { overflow-wrap: anywhere; font-size: 10.5px; line-height: 1.35; color: color-mix(in srgb, var(--color-text) 56%, transparent); }
+.location-picker-fuel { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 650; color: var(--color-success-700); }
+.location-picker-fuel.is-empty { color: color-mix(in srgb, var(--color-text) 48%, transparent); font-weight: 550; }
+.location-picker-history-note { font-size: 9.5px; color: color-mix(in srgb, var(--color-text) 48%, transparent); }
+.location-picker-check { width: 24px; height: 24px; display: grid; place-items: center; color: var(--color-accent-700); }
+.location-picker-spinner { width: 15px; height: 15px; border: 2px solid var(--color-accent-200); border-top-color: var(--color-accent-700); border-radius: 50%; animation: location-picker-spin .7s linear infinite; }
+.location-picker-empty {
+  min-height: 150px; padding: var(--space-5); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
+  text-align: center; border: 1px dashed var(--color-divider); border-radius: 14px;
+  color: color-mix(in srgb, var(--color-text) 58%, transparent);
+}
+.location-picker-empty strong { color: var(--color-text); }
+.location-picker-empty span:last-child { max-width: 300px; font-size: 11.5px; line-height: 1.45; }
+.location-picker-footer {
+  flex: none; display: flex; justify-content: space-between; gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  padding-bottom: max(var(--space-3), calc(env(safe-area-inset-bottom) + var(--space-2)));
+  border-top: 1px solid var(--color-divider); background: var(--color-bg);
+}
+.location-picker-footer .btn { min-height: 44px; justify-content: center; }
+.location-picker-manage { display: inline-flex; align-items: center; gap: 7px; }
+@keyframes location-picker-spin { to { transform: rotate(360deg); } }
+
+@media (min-width: 720px) {
+  .location-picker-backdrop { align-items: center; padding: var(--space-4); }
+  .location-picker-sheet { border-radius: 22px; max-height: min(82vh, calc(var(--app-viewport-height, 100dvh) - 64px)); animation: dialog-in 190ms var(--ease-out); }
+  .location-picker-sheet.is-closing { animation: dialog-out 170ms var(--ease-standard) forwards; }
+  .location-picker-handle { display: none; }
+  .location-picker-footer { padding-bottom: var(--space-3); }
+}
+
+@media (max-width: 480px) {
+  .location-picker-trigger-meta > span:first-child:not(:last-child) { display: none; }
+  .fuel-row-actions { width: 100%; justify-content: space-between; }
+  .location-picker-header, .location-picker-list, .location-picker-footer { padding-left: var(--space-3); padding-right: var(--space-3); }
+  .location-picker-footer { display: grid; grid-template-columns: minmax(84px, .7fr) minmax(0, 1.3fr); }
+  .location-picker-footer .btn { width: 100%; min-width: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .location-picker-backdrop, .location-picker-backdrop.is-closing,
+  .location-picker-sheet, .location-picker-sheet.is-closing { animation: none; }
+}
 
 /* — amount wheel picker (AmountWheelPicker) — a scroll-snap dollars/cents
    wheel for picking the fuel-cost and other-earnings amounts without

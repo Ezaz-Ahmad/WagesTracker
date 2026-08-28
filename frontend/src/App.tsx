@@ -51,11 +51,20 @@ export function AuthedApp() {
     hideEarningsNow,
   } = useApp();
   const [screen, setScreen] = useState<Screen>("home");
+  const [settingsInitialCategory, setSettingsInitialCategory] = useState<string | null>(null);
 
   const todayLabel = today.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
+  const navigate = useCallback((nextScreen: Screen) => {
+    setSettingsInitialCategory(null);
+    setScreen(nextScreen);
+  }, []);
+  const openWorkLocationSettings = useCallback(() => {
+    setSettingsInitialCategory("workpay");
+    setScreen("settings");
+  }, []);
   const activeIndex = Math.max(0, TABS.findIndex((t) => t.screen === screen));
-  const handleSwipeNavigate = useCallback((index: number) => setScreen(TABS[index].screen), []);
+  const handleSwipeNavigate = useCallback((index: number) => navigate(TABS[index].screen), [navigate]);
   const { ref: swipeRef } = useSwipeNav<HTMLDivElement>(activeIndex, TABS.length, handleSwipeNavigate);
 
   // Each tab is a new screen, not another section in one long document.
@@ -188,18 +197,18 @@ export function AuthedApp() {
           <div className="swipe-track">
             <div key={screen} className={screenTransitionClass}>
               <ScreenErrorBoundary key={screen}>
-                {screen === "home" && <HomeScreen onNavigate={setScreen} />}
-                {screen === "entry" && <EntryScreen />}
+                {screen === "home" && <HomeScreen onNavigate={navigate} />}
+                {screen === "entry" && <EntryScreen onManageLocations={openWorkLocationSettings} />}
                 {screen === "spending" && <SpendingScreen />}
                 {screen === "report" && <ReportScreen />}
                 {screen === "history" && <HistoryScreen />}
-                {screen === "settings" && <SettingsScreen />}
+                {screen === "settings" && <SettingsScreen initialCategory={settingsInitialCategory} />}
               </ScreenErrorBoundary>
             </div>
           </div>
         </main>
 
-        <BottomNav screen={screen} onNavigate={setScreen} />
+        <BottomNav screen={screen} onNavigate={navigate} />
       </div>
     </div>
   );
