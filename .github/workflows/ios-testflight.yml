@@ -168,12 +168,16 @@ jobs:
           PROFILE_TEAM="$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "$PROFILE_PLIST")"
           PROFILE_APP_ID="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$PROFILE_PLIST")"
           PROFILE_BETA="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:beta-reports-active' "$PROFILE_PLIST")"
-          PROFILE_ASSOCIATED_DOMAIN="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.developer.associated-domains:0' "$PROFILE_PLIST")"
+          # Apple may encode this entitlement as a wildcard string (`*`) in a
+          # provisioning profile. The signed app is checked separately for the
+          # concrete production domain, so accept either the wildcard profile
+          # form or an array containing the expected domain here.
+          PROFILE_ASSOCIATED_DOMAIN="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.developer.associated-domains' "$PROFILE_PLIST")"
           [[ "$PROFILE_NAME" == "$IOS_PROVISIONING_PROFILE_NAME" ]]
           [[ "$PROFILE_TEAM" == "$APPLE_TEAM_ID" ]]
           [[ "$PROFILE_APP_ID" == "$APPLE_TEAM_ID.$IOS_BUNDLE_ID" ]]
           [[ "$PROFILE_BETA" == "true" ]]
-          [[ "$PROFILE_ASSOCIATED_DOMAIN" == "applinks:wages-tracker-frontend.vercel.app" ]]
+          [[ "$PROFILE_ASSOCIATED_DOMAIN" == "*" || "$PROFILE_ASSOCIATED_DOMAIN" == *"applinks:wages-tracker-frontend.vercel.app"* ]]
           INSTALLED_PROFILE_PATH="$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
           install -m 600 "$PROFILE_PATH" "$INSTALLED_PROFILE_PATH"
           printf '%s' "$INSTALLED_PROFILE_PATH" > "$RUNNER_TEMP/wagestracker-installed-profile-path"
