@@ -364,7 +364,11 @@ shiftsRouter.patch(
     }
 
     const setClauses: string[] = [];
-    const params: Record<string, InValue> = { id: req.params.id, updatedAt: new Date().toISOString() };
+    const params: Record<string, InValue> = {
+      id: req.params.id,
+      userId: req.userId!,
+      updatedAt: new Date().toISOString(),
+    };
     if ("signIn" in updates) {
       setClauses.push("sign_in = @signIn");
       params.signIn = updates.signIn as InValue;
@@ -390,7 +394,8 @@ shiftsRouter.patch(
     const transaction = await db.transaction("write");
     try {
       await transaction.execute({
-        sql: `UPDATE shifts SET ${setClauses.join(", ")}, updated_at = @updatedAt WHERE id = @id`,
+        sql: `UPDATE shifts SET ${setClauses.join(", ")}, updated_at = @updatedAt
+              WHERE id = @id AND user_id = @userId`,
         args: params,
       });
       await recalculateDayFuelAllowance(transaction, req.userId!, existing.date);
@@ -405,7 +410,10 @@ shiftsRouter.patch(
     } finally {
       transaction.close();
     }
-    const result = await db.execute({ sql: "SELECT * FROM shifts WHERE id = ?", args: [req.params.id] });
+    const result = await db.execute({
+      sql: "SELECT * FROM shifts WHERE id = ? AND user_id = ?",
+      args: [req.params.id, req.userId!],
+    });
     const row = result.rows[0] as unknown as ShiftRow;
     res.json({ shift: toPublicShift(row) });
   })

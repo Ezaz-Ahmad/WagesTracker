@@ -24,7 +24,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { useApp } from "../../context/AppContext";
-import type { Shift, User, WorkLocation } from "../../lib/types";
+import type { DayExpense, Shift, User, WorkLocation } from "../../lib/types";
 import { isoDate } from "../../lib/date";
 import { EntryScreen } from "../EntryScreen";
 import { ConfirmProvider } from "../../components/ConfirmProvider";
@@ -58,6 +58,9 @@ const testShift: Shift = { id: "shift-1", date: todayISO, location: "Cafe", sign
 let removeShift: ReturnType<typeof vi.fn>;
 let updateShift: ReturnType<typeof vi.fn>;
 let createShift: ReturnType<typeof vi.fn>;
+let fakeShifts: Shift[];
+let fakeLocations: WorkLocation[];
+let fakeDayExpenses: DayExpense[];
 
 const activeLocation: WorkLocation = {
   id: "location-1",
@@ -70,22 +73,30 @@ const activeLocation: WorkLocation = {
   updatedAt: "2026-01-01T00:00:00.000Z",
 };
 
+const warehouseLocation: WorkLocation = {
+  ...activeLocation,
+  id: "location-2",
+  name: "Harbour Warehouse",
+  address: "18 Wharf Road, Newcastle NSW",
+  fuelAllowance: 18.75,
+};
+
 function useFakeApp(): AppCtx {
   return {
     today,
     user: testUser,
-    shifts: [testShift],
+    shifts: fakeShifts,
     shiftsLoaded: true,
     createShift,
     updateShift,
     removeShift,
-    dayExpenses: [],
+    dayExpenses: fakeDayExpenses,
     setFuelCost: vi.fn().mockResolvedValue(undefined),
     weekExtras: [],
     setWeekExtra: vi.fn().mockResolvedValue(true),
     earningsHidden: false,
     revealEarnings: vi.fn(),
-    workLocations: [activeLocation],
+    workLocations: fakeLocations,
     workLocationsLoading: false,
   } as unknown as AppCtx;
 }
@@ -99,6 +110,9 @@ beforeEach(() => {
   removeShift = vi.fn().mockResolvedValue(undefined);
   updateShift = vi.fn().mockResolvedValue(undefined);
   createShift = vi.fn().mockResolvedValue(undefined);
+  fakeShifts = [testShift];
+  fakeLocations = [activeLocation];
+  fakeDayExpenses = [];
   vi.spyOn(api, "getWorkLocationSuggestions").mockResolvedValue({ suggestions: {} });
 });
 
@@ -203,11 +217,98 @@ describe("Entry screen — day accordion structure and keyboard behavior", () =>
     const emptyCard = screen.getByText("Jan 8", { selector: ".day-date" }).closest(".day-card") as HTMLElement;
     await user.click(emptyCard.querySelector(".day-row-toggle") as HTMLButtonElement);
 
-    const location = within(emptyCard).getByLabelText("Location") as HTMLSelectElement;
-    await waitFor(() => expect(location.value).toBe(activeLocation.id));
+    const location = within(emptyCard).getByRole("button", { name: /Location for Thu Jan 8: Cafe/i });
+    expect(location.textContent).toContain("Cafe");
+    expect(within(emptyCard).getByText(/\$12\.50 is ready from the selected location/i)).toBeTruthy();
+    expect(within(emptyCard).getByRole("button", { name: /current value \$0\.00/i })).toBeTruthy();
     expect(createShift).not.toHaveBeenCalled();
 
-    await user.selectOptions(location, "");
+    await user.click(location);
+    const picker = await screen.findByRole("dialog", { name: /Choose a location — Thu Jan 8/i });
+    expect(within(picker).getByText("$12.50 fuel allowance per worked day")).toBeTruthy();
     expect(createShift).not.toHaveBeenCalled();
+  });
+
+  it("shows location details in the responsive picker and updates a saved shift only after selection", async () => {
+    fakeShifts = [{ ...testShift, workLocationId: activeLocation.id, fuelAllowanceSnapshot: activeLocation.fuelAllowance }];
+    fakeLocations = [activeLocation, warehouseLocation];
+    updateShift.mockResolvedValue({
+      ...testShift,
+      workLocationId: warehouseLocation.id,
+      location: warehouseLocation.name,
+      fuelAllowanceSnapshot: warehouseLocation.fuelAllowance,
+    });
+    const user = userEvent.setup();
+    render(<EntryScreen />);
+    const card = getShiftDayCard();
+    await user.click(card.querySelector(".day-row-toggle") as HTMLButtonElement);
+
+    await user.click(within(card).getByRole("button", { name: /Location for Wed Jan 7: Cafe/i }));
+    const picker = await screen.findByRole("dialog", { name: /Choose a location — Wed Jan 7/i });
+    const warehouse = within(picker).getByRole("button", { name: /Harbour Warehouse/i });
+    expect(warehouse.textContent).toContain("18 Wharf Road, Newcastle NSW");
+    expect(warehouse.textContent).toContain("$18.75 fuel allowance per worked day");
+
+    await user.click(warehouse);
+    await waitFor(() => expect(updateShift).toHaveBeenCalledWith("shift-1", {
+      workLocationId: warehouseLocation.id,
+      location: "",
+    }));
+  });
+
+  it("keeps an explicit clock-in location instead of restoring the remembered suggestion", async () => {
+    fakeLocations = [activeLocation, warehouseLocation];
+    vi.mocked(api.getWorkLocationSuggestions).mockResolvedValue({
+      suggestions: { [todayISO]: [activeLocation.id] },
+    });
+    const user = userEvent.setup();
+    render(<EntryScreen />);
+
+    const clockLocation = await screen.findByRole("button", { name: /Today's work location: Cafe/i });
+    await user.click(clockLocation);
+    const picker = await screen.findByRole("dialog", { name: /Choose today's work location/i });
+    await user.click(within(picker).getByRole("button", { name: /Harbour Warehouse/i }));
+
+    expect(screen.getByRole("button", { name: /Today's work location: Harbour Warehouse/i })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() => expect(createShift).toHaveBeenCalledWith(expect.objectContaining({
+      date: todayISO,
+      workLocationId: warehouseLocation.id,
+      location: warehouseLocation.name,
+    })));
+  });
+
+  it("shows a saved automatic allowance in the fuel section and keeps it editable", async () => {
+    fakeShifts = [{ ...testShift, workLocationId: activeLocation.id, fuelAllowanceSnapshot: activeLocation.fuelAllowance }];
+    fakeDayExpenses = [{
+      date: todayISO,
+      fuelCost: 12.5,
+      automaticFuelAllowance: 12.5,
+      manualOverride: null,
+      source: "automatic",
+    }];
+    const user = userEvent.setup();
+    render(<EntryScreen />);
+    const card = getShiftDayCard();
+    await user.click(card.querySelector(".day-row-toggle") as HTMLButtonElement);
+
+    expect(within(card).getByText("Automatic")).toBeTruthy();
+    expect(within(card).getByText(/Calculated once per worked location.*\$12\.50/i)).toBeTruthy();
+    const editAmount = within(card).getByRole("button", { name: /current value \$12\.50/i });
+    await user.click(editAmount);
+    expect(await screen.findByRole("dialog", { name: /Fuel allowance — Wed Jan 7/i })).toBeTruthy();
+  });
+
+  it("provides a direct Work & pay settings action when no locations exist", async () => {
+    fakeLocations = [];
+    const onManageLocations = vi.fn();
+    const user = userEvent.setup();
+    render(<EntryScreen onManageLocations={onManageLocations} />);
+
+    await user.click(screen.getByRole("button", { name: /Today's work location: Add a work location/i }));
+    const picker = await screen.findByRole("dialog", { name: /Choose today's work location/i });
+    expect(within(picker).getByText("No work locations yet")).toBeTruthy();
+    await user.click(within(picker).getByRole("button", { name: /Manage work locations/i }));
+    await waitFor(() => expect(onManageLocations).toHaveBeenCalledOnce());
   });
 });

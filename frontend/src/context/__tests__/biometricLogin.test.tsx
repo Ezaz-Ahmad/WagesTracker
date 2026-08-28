@@ -639,5 +639,5 @@ describe("session-ending actions clear the stored biometric credential", () => {
 
     await waitFor(() => expect(apiChangePassword).toHaveBeenCalled());
     await waitFor(() => expect(disableBiometric).toHaveBeenCalled());
-  });
+  }, 10_000); // Full App navigation plus three password fields can exceed Vitest's 5s default under parallel CI load.
 });

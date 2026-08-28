@@ -127,6 +127,67 @@ describe("structured work locations and automatic fuel allowance", () => {
     });
   });
 
+  it("recalculates after changing or deleting a shift location without overwriting a manual override", async () => {
+    const first = await createLocation("Recalculation North", 10);
+    const second = await createLocation("Recalculation South", 22.5);
+    const date = "2026-08-14";
+    const created = await createShift(date, first.body.location.id, "08:00", "12:00");
+
+    const changed = await request(app)
+      .patch(`/api/shifts/${created.body.shift.id}`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ workLocationId: second.body.location.id });
+    expect(changed.status).toBe(200);
+
+    let expenses = await request(app)
+      .get(`/api/day-expenses?from=${date}&to=${date}`)
+      .set("Authorization", `Bearer ${tokenA}`);
+    expect(expenses.body.expenses[0]).toMatchObject({
+      fuelCost: 22.5,
+      automaticFuelAllowance: 22.5,
+      manualOverride: null,
+      source: "automatic",
+    });
+
+    await request(app)
+      .put(`/api/day-expenses/${date}`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ fuelCost: 31 });
+    await request(app)
+      .patch(`/api/shifts/${created.body.shift.id}`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ workLocationId: first.body.location.id });
+
+    expenses = await request(app)
+      .get(`/api/day-expenses?from=${date}&to=${date}`)
+      .set("Authorization", `Bearer ${tokenA}`);
+    expect(expenses.body.expenses[0]).toMatchObject({
+      fuelCost: 31,
+      automaticFuelAllowance: 10,
+      manualOverride: 31,
+      source: "manual",
+    });
+
+    expect((await request(app)
+      .delete(`/api/shifts/${created.body.shift.id}`)
+      .set("Authorization", `Bearer ${tokenA}`)).status).toBe(204);
+    expenses = await request(app)
+      .get(`/api/day-expenses?from=${date}&to=${date}`)
+      .set("Authorization", `Bearer ${tokenA}`);
+    expect(expenses.body.expenses[0]).toMatchObject({
+      fuelCost: 31,
+      automaticFuelAllowance: 0,
+      manualOverride: 31,
+      source: "manual",
+    });
+
+    const restored = await request(app)
+      .put(`/api/day-expenses/${date}`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ fuelCost: null });
+    expect(restored.body.expense).toBeNull();
+  });
+
   it("snapshots names and allowances so later edits and archives do not rewrite history", async () => {
     const location = await createLocation("Snapshot Branch", 9);
     const id = location.body.location.id;

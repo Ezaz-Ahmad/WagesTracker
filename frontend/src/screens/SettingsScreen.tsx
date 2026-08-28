@@ -26,9 +26,9 @@ const SETTINGS_CATEGORIES: readonly SettingsCategory[] = [
  * behavior (see settings/*.tsx); this file only owns *which* category is
  * showing.
  */
-export function SettingsScreen() {
+export function SettingsScreen({ initialCategory = null }: { initialCategory?: string | null }) {
   const { user } = useApp();
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<string | null>(initialCategory);
   const effectiveCategory = activeCategory ?? SETTINGS_CATEGORIES[0].id;
 
   if (!user) return null;

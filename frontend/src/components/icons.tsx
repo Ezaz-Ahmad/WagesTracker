@@ -146,6 +146,16 @@ export function FuelIcon({ size = 15 }: IconProps) {
   );
 }
 
+/** Map pin — used by the Entry screen's work-location picker and trigger. */
+export function LocationPinIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <path d="M20 10c0 5.5-8 11-8 11S4 15.5 4 10a8 8 0 1116 0z" />
+      <circle cx="12" cy="10" r="2.5" />
+    </svg>
+  );
+}
+
 /** Coin with a plus — used on the per-day "other earnings" toggle (tips,
  * bonuses, reimbursements — anything besides hours × rate and fuel). */
 export function ExtraEarningIcon({ size = 15 }: IconProps) {

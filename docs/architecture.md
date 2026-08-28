@@ -122,6 +122,8 @@ Shift times and plain calendar dates are the source data; hours and earnings are
 
 Every saved shift stores both the location ID and immutable `location_snapshot`/`fuel_allowance_snapshot_cents` values. The migration creates active rows from legacy profile fields, creates archived rows for historical-only names, and links old shifts using the same whitespace/case normalization as new writes. Editing or archiving a location therefore cannot rewrite a historical report. `GET /api/work-locations/suggestions?weekStart=YYYY-MM-DD` returns only persisted IDs from the prior week's same weekday and shift order; the client uses these only as unsaved UI defaults.
 
+Entry presents those IDs through a responsive modal/bottom-sheet picker rather than a plain native select. The active-location list shows the address and current default allowance; an archived selection is rendered as historical context but cannot be chosen for a new shift. A suggested or selected location may preview its declared allowance, but that preview is not persisted and does not contribute to totals until a real shift with a sign-in is saved. The picker also provides a direct route to Work & pay settings for the empty or maintenance case.
+
 `day_expenses` keeps `automatic_fuel_cents` and optional `manual_override_cents` alongside the effective `fuel_cost`. A recalculation groups worked shifts by branch and date, charges each branch at most once, and preserves the shift snapshot. `PUT /api/day-expenses/:date` is an explicit manual override/restore operation. The response includes the effective amount and source metadata (`automatic`, `manual`, `mixed`, or legacy `recorded`) so reports and PDFs can explain where an allowance came from.
 
 ## Delivery and release flow
