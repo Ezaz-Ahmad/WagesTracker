@@ -24,10 +24,11 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { useApp } from "../../context/AppContext";
-import type { Shift, User } from "../../lib/types";
+import type { Shift, User, WorkLocation } from "../../lib/types";
 import { isoDate } from "../../lib/date";
 import { EntryScreen } from "../EntryScreen";
 import { ConfirmProvider } from "../../components/ConfirmProvider";
+import * as api from "../../lib/api";
 
 type AppCtx = ReturnType<typeof useApp>;
 
@@ -56,6 +57,18 @@ const testShift: Shift = { id: "shift-1", date: todayISO, location: "Cafe", sign
 
 let removeShift: ReturnType<typeof vi.fn>;
 let updateShift: ReturnType<typeof vi.fn>;
+let createShift: ReturnType<typeof vi.fn>;
+
+const activeLocation: WorkLocation = {
+  id: "location-1",
+  name: "Cafe",
+  address: "",
+  fuelAllowance: 12.5,
+  archived: false,
+  archivedAt: null,
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+};
 
 function useFakeApp(): AppCtx {
   return {
@@ -63,7 +76,7 @@ function useFakeApp(): AppCtx {
     user: testUser,
     shifts: [testShift],
     shiftsLoaded: true,
-    createShift: vi.fn().mockResolvedValue(undefined),
+    createShift,
     updateShift,
     removeShift,
     dayExpenses: [],
@@ -72,6 +85,8 @@ function useFakeApp(): AppCtx {
     setWeekExtra: vi.fn().mockResolvedValue(true),
     earningsHidden: false,
     revealEarnings: vi.fn(),
+    workLocations: [activeLocation],
+    workLocationsLoading: false,
   } as unknown as AppCtx;
 }
 
@@ -83,6 +98,8 @@ vi.mock("../../context/AppContext", async (importOriginal) => {
 beforeEach(() => {
   removeShift = vi.fn().mockResolvedValue(undefined);
   updateShift = vi.fn().mockResolvedValue(undefined);
+  createShift = vi.fn().mockResolvedValue(undefined);
+  vi.spyOn(api, "getWorkLocationSuggestions").mockResolvedValue({ suggestions: {} });
 });
 
 afterEach(() => {
@@ -177,5 +194,20 @@ describe("Entry screen — day accordion structure and keyboard behavior", () =>
     // Clear is a sibling action, not part of the disclosure toggle — using
     // it must not have any side effect on the accordion's open/closed state.
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("uses the prior week's persisted branch as a suggestion without creating an unsaved shift", async () => {
+    vi.mocked(api.getWorkLocationSuggestions).mockResolvedValue({ suggestions: { "2026-01-08": [activeLocation.id] } });
+    const user = userEvent.setup();
+    render(<EntryScreen />);
+    const emptyCard = screen.getByText("Jan 8", { selector: ".day-date" }).closest(".day-card") as HTMLElement;
+    await user.click(emptyCard.querySelector(".day-row-toggle") as HTMLButtonElement);
+
+    const location = within(emptyCard).getByLabelText("Location") as HTMLSelectElement;
+    await waitFor(() => expect(location.value).toBe(activeLocation.id));
+    expect(createShift).not.toHaveBeenCalled();
+
+    await user.selectOptions(location, "");
+    expect(createShift).not.toHaveBeenCalled();
   });
 });

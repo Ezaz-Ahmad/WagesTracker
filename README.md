@@ -40,6 +40,15 @@ Existing wage PDFs remain employer/accountant-facing work reports. They are gene
 - Every category panel stays mounted while you navigate between them, so an unsaved edit in one category is still there if you switch away and back
 - Fully keyboard-operable, with a focus ring that's visually distinct from the selected-row styling, and touch targets sized for mobile use
 
+### Work locations, fuel allowance, and weekly memory
+
+- **Relational work locations** — each account can maintain named branches with optional addresses, stable IDs, active/archive state, and per-branch allowance settings. Legacy profile and shift location strings are migrated without rewriting historical display names.
+- **Automatic daily allowance** — a saved worked shift contributes its branch's snapshotted allowance once per branch and local date, including when a day has multiple shifts or branches. Historical shifts retain the allowance that applied when they were saved.
+- **Explicit overrides** — users can enter a manual daily allowance, see whether a value is automatic, manual, mixed, or recorded legacy data, and restore the calculated automatic value. All writes are ownership-scoped and capped at two decimal places.
+- **Weekly location memory** — Entry suggests the same weekday and shift order from the previous week using persisted location IDs only. Suggestions never copy hours, times, earnings, or create a phantom shift; a new shift is created only after the user saves it.
+- **Required hourly rate** — signup and settings require a positive rate up to $1,000 with no more than two decimal places. Invalid values block account creation and saving with an inline, focusable error; there is no hidden starter-rate fallback.
+- **Reports and PDFs** — weekly totals, day breakdowns, and PDF tables label fuel allowance separately from wages and identify its source, while historical location names remain stable.
+
 ### API/server wake-up experience
 
 - A dedicated loading screen shown when the hosted API is waking up from an idle Render instance, or during a slower-than-usual login/signup request
@@ -79,13 +88,13 @@ A `/api/health` response only ever tells the browser one of two things: it hasn'
 
 ## Product status and roadmap
 
-Wage Tracker is a production web application and installable PWA with a committed Capacitor iOS shell. The current source release is **1.17.0**, which adds password recovery and the final responsive/accessibility corrections. The web deployment, signed TestFlight upload, real-mail recovery flow, Universal Link opening, and physical-device regression are operational release gates; 1.17.0 must not be described as released until those gates have passed. The mobile strategy keeps product logic in one tested React/TypeScript codebase and introduces thin platform adapters only where web and native behaviour genuinely differ.
+Wage Tracker is a production web application and installable PWA with a committed Capacitor iOS shell. The current source release is **1.18.0**, which adds relational work locations, automatic fuel allowances, weekly location memory, required rate validation, and source-aware reports on top of the recovery and responsive/accessibility work. The web deployment, signed TestFlight upload, real-mail recovery flow, Universal Link opening, and physical-device regression are operational release gates; 1.18.0 must not be described as released until those gates have passed. The mobile strategy keeps product logic in one tested React/TypeScript codebase and introduces thin platform adapters only where web and native behaviour genuinely differ.
 
 | Capability | Current status | Planned delivery |
 | --- | --- | --- |
 | Responsive web application | Live on Vercel | Continues as the fastest release channel |
 | Installable PWA | Available from supported browsers | Maintained alongside native applications |
-| iPhone application | 1.17.0 source candidate; signed upload and physical-device verification still required | Run the protected TestFlight workflow, complete the device checklist, then consider App Store review |
+| iPhone application | 1.18.0 source candidate; signed upload and physical-device verification still required | Run the protected TestFlight workflow, complete the device checklist, then consider App Store review |
 | Android application | Planned after iOS | Same Capacitor foundation, internal testing, then Google Play |
 | Shared backend | Live on Render with Turso | One versioned HTTPS API for web, iOS, and Android |
 
@@ -125,7 +134,7 @@ Only platform boundaries receive adapters. Authentication uses unchanged browser
 1. **Store-readiness foundation - complete** - publish privacy/support pages, allow native API origins, introduce platform-neutral token/PDF boundaries, and verify authentication and account-deletion flows.
 2. **iOS shell and cloud-build foundation - complete** - add the thin, iPhone-only Capacitor/Xcode project, Remember Me storage in Keychain, reproducible SPM dependencies, and an unsigned Simulator build on GitHub-hosted macOS.
 3. **iOS product integration - complete** - add native PDF sharing, lifecycle/connectivity handling, final icons/splash assets, and the reviewed iOS privacy manifest.
-4. **iOS delivery - in progress** - protected signing and TestFlight upload are operational; the 1.17.0 candidate still needs a fresh workflow dispatch, real-device regression, password-recovery verification and Universal Link verification before release.
+4. **iOS delivery - in progress** - protected signing and TestFlight upload are operational; the 1.18.0 candidate still needs a fresh workflow dispatch, real-device regression, password-recovery verification, work-location/allowance verification and Universal Link verification before release.
 5. **Android delivery** - add the Android project from the same Capacitor codebase, use Android Keystore-backed session storage, test through Google Play's internal track, and prepare a production release.
 6. **Operational maturity** - add mobile crash reporting, privacy-preserving release telemetry, dependency and security scanning, documented rollback procedures, and versioned release notes.
 
@@ -234,7 +243,7 @@ The native foundation defines platform-neutral token-storage and PDF-delivery co
 
 ## Versioning
 
-The public marketing version follows semantic versioning: major for a breaking/fundamental redesign, minor for new functionality, and patch for compatible fixes. Every release that contains code, UI, feature, or behaviour changes receives a new version; documentation-only maintenance can retain the current version. The 1.17.0 release is a minor bump because it introduces password recovery.
+The public marketing version follows semantic versioning: major for a breaking/fundamental redesign, minor for new functionality, and patch for compatible fixes. Every release that contains code, UI, feature, or behaviour changes receives a new version; documentation-only maintenance can retain the current version. The 1.18.0 release is a minor bump because it introduces relational work locations, automatic allowances, weekly memory and required rate validation.
 
 `frontend/package.json` is the release source of truth. The same value must appear in `package-lock.json` and both Xcode build configurations. `frontend/scripts/verify-testflight-config.mjs` derives the expected value dynamically and fails if package metadata, lockfile, Xcode or the protected workflow diverges. The `testflight` GitHub environment variable `IOS_APP_VERSION` must match it. Before release, `git grep` for the previous version and review every result rather than copying a stale value forward.
 
@@ -288,7 +297,7 @@ Signed delivery is isolated in the manual-only protected-main `.github/workflows
 
 ## Testing and CI
 
-The tracked `npm test` gate has **932 automated tests: 271 backend tests, 658 frontend Vitest tests, and 3 Universal Link generator tests**. Backend integration/API tests (`backend/test/`) use [Vitest](https://vitest.dev/) and [Supertest](https://github.com/ladjs/supertest) to exercise the real Express app end to end over HTTP; each test file gets its own isolated, throwaway temporary SQLite database (see `backend/test/testApp.ts`) so runs never share or pollute data. Additional release gates include four Playwright smoke tests, the cross-platform distribution-entitlement regression suite, and macOS inspection of the built application. Coverage includes authentication/password security and recovery, database-backed sessions and device limits, ownership isolation, historical wage data, personal-spending defaults/CRUD/archiving/filtering/pagination/summary/idempotency/account deletion, work expenses and other earnings, canonical earnings comparisons, overlap and duration rules, timezone-aware date validation, exact production CORS policy, platform adapters, native release safeguards, accessibility, and public privacy/support pages.
+The tracked `npm test` gate has **947 automated tests: 279 backend tests, 665 frontend Vitest tests, and 3 Universal Link generator tests**. Backend integration/API tests (`backend/test/`) use [Vitest](https://vitest.dev/) and [Supertest](https://github.com/ladjs/supertest) to exercise the real Express app end to end over HTTP; each test file gets its own isolated, throwaway temporary SQLite database (see `backend/test/testApp.ts`) so runs never share or pollute data. Additional release gates include four Playwright smoke tests, the cross-platform distribution-entitlement regression suite, and macOS inspection of the built application. Coverage includes authentication/password security and recovery, database-backed sessions and device limits, ownership isolation, relational work locations, allowance deduplication/snapshots/overrides, historical wage data, personal-spending defaults/CRUD/archiving/filtering/pagination/summary/idempotency/account deletion, work expenses and other earnings, canonical earnings comparisons, overlap and duration rules, timezone-aware date validation, exact production CORS policy, platform adapters, native release safeguards, accessibility, and public privacy/support pages.
 
 Most frontend tests are pure-logic tests (`frontend/src/lib/__tests__/`) run in a plain Node environment (no DOM) for speed — wage/duration calculations, week aggregation, PDF report data, password-policy validation, the session-management API client (including that the session list is refreshed against the replacement token right after a password change), and friendly device-label parsing (`parseUserAgent.test.ts` — Windows/macOS/Android/iOS across Chrome, Safari, and Firefox, including the iOS in-app-browser tokens like `CriOS`/`FxiOS`/`EdgiOS`, plus empty/unrecognized/oversized user-agent strings).
 
@@ -420,7 +429,7 @@ A full-screen, dark-themed intro (`screens/WelcomeScreen.tsx`) shown before ever
 
 ## Biometric login (Face ID / Touch ID)
 
-> **Status:** biometric login and its account-scoping, idle-exemption, long-lived protected-session, soft-lock, and cold-backend fixes are merged into the 1.17.0 source candidate. Automated adapter/context/UI coverage passes; physical Face ID/Touch ID behaviour remains part of the signed TestFlight device gate.
+> **Status:** biometric login and its account-scoping, idle-exemption, long-lived protected-session, soft-lock, and cold-backend fixes are merged into the 1.18.0 source candidate. Automated adapter/context/UI coverage passes; physical Face ID/Touch ID behaviour remains part of the signed TestFlight device gate.
 
 Native iOS only — Settings → Security shows a "Biometric login" control on-device; it never appears on web/PWA (`platform/biometricAuth.ts`'s web adapter always reports unavailable, so there is nothing to render). There is no separate third-party plugin: `@aparajita/capacitor-secure-storage` (the app's existing Keychain dependency) has no `LocalAuthentication`/biometric-gated access-control support at all, so this uses a small, purpose-built native bridge (`ios/App/App/BiometricAuthPlugin.swift`) compiled directly into the App target instead — Apple's `LocalAuthentication` and `Security` frameworks only, no new npm dependency, no version-alignment surface to audit.
 

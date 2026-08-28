@@ -1,4 +1,5 @@
 import { createClient, type Client } from "@libsql/client";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -37,18 +38,37 @@ await db.executeMultiple(`
     multiple_locations INTEGER NOT NULL DEFAULT 0,
     other_locations TEXT NOT NULL DEFAULT '',
     week_starts_on TEXT NOT NULL DEFAULT 'Monday',
-    rate REAL NOT NULL DEFAULT 18.5,
+    rate REAL NOT NULL DEFAULT 0,
     goal_hours REAL NOT NULL DEFAULT 35,
     goal_earnings REAL NOT NULL DEFAULT 647.5,
     token_version INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS work_locations (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    normalized_name TEXT NOT NULL,
+    address TEXT NOT NULL DEFAULT '',
+    fuel_allowance_cents INTEGER CHECK(fuel_allowance_cents IS NULL OR fuel_allowance_cents > 0),
+    archived_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(user_id, normalized_name)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_work_locations_user_active
+    ON work_locations(user_id, archived_at, name);
+
   CREATE TABLE IF NOT EXISTS shifts (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     date TEXT NOT NULL,
     location TEXT NOT NULL DEFAULT '',
+    work_location_id TEXT REFERENCES work_locations(id) ON DELETE SET NULL,
+    location_snapshot TEXT NOT NULL DEFAULT '',
+    fuel_allowance_snapshot_cents INTEGER,
     sign_in TEXT,
     sign_out TEXT,
     created_at TEXT NOT NULL,
@@ -62,6 +82,8 @@ await db.executeMultiple(`
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     date TEXT NOT NULL,
     fuel_cost REAL NOT NULL DEFAULT 0,
+    automatic_fuel_cents INTEGER NOT NULL DEFAULT 0,
+    manual_override_cents INTEGER,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     UNIQUE(user_id, date)
@@ -169,7 +191,138 @@ await db.executeMultiple(`
 
   CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user
     ON password_reset_tokens(user_id, used_at, invalidated_at, expires_at);
+
+  CREATE TABLE IF NOT EXISTS schema_migrations (
+    version TEXT PRIMARY KEY,
+    applied_at TEXT NOT NULL
+  );
 `);
+
+// Existing SQLite/libSQL databases need additive migrations because CREATE
+// TABLE IF NOT EXISTS does not add newly declared columns.
+for (const statement of [
+  "ALTER TABLE shifts ADD COLUMN work_location_id TEXT REFERENCES work_locations(id) ON DELETE SET NULL",
+  "ALTER TABLE shifts ADD COLUMN location_snapshot TEXT NOT NULL DEFAULT ''",
+  "ALTER TABLE shifts ADD COLUMN fuel_allowance_snapshot_cents INTEGER",
+  "ALTER TABLE day_expenses ADD COLUMN automatic_fuel_cents INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE day_expenses ADD COLUMN manual_override_cents INTEGER",
+]) {
+  try {
+    await db.execute(statement);
+  } catch {
+    // already migrated
+  }
+}
+
+// Amounts that pre-date automatic branch allowances were user-entered. Mark
+// them as manual overrides so the migration never changes historical totals.
+await db.execute(
+  `UPDATE day_expenses
+   SET manual_override_cents = CAST(ROUND(fuel_cost * 100) AS INTEGER)
+   WHERE fuel_cost > 0 AND automatic_fuel_cents = 0 AND manual_override_cents IS NULL`
+);
+
+function normalizeWorkLocationName(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toLocaleLowerCase("en-AU");
+}
+
+// One-time conversion of the former profile strings and historical free-text
+// shift locations into user-owned location rows. Historical-only names are
+// archived immediately: they remain referentially stable without cluttering
+// the active selector. Existing shift text remains the immutable display
+// snapshot and is never rewritten by later branch edits.
+const workLocationMigration = await db.execute({
+  sql: "SELECT version FROM schema_migrations WHERE version = ?",
+  args: ["work_locations_v1"],
+});
+if (workLocationMigration.rows.length === 0) {
+  const transaction = await db.transaction("write");
+  try {
+    const users = await transaction.execute(
+      "SELECT id, work_location_name, work_address, other_locations FROM users"
+    );
+    const now = new Date().toISOString();
+
+    for (const rawUser of users.rows) {
+      const user = rawUser as unknown as {
+        id: string;
+        work_location_name: string;
+        work_address: string;
+        other_locations: string;
+      };
+      const configured = new Map<string, { name: string; address: string }>();
+      const addConfigured = (name: string, address = "") => {
+        const cleanName = name.trim().replace(/\s+/g, " ");
+        const normalized = normalizeWorkLocationName(cleanName);
+        if (normalized && !configured.has(normalized)) configured.set(normalized, { name: cleanName, address });
+      };
+      addConfigured(user.work_location_name || "", user.work_address || "");
+      for (const name of (user.other_locations || "").split(/[,;\n]+/)) addConfigured(name);
+
+      for (const [normalizedName, location] of configured) {
+        await transaction.execute({
+          sql: `INSERT OR IGNORE INTO work_locations
+                (id, user_id, name, normalized_name, address, fuel_allowance_cents, archived_at, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?)`,
+          args: [randomUUID(), user.id, location.name, normalizedName, location.address, now, now],
+        });
+      }
+
+      const historical = await transaction.execute({
+        sql: `SELECT DISTINCT trim(location) AS name FROM shifts
+              WHERE user_id = ? AND trim(location) != ''`,
+        args: [user.id],
+      });
+      for (const rawLocation of historical.rows) {
+        const name = String(rawLocation.name || "").trim().replace(/\s+/g, " ");
+        const normalizedName = normalizeWorkLocationName(name);
+        if (!normalizedName) continue;
+        await transaction.execute({
+          sql: `INSERT OR IGNORE INTO work_locations
+                (id, user_id, name, normalized_name, address, fuel_allowance_cents, archived_at, created_at, updated_at)
+                VALUES (?, ?, ?, ?, '', NULL, ?, ?, ?)`,
+          args: [randomUUID(), user.id, name, normalizedName, now, now, now],
+        });
+      }
+
+      // Resolve each legacy string using the same whitespace/case
+      // canonicalisation used when the location rows were created. Doing
+      // this in TypeScript (rather than `lower(trim(...))` in SQL) also
+      // handles old entries with repeated internal spaces and guarantees
+      // every historical row gets a stable relational id where possible.
+      const legacyShifts = await transaction.execute({
+        sql: "SELECT id, location, location_snapshot FROM shifts WHERE user_id = ? AND (location_snapshot = '' OR work_location_id IS NULL)",
+        args: [user.id],
+      });
+      for (const rawShift of legacyShifts.rows) {
+        const shift = rawShift as unknown as { id: string; location: string; location_snapshot: string };
+        const snapshot = shift.location_snapshot || shift.location || "";
+        const normalized = normalizeWorkLocationName(snapshot);
+        const matching = normalized
+          ? await transaction.execute({
+              sql: "SELECT id FROM work_locations WHERE user_id = ? AND normalized_name = ? LIMIT 1",
+              args: [user.id, normalized],
+            })
+          : { rows: [] };
+        await transaction.execute({
+          sql: "UPDATE shifts SET location_snapshot = ?, work_location_id = COALESCE(?, work_location_id) WHERE id = ? AND user_id = ?",
+          args: [snapshot, matching.rows[0]?.id ?? null, shift.id, user.id],
+        });
+      }
+    }
+
+    await transaction.execute({
+      sql: "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)",
+      args: ["work_locations_v1", now],
+    });
+    await transaction.commit();
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  } finally {
+    transaction.close();
+  }
+}
 
 // An earlier iteration of day_expenses briefly had an `other_earning` column
 // (per-day) before that concept moved to the week-level `week_extras` table

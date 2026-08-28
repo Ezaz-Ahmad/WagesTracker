@@ -29,7 +29,13 @@ describe("day-expenses (fuel cost)", () => {
       .set("Authorization", `Bearer ${tokenA}`)
       .send({ fuelCost: 12.5 });
     expect(res.status).toBe(200);
-    expect(res.body.expense).toEqual({ date: DATE, fuelCost: 12.5 });
+    expect(res.body.expense).toEqual({
+      date: DATE,
+      fuelCost: 12.5,
+      automaticFuelAllowance: 0,
+      manualOverride: 12.5,
+      source: "manual",
+    });
   });
 
   it("updates the existing record on a second save for the same date, without duplicating it", async () => {
@@ -80,9 +86,21 @@ describe("day-expenses (fuel cost)", () => {
     await request(app).put(`/api/day-expenses/${DATE}`).set("Authorization", `Bearer ${tokenB}`).send({ fuelCost: 99 });
 
     const aList = await request(app).get("/api/day-expenses").set("Authorization", `Bearer ${tokenA}`);
-    expect(aList.body.expenses).toEqual([{ date: DATE, fuelCost: 30 }]);
+    expect(aList.body.expenses).toEqual([{
+      date: DATE,
+      fuelCost: 30,
+      automaticFuelAllowance: 0,
+      manualOverride: 30,
+      source: "manual",
+    }]);
 
     const bList2 = await request(app).get("/api/day-expenses").set("Authorization", `Bearer ${tokenB}`);
-    expect(bList2.body.expenses).toEqual([{ date: DATE, fuelCost: 99 }]);
+    expect(bList2.body.expenses).toEqual([{
+      date: DATE,
+      fuelCost: 99,
+      automaticFuelAllowance: 0,
+      manualOverride: 99,
+      source: "manual",
+    }]);
   });
 });

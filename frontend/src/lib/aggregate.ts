@@ -5,6 +5,7 @@ export interface ShiftComputed {
   id: string | null;
   shiftIndex: number;
   location: string;
+  workLocationId?: string | null;
   signIn: string | null;
   signOut: string | null;
   hours: number;
@@ -23,6 +24,10 @@ export interface DayComputed {
   moneyLabel: string;
   fuelCost: number;
   fuelCostLabel: string;
+  /** Present on report data when the API supplied source metadata. Kept
+   * optional so older callers/fixtures that only have a date and amount stay
+   * compatible. */
+  fuelSource?: "automatic" | "manual" | "mixed" | null;
 }
 
 export interface WeekSummary {
@@ -155,6 +160,7 @@ export function buildDayComputed(
       id: sh.id || null,
       shiftIndex: i,
       location: sh.location || "",
+      workLocationId: sh.workLocationId ?? null,
       signIn: sh.signIn,
       signOut: sh.signOut,
       hours,

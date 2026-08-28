@@ -52,6 +52,22 @@ describe("auth", () => {
     expect(res.status).toBe(400);
   });
 
+  it("requires a positive, bounded hourly rate with no more than two decimals", async () => {
+    for (const [email, rate] of [
+      ["missing-rate@example.com", undefined],
+      ["zero-rate@example.com", 0],
+      ["negative-rate@example.com", -1],
+      ["precise-rate@example.com", 20.123],
+      ["large-rate@example.com", 1000.01],
+      ["string-rate@example.com", "25.00"],
+    ] as const) {
+      const body = { ...validSignup, email, rate };
+      if (rate === undefined) delete (body as { rate?: unknown }).rate;
+      const res = await request(app).post("/api/auth/signup").send(body);
+      expect(res.status, `${email} should be rejected`).toBe(400);
+    }
+  });
+
   it("rejects a duplicate email", async () => {
     const res = await request(app).post("/api/auth/signup").send(validSignup);
     expect(res.status).toBe(409);

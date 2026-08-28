@@ -18,7 +18,7 @@ export interface DayEditorTarget {
 interface DayEditorSheetProps {
   target: DayEditorTarget;
   onClose: () => void;
-  onSave: (shiftId: string | null, values: { signIn: string; signOut: string; location: string; fuelCost: number | null; shiftChanged: boolean; fuelChanged: boolean }) => Promise<void>;
+  onSave: (shiftId: string | null, values: { signIn: string; signOut: string; location: string; workLocationId: string | null; locationChanged: boolean; fuelCost: number | null; shiftChanged: boolean; fuelChanged: boolean }) => Promise<void>;
   onDelete: (shiftId: string) => Promise<void>;
 }
 
@@ -55,7 +55,8 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
   // time. With a snapshot, `original` below would still hold the pre-save
   // values after a successful save, so `dirty` would never clear and the
   // form would claim unsaved changes for edits that had already landed.
-  const { shifts, dayExpenses } = useApp();
+  const { shifts, dayExpenses, workLocations } = useApp();
+  const activeLocations = (workLocations ?? []).filter((item) => !item.archived);
   const dayShifts = useMemo(
     () => shifts.filter((s) => s.date === target.dateISO),
     [shifts, target.dateISO]
@@ -66,7 +67,10 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
 
   const [signIn, setSignIn] = useState(selected?.signIn ?? "");
   const [signOut, setSignOut] = useState(selected?.signOut ?? "");
-  const [location, setLocation] = useState(selected?.location ?? "");
+  // Legacy shifts created before relational locations existed keep their
+  // historical display name as the select value. That lets a user edit only
+  // the time without being forced to rewrite history to a current branch.
+  const [workLocationId, setWorkLocationId] = useState(selected?.workLocationId ?? selected?.location ?? (activeLocations.length === 1 ? activeLocations[0].id : ""));
   const originalFuelCost = dayExpenses.find((expense) => expense.date === target.dateISO)?.fuelCost ?? null;
   const [fuelCost, setFuelCost] = useState(originalFuelCost === null ? "" : String(originalFuelCost));
   const [saving, setSaving] = useState(false);
@@ -90,7 +94,7 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
     loadedIdRef.current = selectedId;
     setSignIn(selected?.signIn ?? "");
     setSignOut(selected?.signOut ?? "");
-    setLocation(selected?.location ?? "");
+    setWorkLocationId(selected?.workLocationId ?? selected?.location ?? (activeLocations.length === 1 ? activeLocations[0].id : ""));
     setError(null);
     // Moving from the blank state to a real id is this component adopting
     // the shift it just created, not the user picking a different shift — so
@@ -101,13 +105,26 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
   }, [selectedId, selected]);
 
   const original = useMemo(
-    () => ({ signIn: selected?.signIn ?? "", signOut: selected?.signOut ?? "", location: selected?.location ?? "" }),
-    [selected]
+    () => ({
+      signIn: selected?.signIn ?? "",
+      signOut: selected?.signOut ?? "",
+      // A sole active branch is only a UI preselection for an empty day. It
+      // must not make the form dirty or create a shift on its own.
+      workLocationId: selected?.workLocationId
+        ?? selected?.location
+        ?? (activeLocations.length === 1 ? activeLocations[0].id : ""),
+    }),
+    [selected, workLocations]
   );
   const timeFieldsDirty = signIn !== original.signIn || signOut !== original.signOut;
-  const shiftDirty = signIn !== original.signIn || signOut !== original.signOut || location !== original.location;
+  const shiftDirty = signIn !== original.signIn || signOut !== original.signOut || workLocationId !== original.workLocationId;
   const parsedFuelCost = fuelCost.trim() === "" ? null : Number(fuelCost);
-  const fuelValid = parsedFuelCost === null || (Number.isFinite(parsedFuelCost) && parsedFuelCost >= 0 && parsedFuelCost <= 10000);
+  const fuelValid = parsedFuelCost === null || (
+    Number.isFinite(parsedFuelCost)
+    && parsedFuelCost >= 0
+    && parsedFuelCost <= 10000
+    && Math.abs(parsedFuelCost * 100 - Math.round(parsedFuelCost * 100)) < 1e-7
+  );
   const normalisedFuelCost = parsedFuelCost && parsedFuelCost > 0 ? Math.round(parsedFuelCost * 100) / 100 : null;
   const fuelDirty = normalisedFuelCost !== originalFuelCost;
   const dirty = shiftDirty || fuelDirty;
@@ -116,7 +133,11 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
   // uses, so the preview cannot disagree with what saving will produce.
   const previewHours = signIn && signOut ? computeHours(signIn, signOut) : 0;
   const validation = describeShiftTimes(target.dateISO, signIn || null, signOut || null);
-  const canSave = dirty && !saving && fuelValid && (!shiftDirty || (!!signIn && !!signOut && validation === null));
+  const selectedActiveLocation = activeLocations.find((item) => item.id === workLocationId);
+  const canSave = dirty && !saving && fuelValid && (
+    !shiftDirty
+    || (!!signIn && !!signOut && validation === null && (!!selected || !!selectedActiveLocation))
+  );
 
   function close() {
     if (saving || deleting) return;
@@ -153,7 +174,17 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
     setError(null);
     setSaved(false);
     try {
-      await onSave(selectedId, { signIn, signOut, location, fuelCost: normalisedFuelCost, shiftChanged: shiftDirty, fuelChanged: fuelDirty });
+      const selectedLocation = activeLocations.find((item) => item.id === workLocationId);
+      await onSave(selectedId, {
+        signIn,
+        signOut,
+        location: selectedLocation?.name ?? selected?.location ?? "",
+        workLocationId: selectedLocation?.id ?? selected?.workLocationId ?? null,
+        locationChanged: workLocationId !== original.workLocationId,
+        fuelCost: normalisedFuelCost,
+        shiftChanged: shiftDirty,
+        fuelChanged: fuelDirty,
+      });
       setSaved(true);
       // Deliberately does NOT close or clear the fields. The values stay on
       // screen so the result is visible, and so a subsequent failure never
@@ -274,22 +305,29 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
 
             <div className="field day-editor-location-field">
               <label htmlFor="day-editor-location">Location</label>
-              <input
+              <select
                 id="day-editor-location"
                 className="input"
-                type="text"
-                placeholder="e.g. Downtown Store"
-                value={location}
+                value={workLocationId}
                 onChange={(e) => {
-                  setLocation(e.target.value);
+                  setWorkLocationId(e.target.value);
                   setSaved(false);
                 }}
                 disabled={busy}
-              />
+              >
+                <option value="">Choose a location</option>
+                {selected?.location && !selected.workLocationId && (
+                  <option value={selected.location}>{selected.location} (historical)</option>
+                )}
+                {selected?.workLocationId && !activeLocations.some((item) => item.id === selected.workLocationId) && (
+                  <option value={selected.workLocationId}>{selected.location} (archived)</option>
+                )}
+                {activeLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
+              </select>
             </div>
 
             <div className="field day-editor-fuel-field">
-              <label htmlFor="day-editor-fuel">Fuel charge</label>
+              <label htmlFor="day-editor-fuel">Fuel allowance override</label>
               <div className="day-editor-money-input">
                 <span aria-hidden="true">$</span>
                 <input
@@ -309,7 +347,7 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
                 />
               </div>
               <span id="day-editor-fuel-hint" className={`field-hint${fuelValid ? "" : " field-hint-danger"}`}>
-                {fuelValid ? "Optional. Leave blank to remove an existing fuel charge." : "Enter a fuel charge between $0 and $10,000."}
+                {fuelValid ? "Optional. Leave blank to restore the automatic branch allowance." : "Enter an amount from $0 to $10,000 using no more than two decimal places."}
               </span>
             </div>
 

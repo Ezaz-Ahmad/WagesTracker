@@ -98,4 +98,23 @@ describe("forgot-password auth flow", () => {
     await user.click(screen.getByRole("button", { name: "Back to log in" }));
     expect(screen.getByRole("heading", { name: "Log in to your account" })).toBeTruthy();
   });
+
+  it("requires a positive two-decimal hourly rate before account creation", async () => {
+    const user = userEvent.setup();
+    render(<AuthScreen />);
+    await user.click(screen.getByLabelText("Create account"));
+
+    const createButton = screen.getByRole("button", { name: "Create account" }) as HTMLButtonElement;
+    const rateInput = screen.getByLabelText(/Hourly rate/);
+    expect((rateInput as HTMLInputElement).required).toBe(true);
+    expect(createButton.disabled).toBe(true);
+
+    await user.type(rateInput, "18.501");
+    expect(screen.getByText("Use no more than two decimal places.")).toBeTruthy();
+    expect(createButton.disabled).toBe(true);
+
+    await user.clear(rateInput);
+    await user.type(rateInput, "18.50");
+    expect(createButton.disabled).toBe(false);
+  });
 });

@@ -12,6 +12,7 @@ import { meRouter } from "./routes/me.js";
 import { shiftsRouter } from "./routes/shifts.js";
 import { spendingRouter } from "./routes/spending.js";
 import { weekExtrasRouter } from "./routes/weekExtras.js";
+import { workLocationsRouter } from "./routes/workLocations.js";
 
 /**
  * Builds the Express app — every middleware, route, and error handler —
@@ -112,6 +113,7 @@ export function createApp(): express.Express {
   app.use("/api/auth", passwordResetRouter);
   app.use("/api/auth", authRouter);
   app.use("/api/me", meRouter);
+  app.use("/api/work-locations", workLocationsRouter);
   app.use("/api/shifts", shiftsRouter);
   app.use("/api/day-expenses", dayExpensesRouter);
   app.use("/api/week-extras", weekExtrasRouter);

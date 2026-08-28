@@ -128,7 +128,18 @@ export function WeekCard({ week, metGoal, onEditDay }: WeekCardProps) {
                   </span>
                   <span className={`history-day-hours${day.hours > 0 ? "" : " is-empty"}`}>{day.hoursLabel}</span>
                   {day.fuelCost > 0 && (
-                    <span className="history-day-fuel">Fuel <Amount>{CURRENCY}{fmt2(day.fuelCost)}</Amount></span>
+                    <span className="history-day-fuel">
+                      Fuel allowance <Amount>{CURRENCY}{fmt2(day.fuelCost)}</Amount>
+                      {(() => {
+                        const expense = dayExpenses.find((item) => item.date === day.dateISO);
+                        const source = expense?.manualOverride != null || expense?.source === "manual"
+                          ? "manual"
+                          : expense?.automaticFuelAllowance != null || expense?.source === "automatic"
+                            ? "automatic"
+                            : "recorded";
+                        return <span className="fuel-source-badge history-fuel-source">{source}</span>;
+                      })()}
+                    </span>
                   )}
                 </div>
                 <button

@@ -22,6 +22,8 @@ export interface Shift {
   id: string;
   date: string; // YYYY-MM-DD
   location: string;
+  workLocationId?: string | null;
+  fuelAllowanceSnapshot?: number | null;
   signIn: string | null; // HH:MM
   signOut: string | null; // HH:MM
 }
@@ -31,6 +33,20 @@ export interface Shift {
 export interface DayExpense {
   date: string; // YYYY-MM-DD
   fuelCost: number;
+  automaticFuelAllowance?: number;
+  manualOverride?: number | null;
+  source?: "automatic" | "manual";
+}
+
+export interface WorkLocation {
+  id: string;
+  name: string;
+  address: string;
+  fuelAllowance: number | null;
+  archived: boolean;
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // One per week (identified by that week's start date, per the user's

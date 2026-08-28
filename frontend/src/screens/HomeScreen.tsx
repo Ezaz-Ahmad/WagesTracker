@@ -199,9 +199,10 @@ function HomeSpendingSkeleton() {
 }
 
 export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => void } = {}) {
-  const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras, earningsHidden } = useApp();
-  const { active, last, start, end } = useTodayShift();
+  const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras, earningsHidden, workLocations } = useApp();
+  const { active, last, startAtLocation, end } = useTodayShift();
   const [busy, setBusy] = useState(false);
+  const [selectedClockLocationId, setSelectedClockLocationId] = useState("");
 
   // Every hook below must run on every render regardless of loading state —
   // React requires the same hooks in the same order every time, so the
@@ -248,6 +249,15 @@ export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => vo
   const metGoalCount = history.filter((w) => w.earnings >= goalEarnings).length;
 
   const todayDay = days.find((d) => d.isToday);
+  const activeWorkLocations = (workLocations ?? []).filter((location) => !location.archived);
+  const previousWeekDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
+  const rememberedLocationId = shifts.find((shift) => shift.date === isoDate(previousWeekDate))?.workLocationId ?? "";
+  const defaultClockLocationId = activeWorkLocations.length === 1
+    ? activeWorkLocations[0].id
+    : activeWorkLocations.some((location) => location.id === rememberedLocationId)
+      ? rememberedLocationId
+      : "";
+  const clockLocationId = selectedClockLocationId || defaultClockLocationId;
   const daysLoggedAnim = Math.round(useCountUp(daysLogged, 450));
   const metGoalAnim = Math.round(useCountUp(metGoalCount, 450));
 
@@ -293,7 +303,8 @@ export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => vo
     setBusy(true);
     try {
       if (active) await end();
-      else await start();
+      else if (clockLocationId) await startAtLocation(clockLocationId);
+      else onNavigate?.(activeWorkLocations.length === 0 ? "settings" : "entry");
     } finally {
       setBusy(false);
     }
@@ -340,6 +351,16 @@ export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => vo
               <div className="card-title today-headline">{headline}</div>
               <p className="card-body today-subline">{subline}</p>
               <ElapsedTimer active={active} signIn={last?.signIn ?? null} />
+              {!active && activeWorkLocations.length > 0 && (
+                <label className="home-clock-location">
+                  <span>Work location</span>
+                  <select className="input" value={clockLocationId} onChange={(event) => setSelectedClockLocationId(event.target.value)}>
+                    {activeWorkLocations.length > 1 && <option value="">Choose a location</option>}
+                    {activeWorkLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
+                  </select>
+                </label>
+              )}
+              {!active && activeWorkLocations.length === 0 && <p className="field-hint">Add a work location in Settings before starting.</p>}
             </div>
             <ShiftButton active={active} onStart={handlePress} onEnd={handlePress} busy={busy} />
           </div>

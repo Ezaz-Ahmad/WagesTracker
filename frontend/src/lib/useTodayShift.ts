@@ -14,12 +14,12 @@ import { isUnusuallyLongShift, LONG_SHIFT_WARNING } from "./shiftRules";
  */
 export function useTodayShift() {
   const confirm = useConfirm();
-  const { today, shifts, user, createShift, updateShift } = useApp();
+  const { today, shifts, workLocations, createShift, updateShift } = useApp();
   const todayISO = isoDate(today);
   const last = findOpenShift(shifts);
   const active = !!last;
 
-  const start = async () => {
+  const startAtLocation = async (selectedWorkLocationId?: string | null) => {
     // Belt-and-suspenders: the button itself only ever calls `start` when
     // `active` is already false (see ShiftButton's onClick), so this
     // shouldn't normally be reachable while a shift is open — but guarding
@@ -30,8 +30,15 @@ export function useTodayShift() {
     // error instead of silently allowing a second one.
     if (active) return;
     const signIn = nowHHMMSS();
-    await createShift({ date: todayISO, location: user?.workLocationName || "", signIn, signOut: null });
+    const activeLocations = (workLocations ?? []).filter((location) => !location.archived);
+    const workLocationId = selectedWorkLocationId || (activeLocations.length === 1 ? activeLocations[0].id : null);
+    if (!workLocationId) return;
+    const selected = activeLocations.find((location) => location.id === workLocationId);
+    if (!selected) return;
+    await createShift({ date: todayISO, workLocationId, location: selected.name, signIn, signOut: null });
   };
+
+  const start = async () => startAtLocation();
 
   const end = async () => {
     // PATCHes the original shift by id — never creates a new one, and never
@@ -44,5 +51,5 @@ export function useTodayShift() {
     }
   };
 
-  return { active, last, start, end, todayISO };
+  return { active, last, start, startAtLocation, end, todayISO };
 }
