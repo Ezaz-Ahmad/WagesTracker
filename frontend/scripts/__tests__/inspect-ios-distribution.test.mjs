@@ -52,6 +52,25 @@ test("accepts correct literal dotted entitlement keys", () => {
   ));
 });
 
+test("accepts Apple's wildcard Associated Domains value in a provisioning profile", () => {
+  assert.doesNotThrow(() => assertDistributionEntitlements(
+    { ...fixtureEntitlements("correct"), "com.apple.developer.associated-domains": "*" },
+    expected,
+    "profile",
+  ));
+});
+
+test("does not allow the wildcard Associated Domains value in signed app entitlements", () => {
+  assert.throws(
+    () => assertDistributionEntitlements(
+      { ...fixtureEntitlements("signedApplication"), "com.apple.developer.associated-domains": "*" },
+      expected,
+      "signed application",
+    ),
+    /signed application Associated Domains entitlement must include applinks:wages-tracker-frontend\.vercel\.app/u,
+  );
+});
+
 test("accepts literal dotted keys from signed application entitlements", () => {
   assert.doesNotThrow(() => assertDistributionEntitlements(
     fixtureEntitlements("signedApplication"),

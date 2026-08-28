@@ -29,7 +29,8 @@ export function assertDistributionEntitlements(entitlements, expected, source) {
   );
   assertEqual(teamIdentifier, expected.teamId, `${source} entitlement team`);
   assertEqual(betaReportsActive, true, `${source} TestFlight entitlement`);
-  if (!Array.isArray(associatedDomains) || !associatedDomains.includes(expected.associatedDomain)) {
+  const profileWildcard = source === "profile" && associatedDomains === "*";
+  if (!profileWildcard && (!Array.isArray(associatedDomains) || !associatedDomains.includes(expected.associatedDomain))) {
     throw new Error(
       `${source} Associated Domains entitlement must include ${expected.associatedDomain}`,
     );
