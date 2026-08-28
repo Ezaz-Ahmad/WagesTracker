@@ -8,5 +8,7 @@
   <string>XYN7FY5RB8</string>
   <key>beta-reports-active</key>
   <true/>
+  <key>com.apple.developer.associated-domains</key>
+  <array><string>applinks:wages-tracker-frontend.vercel.app</string></array>
 </dict>
 </plist>

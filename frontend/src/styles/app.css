@@ -814,8 +814,6 @@ button { font-family: inherit; }
    noticeably more breathing room than sharing one row with a third field. */
 @media (max-width: 480px) {
   .shift-row { flex-wrap: wrap; row-gap: var(--space-2); }
-  .shift-field-location { flex: 1 1 100%; }
-  .shift-field-time { flex: 1 1 0; }
 }
 /* Real, always-visible labels above each shift field — added because an
    empty native <input type="time"> renders completely differently by
@@ -826,6 +824,13 @@ button { font-family: inherit; }
 .shift-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .shift-field-location { flex: 1.3; }
 .shift-field-time { flex: 1; }
+@media (max-width: 480px) {
+  /* Keep these after the base flex declarations: otherwise the later base
+     rules win in the cascade and squeeze both native time controls until
+     only their hour digits remain visible. */
+  .shift-field-location { flex: 1 1 100%; }
+  .shift-field-time { flex: 1 1 0; min-width: 88px; }
+}
 .shift-field-label {
   font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
   padding-left: 2px;

@@ -1,14 +1,14 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "1.16.0",
+  "version": "1.17.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build && node scripts/write-apple-app-site-association.mjs",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
-    "test": "vitest run",
+    "test": "vitest run && npm run ios:aasa:test",
     "test:watch": "vitest",
     "test:smoke": "npm run build && playwright test",
     "ios:build:web": "cross-env VITE_APP_TARGET=ios VITE_API_URL=https://wage-tracker-api.onrender.com npm run build",
@@ -18,6 +18,7 @@
     "ios:assets:verify": "node scripts/verify-ios-assets.mjs",
     "ios:testflight:verify": "node scripts/verify-testflight-config.mjs",
     "ios:distribution:test": "node --test scripts/__tests__/inspect-ios-distribution.test.mjs",
+    "ios:aasa:test": "node --test scripts/__tests__/apple-app-site-association.test.mjs",
     "ios:resolve:native": "xcodebuild -project ../ios/App/App.xcodeproj -scheme App -resolvePackageDependencies",
     "ios:build:simulator": "xcodebuild -project ../ios/App/App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator -destination \"generic/platform=iOS Simulator\" -derivedDataPath ../ios/DerivedData CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= build"
   },

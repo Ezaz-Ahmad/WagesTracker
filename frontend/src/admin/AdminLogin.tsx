@@ -26,16 +26,17 @@ export function AdminLogin({ onLoggedIn }: { onLoggedIn: (token: string) => void
     <div className="auth-wrap">
       <div className="auth-card">
         <div className="card elev-md">
-          <h6 className="section-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div className="section-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Logo size={20} />
             Wage Tracker — Admin
-          </h6>
+          </div>
           <form onSubmit={handleSubmit} className="anim-rise">
-            <h3 style={{ margin: "0 0 var(--space-3)" }}>Admin login</h3>
+            <h1 style={{ margin: "0 0 var(--space-3)" }}>Admin login</h1>
             {error && <div className="form-error">{error}</div>}
             <div className="field field-spaced">
-              <label>Admin password</label>
+              <label htmlFor="admin-password">Admin password</label>
               <PasswordInput
+                id="admin-password"
                 placeholder="••••••••"
                 autoFocus
                 value={password}

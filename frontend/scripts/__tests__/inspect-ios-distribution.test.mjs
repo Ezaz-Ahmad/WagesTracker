@@ -11,6 +11,7 @@ if (process.platform !== "darwin") {
 const expected = {
   bundleId: "com.ezazahmad.wagestracker",
   teamId: "XYN7FY5RB8",
+  associatedDomain: "applinks:wages-tracker-frontend.vercel.app",
 };
 
 function fixtureEntitlements(name) {
@@ -49,6 +50,7 @@ test("rejects each missing required entitlement", () => {
     "application-identifier",
     "com.apple.developer.team-identifier",
     "beta-reports-active",
+    "com.apple.developer.associated-domains",
   ]) {
     const entitlements = { ...fixture };
     delete entitlements[key];
@@ -100,5 +102,17 @@ test("rejects a misleading nested structure in place of a literal dotted key", (
       "profile",
     ),
     /missing required entitlement com\.apple\.developer\.team-identifier/u,
+  );
+});
+
+test("rejects a profile or signed app without the production Universal Link domain", () => {
+  const fixture = fixtureEntitlements("distribution-entitlements-correct.plist");
+  assert.throws(
+    () => assertDistributionEntitlements(
+      { ...fixture, "com.apple.developer.associated-domains": ["applinks:example.invalid"] },
+      expected,
+      "profile",
+    ),
+    /Associated Domains entitlement must include applinks:wages-tracker-frontend\.vercel\.app/u,
   );
 });

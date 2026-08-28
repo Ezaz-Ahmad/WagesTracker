@@ -3,10 +3,10 @@
 `PR #17` (`feature/ios-biometric-login`) merged into `main` at `52d8eab` on
 2026-08-15, after the plugin-registration fix, the Remember-Me fix, and the
 enablement-transaction hardening fix below were all verified. `main` was
-previously at `9185368` — the confirmed `v1.16.0` TestFlight
-release-candidate commit — and this merge did not change the app version,
-did not touch the TestFlight workflow, and does not affect the `v1.16.0`
-release candidate in any way (see the confirmation further down).
+previously at `9185368` — the then-confirmed signed TestFlight baseline —
+and this merge did not change that historical app version or touch the
+TestFlight workflow (see the contemporary confirmation further down). This
+handoff is an archived engineering record, not the current release-status source.
 
 This document covers five fixes in total: two blocking issues found in
 review of the first revision of PR #17, one further hardening fix found in
@@ -437,7 +437,7 @@ With the fix restored, all 17 tests in the file pass, alongside the full
 | `verify:ios-plugin-registration` | passed — plugin compiled, registered, storyboard wired |
 | `verify:capacitor:bundle` (one Capacitor runtime in the shipped bundle) | passed, against a real `ios:build:web && cap copy ios` output |
 | `ios:build:web` + `ios:sync` (Capacitor sync) | passed — web bundle copied to `ios/App/App/public`, `Package.swift` regenerated, 5 plugins resolved |
-| Marketing/app version | unchanged — `MARKETING_VERSION` / `frontend/package.json` / `CFBundleShortVersionString` all still `1.16.0` |
+| Marketing/app version | unchanged from the signed baseline at the time of this historical verification |
 | `ios:testflight:verify` | passed — manual-trigger-only, off `main`, signing safeguards intact, unmodified by this branch |
 | iOS Simulator build (GitHub Actions, macOS runner) | not runnable in this sandbox — verified after push, see the PR's check-runs |
 | CodeQL | not runnable in this sandbox — verified after push, see the PR's check-runs |
@@ -509,11 +509,11 @@ result means, backend re-validation, and credential-clearing all live in
 `AppContext.tsx`. A future Android implementation is a second class behind
 the same interface, with zero changes needed anywhere else in the app.
 
-## `v1.16.0` release candidate — still unaffected
+## Signed release candidate at the time — unaffected
 
-- No version number changed by any commit described in this document:
+- No version number changed by any commit described in this historical document;
   `frontend/package.json`, `MARKETING_VERSION` in `project.pbxproj`, and
-  `CFBundleVersion` in `Info.plist` are all still `1.16.0` after the merge.
+  `CFBundleVersion` in `Info.plist` remained aligned after the merge.
 - No TestFlight workflow file changed; `ios:testflight:verify` passed
   against the unmodified workflow, and the TestFlight run built from the
   actual merge commit (`52d8eab`) completed successfully.

@@ -102,6 +102,21 @@ describe("home-indicator safe area", () => {
   });
 });
 
+describe("compact phone content", () => {
+  it("keeps mobile shift-time sizing after the base flex declarations", () => {
+    const base = appCss.indexOf(".shift-field-time { flex: 1; }");
+    const mobile = appCss.indexOf(".shift-field-time { flex: 1 1 0; min-width: 88px; }");
+    expect(base).toBeGreaterThan(-1);
+    expect(mobile).toBeGreaterThan(base);
+  });
+
+  it("compacts the welcome screen and removes its decorative preview on short phones", () => {
+    expect(landingCss).toContain("(max-width: 959px) and (max-height: 880px)");
+    expect(landingCss).toContain("(max-width: 959px) and (max-height: 700px)");
+    expect(landingCss).toMatch(/\.welcome-content \.landing-preview-card \{ display: none; \}/);
+  });
+});
+
 describe("no device-specific or hardcoded escape hatches", () => {
   it("anchors the nav with the safe area and flex order, not a magic pixel offset", () => {
     const nav = block(appCss, ".app-bottomnav");

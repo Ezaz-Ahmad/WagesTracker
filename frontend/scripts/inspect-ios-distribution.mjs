@@ -13,6 +13,7 @@ const expected = {
   build: process.env.IOS_BUILD_NUMBER,
   teamId: process.env.APPLE_TEAM_ID,
   profileName: process.env.IOS_PROVISIONING_PROFILE_NAME,
+  associatedDomain: "applinks:wages-tracker-frontend.vercel.app",
 };
 for (const [name, value] of Object.entries(expected)) {
   if (!value) throw new Error(`Missing required distribution inspection value: ${name}`);
@@ -100,5 +101,6 @@ console.log(JSON.stringify({
   minimumIos: "15.0",
   distributionIdentity: "Apple Distribution",
   testflightEntitlement: true,
+  associatedDomainsEntitlement: expected.associatedDomain,
   nonExemptEncryption: false,
 }, null, 2));

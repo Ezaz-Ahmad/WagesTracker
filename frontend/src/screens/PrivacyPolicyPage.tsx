@@ -1,6 +1,6 @@
 import { PublicPageShell } from "../components/PublicPageShell";
 
-const LAST_UPDATED = "20 August 2026";
+const LAST_UPDATED = "28 August 2026";
 
 export function PrivacyPolicyPage() {
   return (
@@ -52,7 +52,9 @@ export function PrivacyPolicyPage() {
           IP address, user-agent, requested URL, and request timing. <strong>Render</strong> hosts the Express API and
           processes API requests, authentication headers, IP address, user-agent, and operational logs.
           <strong>Turso</strong> hosts the libSQL database containing account profiles, work records, optional personal spending records, and session
-          metadata described above. <strong>Google Fonts</strong> may receive ordinary request information when the
+          metadata described above. <strong>Resend</strong> processes the account email address and transactional
+          message content when Wage Tracker sends password-reset instructions or a password-change security notice.
+          <strong>Google Fonts</strong> may receive ordinary request information when the
           application loads its externally hosted font files.
         </p>
         <p>

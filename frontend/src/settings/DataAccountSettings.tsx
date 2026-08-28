@@ -11,8 +11,9 @@ export function DataAccountSettings() {
     <div className="settings-section-card card">
       <h3 className="settings-subsection-title">Data retention</h3>
       <p className="settings-note settings-note-static">
-        Time entries and reports are kept for {RETENTION_YEARS} years and automatically deleted after that. Log out
-        from the button at the top of the app.
+        Shift records and their wage inputs are kept for up to {RETENTION_YEARS} years and then automatically
+        deleted. PDF reports are generated on your device and are not stored by Wage Tracker. Personal spending is
+        kept until you delete it or delete your account. Log out from the button at the top of the app.
       </p>
 
       <div className="hr" />
@@ -25,7 +26,7 @@ export function DataAccountSettings() {
 
       <div className="hr" />
       <h3 className="settings-subsection-title settings-danger-title">Delete account</h3>
-      <p className="section-hint">Permanently delete your account and every shift you've logged. This can't be undone.</p>
+      <p className="section-hint">Permanently delete your profile, settings, sessions, shifts, expenses, and spending categories. This can't be undone.</p>
       <button type="button" className="btn btn-danger btn-block" onClick={() => setShowDeleteDialog(true)}>
         Delete account
       </button>

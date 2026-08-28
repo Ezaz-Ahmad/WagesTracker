@@ -39,7 +39,9 @@ export function SupportPage() {
         <h3>I cannot log in</h3>
         <p>
           Check that your email address is correct and that your internet connection is working. If the service is
-          waking after a period of inactivity, leave the app open and use Retry when prompted.
+          waking after a period of inactivity, leave the app open and use Retry when prompted. If you have forgotten
+          your password, choose <strong>Forgot password?</strong> on the login screen. For privacy, the confirmation is
+          the same whether or not an account exists; check the inbox and spam folder for the address you entered.
         </p>
 
         <h3>My active shift is still counting</h3>

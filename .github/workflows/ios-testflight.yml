@@ -44,8 +44,10 @@ jobs:
           [[ "$GITHUB_REF" == "refs/heads/main" ]]
           [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
           [[ "$IOS_BUNDLE_ID" == "com.ezazahmad.wagestracker" ]]
-          [[ "$IOS_APP_VERSION" == "1.16.0" ]]
-          [[ "$IOS_PROVISIONING_PROFILE_NAME" == "WagesTracker App Store 1.16.0" ]]
+          EXPECTED_APP_VERSION="$(node -p "require('./frontend/package.json').version")"
+          [[ "$EXPECTED_APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$IOS_APP_VERSION" == "$EXPECTED_APP_VERSION" ]]
+          [[ -n "$IOS_PROVISIONING_PROFILE_NAME" ]]
           [[ "$APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]
           if [[ "$GITHUB_RUN_ATTEMPT" != "1" ]]; then
             echo "TestFlight delivery reruns are disabled because an older run could produce a lower build number. Start a new workflow dispatch instead." >&2
@@ -83,6 +85,9 @@ jobs:
 
       - name: Verify TestFlight workflow and release metadata
         run: npm run ios:testflight:verify -w frontend
+
+      - name: Test Universal Link association generation
+        run: npm run ios:aasa:test -w frontend
 
       - name: Test distribution plist entitlement inspection
         run: npm run ios:distribution:test -w frontend
@@ -163,10 +168,12 @@ jobs:
           PROFILE_TEAM="$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "$PROFILE_PLIST")"
           PROFILE_APP_ID="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$PROFILE_PLIST")"
           PROFILE_BETA="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:beta-reports-active' "$PROFILE_PLIST")"
+          PROFILE_ASSOCIATED_DOMAIN="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.developer.associated-domains:0' "$PROFILE_PLIST")"
           [[ "$PROFILE_NAME" == "$IOS_PROVISIONING_PROFILE_NAME" ]]
           [[ "$PROFILE_TEAM" == "$APPLE_TEAM_ID" ]]
           [[ "$PROFILE_APP_ID" == "$APPLE_TEAM_ID.$IOS_BUNDLE_ID" ]]
           [[ "$PROFILE_BETA" == "true" ]]
+          [[ "$PROFILE_ASSOCIATED_DOMAIN" == "applinks:wages-tracker-frontend.vercel.app" ]]
           INSTALLED_PROFILE_PATH="$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
           install -m 600 "$PROFILE_PATH" "$INSTALLED_PROFILE_PATH"
           printf '%s' "$INSTALLED_PROFILE_PATH" > "$RUNNER_TEMP/wagestracker-installed-profile-path"
