@@ -62,6 +62,15 @@ vi.mock("../../lib/api", async (importOriginal) => {
     logout: vi.fn(async () => {}),
     listSessions: vi.fn(async () => ({ sessions: [] })),
     listShifts: vi.fn(async () => ({ shifts: serverShifts })),
+    listWorkLocations: vi.fn(async () => ({ locations: [{
+      id: "loc-1",
+      name: "Downtown Store",
+      address: "",
+      fuelAllowance: 0,
+      archived: false,
+      createdAt: "2025-01-01T00:00:00.000Z",
+      updatedAt: "2025-01-01T00:00:00.000Z",
+    }] })),
     listDayExpenses: vi.fn(async () => ({ expenses: [] })),
     setDayExpense: vi.fn(async (date: string, fuelCost: number | null) => ({
       expense: fuelCost && fuelCost > 0 ? { date, fuelCost } : null,
@@ -161,7 +170,7 @@ describe("opening the editor", () => {
     const dialog = await openEditor(user, /Add hours for Tue/);
     const api = await import("../../lib/api");
 
-    await user.type(within(dialog).getByLabelText("Fuel charge"), "24.50");
+    await user.type(within(dialog).getByLabelText("Fuel allowance override"), "24.50");
     const save = within(dialog).getByRole("button", { name: /^Save/ });
     expect((save as HTMLButtonElement).disabled).toBe(false);
     await user.click(save);

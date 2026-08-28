@@ -141,6 +141,37 @@
   display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2);
   margin-bottom: var(--space-2);
 }
+.work-pay-settings h3, .work-pay-settings h4 { margin: 0 0 var(--space-2); }
+.work-location-list { display: grid; gap: var(--space-2); margin-block: var(--space-2) var(--space-3); }
+.work-location-card {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  padding: var(--space-3); border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-surface) 96%, var(--color-accent));
+}
+.work-location-card.is-archived { opacity: 0.78; }
+.work-location-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.work-location-actions .btn { min-height: 44px; }
+.work-location-editor {
+  margin-block: var(--space-3); padding: var(--space-3); border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 28%, var(--color-divider));
+  background: color-mix(in srgb, var(--color-accent) 4%, var(--color-surface));
+}
+.settings-empty-state {
+  margin-block: var(--space-2) var(--space-3); padding: var(--space-3);
+  border: 1px dashed var(--color-divider); border-radius: var(--radius-md); color: color-mix(in srgb, var(--color-text) 66%, transparent);
+}
+.archived-locations { margin-block: var(--space-3); }
+.archived-locations summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 650; }
+.settings-divider { border: 0; border-top: 1px solid var(--color-divider); margin: var(--space-5) 0; }
+.settings-inline-status { min-height: 20px; }
+.settings-error { color: var(--color-danger-700); }
+.settings-success { color: var(--color-success-700); }
+.field-optional { color: color-mix(in srgb, var(--color-text) 62%, transparent); font-size: 0.85em; font-weight: 400; }
+
+@media (max-width: 560px) {
+  .settings-subsection-head, .work-location-card { align-items: stretch; flex-direction: column; }
+  .settings-subsection-head .btn, .work-location-actions .btn { flex: 1; justify-content: center; }
+}
 .session-list-hint { margin: 0; max-width: 34ch; }
 
 /* Settings → Security's biometric-login row. The disabled (unsupported/

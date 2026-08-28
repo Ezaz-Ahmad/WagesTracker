@@ -32,6 +32,9 @@ export interface WeekReportData {
   totalEarnings: number;
   totalFuelCost: number;
   totalFuelCostLabel: string;
+  automaticFuelAllowance: number;
+  manualFuelOverride: number;
+  fuelSourceSummary: string;
   otherEarningAmount: number;
   otherEarningAmountLabel: string;
   otherEarningReason: string;
@@ -74,9 +77,32 @@ export function buildWeekReportData(
   const shiftsByDate = groupByDate(shifts);
   const expensesByDate = groupExpensesByDate(dayExpenses);
   const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, currency, user.rate, expensesByDate);
-  const { hours: totalHours, earnings: weekEarnings, daysLogged, fuelCost: totalFuelCost } = weekTotals(days, user.rate);
-  const shiftRows = buildShiftRows(days, currency, user.rate);
+  const expenseByDate = new Map(dayExpenses.map((expense) => [expense.date, expense]));
+  const reportDays = days.map((day) => {
+    const expense = expenseByDate.get(day.dateISO);
+    const automatic = expense?.automaticFuelAllowance ?? (expense?.source === "automatic" ? expense.fuelCost : 0);
+    const manual = expense?.manualOverride ?? (expense?.source === "manual" ? expense.fuelCost : 0);
+    const fuelSource: DayComputed["fuelSource"] = automatic > 0 && manual > 0 ? "mixed" : manual > 0 ? "manual" : automatic > 0 ? "automatic" : null;
+    return { ...day, fuelSource };
+  });
+  const { hours: totalHours, earnings: weekEarnings, daysLogged, fuelCost: totalFuelCost } = weekTotals(reportDays, user.rate);
+  const shiftRows = buildShiftRows(reportDays, currency, user.rate);
   const locationBreakdown = buildLocationBreakdown(shiftRows);
+  const reportDates = new Set(reportDays.map((day) => day.dateISO));
+  const reportExpenses = dayExpenses.filter((expense) => reportDates.has(expense.date));
+  const automaticFuelAllowance = Math.round(reportExpenses.reduce((total, expense) => {
+    return total + (expense.automaticFuelAllowance ?? (expense.source === "automatic" ? expense.fuelCost : 0));
+  }, 0) * 100) / 100;
+  const manualFuelOverride = Math.round(reportExpenses.reduce((total, expense) => {
+    return total + (expense.manualOverride ?? (expense.source === "manual" ? expense.fuelCost : 0));
+  }, 0) * 100) / 100;
+  const fuelSourceSummary = automaticFuelAllowance > 0 && manualFuelOverride > 0
+    ? "Automatic allowances and manual overrides"
+    : manualFuelOverride > 0
+      ? "Manual overrides"
+      : automaticFuelAllowance > 0
+        ? "Automatic allowances"
+        : "";
 
   const weekExtra = weekExtraFor(isoDate(weekDays[0]), weekExtras);
   const otherEarningAmount = weekExtra?.amount ?? 0;
@@ -107,12 +133,15 @@ export function buildWeekReportData(
     totalEarnings,
     totalFuelCost,
     totalFuelCostLabel: totalFuelCost > 0 ? currency + fmt2(totalFuelCost) : "—",
+    automaticFuelAllowance,
+    manualFuelOverride,
+    fuelSourceSummary,
     otherEarningAmount,
     otherEarningAmountLabel: otherEarningAmount > 0 ? currency + fmt2(otherEarningAmount) : "—",
     otherEarningReason: weekExtra?.reason ?? "",
     daysLogged,
     locationsCountLabel: `${locationBreakdown.length || 1} ${locationBreakdown.length === 1 ? "location" : "locations"}`,
-    days,
+    days: reportDays,
     shiftRows,
     locationBreakdown,
     multiLocation: user.multipleLocations,

@@ -9,6 +9,7 @@ import { validatePassword } from "../security/passwordPolicy.js";
 import { createSession, extractClientInfo, revokeSessionById } from "../security/sessions.js";
 import { DEVICE_INSTALLATION_ID_MAX_LENGTH, MAX_ACTIVE_INSTALLATIONS, isValidDeviceInstallationId } from "../security/sessionPolicy.js";
 import { toPublicUser, type UserRow } from "../types.js";
+import { hasAtMostTwoDecimals } from "../fuelAllowances.js";
 
 export const authRouter = Router();
 
@@ -48,10 +49,11 @@ const signupSchema = z.object({
   workAddress: z.string().trim().max(300).optional().default(""),
   multipleLocations: z.boolean().optional().default(false),
   otherLocations: z.string().trim().max(300).optional().default(""),
-  // Optional so old clients (or a signup call that omits it) still work —
-  // falls back to the same 18.50 default the app used before this was
-  // exposed on the signup form, rather than rejecting the request.
-  rate: z.coerce.number().min(0).max(1000).optional(),
+  rate: z
+    .number({ required_error: "Hourly rate is required", invalid_type_error: "Enter a valid hourly rate" })
+    .positive("Hourly rate must be greater than zero")
+    .max(1000, "Hourly rate cannot exceed 1000")
+    .refine(hasAtMostTwoDecimals, "Hourly rate can have at most two decimal places"),
   deviceInstallationId: deviceInstallationIdSchema,
 });
 
@@ -63,7 +65,7 @@ authRouter.post(
       res.status(400).json({ error: parsed.error.issues[0]?.message || "Invalid input" });
       return;
     }
-    const { name, email, password, address, workLocationName, workAddress, multipleLocations, otherLocations, rate: rateInput, deviceInstallationId } =
+    const { name, email, password, address, workLocationName, workAddress, multipleLocations, otherLocations, rate, deviceInstallationId } =
       parsed.data;
 
     const existing = await db.execute({ sql: "SELECT id FROM users WHERE email = ?", args: [email] });
@@ -74,29 +76,56 @@ authRouter.post(
 
     const id = randomUUID();
     const passwordHash = await hashPassword(password);
-    const rate = rateInput ?? 18.5;
     const goalHours = 35;
     const goalEarnings = Math.round(rate * goalHours * 100) / 100;
 
-    await db.execute({
-      sql: `INSERT INTO users (id, name, email, password_hash, address, work_location_name, work_address, multiple_locations, other_locations, week_starts_on, rate, goal_hours, goal_earnings, created_at)
-            VALUES (@id, @name, @email, @passwordHash, @address, @workLocationName, @workAddress, @multipleLocations, @otherLocations, 'Monday', @rate, @goalHours, @goalEarnings, @createdAt)`,
-      args: {
-        id,
-        name,
-        email,
-        passwordHash,
-        address,
-        workLocationName,
-        workAddress,
-        multipleLocations: multipleLocations ? 1 : 0,
-        otherLocations,
-        rate,
-        goalHours,
-        goalEarnings,
-        createdAt: new Date().toISOString(),
-      },
-    });
+    const configuredLocations = new Map<string, { name: string; address: string }>();
+    const addLocation = (rawName: string, locationAddress = "") => {
+      const locationName = rawName.trim().replace(/\s+/g, " ");
+      const normalizedName = locationName.toLocaleLowerCase("en-AU");
+      if (normalizedName && !configuredLocations.has(normalizedName)) {
+        configuredLocations.set(normalizedName, { name: locationName, address: locationAddress });
+      }
+    };
+    addLocation(workLocationName, workAddress);
+    for (const locationName of otherLocations.split(/[,;\n]+/)) addLocation(locationName);
+    const createdAt = new Date().toISOString();
+    const transaction = await db.transaction("write");
+    try {
+      await transaction.execute({
+        sql: `INSERT INTO users (id, name, email, password_hash, address, work_location_name, work_address, multiple_locations, other_locations, week_starts_on, rate, goal_hours, goal_earnings, created_at)
+              VALUES (@id, @name, @email, @passwordHash, @address, @workLocationName, @workAddress, @multipleLocations, @otherLocations, 'Monday', @rate, @goalHours, @goalEarnings, @createdAt)`,
+        args: {
+          id,
+          name,
+          email,
+          passwordHash,
+          address,
+          workLocationName,
+          workAddress,
+          multipleLocations: multipleLocations ? 1 : 0,
+          otherLocations,
+          rate,
+          goalHours,
+          goalEarnings,
+          createdAt,
+        },
+      });
+      for (const [normalizedName, location] of configuredLocations) {
+        await transaction.execute({
+          sql: `INSERT INTO work_locations
+                (id, user_id, name, normalized_name, address, fuel_allowance_cents, archived_at, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?)`,
+          args: [randomUUID(), id, location.name, normalizedName, location.address, createdAt, createdAt],
+        });
+      }
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    } finally {
+      transaction.close();
+    }
 
     const result = await db.execute({ sql: "SELECT * FROM users WHERE id = ?", args: [id] });
     const row = result.rows[0] as unknown as UserRow;

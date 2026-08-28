@@ -66,6 +66,21 @@ describe("buildWeekReportData", () => {
     expect(report.otherEarningReason).toBe("Tip");
   });
 
+  it("preserves automatic and manual allowance provenance for reporting", () => {
+    const user = makeUser();
+    const today = new Date(2026, 0, 5);
+    const report = buildWeekReportData(user, [], today, CURRENCY, [
+      { date: "2026-01-05", fuelCost: 12.5, automaticFuelAllowance: 12.5, manualOverride: null, source: "automatic" },
+      { date: "2026-01-06", fuelCost: 30, automaticFuelAllowance: 12.5, manualOverride: 30, source: "manual" },
+    ], []);
+
+    expect(report.automaticFuelAllowance).toBe(25);
+    expect(report.manualFuelOverride).toBe(30);
+    expect(report.fuelSourceSummary).toBe("Automatic allowances and manual overrides");
+    expect(report.days.find((day) => day.dateISO === "2026-01-05")?.fuelSource).toBe("automatic");
+    expect(report.days.find((day) => day.dateISO === "2026-01-06")?.fuelSource).toBe("mixed");
+  });
+
   it("produces a well-formed, zero-valued report when the user has logged nothing at all", () => {
     const user = makeUser();
     const today = new Date(2026, 0, 5);

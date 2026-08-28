@@ -1,6 +1,6 @@
 # Wage Tracker architecture
 
-**Applies to:** 1.17.0 source candidate
+**Applies to:** 1.18.0 source candidate
 
 **Last reviewed:** 28 August 2026
 
@@ -116,11 +116,19 @@ flowchart TD
 
 Shift times and plain calendar dates are the source data; hours and earnings are derived. Personal spending is deliberately separate from work/fuel inputs and from employer-facing wage PDFs. Dates are validated with the device IANA timezone and amounts use integer cents at API/persistence boundaries. Weekly extras retain an effective date so changing the user's week-start preference can re-key them without drifting their attribution.
 
+### Work locations and allowance invariants
+
+`work_locations` is a user-owned relational table. `GET /api/work-locations` returns active locations for selectors (with `includeArchived=true` for settings); `POST`, `PATCH`, and `DELETE` create, edit, restore, and archive only rows belonging to the authenticated user. Names are normalized per user for duplicate detection, and fuel allowances are stored as positive integer cents with a two-decimal/$10,000 boundary.
+
+Every saved shift stores both the location ID and immutable `location_snapshot`/`fuel_allowance_snapshot_cents` values. The migration creates active rows from legacy profile fields, creates archived rows for historical-only names, and links old shifts using the same whitespace/case normalization as new writes. Editing or archiving a location therefore cannot rewrite a historical report. `GET /api/work-locations/suggestions?weekStart=YYYY-MM-DD` returns only persisted IDs from the prior week's same weekday and shift order; the client uses these only as unsaved UI defaults.
+
+`day_expenses` keeps `automatic_fuel_cents` and optional `manual_override_cents` alongside the effective `fuel_cost`. A recalculation groups worked shifts by branch and date, charges each branch at most once, and preserves the shift snapshot. `PUT /api/day-expenses/:date` is an explicit manual override/restore operation. The response includes the effective amount and source metadata (`automatic`, `manual`, `mixed`, or legacy `recorded`) so reports and PDFs can explain where an allowance came from.
+
 ## Delivery and release flow
 
 ```mermaid
 flowchart LR
-  BRANCH["codex/* feature branch"] --> PR["Pull request"]
+  BRANCH["feature/* branch"] --> PR["Pull request"]
   PR --> CI["GitHub Actions CI\ntypes, tests, builds, smoke/a11y"]
   PR --> SIM["Unsigned iOS Simulator compile"]
   CI --> MAIN["Protected main commit"]
@@ -145,8 +153,9 @@ flowchart LR
 | `users` | Account profile, pay settings, goals, password hash, token version | User id is taken from auth, never request ownership fields |
 | `user_sessions` | Per-installation session state, expiry, revocation, biometric protection | Required by every regular-user JWT; explicit revocation supported |
 | `password_reset_tokens` | Recovery-token digest and lifecycle timestamps | No raw token; one-use, expiry and invalidation columns |
+| `work_locations` | User-owned named branches, optional address, allowance and archive state | Unique normalized name per user; active selector excludes archived rows |
 | `shifts` | Dated start/end/location work records | Overlap, duration, future-date, ownership and timezone rules |
-| `day_expenses` | Work/fuel value for a calendar day | Part of wage calculation; five-year pruning |
+| `day_expenses` | Work/fuel value for a calendar day | Automatic and manual cents are retained separately; part of wage calculation; five-year pruning |
 | `week_extras` | Additional weekly earnings and stable effective date | Re-keyed transactionally on week-boundary change |
 | `spending_categories` | Seeded and custom personal-spending categories | Per-user active-name uniqueness; archive preserves history |
 | `personal_expenses` | Optional personal spending | Integer cents, category ownership, retry idempotency and pagination |

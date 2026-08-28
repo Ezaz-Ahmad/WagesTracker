@@ -39,6 +39,9 @@ export interface ShiftRow {
   user_id: string;
   date: string;
   location: string;
+  work_location_id: string | null;
+  location_snapshot: string;
+  fuel_allowance_snapshot_cents: number | null;
   sign_in: string | null;
   sign_out: string | null;
   created_at: string;
@@ -49,6 +52,8 @@ export interface PublicShift {
   id: string;
   date: string;
   location: string;
+  workLocationId: string | null;
+  fuelAllowanceSnapshot: number | null;
   signIn: string | null;
   signOut: string | null;
 }
@@ -75,7 +80,11 @@ export function toPublicShift(row: ShiftRow): PublicShift {
   return {
     id: row.id,
     date: row.date,
-    location: row.location,
+    location: row.location_snapshot || row.location,
+    workLocationId: row.work_location_id,
+    fuelAllowanceSnapshot: row.fuel_allowance_snapshot_cents == null
+      ? null
+      : row.fuel_allowance_snapshot_cents / 100,
     signIn: row.sign_in,
     signOut: row.sign_out,
   };
@@ -86,6 +95,8 @@ export interface DayExpenseRow {
   user_id: string;
   date: string;
   fuel_cost: number;
+  automatic_fuel_cents: number;
+  manual_override_cents: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -93,12 +104,54 @@ export interface DayExpenseRow {
 export interface PublicDayExpense {
   date: string;
   fuelCost: number;
+  automaticFuelAllowance: number;
+  manualOverride: number | null;
+  source: "automatic" | "manual";
 }
 
 export function toPublicDayExpense(row: DayExpenseRow): PublicDayExpense {
   return {
     date: row.date,
     fuelCost: row.fuel_cost,
+    automaticFuelAllowance: Number(row.automatic_fuel_cents || 0) / 100,
+    manualOverride: row.manual_override_cents == null ? null : Number(row.manual_override_cents) / 100,
+    source: row.manual_override_cents == null ? "automatic" : "manual",
+  };
+}
+
+export interface WorkLocationRow {
+  id: string;
+  user_id: string;
+  name: string;
+  normalized_name: string;
+  address: string;
+  fuel_allowance_cents: number | null;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PublicWorkLocation {
+  id: string;
+  name: string;
+  address: string;
+  fuelAllowance: number | null;
+  archived: boolean;
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function toPublicWorkLocation(row: WorkLocationRow): PublicWorkLocation {
+  return {
+    id: row.id,
+    name: row.name,
+    address: row.address,
+    fuelAllowance: row.fuel_allowance_cents == null ? null : Number(row.fuel_allowance_cents) / 100,
+    archived: row.archived_at != null,
+    archivedAt: row.archived_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 

@@ -18,6 +18,7 @@ import {
 } from "../security/sessions.js";
 import { toPublicSession, toPublicUser, toPublicWeekExtra, type UserRow, type WeekExtraRow } from "../types.js";
 import { WEEK_DAYS, addIsoDays, startOfWeekISO, type WeekStart } from "../weekBoundary.js";
+import { hasAtMostTwoDecimals } from "../fuelAllowances.js";
 
 export const meRouter = Router();
 meRouter.use(requireAuth);
@@ -140,7 +141,12 @@ const patchSchema = z.object({
   multipleLocations: z.boolean().optional(),
   otherLocations: z.string().trim().max(300).optional(),
   weekStartsOn: z.enum(WEEK_DAYS).optional(),
-  rate: z.number().min(0).max(1000).optional(),
+  rate: z
+    .number()
+    .positive("Hourly rate must be greater than zero")
+    .max(1000, "Hourly rate cannot exceed 1000")
+    .refine(hasAtMostTwoDecimals, "Hourly rate can have at most two decimal places")
+    .optional(),
   goalHours: z.number().min(0).max(200).optional(),
   goalEarnings: z.number().min(0).max(100000).optional(),
 });
@@ -423,6 +429,7 @@ meRouter.delete(
         { sql: "DELETE FROM spending_categories WHERE user_id = ?", args: [req.userId!] },
         { sql: "DELETE FROM shifts WHERE user_id = ?", args: [req.userId!] },
         { sql: "DELETE FROM day_expenses WHERE user_id = ?", args: [req.userId!] },
+        { sql: "DELETE FROM work_locations WHERE user_id = ?", args: [req.userId!] },
         { sql: "DELETE FROM week_extras WHERE user_id = ?", args: [req.userId!] },
         { sql: "DELETE FROM password_reset_tokens WHERE user_id = ?", args: [req.userId!] },
         { sql: "DELETE FROM user_sessions WHERE user_id = ?", args: [req.userId!] },

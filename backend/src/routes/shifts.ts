@@ -4,8 +4,9 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { asyncHandler } from "../asyncHandler.js";
 import { db, pruneExpiredShifts } from "../db.js";
+import { recalculateDayFuelAllowance } from "../fuelAllowances.js";
 import { requireAuth, type AuthedRequest } from "../auth.js";
-import { toPublicShift, type ShiftRow } from "../types.js";
+import { toPublicShift, type ShiftRow, type WorkLocationRow } from "../types.js";
 import {
   FUTURE_DATE_MESSAGE,
   CLIENT_TIME_ZONE_HEADER,
@@ -103,6 +104,27 @@ function isUniqueConstraintError(e: unknown): boolean {
   return /unique constraint|sqlite_constraint|constraint failed/i.test(message);
 }
 
+async function findActiveWorkLocation(
+  userId: string,
+  workLocationId: string | null | undefined,
+  legacyName?: string
+): Promise<WorkLocationRow | null> {
+  if (workLocationId) {
+    const result = await db.execute({
+      sql: "SELECT * FROM work_locations WHERE id = ? AND user_id = ? AND archived_at IS NULL",
+      args: [workLocationId, userId],
+    });
+    return (result.rows[0] as unknown as WorkLocationRow | undefined) ?? null;
+  }
+  const normalized = legacyName?.trim().replace(/\s+/g, " ").toLocaleLowerCase("en-AU");
+  if (!normalized) return null;
+  const result = await db.execute({
+    sql: "SELECT * FROM work_locations WHERE user_id = ? AND normalized_name = ? AND archived_at IS NULL",
+    args: [userId, normalized],
+  });
+  return (result.rows[0] as unknown as WorkLocationRow | undefined) ?? null;
+}
+
 shiftsRouter.get(
   "/",
   asyncHandler<AuthedRequest>(async (req, res) => {
@@ -139,6 +161,7 @@ const createSchema = z
   .object({
     date: z.string().regex(DATE_RE, "date must be YYYY-MM-DD"),
     location: z.string().trim().max(200).optional().default(""),
+    workLocationId: z.string().uuid("Invalid work location").nullable().optional().default(null),
     signIn: z.string().regex(TIME_RE).nullable().optional().default(null),
     signOut: z.string().regex(TIME_RE).nullable().optional().default(null),
   })
@@ -160,7 +183,16 @@ shiftsRouter.post(
       res.status(400).json({ error: parsed.error.issues[0]?.message || "Invalid input" });
       return;
     }
-    const { date, location, signIn, signOut } = parsed.data;
+    const { date, location, workLocationId, signIn, signOut } = parsed.data;
+
+    const selectedLocation = await findActiveWorkLocation(req.userId!, workLocationId, location);
+    if (workLocationId && !selectedLocation) {
+      res.status(400).json({ error: "Select an active work location" });
+      return;
+    }
+    const locationSnapshot = selectedLocation?.name ?? location;
+    const selectedLocationId = selectedLocation?.id ?? null;
+    const allowanceSnapshotCents = selectedLocation?.fuel_allowance_cents ?? null;
 
     // Real-calendar-date, future-date and zero-duration checks. Applied
     // to every create, not just historical ones — see security/shiftRules.ts.
@@ -187,18 +219,38 @@ shiftsRouter.post(
 
     const id = randomUUID();
     const now = new Date().toISOString();
+    const transaction = await db.transaction("write");
     try {
-      await db.execute({
-        sql: `INSERT INTO shifts (id, user_id, date, location, sign_in, sign_out, created_at, updated_at)
-              VALUES (@id, @userId, @date, @location, @signIn, @signOut, @now, @now)`,
-        args: { id, userId: req.userId!, date, location, signIn, signOut, now },
+      await transaction.execute({
+        sql: `INSERT INTO shifts
+              (id, user_id, date, location, work_location_id, location_snapshot,
+               fuel_allowance_snapshot_cents, sign_in, sign_out, created_at, updated_at)
+              VALUES (@id, @userId, @date, @location, @workLocationId, @locationSnapshot,
+                      @allowanceSnapshotCents, @signIn, @signOut, @now, @now)`,
+        args: {
+          id,
+          userId: req.userId!,
+          date,
+          location: locationSnapshot,
+          workLocationId: selectedLocationId,
+          locationSnapshot,
+          allowanceSnapshotCents,
+          signIn,
+          signOut,
+          now,
+        },
       });
+      await recalculateDayFuelAllowance(transaction, req.userId!, date);
+      await transaction.commit();
     } catch (e) {
+      await transaction.rollback();
       if (isUniqueConstraintError(e)) {
         res.status(409).json({ error: OPEN_SHIFT_CONFLICT_MESSAGE });
         return;
       }
       throw e;
+    } finally {
+      transaction.close();
     }
 
     const result = await db.execute({ sql: "SELECT * FROM shifts WHERE id = ?", args: [id] });
@@ -209,6 +261,7 @@ shiftsRouter.post(
 
 const patchSchema = z.object({
   location: z.string().trim().max(200).optional(),
+  workLocationId: z.string().uuid("Invalid work location").nullable().optional(),
   signIn: z.string().regex(TIME_RE).nullable().optional(),
   signOut: z.string().regex(TIME_RE).nullable().optional(),
 });
@@ -296,19 +349,61 @@ shiftsRouter.patch(
       return;
     }
 
-    const columnFor: Record<string, string> = { location: "location", signIn: "sign_in", signOut: "sign_out" };
-    const setClauses = keys.map((k) => `${columnFor[k]} = @${k}`);
-    const params: Record<string, InValue> = { id: req.params.id, updatedAt: new Date().toISOString() };
-    for (const k of keys) params[k] = updates[k] as InValue;
+    const locationChanged = "workLocationId" in updates || "location" in updates;
+    let selectedLocation: WorkLocationRow | null = null;
+    if (locationChanged) {
+      selectedLocation = await findActiveWorkLocation(
+        req.userId!,
+        updates.workLocationId,
+        updates.location
+      );
+      if (updates.workLocationId && !selectedLocation) {
+        res.status(400).json({ error: "Select an active work location" });
+        return;
+      }
+    }
 
+    const setClauses: string[] = [];
+    const params: Record<string, InValue> = { id: req.params.id, updatedAt: new Date().toISOString() };
+    if ("signIn" in updates) {
+      setClauses.push("sign_in = @signIn");
+      params.signIn = updates.signIn as InValue;
+    }
+    if ("signOut" in updates) {
+      setClauses.push("sign_out = @signOut");
+      params.signOut = updates.signOut as InValue;
+    }
+    if (locationChanged) {
+      const locationSnapshot = selectedLocation?.name
+        ?? ("location" in updates ? updates.location ?? "" : "");
+      setClauses.push(
+        "location = @locationSnapshot",
+        "location_snapshot = @locationSnapshot",
+        "work_location_id = @workLocationId",
+        "fuel_allowance_snapshot_cents = @allowanceSnapshotCents"
+      );
+      params.locationSnapshot = locationSnapshot;
+      params.workLocationId = selectedLocation?.id ?? null;
+      params.allowanceSnapshotCents = selectedLocation?.fuel_allowance_cents ?? null;
+    }
+
+    const transaction = await db.transaction("write");
     try {
-      await db.execute({ sql: `UPDATE shifts SET ${setClauses.join(", ")}, updated_at = @updatedAt WHERE id = @id`, args: params });
+      await transaction.execute({
+        sql: `UPDATE shifts SET ${setClauses.join(", ")}, updated_at = @updatedAt WHERE id = @id`,
+        args: params,
+      });
+      await recalculateDayFuelAllowance(transaction, req.userId!, existing.date);
+      await transaction.commit();
     } catch (e) {
+      await transaction.rollback();
       if (isUniqueConstraintError(e)) {
         res.status(409).json({ error: OPEN_SHIFT_CONFLICT_MESSAGE });
         return;
       }
       throw e;
+    } finally {
+      transaction.close();
     }
     const result = await db.execute({ sql: "SELECT * FROM shifts WHERE id = ?", args: [req.params.id] });
     const row = result.rows[0] as unknown as ShiftRow;
@@ -319,13 +414,28 @@ shiftsRouter.patch(
 shiftsRouter.delete(
   "/:id",
   asyncHandler<AuthedRequest>(async (req, res) => {
-    const result = await db.execute({
-      sql: "DELETE FROM shifts WHERE id = ? AND user_id = ?",
+    const existing = await db.execute({
+      sql: "SELECT date FROM shifts WHERE id = ? AND user_id = ?",
       args: [req.params.id, req.userId!],
     });
-    if (result.rowsAffected === 0) {
+    if (existing.rows.length === 0) {
       res.status(404).json({ error: "Shift not found" });
       return;
+    }
+    const date = String(existing.rows[0].date);
+    const transaction = await db.transaction("write");
+    try {
+      await transaction.execute({
+        sql: "DELETE FROM shifts WHERE id = ? AND user_id = ?",
+        args: [req.params.id, req.userId!],
+      });
+      await recalculateDayFuelAllowance(transaction, req.userId!, date);
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    } finally {
+      transaction.close();
     }
     res.status(204).end();
   })

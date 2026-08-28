@@ -79,14 +79,14 @@ describe("generateReportPdf", () => {
     const pdf = await renderToBytes(data);
     // drawSectionLabel uppercases whatever string it's given.
     expect(pdf).toContain("HOURS & DAILY PAY");
-    expect(pdf).toContain("EARNINGS + FUEL");
+    expect(pdf).toContain("EARNINGS + ALLOWANCE");
   });
 
   it("includes the explanatory subtitle beneath the chart heading", async () => {
     const user = makeUser();
     const data = buildWeekReportData(user, [], new Date(2026, 7, 9), CURRENCY, [], []);
     const pdf = await renderToBytes(data);
-    expect(pdf).toContain("Daily total includes shift earnings plus any reimbursed fuel cost, where recorded.");
+    expect(pdf).toContain("Daily total includes shift earnings plus any recorded fuel allowance.");
   });
 
   it("shows only the shift-earnings amount on a day with no fuel logged", async () => {
@@ -103,7 +103,7 @@ describe("generateReportPdf", () => {
     expect(pdf).toContain("$200.00");
   });
 
-  it("counts fuel exactly once in the week's total — once in the stat card, once in the fuel breakdown, never a third time", async () => {
+  it("counts the allowance exactly once in the week's total — once in the stat card, once in the breakdown, never a third time", async () => {
     const user = makeUser({ rate: 20 });
     const today = new Date(2026, 7, 9);
     const shifts: Shift[] = [{ id: "1", date: "2026-08-03", location: "Store", signIn: "09:00", signOut: "13:00" }]; // 4h * $20 = $80
@@ -117,8 +117,8 @@ describe("generateReportPdf", () => {
 
     const pdf = await renderToBytes(data);
     // The fuel figure is legitimately *displayed* in three places — the
-    // "Fuel cost" stat card, the "Fuel cost by day" row, and the caption
-    // under the grand total ("Includes $37.13 fuel cost") — but the
+    // "Fuel allowance" stat card, the "Fuel allowance by day" row, and the caption
+    // under the grand total ("Includes $37.13 fuel allowance") — but the
     // *arithmetic* (asserted above) only ever adds it once. If fuel were
     // being double-counted in the total, or if the old chart-level fuel
     // annotation this redesign removed had crept back in, this count would
@@ -126,15 +126,31 @@ describe("generateReportPdf", () => {
     expect(countOccurrences(pdf, "$37.13")).toBe(3);
   });
 
-  it("keeps the dedicated 'Fuel cost by day' breakdown, with the correct day and amount", async () => {
+  it("keeps the dedicated 'Fuel allowance by day' breakdown, with the correct day and amount", async () => {
     const user = makeUser({ rate: 20 });
     const today = new Date(2026, 7, 9);
     const dayExpenses: DayExpense[] = [{ date: "2026-08-06", fuelCost: 18.5 }];
     const data = buildWeekReportData(user, [], today, CURRENCY, dayExpenses, []);
 
     const pdf = await renderToBytes(data);
-    expect(pdf).toContain("FUEL COST BY DAY");
+    expect(pdf).toContain("FUEL ALLOWANCE BY DAY");
     expect(pdf).toContain("$18.50");
+  });
+
+  it("labels automatic and manually overridden allowances in the PDF breakdown", async () => {
+    const user = makeUser();
+    const today = new Date(2026, 7, 9);
+    const shifts: Shift[] = [
+      { id: "a", date: "2026-08-03", location: "Store", signIn: "09:00", signOut: "10:00" },
+      { id: "b", date: "2026-08-04", location: "Store", signIn: "09:00", signOut: "10:00" },
+    ];
+    const dayExpenses: DayExpense[] = [
+      { date: "2026-08-03", fuelCost: 12.5, automaticFuelAllowance: 12.5, manualOverride: null, source: "automatic" },
+      { date: "2026-08-04", fuelCost: 30, automaticFuelAllowance: 12.5, manualOverride: 30, source: "manual" },
+    ];
+    const pdf = await renderToBytes(buildWeekReportData(user, shifts, today, CURRENCY, dayExpenses, []));
+    expect(pdf).toContain("AUTO");
+    expect(pdf).toContain("MIXED");
   });
 
   it("shows 'Developed by Ezaz Ahmad' in the footer (not the old 'Built by' wording)", async () => {

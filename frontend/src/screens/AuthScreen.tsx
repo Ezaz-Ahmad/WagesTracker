@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CURRENCY, useApp } from "../context/AppContext";
 import { getRememberedEmail, requestPasswordReset } from "../lib/api";
 import { FaceIdIcon, LockIcon, TouchIdIcon } from "../components/icons";
@@ -46,6 +46,7 @@ export function AuthScreen() {
   const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
+  const signupRateRef = useRef<HTMLInputElement>(null);
 
   // `biometricStatus.enabled` is a device-level fact, not an account-level
   // one — this plugin stores at most one credential at a time (see
@@ -70,6 +71,18 @@ export function AuthScreen() {
   // enforces it (see lib/passwordPolicy.ts). Not shown until something's been
   // typed, so the form doesn't open already covered in red.
   const signupPasswordCheck = password ? validatePassword(password) : null;
+  const parsedSignupRate = Number(rate);
+  const signupRateError = !rate.trim()
+    ? "Hourly rate is required."
+    : !Number.isFinite(parsedSignupRate)
+      ? "Enter a valid hourly rate."
+      : parsedSignupRate <= 0
+        ? "Hourly rate must be greater than zero."
+        : parsedSignupRate > 1000
+          ? "Hourly rate cannot exceed 1000."
+          : Math.abs(parsedSignupRate * 100 - Math.round(parsedSignupRate * 100)) > 1e-7
+            ? "Use no more than two decimal places."
+            : null;
 
   function switchMode(next: Mode) {
     clearAuthError();
@@ -102,10 +115,11 @@ export function AuthScreen() {
 
   function handleSignup(e: React.FormEvent) {
     e.preventDefault();
-    // Left blank, this falls back to the same default the app always used
-    // (18.50) — the field just gives everyone the chance to set their real
-    // rate up front instead of discovering it's wrong later in Settings.
-    const parsedRate = parseFloat(rate);
+    if (signupRateError) {
+      signupRateRef.current?.focus();
+      signupRateRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+      return;
+    }
     void signup({
       name,
       email,
@@ -115,7 +129,7 @@ export function AuthScreen() {
       workAddress,
       multipleLocations,
       otherLocations,
-      rate: Number.isFinite(parsedRate) && parsedRate >= 0 ? parsedRate : 18.5,
+      rate: parsedSignupRate,
     });
   }
 
@@ -381,16 +395,22 @@ export function AuthScreen() {
                   <label htmlFor="signup-rate">Hourly rate ({CURRENCY})</label>
                   <input
                     id="signup-rate"
+                    ref={signupRateRef}
                     className="input"
-                    type="number"
+                    type="text"
                     inputMode="decimal"
-                    step={0.25}
-                    min={0}
                     placeholder="e.g. 25.00"
                     value={rate}
                     onChange={(e) => setRate(e.target.value)}
-                    aria-describedby="signup-rate-hint"
+                    required
+                    onInvalid={() => {
+                      signupRateRef.current?.focus();
+                      signupRateRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+                    }}
+                    aria-invalid={signupRateError ? true : undefined}
+                    aria-describedby={signupRateError ? "signup-rate-error signup-rate-hint" : "signup-rate-hint"}
                   />
+                  {signupRateError && <div id="signup-rate-error" className="field-hint field-hint-danger">{signupRateError}</div>}
                   <div id="signup-rate-hint" className="field-hint">Used to calculate your earnings — you can change this any time in Settings.</div>
                 </div>
                 <div className="field field-spaced">
@@ -455,7 +475,7 @@ export function AuthScreen() {
                 <button
                   className="btn btn-primary btn-block"
                   type="submit"
-                  disabled={authBusy || (signupPasswordCheck ? !signupPasswordCheck.valid : false)}
+                  disabled={authBusy || !!signupRateError || (signupPasswordCheck ? !signupPasswordCheck.valid : false)}
                   style={{ justifyContent: "center" }}
                 >
                   {authBusy ? <BubbleLoader label="Creating your account" /> : "Create account"}

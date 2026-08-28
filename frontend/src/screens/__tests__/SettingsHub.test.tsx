@@ -10,7 +10,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { useApp } from "../../context/AppContext";
-import type { User } from "../../lib/types";
+import type { User, WorkLocation } from "../../lib/types";
 import { SettingsScreen } from "../SettingsScreen";
 
 type AppCtx = ReturnType<typeof useApp>;
@@ -34,6 +34,10 @@ const testUser: User = {
 // Configurable per test, read live by the fake context hook — same pattern
 // SettingsScreen.test.tsx already established.
 let updateSettingsImpl: (patch: unknown) => Promise<void>;
+let workLocationsImpl: WorkLocation[] = [];
+let createWorkLocationImpl: ReturnType<typeof vi.fn>;
+let updateWorkLocationImpl: ReturnType<typeof vi.fn>;
+let archiveWorkLocationImpl: ReturnType<typeof vi.fn>;
 
 function useFakeApp(): AppCtx {
   return {
@@ -47,6 +51,11 @@ function useFakeApp(): AppCtx {
     loadSessions: vi.fn().mockResolvedValue(undefined),
     revokeSession: vi.fn().mockResolvedValue(undefined),
     revokeOtherSessions: vi.fn().mockResolvedValue(undefined),
+    workLocations: workLocationsImpl,
+    workLocationsLoading: false,
+    createWorkLocation: createWorkLocationImpl,
+    updateWorkLocation: updateWorkLocationImpl,
+    archiveWorkLocation: archiveWorkLocationImpl,
   } as unknown as AppCtx;
 }
 
@@ -57,6 +66,10 @@ vi.mock("../../context/AppContext", async (importOriginal) => {
 
 beforeEach(() => {
   updateSettingsImpl = vi.fn().mockResolvedValue(undefined);
+  workLocationsImpl = [];
+  createWorkLocationImpl = vi.fn().mockResolvedValue(undefined);
+  updateWorkLocationImpl = vi.fn().mockResolvedValue(undefined);
+  archiveWorkLocationImpl = vi.fn().mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -190,5 +203,53 @@ describe("Settings hub — numeric validation", () => {
     await user.type(rateInput, "27.5");
 
     expect((screen.getByRole("button", { name: /save changes/i }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("requires an allowance amount when enabled and sends a normalized branch payload", async () => {
+    const user = userEvent.setup();
+    render(<SettingsScreen />);
+    await user.click(screen.getByRole("button", { name: /work & pay/i }));
+    await user.click(screen.getByRole("button", { name: /add location/i }));
+
+    const allowanceToggle = screen.getByRole("checkbox", { name: /receive a fuel allowance/i });
+    await user.click(allowanceToggle);
+    expect(screen.getByText("Enter the fuel allowance for this branch.")).toBeTruthy();
+    expect((screen.getByRole("button", { name: /save location/i }) as HTMLButtonElement).disabled).toBe(true);
+
+    await user.type(screen.getByLabelText("Location name"), "North branch");
+    await user.type(screen.getByLabelText(/Fuel allowance per worked day/), "15.25");
+    await user.click(screen.getByRole("button", { name: /save location/i }));
+    await waitFor(() => expect(createWorkLocationImpl).toHaveBeenCalledWith({
+      name: "North branch",
+      address: "",
+      fuelAllowance: 15.25,
+    }));
+  });
+
+  it("clears the allowance when an existing branch is switched to No", async () => {
+    workLocationsImpl = [{
+      id: "loc-1",
+      name: "Downtown",
+      address: "1 Main St",
+      fuelAllowance: 12.5,
+      archived: false,
+      archivedAt: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    }];
+    const user = userEvent.setup();
+    render(<SettingsScreen />);
+    await user.click(screen.getByRole("button", { name: /work & pay/i }));
+    await user.click(screen.getByRole("button", { name: /^edit$/i }));
+    const allowanceToggle = screen.getByRole("checkbox", { name: /receive a fuel allowance/i });
+    expect((allowanceToggle as HTMLInputElement).checked).toBe(true);
+    await user.click(allowanceToggle);
+    expect(screen.queryByLabelText(/Fuel allowance per worked day/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: /save location/i }));
+    await waitFor(() => expect(updateWorkLocationImpl).toHaveBeenCalledWith("loc-1", {
+      name: "Downtown",
+      address: "1 Main St",
+      fuelAllowance: null,
+    }));
   });
 });

@@ -4,7 +4,7 @@ import { ApiError } from "../lib/api";
 import { addDays, isoDate, startOfWeek } from "../lib/date";
 import { settleViewportBeforeAuth } from "../lib/viewportHeight";
 import type { SessionInfo } from "../lib/api";
-import type { DayExpense, Shift, User, WeekExtra } from "../lib/types";
+import type { DayExpense, Shift, User, WeekExtra, WorkLocation } from "../lib/types";
 import { getConnectivityStatus, subscribeConnectivity } from "../platform/connectivity";
 import { subscribeAppResume } from "../platform/appLifecycle";
 import { AutomaticRefreshGate } from "../platform/automaticRefresh";
@@ -194,6 +194,15 @@ interface AppContextValue {
   updateShift: (id: string, patch: Partial<api.ShiftInput>) => Promise<Shift | undefined>;
   removeShift: (id: string) => Promise<void>;
 
+  workLocations: WorkLocation[];
+  workLocationsLoading: boolean;
+  createWorkLocation: (input: api.WorkLocationInput) => Promise<WorkLocation>;
+  updateWorkLocation: (
+    id: string,
+    patch: Partial<api.WorkLocationInput> & { archived?: boolean }
+  ) => Promise<WorkLocation>;
+  archiveWorkLocation: (id: string) => Promise<void>;
+
   dayExpenses: DayExpense[];
   setFuelCost: (date: string, fuelCost: number | null) => Promise<void>;
   setFuelCostOrThrow: (date: string, fuelCost: number | null) => Promise<void>;
@@ -227,6 +236,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const connectedRef = useRef(true);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [dayExpenses, setDayExpenses] = useState<DayExpense[]>([]);
+  const [workLocations, setWorkLocations] = useState<WorkLocation[]>([]);
+  const [workLocationsLoading, setWorkLocationsLoading] = useState(false);
   const [weekExtras, setWeekExtras] = useState<WeekExtra[]>([]);
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
@@ -549,16 +560,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const cutoff = new Date(anchor.getFullYear() - RETENTION_YEARS, anchor.getMonth(), anchor.getDate());
       const weekEnd = addDays(startOfWeek(anchor, u.weekStartsOn), 6);
-      const [{ shifts }, { expenses }, { extras }] = await Promise.all([
+      setWorkLocationsLoading(true);
+      const [{ shifts }, { expenses }, { extras }, { locations }] = await Promise.all([
         api.listShifts(isoDate(cutoff), isoDate(weekEnd)),
         api.listDayExpenses(isoDate(cutoff), isoDate(weekEnd)),
         api.listWeekExtras(isoDate(cutoff), isoDate(weekEnd)),
+        // Kept non-fatal during rolling deployments: a freshly deployed
+        // frontend may briefly reach an older backend instance that does
+        // not have the new route yet. Core shift data must still load, and
+        // the next automatic refresh will populate locations once the
+        // backend rollout finishes.
+        api.listWorkLocations(true).catch(() => ({ locations: [] })),
       ]);
       setShifts(shifts);
       setDayExpenses(expenses);
       setWeekExtras(extras);
+      setWorkLocations(locations);
     } finally {
       setShiftsLoading(false);
+      setWorkLocationsLoading(false);
       setShiftsLoaded(true);
     }
   }, []);
@@ -673,6 +693,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setShifts([]);
     setDayExpenses([]);
+    setWorkLocations([]);
     setWeekExtras([]);
     setShiftsLoaded(false);
     setSessions([]);
@@ -817,6 +838,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setShifts([]);
     setDayExpenses([]);
+    setWorkLocations([]);
     setWeekExtras([]);
     setShiftsLoaded(false);
     setStatus("loggedOut");
@@ -960,15 +982,56 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [logout]
   );
 
+  const refreshFuelDate = useCallback(async (date: string): Promise<void> => {
+    const { expenses } = await api.listDayExpenses(date, date);
+    setDayExpenses((current) => [
+      ...current.filter((expense) => expense.date !== date),
+      ...expenses,
+    ]);
+  }, []);
+
+  const createWorkLocation = useCallback(
+    (input: api.WorkLocationInput) =>
+      rethrowingAction(async () => {
+        const { location } = await api.createWorkLocation(input);
+        setWorkLocations((current) => [...current, location]);
+        return location;
+      }),
+    [rethrowingAction]
+  );
+
+  const updateWorkLocation = useCallback(
+    (id: string, patch: Partial<api.WorkLocationInput> & { archived?: boolean }) =>
+      rethrowingAction(async () => {
+        const { location } = await api.patchWorkLocation(id, patch);
+        setWorkLocations((current) => current.map((item) => (item.id === id ? location : item)));
+        return location;
+      }),
+    [rethrowingAction]
+  );
+
+  const archiveWorkLocation = useCallback(
+    (id: string) =>
+      rethrowingAction(async () => {
+        await api.archiveWorkLocation(id);
+        const now = new Date().toISOString();
+        setWorkLocations((current) => current.map((item) => (
+          item.id === id ? { ...item, archived: true, archivedAt: now, updatedAt: now } : item
+        )));
+      }),
+    [rethrowingAction]
+  );
+
   const createShiftOrThrow = useCallback(
     (input: api.ShiftInput) =>
       rethrowingAction(async () => {
         const { shift } = await api.createShift(input);
         setShifts((prev) => [...prev, shift]);
+        await refreshFuelDate(shift.date).catch(() => {});
         invalidateSpendingSummaries();
         return shift;
       }),
-    [rethrowingAction]
+    [rethrowingAction, refreshFuelDate]
   );
 
   const updateShiftOrThrow = useCallback(
@@ -976,20 +1039,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
       rethrowingAction(async () => {
         const { shift } = await api.patchShift(id, patch);
         setShifts((prev) => prev.map((s) => (s.id === id ? shift : s)));
+        await refreshFuelDate(shift.date).catch(() => {});
         invalidateSpendingSummaries();
         return shift;
       }),
-    [rethrowingAction]
+    [rethrowingAction, refreshFuelDate]
   );
 
   const removeShiftOrThrow = useCallback(
     (id: string) =>
       rethrowingAction(async () => {
+        const date = shifts.find((shift) => shift.id === id)?.date;
         await api.deleteShift(id);
         setShifts((prev) => prev.filter((s) => s.id !== id));
+        if (date) await refreshFuelDate(date).catch(() => {});
         invalidateSpendingSummaries();
       }),
-    [rethrowingAction]
+    [rethrowingAction, shifts, refreshFuelDate]
   );
 
   const createShift = useCallback(
@@ -997,6 +1063,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         const { shift } = await api.createShift(input);
         setShifts((prev) => [...prev, shift]);
+        await refreshFuelDate(shift.date).catch(() => {});
         invalidateSpendingSummaries();
         return shift;
       } catch (e) {
@@ -1004,7 +1071,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return undefined;
       }
     },
-    [handleActionError]
+    [handleActionError, refreshFuelDate]
   );
 
   const updateShift = useCallback(
@@ -1012,6 +1079,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         const { shift } = await api.patchShift(id, patch);
         setShifts((prev) => prev.map((s) => (s.id === id ? shift : s)));
+        await refreshFuelDate(shift.date).catch(() => {});
         invalidateSpendingSummaries();
         return shift;
       } catch (e) {
@@ -1019,20 +1087,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return undefined;
       }
     },
-    [handleActionError]
+    [handleActionError, refreshFuelDate]
   );
 
   const removeShift = useCallback(
     async (id: string) => {
       try {
+        const date = shifts.find((shift) => shift.id === id)?.date;
         await api.deleteShift(id);
         setShifts((prev) => prev.filter((s) => s.id !== id));
+        if (date) await refreshFuelDate(date).catch(() => {});
         invalidateSpendingSummaries();
       } catch (e) {
         await handleActionError(e, "Couldn't remove shift");
       }
     },
-    [handleActionError]
+    [handleActionError, shifts, refreshFuelDate]
   );
 
   // Optimistic — the amount box is meant to feel instant like everything else on
@@ -1045,7 +1115,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return fuelCost && fuelCost > 0 ? [...rest, { date, fuelCost }] : rest;
       });
       try {
-        await api.setDayExpense(date, fuelCost);
+        const { expense } = await api.setDayExpense(date, fuelCost);
+        setDayExpenses((cur) => [
+          ...cur.filter((item) => item.date !== date),
+          ...(expense ? [expense] : []),
+        ]);
         invalidateSpendingSummaries();
       } catch (e) {
         setDayExpenses(prev);
@@ -1292,6 +1366,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       createShiftOrThrow,
       updateShiftOrThrow,
       removeShiftOrThrow,
+      workLocations,
+      workLocationsLoading,
+      createWorkLocation,
+      updateWorkLocation,
+      archiveWorkLocation,
       dayExpenses,
       setFuelCost,
       setFuelCostOrThrow,
@@ -1343,6 +1422,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       createShiftOrThrow,
       updateShiftOrThrow,
       removeShiftOrThrow,
+      workLocations,
+      workLocationsLoading,
+      createWorkLocation,
+      updateWorkLocation,
+      archiveWorkLocation,
       dayExpenses,
       setFuelCost,
       setFuelCostOrThrow,

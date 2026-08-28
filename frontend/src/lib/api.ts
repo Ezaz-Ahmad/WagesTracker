@@ -9,6 +9,7 @@ import type {
   SpendingIcon,
   SpendingSummary,
   User,
+  WorkLocation,
   WeekExtra,
   WeekStart,
 } from "./types";
@@ -414,7 +415,8 @@ export function listShifts(from: string, to: string): Promise<{ shifts: Shift[] 
 
 export interface ShiftInput {
   date: string;
-  location: string;
+  location?: string;
+  workLocationId?: string | null;
   signIn: string | null;
   signOut: string | null;
 }
@@ -437,6 +439,35 @@ export function deleteShift(id: string): Promise<void> {
 
 export function listDayExpenses(from: string, to: string): Promise<{ expenses: DayExpense[] }> {
   return request(`/day-expenses?from=${from}&to=${to}`);
+}
+
+export function listWorkLocations(includeArchived = false): Promise<{ locations: WorkLocation[] }> {
+  return request(`/work-locations${includeArchived ? "?includeArchived=true" : ""}`);
+}
+
+export function getWorkLocationSuggestions(weekStart: string): Promise<{ suggestions: Record<string, string[]> }> {
+  return request(`/work-locations/suggestions?weekStart=${encodeURIComponent(weekStart)}`);
+}
+
+export interface WorkLocationInput {
+  name: string;
+  address?: string;
+  fuelAllowance?: number | null;
+}
+
+export function createWorkLocation(input: WorkLocationInput): Promise<{ location: WorkLocation }> {
+  return request("/work-locations", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function patchWorkLocation(
+  id: string,
+  patch: Partial<WorkLocationInput> & { archived?: boolean }
+): Promise<{ location: WorkLocation }> {
+  return request(`/work-locations/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) });
+}
+
+export function archiveWorkLocation(id: string): Promise<void> {
+  return request(`/work-locations/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 /** Upserts (or clears, with `null`) the fuel cost for a single calendar day. */

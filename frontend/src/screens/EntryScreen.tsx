@@ -22,6 +22,7 @@ import { AmountWheelPicker } from "../components/AmountWheelPicker";
 import { EarningsHiddenHint } from "../components/EarningsHiddenHint";
 import { useConfirm } from "../components/ConfirmProvider";
 import { isUnusuallyLongShift, LONG_SHIFT_WARNING } from "../lib/shiftRules";
+import * as api from "../lib/api";
 
 type Row = ShiftComputed & { tempId?: string };
 
@@ -55,7 +56,7 @@ function LiveEntryWeekTotal(props: {
       {(props.weekFuelCost > 0 || props.otherAmount > 0) && (
         <div className="week-extras-breakdown">
           {props.weekFuelCost > 0 && (
-            <div className="week-extras-row"><span><FuelIcon size={12} /> Fuel cost</span><Amount>{CURRENCY}{fmt2(props.weekFuelCost)}</Amount></div>
+          <div className="week-extras-row"><span><FuelIcon size={12} /> Fuel allowance</span><Amount>{CURRENCY}{fmt2(props.weekFuelCost)}</Amount></div>
           )}
           {props.otherAmount > 0 && (
             <div className="week-extras-row">
@@ -79,19 +80,19 @@ export function EntryScreen() {
     createShift,
     updateShift,
     removeShift,
+    workLocations,
     dayExpenses,
     setFuelCost,
     weekExtras,
     setWeekExtra,
   } = useApp();
-  const { active, last, start, end } = useTodayShift();
+  const { active, last, startAtLocation, end } = useTodayShift();
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<Record<string, string[]>>({});
-  // Manual override for the fuel-cost checkbox, keyed by date. Undefined means
-  // "derive from whether that day already has a saved fuel cost" — this only
-  // holds state while the user has the box open but hasn't entered/blurred an
-  // amount yet, or has just unchecked it (before the save round-trips).
-  const [fuelOpen, setFuelOpen] = useState<Record<string, boolean>>({});
+  const [locationSuggestions, setLocationSuggestions] = useState<Record<string, string[]>>({});
+  const [draftLocations, setDraftLocations] = useState<Record<string, string>>({});
+  const [clockLocationId, setClockLocationId] = useState("");
+  const [clockLocationError, setClockLocationError] = useState<string | null>(null);
   // Which day's fuel-cost wheel picker is currently open, if any — the
   // picker itself is rendered once, driven by this, rather than one
   // instance per day.
@@ -122,6 +123,7 @@ export function EntryScreen() {
 
   const weekDays = buildWeekDays(today, weekStartsOn);
   const weekStartISO = isoDate(weekDays[0]);
+  const activeLocations = (workLocations ?? []).filter((location) => !location.archived);
   const shiftsByDate = groupByDate(shifts);
   const expensesByDate = groupExpensesByDate(dayExpenses);
   const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, CURRENCY, rate, expensesByDate);
@@ -151,6 +153,27 @@ export function EntryScreen() {
     if (otherOpen === undefined) setOtherAmountValue(otherAmount);
   }, [otherAmount, otherOpen]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void api.getWorkLocationSuggestions(weekStartISO)
+      .then(({ suggestions }) => { if (!cancelled) setLocationSuggestions(suggestions); })
+      .catch(() => { if (!cancelled) setLocationSuggestions({}); });
+    return () => { cancelled = true; };
+  }, [weekStartISO]);
+
+  useEffect(() => {
+    if (activeLocations.length === 1) {
+      setClockLocationId(activeLocations[0].id);
+      return;
+    }
+    const todaySuggestion = locationSuggestions[isoDate(today)]?.[0];
+    if (todaySuggestion && activeLocations.some((location) => location.id === todaySuggestion)) {
+      setClockLocationId(todaySuggestion);
+    } else if (clockLocationId && !activeLocations.some((location) => location.id === clockLocationId)) {
+      setClockLocationId("");
+    }
+  }, [workLocations, locationSuggestions, today, clockLocationId]);
+
   if (!user) return null;
   // Same reasoning as Home: don't render totals off the empty initial `shifts`
   // array, or they'll flicker from $0 to the real total the instant it loads.
@@ -173,6 +196,7 @@ export function EntryScreen() {
         id: null,
         shiftIndex: rows.length,
         location: "",
+        workLocationId: null,
         signIn: null,
         signOut: null,
         hours: 0,
@@ -181,7 +205,23 @@ export function EntryScreen() {
         tempId,
       });
     });
-    return rows;
+    return rows.map((row, index) => {
+      if (row.id) return row;
+      const key = locationDraftKey(day.dateISO, row, index);
+      const remembered = locationSuggestions[day.dateISO]?.[index];
+      const automatic = activeLocations.length === 1
+        ? activeLocations[0].id
+        : remembered && activeLocations.some((location) => location.id === remembered)
+          ? remembered
+          : "";
+      const workLocationId = draftLocations[key] ?? automatic;
+      const location = activeLocations.find((item) => item.id === workLocationId)?.name ?? "";
+      return { ...row, workLocationId: workLocationId || null, location };
+    });
+  }
+
+  function locationDraftKey(dateISO: string, row: Row, index: number): string {
+    return `${dateISO}:${row.tempId ?? row.id ?? `placeholder-${index}`}`;
   }
 
   function clearPending(dateISO: string, tempId?: string) {
@@ -189,25 +229,44 @@ export function EntryScreen() {
     setPending((prev) => ({ ...prev, [dateISO]: (prev[dateISO] ?? []).filter((id) => id !== tempId) }));
   }
 
-  async function handleFieldChange(day: DayComputed, row: Row, field: "location" | "signIn" | "signOut", value: string): Promise<boolean> {
-    const normalized = field === "location" ? value : value || null;
+  async function handleFieldChange(day: DayComputed, row: Row, field: "signIn" | "signOut", value: string): Promise<boolean> {
+    const normalized = value || null;
     const mergedSignIn = field === "signIn" ? value || null : row.signIn;
     const mergedSignOut = field === "signOut" ? value || null : row.signOut;
-    if (field !== "location" && isUnusuallyLongShift(mergedSignIn, mergedSignOut) && !(await confirm(LONG_SHIFT_WARNING))) {
+    if (isUnusuallyLongShift(mergedSignIn, mergedSignOut) && !(await confirm(LONG_SHIFT_WARNING))) {
       return false;
     }
     if (row.id) {
-      await updateShift(row.id, { [field]: normalized } as Partial<{ location: string; signIn: string | null; signOut: string | null }>);
+      await updateShift(row.id, { [field]: normalized });
       return true;
     }
+    if (!row.workLocationId) {
+      setClockLocationError(activeLocations.length === 0
+        ? "Add a work location in Settings before saving a shift."
+        : "Choose a work location before saving this shift.");
+      return false;
+    }
+    setClockLocationError(null);
     await createShift({
       date: day.dateISO,
-      location: field === "location" ? value : row.location,
+      workLocationId: row.workLocationId ?? null,
+      location: row.location,
       signIn: field === "signIn" ? value || null : row.signIn,
       signOut: field === "signOut" ? value || null : row.signOut,
     });
     clearPending(day.dateISO, row.tempId);
     return true;
+  }
+
+  async function handleLocationChange(day: DayComputed, row: Row, index: number, workLocationId: string) {
+    if (row.id) {
+      await updateShift(row.id, { workLocationId: workLocationId || null, location: "" });
+      return;
+    }
+    setDraftLocations((current) => ({
+      ...current,
+      [locationDraftKey(day.dateISO, row, index)]: workLocationId,
+    }));
   }
 
   function handleAddShift(dateISO: string) {
@@ -231,10 +290,20 @@ export function EntryScreen() {
   }
 
   async function handleShiftPress() {
+    if (!active && !clockLocationId) {
+      setClockLocationError(activeLocations.length === 0
+        ? "Add a work location in Settings before starting a shift."
+        : "Choose today's work location before starting your shift.");
+      setOpenDays((current) => ({ ...current, [isoDate(today)]: true }));
+      return;
+    }
     setBusy(true);
     try {
       if (active) await end();
-      else await start();
+      else {
+        setClockLocationError(null);
+        await startAtLocation(clockLocationId);
+      }
     } finally {
       setBusy(false);
     }
@@ -248,34 +317,13 @@ export function EntryScreen() {
     setOpenDays((prev) => ({ ...prev, [dateISO]: !current }));
   }
 
-  function isFuelChecked(day: DayComputed): boolean {
-    return fuelOpen[day.dateISO] ?? day.fuelCost > 0;
-  }
-
-  function handleFuelToggle(day: DayComputed, checked: boolean) {
-    setFuelOpen((prev) => ({ ...prev, [day.dateISO]: checked }));
-    if (!checked && day.fuelCost > 0) void setFuelCost(day.dateISO, null);
-    // Freshly checked with nothing set yet — jump straight into the picker,
-    // same continuity the old text input's autoFocus gave.
-    if (checked && day.fuelCost === 0) setFuelPickerDate(day.dateISO);
-  }
-
-  /** Called when the wheel picker's "Done" is pressed for a given day —
-   * replaces the old parse-on-blur handler now that the amount is chosen,
-   * not typed. */
   function handleFuelAmountPick(day: DayComputed, amount: number) {
     const rounded = Math.round(amount * 100) / 100;
     if (rounded <= 0) {
-      if (day.fuelCost > 0) void setFuelCost(day.dateISO, null);
-      setFuelOpen((prev) => ({ ...prev, [day.dateISO]: false }));
+      void setFuelCost(day.dateISO, null);
       return;
     }
     void setFuelCost(day.dateISO, rounded);
-    setFuelOpen((prev) => {
-      const next = { ...prev };
-      delete next[day.dateISO];
-      return next;
-    });
   }
 
   const otherChecked = otherOpen ?? otherAmount > 0;
@@ -331,6 +379,20 @@ export function EntryScreen() {
             )}
           </p>
           <ElapsedTimer active={active} signIn={last?.signIn ?? null} />
+          {!active && (
+            <div className="entry-clock-location">
+              <label htmlFor="entry-clock-location">Today's work location</label>
+              {activeLocations.length === 0 ? (
+                <div className="field-hint">No locations configured — add one in Settings → Work &amp; pay.</div>
+              ) : (
+                <select id="entry-clock-location" className="input" value={clockLocationId} onChange={(event) => { setClockLocationId(event.target.value); setClockLocationError(null); }}>
+                  {activeLocations.length > 1 && <option value="">Choose a location</option>}
+                  {activeLocations.map((location) => <option value={location.id} key={location.id}>{location.name}</option>)}
+                </select>
+              )}
+            </div>
+          )}
+          {clockLocationError && <div className="field-hint field-hint-danger" role="alert">{clockLocationError}</div>}
         </div>
         <ShiftButton active={active} onStart={handleShiftPress} onEnd={handleShiftPress} busy={busy} />
       </div>
@@ -346,6 +408,9 @@ export function EntryScreen() {
           new Set(day.shifts.map((s) => s.location.trim()).filter((loc) => loc.length > 0))
         );
         const summary = dayHasContent ? (locations.length ? locations.join(", ") : null) : "No entries";
+        const fuelExpense = dayExpenses.find((expense) => expense.date === day.dateISO);
+        const automaticFuel = fuelExpense?.automaticFuelAllowance ?? 0;
+        const hasManualFuel = fuelExpense?.source === "manual" || fuelExpense?.manualOverride != null;
         return (
         <div
           key={day.dateISO}
@@ -407,20 +472,25 @@ export function EntryScreen() {
 
           <div className="day-row-collapse" id={`day-panel-${day.dateISO}`} role="region" aria-label={`${day.dayAbbr} ${day.dateLabel} entries`}>
             <div className="day-row-body">
-              {rowsFor(day).map((row) => {
+              {rowsFor(day).map((row, rowIndex) => {
                 const rowKey = `${day.dateISO}-${row.id ?? row.tempId ?? "placeholder"}`;
                 return (
                 <div className="shift-row" key={rowKey}>
                   <div className="shift-field shift-field-location">
                     <label className="shift-field-label" htmlFor={`shift-location-${rowKey}`}>Location</label>
-                    <input
+                    <select
                       id={`shift-location-${rowKey}`}
                       className="input shift-location"
-                      type="text"
-                      placeholder="e.g. Downtown Store"
-                      defaultValue={row.location}
-                      onBlur={(e) => handleFieldChange(day, row, "location", e.target.value)}
-                    />
+                      value={row.workLocationId ?? ""}
+                      onChange={(event) => void handleLocationChange(day, row, rowIndex, event.target.value)}
+                      disabled={!row.id && activeLocations.length === 0}
+                    >
+                      <option value="">{row.location && !row.workLocationId ? row.location : activeLocations.length ? "Choose a location" : "No locations configured"}</option>
+                      {row.workLocationId && !activeLocations.some((location) => location.id === row.workLocationId) && (
+                        <option value={row.workLocationId}>{row.location} (archived)</option>
+                      )}
+                      {activeLocations.map((location) => <option value={location.id} key={location.id}>{location.name}</option>)}
+                    </select>
                   </div>
                   <div className="shift-field shift-field-time">
                     {/* A real label rendered by us, not the native placeholder — an
@@ -481,34 +551,29 @@ export function EntryScreen() {
               </button>
 
               <div className="fuel-row">
-                <label className="checkbox fuel-toggle">
-                  <input
-                    type="checkbox"
-                    checked={isFuelChecked(day)}
-                    onChange={(e) => handleFuelToggle(day, e.target.checked)}
-                  />
-                  <span className="box" />
+                <div className="fuel-toggle">
                   <FuelIcon size={14} />
-                  Fuel cost
-                </label>
-                {/* Always mounted — visibility is a CSS transition on the
-                    `is-open` class, not a conditional render, so unchecking
-                    "Fuel cost" fades/shrinks this away smoothly instead of it
-                    vanishing the instant React removes the node (the same
-                    instant-unmount gap fixed for the popups elsewhere, just
-                    not fixable with useDismissTransition here since this
-                    lives inside a day-by-day .map() — hooks can't be called
-                    per loop iteration). */}
+                  <span>Fuel allowance</span>
+                  {(automaticFuel > 0 || hasManualFuel) && (
+                    <span className={`fuel-source-badge${hasManualFuel ? " is-manual" : ""}`}>
+                      {hasManualFuel ? "Manual override" : "Automatic"}
+                    </span>
+                  )}
+                </div>
                 <button
                   type="button"
-                  className={`fuel-amount fuel-amount-btn fuel-amount-collapse${isFuelChecked(day) ? " is-open" : ""}`}
+                  className="fuel-amount fuel-amount-btn is-open"
                   onClick={() => setFuelPickerDate(day.dateISO)}
-                  tabIndex={isFuelChecked(day) ? 0 : -1}
-                  aria-hidden={!isFuelChecked(day)}
+                  aria-label={`${hasManualFuel ? "Edit manual" : "Set manual"} fuel allowance for ${day.dayAbbr}`}
                 >
                   <span className="fuel-amount-prefix">{CURRENCY}</span>
                   <span className="fuel-amount-value">{fmt2(day.fuelCost)}</span>
                 </button>
+                {hasManualFuel && (
+                  <button type="button" className="btn btn-ghost fuel-restore-btn" onClick={() => void setFuelCost(day.dateISO, null)}>
+                    Restore automatic{automaticFuel > 0 ? ` (${CURRENCY}${fmt2(automaticFuel)})` : ""}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -578,7 +643,7 @@ export function EntryScreen() {
           if (!day) return null;
           return (
             <AmountWheelPicker
-              title={`Fuel cost — ${day.dayAbbr} ${day.dateLabel}`}
+              title={`Fuel allowance — ${day.dayAbbr} ${day.dateLabel}`}
               currency={CURRENCY}
               initialAmount={day.fuelCost}
               onCancel={() => setFuelPickerDate(null)}

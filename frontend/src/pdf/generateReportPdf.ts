@@ -304,7 +304,7 @@ export async function createReportPdf(data: WeekReportData): Promise<GeneratedPd
   ]);
   y += cardH;
 
-  // Fuel cost is a week total, but "$42.50" alone doesn't say whether that
+  // Fuel allowance is a week total, but "$42.50" alone doesn't say whether that
   // was one big fill-up or several — the day count underneath makes it a
   // per-trip figure at a glance instead of a mystery lump sum.
   const fuelDayCount = data.days.filter((d) => d.fuelCost > 0).length;
@@ -312,7 +312,7 @@ export async function createReportPdf(data: WeekReportData): Promise<GeneratedPd
     ...(data.totalFuelCost > 0
       ? [
           {
-            label: "Fuel cost",
+            label: "Fuel allowance",
             value: data.totalFuelCostLabel,
             color: ACCENT_DARK,
             caption: `Over ${fuelDayCount} day${fuelDayCount === 1 ? "" : "s"}`,
@@ -344,12 +344,12 @@ export async function createReportPdf(data: WeekReportData): Promise<GeneratedPd
   // just because it's higher than hours × rate alone would suggest.
   ensureSpace(9 + 4 + 4 + 26 + 6 + 3.2 + 8);
   y += 9;
-  drawSectionLabel(doc, "Hours & daily pay — earnings + fuel", marginX, y);
+  drawSectionLabel(doc, "Hours & daily pay — earnings + allowance", marginX, y);
   y += 4;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.6);
   doc.setTextColor(MUTED);
-  doc.text("Daily total includes shift earnings plus any reimbursed fuel cost, where recorded.", marginX, y);
+  doc.text("Daily total includes shift earnings plus any recorded fuel allowance.", marginX, y);
   y += 4;
   const chartH = 26;
   doc.setFillColor(NEUTRAL_LIGHT);
@@ -459,7 +459,7 @@ export async function createReportPdf(data: WeekReportData): Promise<GeneratedPd
     y += 5.8;
   }
 
-  // — dedicated fuel cost section: a small day-by-day breakdown of fuel
+  // — dedicated fuel allowance section: a small day-by-day breakdown of fuel
   // reimbursements. This is now the *only* place fuel shows up per day (the
   // chart above used to also annotate it inline, which just meant the same
   // number appeared twice a few centimeters apart).
@@ -469,14 +469,15 @@ export async function createReportPdf(data: WeekReportData): Promise<GeneratedPd
     y += 5;
     drawDivider(doc, marginX, pageW - marginX, y);
     y += 8;
-    drawSectionLabel(doc, "Fuel cost by day", marginX, y);
+    drawSectionLabel(doc, "Fuel allowance by day", marginX, y);
     y += 5;
 
     const fuelCols = [
       { key: "day", label: "Day", w: 0.11 },
       { key: "date", label: "Date", w: 0.18 },
       { key: "location", label: "Location", w: 0.44 },
-      { key: "fuel", label: "Fuel cost", w: 0.27 },
+      { key: "fuel", label: "Allowance", w: 0.19 },
+      { key: "source", label: "Source", w: 0.08 },
     ] as const;
     const fuelColX: number[] = [];
     let fcx0 = marginX;
@@ -504,7 +505,7 @@ export async function createReportPdf(data: WeekReportData): Promise<GeneratedPd
         drawFooter();
         doc.addPage();
         y = 20;
-        drawSectionLabel(doc, "Fuel cost by day (continued)", marginX, y);
+        drawSectionLabel(doc, "Fuel allowance by day (continued)", marginX, y);
         y += 5;
         drawFuelColHeader();
         doc.setFont("helvetica", "normal");
@@ -521,6 +522,10 @@ export async function createReportPdf(data: WeekReportData): Promise<GeneratedPd
       doc.setFont("helvetica", "bold");
       doc.setTextColor(ACCENT_DARK);
       doc.text(d.fuelCostLabel, fuelColX[3], y);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(6.5);
+      doc.setTextColor(MUTED);
+      doc.text(d.fuelSource === "manual" ? "MANUAL" : d.fuelSource === "mixed" ? "MIXED" : d.fuelSource === "automatic" ? "AUTO" : "RECORDED", fuelColX[4], y);
       doc.setFont("helvetica", "normal");
       y += 5.8;
     });
@@ -604,7 +609,7 @@ export async function createReportPdf(data: WeekReportData): Promise<GeneratedPd
     doc.setFontSize(7.8);
     doc.setTextColor(MUTED);
     const parts = [
-      data.totalFuelCost > 0 ? `${data.totalFuelCostLabel} fuel cost` : null,
+      data.totalFuelCost > 0 ? `${data.totalFuelCostLabel} fuel allowance` : null,
       data.otherEarningAmount > 0 ? `${data.otherEarningAmountLabel} other earnings` : null,
     ].filter(Boolean);
     doc.text(`Includes ${parts.join(" + ")}`, pageW - marginX, y, { align: "right" });

@@ -32,14 +32,20 @@ export function HistoryScreen() {
   // separate History cache to invalidate — the recalculation happens because
   // there is only one source, not because something remembered to refresh.
   const handleSave = useCallback(
-    async (shiftId: string | null, values: { signIn: string; signOut: string; location: string; fuelCost: number | null; shiftChanged: boolean; fuelChanged: boolean }) => {
+    async (shiftId: string | null, values: { signIn: string; signOut: string; location: string; workLocationId: string | null; locationChanged: boolean; fuelCost: number | null; shiftChanged: boolean; fuelChanged: boolean }) => {
       if (!editing) return;
       // The throwing variants: the editor shows the failure next to the
       // values that caused it. The swallowing versions would route it to the
       // global banner behind the modal, where it would be invisible — the
       // same mistake the sessions drawer made before PR 3 fixed it.
       if (values.shiftChanged) {
-        const shiftValues = { signIn: values.signIn, signOut: values.signOut, location: values.location };
+        const shiftValues = {
+          signIn: values.signIn,
+          signOut: values.signOut,
+          ...(values.locationChanged || !shiftId
+            ? { location: values.location, workLocationId: values.workLocationId }
+            : {}),
+        };
         if (shiftId) await updateShiftOrThrow(shiftId, shiftValues);
         else await createShiftOrThrow({ date: editing.dateISO, ...shiftValues });
       }
