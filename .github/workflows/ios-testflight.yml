@@ -89,7 +89,7 @@ jobs:
       - name: Test Universal Link association generation
         run: npm run ios:aasa:test -w frontend
 
-      - name: Test distribution plist entitlement inspection
+      - name: Test distribution entitlement inspection
         run: npm run ios:distribution:test -w frontend
 
       - name: Verify Capacitor dependency alignment
