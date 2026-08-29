@@ -10,12 +10,16 @@ import {
   buildYearlyItems,
   groupByDate,
   groupExpensesByDate,
+  isDateInWeek,
   weekExtraFor,
   weekTotals,
 } from "../lib/aggregate";
 import { buildWeekDays, fmt2, isoDate } from "../lib/date";
 import { usePdfDownload } from "../lib/usePdfDownload";
 import { useCountUp } from "../lib/useCountUp";
+import { useLiveElapsedHours } from "../lib/useLiveElapsedHours";
+import { useTodayShift } from "../lib/useTodayShift";
+import { isDateInRange, withLiveInProgressPeriod } from "../lib/liveShiftVisuals";
 import { Skeleton } from "../components/Skeleton";
 import { GoalRing } from "../components/GoalRing";
 import { Amount } from "../components/Amount";
@@ -26,12 +30,14 @@ import { ChartDataTable } from "../components/ChartDataTable";
 import { StableLabel } from "../components/StableLabel";
 import { EmptyState } from "../components/EmptyState";
 import { ReportIcon } from "../components/icons";
+import { LiveDataBadge } from "../components/LiveDataBadge";
 
 type Metric = "earnings" | "hours";
 type Period = "week" | "month" | "year";
 
 export function ReportScreen() {
   const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras, earningsHidden } = useApp();
+  const { active, last } = useTodayShift();
   const [metric, setMetric] = useState<Metric>("earnings");
   const [period, setPeriod] = useState<Period>("week");
   const {
@@ -55,26 +61,45 @@ export function ReportScreen() {
   const shiftsByDate = groupByDate(shifts);
   const expensesByDate = groupExpensesByDate(dayExpenses);
   const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, CURRENCY, rate, expensesByDate);
-  const { hours: totalHours, earnings: weekEarnings } = weekTotals(days, rate);
-  const totalEarnings = weekEarnings + (weekExtraFor(weekStartISO, weekExtras)?.amount ?? 0);
+  const { hours: savedHours, earnings: weekEarnings } = weekTotals(days, rate);
+  const savedEarnings = weekEarnings + (weekExtraFor(weekStartISO, weekExtras)?.amount ?? 0);
+  const openLiveHours = useLiveElapsedHours(active, last?.signIn ?? null);
+  const activeShiftInThisWeek = !!last && isDateInWeek(last.date, weekDays);
+  const liveHours = activeShiftInThisWeek ? openLiveHours : 0;
+  const ticking = active && liveHours > 0;
+  const totalHours = savedHours + liveHours;
+  const totalEarnings = savedEarnings + liveHours * rate;
 
   const history = buildWeeklyHistory(shifts, today, weekStartsOn, rate, 7, new Date(createdAt), dayExpenses, weekExtras);
   const chartSource = buildChartSource(history, totalHours, totalEarnings);
   const chart = buildChart(chartSource, metric, CURRENCY);
 
-  const progressPct = goalHours > 0 ? Math.min(100, Math.round((totalHours / goalHours) * 100)) : 0;
-  const earningsProgressPct = goalEarnings > 0 ? Math.min(100, Math.round((totalEarnings / goalEarnings) * 100)) : 0;
+  const progressPct = goalHours > 0 ? Math.min(100, (totalHours / goalHours) * 100) : 0;
+  const earningsProgressPct = goalEarnings > 0 ? Math.min(100, (totalEarnings / goalEarnings) * 100) : 0;
+  const savedProgressPct = goalHours > 0 ? Math.min(100, (savedHours / goalHours) * 100) : 0;
+  const savedEarningsProgressPct = goalEarnings > 0 ? Math.min(100, (savedEarnings / goalEarnings) * 100) : 0;
   const metGoalCount = history.filter((w) => w.earnings >= goalEarnings).length;
   const metGoalAnim = Math.round(useCountUp(metGoalCount, 450));
-  const progressPctAnim = Math.round(useCountUp(progressPct, 550));
-  const earningsProgressPctAnim = Math.round(useCountUp(earningsProgressPct, 550));
+  const progressPctTween = useCountUp(ticking ? savedProgressPct : progressPct, 550);
+  const earningsProgressPctTween = useCountUp(ticking ? savedEarningsProgressPct : earningsProgressPct, 550);
+  const progressPctAnim = Math.round(ticking ? progressPct : progressPctTween);
+  const earningsProgressPctAnim = Math.round(ticking ? earningsProgressPct : earningsProgressPctTween);
 
-  const periodItems =
+  const settledPeriodItems =
     period === "month"
       ? buildMonthlyItems(shifts, today, rate, 6, dayExpenses, weekExtras)
       : period === "year"
         ? buildYearlyItems(shifts, today, rate, 2, dayExpenses, weekExtras)
         : chartSource;
+  const activePeriod = settledPeriodItems.find((item) => item.inProgress);
+  const periodLiveHours = period === "week"
+    ? 0
+    : activePeriod && isDateInRange(last?.date ?? null, activePeriod.startISO, activePeriod.endISO)
+      ? openLiveHours
+      : 0;
+  const periodItems = period === "week"
+    ? settledPeriodItems
+    : withLiveInProgressPeriod(settledPeriodItems, periodLiveHours, rate);
   const periodBars = buildBars(periodItems, metric, CURRENCY);
 
   if (!user) return null;
@@ -94,7 +119,8 @@ export function ReportScreen() {
   }
 
   const metricLabel = metric === "earnings" ? "earnings" : "hours";
-  const hasTrendData = history.some((week) => (metric === "earnings" ? week.earnings : week.hours) > 0);
+  const hasTrendData = history.some((week) => (metric === "earnings" ? week.earnings : week.hours) > 0)
+    || (ticking && (metric === "earnings" ? totalEarnings : totalHours) > 0);
   // The one-line name for the line chart. Deliberately describes the shape
   // and range rather than reciting every value — the full figures are in
   // the table beneath it, and an aria-label that reads out eight numbers is
@@ -158,17 +184,18 @@ export function ReportScreen() {
           doing this week" in one glance instead of making that the reward
           for reading a chart first. */}
       <div className="card elev-sm anim-rise report-hero-card" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 0 }}>
+        <div className="live-visual-status-row report-live-status"><span className="card-meta">Current week</span><LiveDataBadge active={ticking} label="Updating live" /></div>
         <div className="report-hero-row">
           <div>
             <div className="card-kicker">This week's earnings</div>
-            <div className="week-amount count-value">
+            <div className="week-amount count-value live-metric-value">
               <Amount>{CURRENCY}{fmt2(totalEarnings)}</Amount>
             </div>
           </div>
           <div className="report-hero-divider" aria-hidden="true" />
           <div>
             <div className="card-kicker">This week's hours</div>
-            <div className="week-amount count-value report-hero-hours">{fmt2(totalHours)}h</div>
+            <div className="week-amount count-value report-hero-hours live-metric-value">{fmt2(totalHours)}h</div>
           </div>
         </div>
         <EarningsHiddenHint />
@@ -176,7 +203,7 @@ export function ReportScreen() {
 
       <div className="card elev-sm anim-rise" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 1 }}>
         <div className="row-baseline">
-          <div className="card-kicker">Weekly trend</div>
+          <div className="chart-heading-kicker"><div className="card-kicker">Weekly trend</div><LiveDataBadge active={ticking} /></div>
           <fieldset className="fieldset-plain fieldset-inline">
             <legend className="visually-hidden">Weekly trend metric</legend>
             <div className="seg">
@@ -229,7 +256,7 @@ export function ReportScreen() {
             className="chart-line-draw"
           />
           {chart.points.map((p, i) => (
-            <g key={i} className="chart-point" style={{ ["--i" as string]: i }}>
+            <g key={i} className={`chart-point${p.inProgress && ticking ? " is-live" : ""}`} style={{ ["--i" as string]: i }}>
               <circle cx={p.x} cy={p.y} r="4.5" fill={p.dotColor} stroke={p.dotStroke} strokeWidth="2" />
               {/* SVG <text> can't hold the <Amount> span, so the same mask
                   class is applied directly here for the dim/opacity styling
@@ -285,15 +312,15 @@ export function ReportScreen() {
       </div>
 
       <div className="card elev-sm anim-rise" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 2 }}>
-        <div className="card-kicker">Goals this week</div>
+        <div className="chart-heading-kicker"><div className="card-kicker">Goals this week</div><LiveDataBadge active={ticking} /></div>
         <div className="ring-goal-row">
           <div className="ring-goal-col">
-            <GoalRing pct={progressPct} value={`${progressPctAnim}%`} size={88} strokeWidth={9} />
+            <GoalRing pct={progressPct} value={`${progressPctAnim}%`} size={88} strokeWidth={9} live={ticking} />
             <div className="ring-goal-label">Hours</div>
             <div className="card-meta">{fmt2(totalHours)}h of {user.goalHours}h</div>
           </div>
           <div className="ring-goal-col">
-            <GoalRing pct={earningsProgressPct} value={`${earningsProgressPctAnim}%`} size={88} strokeWidth={9} />
+            <GoalRing pct={earningsProgressPct} value={`${earningsProgressPctAnim}%`} size={88} strokeWidth={9} live={ticking} />
             <div className="ring-goal-label">Earnings</div>
             <div className="card-meta">
               <Amount>{CURRENCY}{fmt2(totalEarnings)} of {CURRENCY}{user.goalEarnings}</Amount>
@@ -310,7 +337,7 @@ export function ReportScreen() {
       </div>
 
       <div className="card elev-sm anim-rise" style={{ ["--i" as string]: 3 }}>
-        <h2 className="section-title" style={{ margin: 0 }}>Compare periods</h2>
+        <div className="chart-heading-kicker"><h2 className="section-title" style={{ margin: 0 }}>Compare periods</h2><LiveDataBadge active={(active && periodLiveHours > 0) || (period === "week" && ticking)} /></div>
         <div className="section-hint" style={{ marginBottom: "var(--space-3)" }}>
           Week over week, month over month, or year over year — showing {metricLabel} (change the view above to switch).
         </div>
@@ -334,7 +361,7 @@ export function ReportScreen() {
             replaced by the table. */}
         <div className="period-bars" aria-hidden="true">
           {periodBars.map((b, i) => (
-            <div className="period-bar-col" key={i} style={{ ["--i" as string]: i }}>
+            <div className={`period-bar-col${b.inProgress && (period === "week" ? ticking : periodLiveHours > 0) ? " is-live" : ""}`} key={i} style={{ ["--i" as string]: i }}>
               <div className="period-bar-label">{metric === "earnings" ? <Amount>{b.valueLabel}</Amount> : b.valueLabel}</div>
               <div className="period-bar-fill" style={{ height: b.barStyle, background: b.barColor }} />
               <div className="period-bar-label">{b.short}</div>

@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe, toHaveNoViolations } from "jest-axe";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConfirmProvider } from "../../components/ConfirmProvider";
-import type { PersonalExpense, SpendingCategory, SpendingSummary } from "../../lib/types";
+import type { PersonalExpense, Shift, SpendingCategory, SpendingSummary } from "../../lib/types";
 import { resetSpendingDataCacheForTests } from "../../lib/spendingDataCache";
+import { resetLiveClockForTests } from "../../lib/liveClock";
 import { SpendingScreen } from "../SpendingScreen";
 
 expect.extend(toHaveNoViolations);
@@ -23,6 +24,8 @@ const mocks = vi.hoisted(() => ({
   deleteExpense: vi.fn(),
   getSummary: vi.fn(),
 }));
+
+let appShifts: Shift[] = [];
 
 vi.mock("../../lib/api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/api")>("../../lib/api");
@@ -51,6 +54,10 @@ vi.mock("../../context/AppContext", async () => {
         workAddress: "", multipleLocations: false, otherLocations: "", weekStartsOn: "Monday",
         rate: 20, goalHours: 35, goalEarnings: 700, createdAt: "2026-01-01T00:00:00Z",
       },
+      shifts: appShifts,
+      shiftsLoaded: true,
+      createShift: vi.fn(),
+      updateShift: vi.fn(),
     }),
   };
 });
@@ -88,6 +95,8 @@ function renderScreen() {
 }
 
 beforeEach(() => {
+  appShifts = [];
+  resetLiveClockForTests();
   resetSpendingDataCacheForTests();
   vi.resetAllMocks();
   mocks.listCategories.mockResolvedValue({ categories });
@@ -101,7 +110,27 @@ beforeEach(() => {
   mocks.archiveCategory.mockResolvedValue(undefined);
 });
 
+afterEach(() => {
+  resetLiveClockForTests();
+  vi.useRealTimers();
+});
+
 describe("SpendingScreen", () => {
+  it("updates earnings-dependent cards and comparison bars during an active shift", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 20, 12, 0));
+    appShifts = [{ id: "open", date: "2026-08-20", location: "Store", signIn: "11:00:00", signOut: null }];
+    const view = renderScreen();
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+
+    expect(screen.getAllByText("$1020.00").length).toBeGreaterThan(0);
+    expect(document.querySelector(".comparison-bars > .is-live")).toBeTruthy();
+    expect(document.querySelectorAll(".live-data-badge.is-active").length).toBeGreaterThanOrEqual(2);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+    expect(screen.getAllByText("$1020.02").length).toBeGreaterThan(0);
+    view.unmount();
+  });
   it("uses a dashboard-shaped skeleton for the first load instead of a blank text loader", async () => {
     let resolveSummary!: (value: SpendingSummary) => void;
     mocks.getSummary.mockReturnValue(new Promise((resolve) => { resolveSummary = resolve; }));
