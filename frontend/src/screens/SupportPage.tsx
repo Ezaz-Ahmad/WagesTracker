@@ -1,4 +1,5 @@
 import { PublicPageShell } from "../components/PublicPageShell";
+import { ExternalAppLink, InternalAppLink } from "../components/AppLink";
 
 const REPOSITORY_URL = "https://github.com/Ezaz-Ahmad/WagesTracker";
 const ISSUE_URL = `${REPOSITORY_URL}/issues/new`;
@@ -20,12 +21,12 @@ export function SupportPage() {
           Include the device you use, the app version shown in Settings, what you expected, and what happened.
         </p>
         <div className="support-actions">
-          <a className="btn btn-primary" href={CONTACT_URL} target="_blank" rel="noopener noreferrer">
+          <ExternalAppLink className="btn btn-primary" href={CONTACT_URL} description="Private contact form">
             Open private contact form
-          </a>
-          <a className="btn btn-secondary" href={ISSUE_URL} target="_blank" rel="noopener noreferrer">
+          </ExternalAppLink>
+          <ExternalAppLink className="btn btn-secondary" href={ISSUE_URL} description="Public issue form">
             Report a non-sensitive bug
-          </a>
+          </ExternalAppLink>
         </div>
         <p className="public-page-fine-print">
           GitHub issues are public. Never include personal information, account details, wage or shift records,
@@ -74,14 +75,14 @@ export function SupportPage() {
           contact options above before publishing any details. Include safe reproduction steps, but do not access
           another person's data or include credentials, tokens, or other secrets.
         </p>
-        <p>For information about data handling, read the <a href="/privacy">Privacy Policy</a>.</p>
+        <p>For information about data handling, read the <InternalAppLink href="/privacy">Privacy Policy</InternalAppLink>.</p>
       </section>
 
       <section>
         <h2>Service status and updates</h2>
         <p>
           Release notes, known issues, and source-code updates are available in the public{" "}
-          <a href={REPOSITORY_URL} target="_blank" rel="noopener noreferrer">Wage Tracker repository</a>.
+          <ExternalAppLink href={REPOSITORY_URL} description="Wage Tracker repository">Wage Tracker repository</ExternalAppLink>.
         </p>
       </section>
     </PublicPageShell>

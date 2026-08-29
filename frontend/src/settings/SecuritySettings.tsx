@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useApp } from "../context/AppContext";
 import { PasswordInput } from "../components/PasswordInput";
 import { validatePassword } from "../lib/passwordPolicy";
-import { StableLabel } from "../components/StableLabel";
+import { AsyncButton } from "../components/AsyncButton";
 import { StatusBanner } from "../components/StatusBanner";
 import { SessionList } from "./SessionList";
 import { BiometricLoginSettings } from "./BiometricLoginSettings";
@@ -107,19 +107,19 @@ export function SecuritySettings() {
         {/* The trailing "✓" duplicated the banner's own icon; one tick is
             enough, and a screen reader announced the character too. */}
         {passwordFlash && <StatusBanner tone="success">Password changed</StatusBanner>}
-        <button
+        <AsyncButton
           className="btn btn-secondary btn-block"
           type="submit"
+          busy={changingPassword}
+          idleLabel="Change password"
+          busyLabel="Changing password…"
           disabled={
-            changingPassword ||
             !currentPassword ||
             !newPassword ||
             confirmMismatch ||
             (newPasswordCheck ? !newPasswordCheck.valid : false)
           }
-        >
-          <StableLabel current={changingPassword ? "Changing…" : "Change password"} longest="Change password" />
-        </button>
+        />
       </form>
 
       <div className="hr" />

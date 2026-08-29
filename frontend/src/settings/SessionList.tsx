@@ -7,6 +7,7 @@ import { Skeleton } from "../components/Skeleton";
 import { StableLabel } from "../components/StableLabel";
 import { StatusBanner } from "../components/StatusBanner";
 import { SessionCard } from "./SessionCard";
+import { AsyncButton } from "../components/AsyncButton";
 import { SessionsDrawer } from "./SessionsDrawer";
 
 /** How many devices the Settings panel shows before deferring to the drawer.
@@ -174,9 +175,7 @@ export function SessionList() {
       ) : sessionsError ? (
         <div className="session-list-state">
           <StatusBanner tone="danger">{sessionsError}</StatusBanner>
-          <button type="button" className="btn btn-secondary" onClick={handleRefresh} disabled={sessionsLoading}>
-            <StableLabel current={sessionsLoading ? "Retrying…" : "Try again"} longest="Retrying…" />
-          </button>
+          <AsyncButton type="button" className="btn btn-secondary" onClick={handleRefresh} busy={sessionsLoading} idleLabel="Try again" busyLabel="Retrying…" />
         </div>
       ) : ordered.length === 0 ? (
         // Reaching this means the request succeeded and came back empty,
@@ -188,9 +187,7 @@ export function SessionList() {
           <p className="section-hint session-list-empty-body">
             You're signed in right now, so at least this device should be listed. Refreshing usually sorts it out.
           </p>
-          <button type="button" className="btn btn-secondary" onClick={handleRefresh} disabled={sessionsLoading}>
-            <StableLabel current={sessionsLoading ? "Refreshing…" : "Refresh"} longest="Refreshing…" />
-          </button>
+          <AsyncButton type="button" className="btn btn-secondary" onClick={handleRefresh} busy={sessionsLoading} idleLabel="Refresh" busyLabel="Refreshing…" />
         </div>
       ) : (
         <>
@@ -221,19 +218,16 @@ export function SessionList() {
       )}
 
       {hasOthers && (
-        <button
+        <AsyncButton
           type="button"
           className="btn btn-danger btn-block"
           onClick={handleRevokeOthers}
-          disabled={revokingOthers}
+          busy={revokingOthers}
+          idleLabel="Log out all other devices"
+          busyLabel="Logging out other devices…"
           data-confirm="Log out all other devices? Only this device will stay signed in."
           data-confirm-tone="danger"
-        >
-          <StableLabel
-            current={revokingOthers ? "Logging out other devices…" : "Log out all other devices"}
-            longest="Logging out other devices…"
-          />
-        </button>
+        />
       )}
 
       {drawerOpen && (

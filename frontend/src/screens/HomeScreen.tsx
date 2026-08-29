@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { CURRENCY, useApp } from "../context/AppContext";
 import {
   buildWeekDaysComputed,
@@ -156,6 +156,7 @@ function WeekGlanceCard(props: {
   activeShiftDate: string | null;
   rate: number;
 }) {
+  const barRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const ticking = props.active && props.activeShiftInThisWeek;
   const liveHours = useLiveElapsedHours(ticking, props.signIn);
   const glanceDays = withLiveDay(props.days, props.activeShiftDate, liveHours, props.rate, CURRENCY).map((day) => ({
@@ -163,6 +164,30 @@ function WeekGlanceCard(props: {
     displayHours: day.hours,
   }));
   const maxGlanceHours = Math.max(...glanceDays.map((day) => day.displayHours), 1);
+  const initialDate = glanceDays.find((day) => day.isToday)?.dateISO ?? glanceDays[0]?.dateISO ?? "";
+  const [selectedDate, setSelectedDate] = useState(initialDate);
+
+  useEffect(() => {
+    if (!glanceDays.some((day) => day.dateISO === selectedDate)) setSelectedDate(initialDate);
+  }, [glanceDays, initialDate, selectedDate]);
+
+  const selectedDay = glanceDays.find((day) => day.dateISO === selectedDate) ?? glanceDays[0];
+  const selectedIndex = glanceDays.findIndex((day) => day.dateISO === selectedDay?.dateISO);
+  const recordedShifts = selectedDay?.shifts.filter((shift) => shift.signIn || shift.signOut || shift.location) ?? [];
+  const branches = [...new Set(recordedShifts.map((shift) => shift.location.trim()).filter(Boolean))];
+  const selectedIsActive = Boolean(ticking && selectedDay?.dateISO === props.activeShiftDate);
+
+  const selectByKeyboard = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    let nextIndex = index;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") nextIndex = Math.min(glanceDays.length - 1, index + 1);
+    else if (event.key === "ArrowLeft" || event.key === "ArrowUp") nextIndex = Math.max(0, index - 1);
+    else if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = glanceDays.length - 1;
+    else return;
+    event.preventDefault();
+    setSelectedDate(glanceDays[nextIndex].dateISO);
+    barRefs.current[nextIndex]?.focus();
+  };
 
   return (
     <div className="card elev-sm anim-rise glance-card" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 2 }}>
@@ -170,23 +195,50 @@ function WeekGlanceCard(props: {
         <span className="card-meta">Current week</span>
         <LiveDataBadge active={ticking} label="Updating live" />
       </div>
-      <div className="glance-bars" aria-hidden="true">
+      <div className="glance-bars" role="group" aria-label="Select a day to review this week's details">
         {glanceDays.map((day, index) => {
           const pct = Math.max(4, (day.displayHours / maxGlanceHours) * 100);
           const worked = day.displayHours > 0;
           return (
-            <div
+            <button
+              type="button"
               key={day.dateISO}
-              className={`glance-bar-col${day.isToday ? " is-today" : ""}${ticking && day.dateISO === props.activeShiftDate ? " is-live" : ""}`}
+              ref={(element) => { barRefs.current[index] = element; }}
+              className={`glance-bar-col${day.isToday ? " is-today" : ""}${ticking && day.dateISO === props.activeShiftDate ? " is-live" : ""}${selectedDate === day.dateISO ? " is-selected" : ""}`}
               style={{ ["--i" as string]: index }}
-              title={`${day.dayAbbr} ${day.dateLabel} — ${worked ? `${fmt2(day.displayHours)}h${props.earningsHidden ? "" : ` · ${day.moneyLabel}`}` : "No entry"}`}
+              aria-pressed={selectedDate === day.dateISO}
+              aria-controls="week-glance-day-details"
+              aria-label={`${day.dayAbbr} ${day.dateLabel}, ${worked ? `${fmt2(day.displayHours)} hours${props.earningsHidden ? "" : `, ${day.moneyLabel}`}` : "no entry"}${ticking && day.dateISO === props.activeShiftDate ? ", shift active" : ""}`}
+              onClick={() => setSelectedDate(day.dateISO)}
+              onKeyDown={(event) => selectByKeyboard(event, index)}
             >
-              <div className="glance-bar-track"><div className={`glance-bar-fill${worked ? " is-worked" : ""}`} style={{ height: `${pct.toFixed(4)}%` }} /></div>
-              <div className="glance-bar-label">{day.dayAbbr.charAt(0)}</div>
-            </div>
+              <span className="glance-bar-track" aria-hidden="true"><span className={`glance-bar-fill${worked ? " is-worked" : ""}`} style={{ height: `${pct.toFixed(4)}%` }} /></span>
+              <span className="glance-bar-label" aria-hidden="true">{day.dayAbbr.charAt(0)}</span>
+            </button>
           );
         })}
       </div>
+      {selectedDay && (
+        <section
+          key={selectedDay.dateISO}
+          id="week-glance-day-details"
+          className="glance-day-details"
+          aria-label={`Details for ${selectedDay.dayAbbr} ${selectedDay.dateLabel}`}
+          style={{ ["--selected-index" as string]: Math.max(0, selectedIndex) }}
+        >
+          <div className="glance-day-details-heading">
+            <div><strong>{selectedDay.dayAbbr}</strong><span>{selectedDay.dateLabel}</span></div>
+            {selectedIsActive && <span className="glance-active-shift"><span aria-hidden="true" />Shift active</span>}
+          </div>
+          <dl className="glance-day-detail-grid">
+            <div><dt>Hours</dt><dd className="live-number-slot">{selectedDay.displayHours > 0 ? `${fmt2(selectedDay.displayHours)}h` : "—"}</dd></div>
+            {!props.earningsHidden && <div><dt>Earnings</dt><dd className="live-number-slot">{selectedDay.moneyLabel}</dd></div>}
+            <div><dt>Shifts</dt><dd>{recordedShifts.length || "—"}</dd></div>
+            <div><dt>Fuel</dt><dd>{selectedDay.fuelCostLabel}</dd></div>
+          </dl>
+          <p className="glance-day-branches"><span>{branches.length === 1 ? "Branch" : "Branches"}</span>{branches.length ? branches.join(" · ") : "No branch recorded"}</p>
+        </section>
+      )}
       <ChartDataTable
         caption="Hours worked each day this week"
         labelHeading="Day"
@@ -234,7 +286,6 @@ function HomeSpendingSnapshotCard(props: {
       <div className="home-spending-heading">
         <div className="home-spending-title-row"><SpendingIcon size={18} /><div><span className="card-kicker">Monthly snapshot</span><h2 id="home-spending-title" className="card-title">Personal spending — {props.monthLabel}</h2></div></div>
         <div className="home-spending-heading-status">
-          <LiveDataBadge active={ticking} label="Earnings live" />
           {props.error && props.snapshot ? (
             <button type="button" className="home-spending-refresh-state is-warning" onClick={() => void props.refresh().catch(() => {})} title={props.error}>Retry refresh</button>
           ) : (
@@ -312,7 +363,7 @@ function LiveHomeStats(props: {
   return (
     <div className="stat-grid">
       <div className="card stat-tile stat-tile-ring anim-rise" style={{ ["--i" as string]: 3 }}>
-        <div className="stat-tile-kicker-row"><div className="card-kicker">Days logged</div><LiveDataBadge active={ticking} /></div>
+        <div className="card-kicker">Days logged</div>
         <div className="stat-tile-ring-row">
           <GoalRing pct={daysLoggedPct} value={`${daysLoggedAnim}/7`} live={ticking} />
           <div className="card-meta stat-tile-ring-caption">days worked</div>

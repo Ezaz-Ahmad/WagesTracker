@@ -1,5 +1,6 @@
 import { GithubIcon, GlobeIcon } from "./icons";
 import { APP_VERSION } from "../lib/appVersion";
+import { ExternalAppLink, InternalAppLink } from "./AppLink";
 
 /** The developer's own links, defined once. AppCredit (Settings) and this
  * footer both render them; two copies would eventually disagree about a URL. */
@@ -32,25 +33,18 @@ export function AuthFooter() {
     <footer className="auth-footer">
       <p className="auth-footer-name">Built by Ezaz Ahmad</p>
       <p className="auth-footer-links">
-        <a className="auth-footer-link" href="/privacy">Privacy</a>
-        <a className="auth-footer-link" href="/support">Support</a>
+        <InternalAppLink className="auth-footer-link" href="/privacy">Privacy</InternalAppLink>
+        <InternalAppLink className="auth-footer-link" href="/support">Support</InternalAppLink>
         {DEVELOPER_LINKS.map(({ href, label, Icon, description }) => (
-          <a
+          <ExternalAppLink
             key={href}
             className="auth-footer-link"
             href={href}
-            target="_blank"
-            // noreferrer as well as noopener: without it the destination
-            // gets this app's URL in the Referer header.
-            rel="noopener noreferrer"
-            // The visible text is one word. The accessible name says whose
-            // profile it is and that it leaves the app, which a link opening
-            // in a new tab has to announce.
-            aria-label={`${description} (opens in a new tab)`}
+            description={description}
           >
             <Icon size={13} />
             {label}
-          </a>
+          </ExternalAppLink>
         ))}
       </p>
       {/* The real build version, from package.json via vite's define (see

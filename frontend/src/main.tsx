@@ -2,8 +2,6 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { PrivacyPolicyPage } from "./screens/PrivacyPolicyPage";
-import { SupportPage } from "./screens/SupportPage";
 import { Capacitor } from "@capacitor/core";
 import { configureTokenStorage, initializeTokenStorage } from "./platform/tokenStorage";
 import { configurePdfDelivery } from "./platform/pdfDelivery";
@@ -62,8 +60,6 @@ async function route() {
     const { AdminApp } = await import("./admin/AdminApp");
     return <AdminApp />;
   }
-  if (path === "/privacy") return <PrivacyPolicyPage />;
-  if (path === "/support") return <SupportPage />;
   if (path === "/reset-password") {
     const { ResetPasswordPage } = await import("./screens/ResetPasswordPage");
     return <ResetPasswordPage />;

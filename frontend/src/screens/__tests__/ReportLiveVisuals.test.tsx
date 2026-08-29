@@ -54,7 +54,7 @@ describe("Report active-shift visuals", () => {
     expect(document.querySelector(".chart-point.is-live")).toBeTruthy();
     expect(document.querySelector(".period-bar-col.is-live")).toBeTruthy();
     expect(document.querySelectorAll(".goal-ring.is-live")).toHaveLength(2);
-    expect(document.querySelectorAll(".live-data-badge.is-active").length).toBeGreaterThanOrEqual(3);
+    expect(document.querySelectorAll(".live-data-badge.is-active")).toHaveLength(1);
 
     await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
 

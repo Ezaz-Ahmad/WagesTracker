@@ -6,6 +6,7 @@ const listeners = new Set<Listener>();
 let nowMs = Date.now();
 let interval: ReturnType<typeof setInterval> | null = null;
 let tickCount = 0;
+let visibilityListenerAttached = false;
 
 function publishTick(): void {
   nowMs = Date.now();
@@ -13,17 +14,42 @@ function publishTick(): void {
   for (const listener of listeners) listener();
 }
 
+function stopInterval(): void {
+  if (interval === null) return;
+  clearInterval(interval);
+  interval = null;
+}
+
+function startInterval(): void {
+  if (interval !== null || listeners.size === 0 || (typeof document !== "undefined" && document.hidden)) return;
+  nowMs = Date.now();
+  interval = setInterval(publishTick, 1000);
+}
+
+function handleVisibilityChange(): void {
+  if (document.hidden) {
+    stopInterval();
+    return;
+  }
+  publishTick();
+  startInterval();
+}
+
 function subscribe(listener: Listener): () => void {
   listeners.add(listener);
-  if (interval === null) {
-    nowMs = Date.now();
-    interval = setInterval(publishTick, 1000);
+  if (!visibilityListenerAttached && typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    visibilityListenerAttached = true;
   }
+  startInterval();
   return () => {
     listeners.delete(listener);
-    if (listeners.size === 0 && interval !== null) {
-      clearInterval(interval);
-      interval = null;
+    if (listeners.size === 0) {
+      stopInterval();
+      if (visibilityListenerAttached) {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+        visibilityListenerAttached = false;
+      }
     }
   };
 }
@@ -57,8 +83,11 @@ export function getLiveClockDiagnostics() {
 }
 
 export function resetLiveClockForTests(): void {
-  if (interval !== null) clearInterval(interval);
-  interval = null;
+  stopInterval();
+  if (visibilityListenerAttached && typeof document !== "undefined") {
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
+    visibilityListenerAttached = false;
+  }
   listeners.clear();
   nowMs = Date.now();
   tickCount = 0;

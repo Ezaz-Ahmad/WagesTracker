@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Overlay } from "../components/Overlay";
 import { PasswordInput } from "../components/PasswordInput";
-import { StableLabel } from "../components/StableLabel";
+import { AsyncButton } from "../components/AsyncButton";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { useDismissTransition } from "../lib/useDismissTransition";
 
@@ -87,9 +87,7 @@ export function DeleteAccountDialog({ onClose, onDelete }: DeleteAccountDialogPr
             <button type="button" className="btn btn-secondary" onClick={close} disabled={deleting}>
               Cancel
             </button>
-            <button type="button" className="btn btn-danger btn-destructive-final" onClick={handleDelete} disabled={deleting || !password}>
-              <StableLabel current={deleting ? "Deleting…" : "Yes, permanently delete my account"} longest="Yes, permanently delete my account" />
-            </button>
+            <AsyncButton type="button" className="btn btn-danger btn-destructive-final" onClick={handleDelete} disabled={!password} busy={deleting} idleLabel="Yes, permanently delete my account" busyLabel="Deleting account…" />
           </div>
         </div>
       </div>

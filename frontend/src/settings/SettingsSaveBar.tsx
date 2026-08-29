@@ -1,5 +1,5 @@
 import { AlertTriangleIcon, CheckCircleIcon } from "../components/icons";
-import { StableLabel } from "../components/StableLabel";
+import { AsyncButton } from "../components/AsyncButton";
 
 interface SettingsSaveBarProps {
   saving: boolean;
@@ -36,9 +36,7 @@ export function SettingsSaveBar({ saving, dirty, success, error, onSave, disable
           <span>Saved</span>
         </div>
       )}
-      <button type="button" className="btn btn-primary" onClick={onSave} disabled={saving || !dirty || disabled}>
-        <StableLabel current={saving ? "Saving…" : label} longest={label.length >= "Saving…".length ? label : "Saving…"} />
-      </button>
+      <AsyncButton type="button" className="btn btn-primary" onClick={onSave} disabled={!dirty || disabled} busy={saving} idleLabel={label} busyLabel="Saving…" />
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { useApp } from "../context/AppContext";
 import { StatusBanner } from "../components/StatusBanner";
-import { StableLabel } from "../components/StableLabel";
+import { AsyncButton } from "../components/AsyncButton";
 import { FaceIdIcon, TouchIdIcon } from "../components/icons";
 import type { BiometryKind } from "../platform/biometricAuth";
 
@@ -127,19 +127,16 @@ export function BiometricLoginSettings() {
           {feedback.message}
         </StatusBanner>
       )}
-      <button
+      <AsyncButton
         type="button"
         className="btn btn-secondary btn-block biometric-toggle-btn"
         onClick={() => void handleToggle()}
-        disabled={biometricBusy}
+        busy={biometricBusy}
+        idleLabel={enabledForMe ? `Turn off ${name}` : `Use ${name}`}
+        busyLabel="Confirming…"
+        icon={<Icon size={18} />}
         aria-pressed={enabledForMe}
-      >
-        <Icon size={18} />
-        <StableLabel
-          current={biometricBusy ? "Confirming…" : enabledForMe ? `Turn off ${name}` : `Use ${name}`}
-          longest={`Turn off Face ID or Touch ID`}
-        />
-      </button>
+      />
     </div>
   );
 }

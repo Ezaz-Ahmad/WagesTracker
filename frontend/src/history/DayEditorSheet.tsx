@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Overlay } from "../components/Overlay";
-import { StableLabel } from "../components/StableLabel";
+import { AsyncButton } from "../components/AsyncButton";
 import { StatusBanner } from "../components/StatusBanner";
 import { CloseIcon } from "../components/icons";
 import { useDismissTransition } from "../lib/useDismissTransition";
@@ -380,24 +380,23 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
               <button type="button" className="btn btn-secondary" onClick={attemptClose} disabled={busy}>
                 Cancel
               </button>
-              <button type="button" className="btn btn-primary" onClick={handleSave} disabled={!canSave}>
-                <StableLabel current={saving ? "Saving…" : "Save"} longest="Saving…" />
-              </button>
+              <AsyncButton type="button" className="btn btn-primary" onClick={handleSave} disabled={!canSave && !saving} busy={saving} idleLabel="Save" busyLabel="Saving…" />
             </div>
             {selectedId && (
               // Separated from Save/Cancel by a rule, and never adjacent to
               // the primary action — removing a day's record is not a
               // variation on saving it.
-              <button
+              <AsyncButton
                 type="button"
                 className="btn btn-danger day-editor-delete"
                 onClick={handleDelete}
-                disabled={busy}
+                disabled={busy && !deleting}
+                busy={deleting}
+                idleLabel="Remove this entry"
+                busyLabel="Removing…"
                 data-confirm="Remove this entry? The hours will be taken off this week's totals."
                 data-confirm-tone="danger"
-              >
-                <StableLabel current={deleting ? "Removing…" : "Remove this entry"} longest="Remove this entry" />
-              </button>
+              />
             )}
           </div>
         </div>

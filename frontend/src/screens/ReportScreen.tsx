@@ -184,7 +184,7 @@ export function ReportScreen() {
           doing this week" in one glance instead of making that the reward
           for reading a chart first. */}
       <div className="card elev-sm anim-rise report-hero-card" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 0 }}>
-        <div className="live-visual-status-row report-live-status"><span className="card-meta">Current week</span><LiveDataBadge active={ticking} label="Updating live" /></div>
+        <div className="live-visual-status-row report-live-status"><span className="card-meta">Current week</span></div>
         <div className="report-hero-row">
           <div>
             <div className="card-kicker">This week's earnings</div>
@@ -312,7 +312,7 @@ export function ReportScreen() {
       </div>
 
       <div className="card elev-sm anim-rise" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 2 }}>
-        <div className="chart-heading-kicker"><div className="card-kicker">Goals this week</div><LiveDataBadge active={ticking} /></div>
+          <div className="card-kicker">Goals this week</div>
         <div className="ring-goal-row">
           <div className="ring-goal-col">
             <GoalRing pct={progressPct} value={`${progressPctAnim}%`} size={88} strokeWidth={9} live={ticking} />
@@ -337,7 +337,7 @@ export function ReportScreen() {
       </div>
 
       <div className="card elev-sm anim-rise" style={{ ["--i" as string]: 3 }}>
-        <div className="chart-heading-kicker"><h2 className="section-title" style={{ margin: 0 }}>Compare periods</h2><LiveDataBadge active={(active && periodLiveHours > 0) || (period === "week" && ticking)} /></div>
+        <h2 className="section-title" style={{ margin: 0 }}>Compare periods</h2>
         <div className="section-hint" style={{ marginBottom: "var(--space-3)" }}>
           Week over week, month over month, or year over year — showing {metricLabel} (change the view above to switch).
         </div>

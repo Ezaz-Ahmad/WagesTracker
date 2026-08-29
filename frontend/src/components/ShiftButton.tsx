@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useShiftTimer } from "../lib/useShiftTimer";
 import { CheckIcon } from "./icons";
+import { BubbleLoader } from "./BubbleLoader";
 
 // A flat inline fill read as plain next to the rest of the redesigned UI —
 // these match the same 3-stop gradient recipe `.btn-primary` uses (light
@@ -41,13 +42,15 @@ export function ShiftButton({
       type="button"
       className={`btn cta-circle${active ? " is-active" : ""}${justConfirmed ? " is-confirmed" : ""}`}
       disabled={busy}
+      aria-busy={busy || undefined}
+      aria-label={busy ? (active ? "Signing out…" : "Signing in…") : undefined}
       onClick={active ? onEnd : onStart}
       style={{ background: active ? ACTIVE_COLOR : INACTIVE_COLOR }}
     >
       <span className="cta-circle-check" aria-hidden="true">
         <CheckIcon size={28} />
       </span>
-      <span className="cta-circle-label">{active ? "Sign out" : "Sign in"}</span>
+      <span className="cta-circle-label">{busy ? <BubbleLoader label={active ? "Signing out" : "Signing in"} /> : active ? "Sign out" : "Sign in"}</span>
     </button>
   );
 }

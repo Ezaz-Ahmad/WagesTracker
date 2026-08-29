@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { AlertTriangleIcon, CheckIcon } from "./icons";
 import { Logo } from "./Logo";
-import { StableLabel } from "./StableLabel";
+import { AsyncButton } from "./AsyncButton";
 import { useHealthWakeup, type HealthWakeupPhase } from "../lib/useHealthWakeup";
 import { useMatchMedia } from "../lib/useMatchMedia";
 
@@ -214,10 +214,15 @@ export function WakingUpScreen() {
 
         <div className="wakeup-action-slot">
           {showRetry ? (
-            <button ref={retryBtnRef} type="button" className="btn btn-primary wakeup-retry-btn" onClick={retry} disabled={retryBusy}>
-              {retryBusy && <span className="wakeup-spinner" aria-hidden="true" />}
-              <StableLabel current={retryBusy ? "Retrying…" : "Retry"} longest="Retrying…" />
-            </button>
+            <AsyncButton
+              ref={retryBtnRef}
+              type="button"
+              className="btn btn-primary wakeup-retry-btn"
+              onClick={retry}
+              busy={retryBusy}
+              idleLabel="Retry"
+              busyLabel="Retrying…"
+            />
           ) : (
             <span className="wakeup-action-note" aria-hidden="true">
               {phase === "connected" ? "Finishing up…" : "Preparing automatically — no action needed"}

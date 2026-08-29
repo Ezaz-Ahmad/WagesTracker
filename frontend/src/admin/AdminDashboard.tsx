@@ -5,6 +5,7 @@ import { Logo } from "../components/Logo";
 import { Overlay } from "../components/Overlay";
 import { useDismissTransition } from "../lib/useDismissTransition";
 import { useFocusTrap } from "../lib/useFocusTrap";
+import { AsyncButton } from "../components/AsyncButton";
 
 const CURRENCY = "$";
 
@@ -209,9 +210,7 @@ export function AdminDashboard({
                     <td>{u.shiftCount}</td>
                     <td>{fmtDate(u.createdAt)}</td>
                     <td className="admin-row-actions">
-                      <button className="btn btn-ghost" onClick={() => handleView(u)} disabled={detailLoadingId === u.id}>
-                        {detailLoadingId === u.id ? "Loading…" : "View"}
-                      </button>
+                      <AsyncButton className="btn btn-ghost" onClick={() => handleView(u)} busy={detailLoadingId === u.id} idleLabel="View" busyLabel="Loading…" />
                       <button className="btn btn-danger" onClick={() => openDeleteDialog(u)}>
                         Delete
                       </button>
@@ -319,13 +318,14 @@ export function AdminDashboard({
               <button className="btn btn-secondary" onClick={closeDeleteDialog} disabled={deleting}>
                 Cancel
               </button>
-              <button
+              <AsyncButton
                 className="btn btn-danger"
                 onClick={handleDelete}
-                disabled={deleting || deleteConfirmText.trim().toLowerCase() !== deleteTarget.email.toLowerCase()}
-              >
-                {deleting ? "Deleting…" : "Delete user"}
-              </button>
+                busy={deleting}
+                idleLabel="Delete user"
+                busyLabel="Deleting…"
+                disabled={deleteConfirmText.trim().toLowerCase() !== deleteTarget.email.toLowerCase()}
+              />
             </div>
           </div>
         </div>

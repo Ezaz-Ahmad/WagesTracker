@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useState, type FormEvent } from "react";
 import { BubbleLoader } from "../components/BubbleLoader";
+import { AsyncButton } from "../components/AsyncButton";
 import { PasswordInput } from "../components/PasswordInput";
 import { PublicPageShell } from "../components/PublicPageShell";
 import { StatusBanner } from "../components/StatusBanner";
@@ -91,6 +92,7 @@ export function ResetPasswordPage({ token: providedToken }: { token?: string } =
 
   return (
     <PublicPageShell
+      standalone
       eyebrow="Account recovery"
       title="Reset your password"
       summary="Choose a new password for your Wage Tracker account. Your shifts, spending, and reports remain unchanged."
@@ -157,14 +159,15 @@ export function ResetPasswordPage({ token: providedToken }: { token?: string } =
             {mismatch && <div id="reset-confirmation-hint" className="field-hint field-hint-danger">Passwords don't match</div>}
           </div>
 
-          <button
+          <AsyncButton
             className="btn btn-primary btn-block"
             type="submit"
             style={{ justifyContent: "center" }}
-            disabled={submitting || !password || mismatch || (passwordCheck ? !passwordCheck.valid : false)}
-          >
-            {submitting ? <BubbleLoader label="Saving your new password" /> : "Set new password"}
-          </button>
+            busy={submitting}
+            idleLabel="Set new password"
+            busyLabel="Saving new password…"
+            disabled={!password || mismatch || (passwordCheck ? !passwordCheck.valid : false)}
+          />
           <p className="public-page-note">For your security, resetting the password signs out every active device.</p>
         </form>
       )}

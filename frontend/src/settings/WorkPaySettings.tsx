@@ -3,6 +3,7 @@ import { CURRENCY, useApp } from "../context/AppContext";
 import { parseNumberField } from "../lib/numberField";
 import type { WorkLocation } from "../lib/types";
 import { SettingsSaveBar } from "./SettingsSaveBar";
+import { AsyncButton } from "../components/AsyncButton";
 
 interface LocationDraft {
   id: string | null;
@@ -42,6 +43,7 @@ export function WorkPaySettings() {
   const [rateSuccess, setRateSuccess] = useState(false);
   const [draft, setDraft] = useState<LocationDraft | null>(null);
   const [locationBusy, setLocationBusy] = useState(false);
+  const [locationBusyTarget, setLocationBusyTarget] = useState<string | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
 
@@ -77,6 +79,7 @@ export function WorkPaySettings() {
   async function saveLocation() {
     if (!draft || !locationValid) return;
     setLocationBusy(true);
+    setLocationBusyTarget(draft.id ? `save:${draft.id}` : "save:new");
     setLocationError(null);
     setLocationMessage(null);
     const fuelAllowance = draft.fuelEnabled ? Number(draft.fuelAllowanceRaw) : null;
@@ -93,12 +96,14 @@ export function WorkPaySettings() {
       setLocationError(error instanceof Error ? error.message : "Couldn't save the work location.");
     } finally {
       setLocationBusy(false);
+      setLocationBusyTarget(null);
     }
   }
 
   async function confirmArchive(location: WorkLocation) {
     if (!window.confirm(`Archive ${location.name}? Existing shifts and reports will keep their historical name and allowance.`)) return;
     setLocationBusy(true);
+    setLocationBusyTarget(`archive:${location.id}`);
     setLocationError(null);
     try {
       await archiveWorkLocation(location.id);
@@ -108,11 +113,13 @@ export function WorkPaySettings() {
       setLocationError(error instanceof Error ? error.message : "Couldn't archive the work location.");
     } finally {
       setLocationBusy(false);
+      setLocationBusyTarget(null);
     }
   }
 
   async function restoreLocation(location: WorkLocation) {
     setLocationBusy(true);
+    setLocationBusyTarget(`restore:${location.id}`);
     setLocationError(null);
     try {
       await updateWorkLocation(location.id, { archived: false });
@@ -121,6 +128,7 @@ export function WorkPaySettings() {
       setLocationError(error instanceof Error ? error.message : "Couldn't restore the work location.");
     } finally {
       setLocationBusy(false);
+      setLocationBusyTarget(null);
     }
   }
 
@@ -168,7 +176,7 @@ export function WorkPaySettings() {
                 </div>
                 <div className="work-location-actions">
                   <button type="button" className="btn btn-secondary" onClick={() => startEditing(location)} disabled={locationBusy}>Edit</button>
-                  <button type="button" className="btn btn-danger" onClick={() => void confirmArchive(location)} disabled={locationBusy}>Archive</button>
+                  <AsyncButton type="button" className="btn btn-danger" onClick={() => void confirmArchive(location)} disabled={locationBusy && locationBusyTarget !== `archive:${location.id}`} busy={locationBusyTarget === `archive:${location.id}`} idleLabel="Archive" busyLabel="Archiving…" />
                 </div>
               </article>
             ))}
@@ -207,7 +215,7 @@ export function WorkPaySettings() {
               </> : <div className="field-hint">No fuel allowance will be added for this branch. You can enable it later.</div>}
             </div>
             <div className="work-location-actions">
-              <button type="button" className="btn btn-primary" onClick={() => void saveLocation()} disabled={!locationValid || locationBusy}>{locationBusy ? "Saving…" : "Save location"}</button>
+              <AsyncButton type="button" className="btn btn-primary" onClick={() => void saveLocation()} disabled={!locationValid || (locationBusy && !locationBusyTarget?.startsWith("save:"))} busy={Boolean(locationBusyTarget?.startsWith("save:"))} idleLabel="Save location" busyLabel="Saving…" />
               <button type="button" className="btn btn-secondary" onClick={() => setDraft(null)} disabled={locationBusy}>Cancel</button>
             </div>
           </div>
@@ -220,7 +228,7 @@ export function WorkPaySettings() {
               {archivedLocations.map((location) => (
                 <article className="work-location-card is-archived" key={location.id}>
                   <div><strong>{location.name}</strong><div className="field-hint">Hidden from new shifts; historical records are unchanged.</div></div>
-                  <button type="button" className="btn btn-secondary" onClick={() => void restoreLocation(location)} disabled={locationBusy}>Restore</button>
+                  <AsyncButton type="button" className="btn btn-secondary" onClick={() => void restoreLocation(location)} disabled={locationBusy && locationBusyTarget !== `restore:${location.id}`} busy={locationBusyTarget === `restore:${location.id}`} idleLabel="Restore" busyLabel="Restoring…" />
                 </article>
               ))}
             </div>

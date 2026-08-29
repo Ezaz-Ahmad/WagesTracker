@@ -17,6 +17,7 @@ import { useFocusTrap } from "../lib/useFocusTrap";
 import { useLiveElapsedHours } from "../lib/useLiveElapsedHours";
 import { isDateInRange, withLiveSpendingEarnings } from "../lib/liveShiftVisuals";
 import { LiveDataBadge } from "../components/LiveDataBadge";
+import { AsyncButton } from "../components/AsyncButton";
 import {
   invalidateSpendingCategories,
   invalidateSpendingSummaries,
@@ -143,6 +144,7 @@ export function SpendingScreen() {
   const [appliedSearch, setAppliedSearch] = useState("");
   const [editingExpense, setEditingExpense] = useState<PersonalExpense | null>(null);
   const [expenseFormOpen, setExpenseFormOpen] = useState(false);
+  const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const historyRequestRef = useRef(0);
   const historyInitializedRef = useRef(false);
@@ -232,11 +234,15 @@ export function SpendingScreen() {
   }
 
   async function deleteExpense(expense: PersonalExpense) {
+    if (deletingExpenseId) return;
+    setDeletingExpenseId(expense.id);
     try {
       await api.deletePersonalExpense(expense.id);
       await refreshAfterMutation("Expense deleted.");
     } catch (error) {
       setHistoryError(error instanceof Error ? error.message : "Couldn't delete the expense.");
+    } finally {
+      setDeletingExpenseId(null);
     }
   }
 
@@ -303,6 +309,7 @@ export function SpendingScreen() {
           periodText={periodLabel(period, range.from, range.to)}
           onEdit={openEditExpense}
           onDelete={(expense) => void deleteExpense(expense)}
+          deletingExpenseId={deletingExpenseId}
           onAdd={openAddExpense}
           active={active}
           signIn={last?.signIn ?? null}
@@ -332,6 +339,7 @@ export function SpendingScreen() {
           onRetry={() => void loadHistory(1)}
           onEdit={openEditExpense}
           onDelete={(expense) => void deleteExpense(expense)}
+          deletingExpenseId={deletingExpenseId}
           hasMore={hasMore}
           onLoadMore={() => void loadHistory(page + 1, true)}
           onAdd={openAddExpense}
@@ -375,6 +383,7 @@ function LiveSpendingDashboard(props: {
   periodText: string;
   onEdit: (expense: PersonalExpense) => void;
   onDelete: (expense: PersonalExpense) => void;
+  deletingExpenseId: string | null;
   onAdd: () => void;
   active: boolean;
   signIn: string | null;
@@ -430,6 +439,7 @@ function SpendingDashboard(props: {
   periodText: string;
   onEdit: (expense: PersonalExpense) => void;
   onDelete: (expense: PersonalExpense) => void;
+  deletingExpenseId: string | null;
   onAdd: () => void;
   live: boolean;
 }) {
@@ -468,7 +478,7 @@ function SpendingDashboard(props: {
       <section className="spending-overview" aria-labelledby="spending-overview-title">
         <div className="spending-overview-heading">
           <div>
-            <div className="chart-heading-kicker"><span className="card-kicker">Money overview</span><LiveDataBadge active={props.live} label="Earnings live" /></div>
+            <span className="card-kicker">Money overview</span>
             <h2 id="spending-overview-title">{props.periodText === "this month" ? "This month at a glance" : "Your selected period"}</h2>
           </div>
           <div className="spending-range-chip">
@@ -491,7 +501,7 @@ function SpendingDashboard(props: {
         <SpendingTrend summary={summary} />
       </div>
       <EarningsComparison summary={summary} live={props.live} />
-      <ExpenseListSection title="Recent expenses" expenses={summary.recentExpenses} onEdit={props.onEdit} onDelete={props.onDelete} onAdd={props.onAdd} />
+      <ExpenseListSection title="Recent expenses" expenses={summary.recentExpenses} onEdit={props.onEdit} onDelete={props.onDelete} deletingExpenseId={props.deletingExpenseId} onAdd={props.onAdd} />
     </div>
   );
 }
@@ -684,6 +694,7 @@ function ExpenseHistory(props: {
   onRetry: () => void;
   onEdit: (expense: PersonalExpense) => void;
   onDelete: (expense: PersonalExpense) => void;
+  deletingExpenseId: string | null;
   hasMore: boolean;
   onLoadMore: () => void;
   onAdd: () => void;
@@ -698,18 +709,19 @@ function ExpenseHistory(props: {
       </form>
       {props.error && <StatusBanner tone="danger"><span>{props.error} <button className="banner-inline-action" type="button" onClick={props.onRetry}>Retry</button></span></StatusBanner>}
       {props.loading && props.expenses.length === 0 ? <div className="spending-loading" aria-busy="true"><span className="spinner" /> Loading expenses…</div> : (
-        <ExpenseListSection title="Transactions" expenses={props.expenses} onEdit={props.onEdit} onDelete={props.onDelete} onAdd={props.onAdd} />
+        <ExpenseListSection title="Transactions" expenses={props.expenses} onEdit={props.onEdit} onDelete={props.onDelete} deletingExpenseId={props.deletingExpenseId} onAdd={props.onAdd} />
       )}
-      {props.hasMore && <button className="btn btn-secondary spending-load-more" type="button" disabled={props.loading} onClick={props.onLoadMore}>{props.loading ? "Loading…" : "Load more"}</button>}
+      {props.hasMore && <AsyncButton className="btn btn-secondary spending-load-more" type="button" busy={props.loading} idleLabel="Load more" busyLabel="Loading…" onClick={props.onLoadMore} />}
     </section>
   );
 }
 
-function ExpenseListSection({ title, expenses, onEdit, onDelete, onAdd }: {
+function ExpenseListSection({ title, expenses, onEdit, onDelete, deletingExpenseId, onAdd }: {
   title: string;
   expenses: PersonalExpense[];
   onEdit: (expense: PersonalExpense) => void;
   onDelete: (expense: PersonalExpense) => void;
+  deletingExpenseId: string | null;
   onAdd: () => void;
 }) {
   return (
@@ -726,7 +738,7 @@ function ExpenseListSection({ title, expenses, onEdit, onDelete, onAdd }: {
               <strong className="expense-amount">{formatMoney(expense.amountCents)}</strong>
               <div className="expense-actions">
                 <button type="button" className="btn btn-icon btn-ghost" aria-label={`Edit ${expense.merchant || expense.category.name} expense`} onClick={() => onEdit(expense)}><EditIcon size={17} /></button>
-                <button type="button" className="btn btn-icon btn-ghost expense-delete" aria-label={`Delete ${expense.merchant || expense.category.name} expense`} data-confirm="Delete this personal expense? This cannot be undone." data-confirm-tone="danger" onClick={() => onDelete(expense)}><TrashIcon size={17} /></button>
+                <button type="button" className="btn btn-icon btn-ghost expense-delete" aria-label={deletingExpenseId === expense.id ? `Deleting ${expense.merchant || expense.category.name} expense…` : `Delete ${expense.merchant || expense.category.name} expense`} aria-busy={deletingExpenseId === expense.id || undefined} disabled={deletingExpenseId !== null} data-confirm="Delete this personal expense? This cannot be undone." data-confirm-tone="danger" onClick={() => onDelete(expense)}>{deletingExpenseId === expense.id ? <span className="compact-loader is-visible" aria-hidden="true" /> : <TrashIcon size={17} />}</button>
               </div>
             </li>
           ))}
@@ -805,7 +817,7 @@ function ExpenseDialog({ categories, expense, onClose, onSaved }: {
               <div className="field"><label htmlFor="expense-merchant">Merchant or short title <span>(optional)</span></label><input id="expense-merchant" className="input" maxLength={100} value={merchant} onChange={(e) => setMerchant(e.target.value)} placeholder="e.g. Weekly groceries" /></div>
               <div className="field"><label htmlFor="expense-note">Note <span>(optional)</span></label><textarea id="expense-note" className="input" maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Anything useful to remember" /></div>
             </div>
-            <div className="spending-dialog-actions"><button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button><button type="submit" className="btn btn-primary" disabled={busy}>{busy ? "Saving…" : expense ? "Save changes" : "Add expense"}</button></div>
+            <div className="spending-dialog-actions"><button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button><AsyncButton type="submit" className="btn btn-primary" busy={busy} idleLabel={expense ? "Save changes" : "Add expense"} busyLabel="Saving…" /></div>
           </form>
         </div>
       </div>
@@ -820,6 +832,7 @@ function CategoryManager({ categories, onChanged }: { categories: SpendingCatego
   const [icon, setIcon] = useState<SpendingIcon>("other");
   const [colour, setColour] = useState<SpendingColour>("#475569");
   const [busy, setBusy] = useState(false);
+  const [categoryActionId, setCategoryActionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function beginEdit(category: SpendingCategory) {
@@ -843,12 +856,15 @@ function CategoryManager({ categories, onChanged }: { categories: SpendingCatego
   }
 
   async function setArchived(category: SpendingCategory, archived: boolean) {
+    if (categoryActionId) return;
+    setCategoryActionId(category.id);
     setError(null);
     try {
       if (archived) await api.archiveSpendingCategory(category.id);
       else await api.patchSpendingCategory(category.id, { archived: false });
       await onChanged(archived ? "Category archived. Historical expenses still show it." : "Category restored.");
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Couldn't update the category."); }
+    finally { setCategoryActionId(null); }
   }
 
   const activeCount = categories.filter((category) => !category.archived).length;
@@ -865,9 +881,9 @@ function CategoryManager({ categories, onChanged }: { categories: SpendingCatego
           <div className="field"><label htmlFor="category-name">Name</label><input id="category-name" className="input" maxLength={50} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Pet care" /></div>
           <fieldset className="fieldset-plain category-icon-options"><legend>Icon</legend><div>{SPENDING_ICONS.map((item) => <label className={icon === item ? "is-selected" : ""} key={item}><input type="radio" name="category-icon" checked={icon === item} onChange={() => setIcon(item)} /><CategoryGlyph icon={item} size={19} /><span className="visually-hidden">{item}</span></label>)}</div></fieldset>
           <fieldset className="fieldset-plain category-colour-options"><legend>Colour</legend><div>{SPENDING_COLOURS.map((item) => <label className={colour === item ? "is-selected" : ""} key={item} style={{ backgroundColor: item }}><input type="radio" name="category-colour" checked={colour === item} onChange={() => setColour(item)} /><span className="visually-hidden">Colour {item}</span></label>)}</div></fieldset>
-          <div className="category-editor-actions">{editing && <button className="btn btn-secondary" type="button" onClick={reset}>Cancel</button>}<button className="btn btn-primary" type="submit" disabled={busy}>{busy ? "Saving…" : editing ? "Save changes" : "Create category"}</button></div>
+          <div className="category-editor-actions">{editing && <button className="btn btn-secondary" type="button" onClick={reset}>Cancel</button>}<AsyncButton className="btn btn-primary" type="submit" busy={busy} idleLabel={editing ? "Save changes" : "Create category"} busyLabel="Saving…" /></div>
         </form>
-        <div className="card elev-sm category-list-card"><div className="category-list-heading"><h3>Your categories</h3><p>Archived categories stay attached to past expenses.</p></div><ul className="category-management-list">{categories.map((category) => <li key={category.id} className={category.archived ? "is-archived" : ""}><span className="expense-category-icon" style={{ color: category.colour }}><CategoryGlyph icon={category.icon} size={19} /></span><div><strong>{category.name}</strong><span>{category.isDefault ? "Default" : "Custom"}{category.archived ? " · Archived" : " · Active"}</span></div><button type="button" className="btn btn-icon btn-ghost" onClick={() => beginEdit(category)} aria-label={`Edit ${category.name}`}><EditIcon size={16} /></button>{category.archived ? <button type="button" className="btn btn-secondary category-state-btn" onClick={() => void setArchived(category, false)}>Restore</button> : <button type="button" className="btn btn-secondary category-state-btn" data-confirm={`Archive ${category.name}? It will remain on historical expenses.`} onClick={() => void setArchived(category, true)}>Archive</button>}</li>)}</ul></div>
+        <div className="card elev-sm category-list-card"><div className="category-list-heading"><h3>Your categories</h3><p>Archived categories stay attached to past expenses.</p></div><ul className="category-management-list">{categories.map((category) => <li key={category.id} className={category.archived ? "is-archived" : ""}><span className="expense-category-icon" style={{ color: category.colour }}><CategoryGlyph icon={category.icon} size={19} /></span><div><strong>{category.name}</strong><span>{category.isDefault ? "Default" : "Custom"}{category.archived ? " · Archived" : " · Active"}</span></div><button type="button" className="btn btn-icon btn-ghost" onClick={() => beginEdit(category)} disabled={categoryActionId !== null} aria-label={`Edit ${category.name}`}><EditIcon size={16} /></button>{category.archived ? <AsyncButton type="button" className="btn btn-secondary category-state-btn" onClick={() => void setArchived(category, false)} disabled={categoryActionId !== null && categoryActionId !== category.id} busy={categoryActionId === category.id} idleLabel="Restore" busyLabel="Restoring…" /> : <AsyncButton type="button" className="btn btn-secondary category-state-btn" data-confirm={`Archive ${category.name}? It will remain on historical expenses.`} onClick={() => void setArchived(category, true)} disabled={categoryActionId !== null && categoryActionId !== category.id} busy={categoryActionId === category.id} idleLabel="Archive" busyLabel="Archiving…" />}</li>)}</ul></div>
       </div>
     </section>
   );

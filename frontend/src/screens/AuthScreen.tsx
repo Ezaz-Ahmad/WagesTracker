@@ -5,7 +5,7 @@ import { FaceIdIcon, LockIcon, TouchIdIcon } from "../components/icons";
 import { LandingHeroContent } from "../components/LandingHero";
 import { PasswordInput } from "../components/PasswordInput";
 import { AuthFooter } from "../components/AuthFooter";
-import { BubbleLoader } from "../components/BubbleLoader";
+import { AsyncButton } from "../components/AsyncButton";
 import { Logo } from "../components/Logo";
 import { StatusBanner } from "../components/StatusBanner";
 import { MIN_PASSWORD_LENGTH, validatePassword } from "../lib/passwordPolicy";
@@ -284,14 +284,15 @@ export function AuthScreen() {
                       autoFocus
                     />
                   </div>
-                  <button
+                  <AsyncButton
                     className="btn btn-primary btn-block"
                     type="submit"
-                    disabled={recoveryBusy || !email.trim()}
+                    busy={recoveryBusy}
+                    idleLabel="Send reset link"
+                    busyLabel="Sending reset link…"
+                    disabled={!email.trim()}
                     style={{ justifyContent: "center" }}
-                  >
-                    {recoveryBusy ? <BubbleLoader label="Requesting reset link" /> : "Send reset link"}
-                  </button>
+                  />
                   <button
                     type="button"
                     className="auth-text-link auth-text-link-block"
@@ -341,9 +342,7 @@ export function AuthScreen() {
                   <span className="box" />
                   Remember me on this device
                 </label>
-                <button className="btn btn-primary btn-block" type="submit" disabled={authBusy} style={{ justifyContent: "center" }}>
-                  {authBusy ? <BubbleLoader label="Logging in" /> : "Log in"}
-                </button>
+                <AsyncButton className="btn btn-primary btn-block" type="submit" busy={authBusy} idleLabel="Log in" busyLabel="Signing in…" style={{ justifyContent: "center" }} />
               </form>
             ) : (
               <form key="signup" className="anim-rise" onSubmit={handleSignup}>
@@ -472,14 +471,15 @@ export function AuthScreen() {
                     />
                   </div>
                 )}
-                <button
+                <AsyncButton
                   className="btn btn-primary btn-block"
                   type="submit"
-                  disabled={authBusy || !!signupRateError || (signupPasswordCheck ? !signupPasswordCheck.valid : false)}
+                  busy={authBusy}
+                  idleLabel="Create account"
+                  busyLabel="Creating account…"
+                  disabled={!!signupRateError || (signupPasswordCheck ? !signupPasswordCheck.valid : false)}
                   style={{ justifyContent: "center" }}
-                >
-                  {authBusy ? <BubbleLoader label="Creating your account" /> : "Create account"}
-                </button>
+                />
               </form>
             )}
 

@@ -2,8 +2,9 @@
    Motion system — durations, easing, and reusable animations layered on
    top of tokens.css / app.css. Every effect here is subtle and purposeful:
    it confirms an action, orients you after navigation, or draws the eye to
-   a number that just changed. Nothing loops forever except the two "live"
-   indicators (active shift pulse, elapsed timer breathe).
+   a number that just changed. Continuous movement is reserved for genuine
+   in-progress state: the active shift, elapsed timer, compact loader, and
+   the restrained dot beside a visible Live label.
    Respects prefers-reduced-motion (see the block at the bottom of this
    file): every transition/animation duration collapses to near-zero and
    infinite loops stop after a single iteration, so nothing here keeps
@@ -17,16 +18,14 @@
      with no overshoot. Reserved for expand/reveal motion (accordions, etc.)
      where a bouncy or linear curve reads as toy-like rather than premium. */
   --ease-emphasized: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --dur-instant: 90ms;
   --dur-fast: 140ms;
-  /* One shared duration for every button-ish interaction transition
-     (background/border/color/box-shadow/transform) — kept distinct from
-     --dur-base (260ms), which is still used for non-interactive entrance
-     animations elsewhere in this file, so tightening button feedback here
-     doesn't also speed up unrelated things like card pop-ins. */
+  /* Shared interaction timings: 90ms acknowledgement, 140–160ms controls,
+     180ms small state changes, 260ms panels/screens, 320ms charts. */
   --dur-btn: 160ms;
-  --dur-base: 260ms;
-  --dur-slow: 420ms;
-  --dur-slower: 620ms;
+  --dur-base: 180ms;
+  --dur-slow: 260ms;
+  --dur-slower: 320ms;
   /* One consistent press-scale for every interactive control in the app —
      buttons, nav items, icon buttons, the shift CTA — rather than each
      picking its own amount (previously ranged from 0.86 to 0.97 across
@@ -79,13 +78,9 @@
    the 340ms accordion animation caught up. */
 .day-row-toggle:active { transform: none; background: color-mix(in srgb, var(--color-neutral-800) 8%, transparent); }
 
-/* — button press, specifically — a quick, snappy squish going down
-   (inherits the standard curve above), but a springier overshoot coming
-   back up, so releasing a button has a little bounce to it instead of
-   just linearly reversing. Scoped to .btn alone — the shared block above
-   still governs cards/inputs/nav with the plain standard easing, since a
-   spring feels right on a tappable button and slightly off on a card. */
-.btn { transition-property: background-color, border-color, color, box-shadow, transform; transition-duration: var(--dur-fast), var(--dur-fast), var(--dur-fast), var(--dur-btn), var(--dur-btn); transition-timing-function: var(--ease-standard), var(--ease-standard), var(--ease-standard), var(--ease-standard), cubic-bezier(0.34, 1.56, 0.64, 1); }
+/* — button press, specifically — immediate acknowledgement on touch-down,
+   followed by a restrained ease-out with no bounce or overshoot. */
+.btn { transition-property: background-color, border-color, color, box-shadow, transform; transition-duration: var(--dur-fast), var(--dur-fast), var(--dur-fast), var(--dur-btn), var(--dur-btn); transition-timing-function: var(--ease-standard), var(--ease-standard), var(--ease-standard), var(--ease-standard), var(--ease-out); }
 .btn:active:not(:disabled) { transform: scale(var(--press-scale)); transition-duration: 90ms; transition-timing-function: var(--ease-standard); }
 
 @media (hover: hover) and (pointer: fine) {
@@ -124,7 +119,7 @@
 }
 .anim-rise {
   animation: rise-in var(--dur-slow) var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 55ms);
+  animation-delay: calc(var(--i, 0) * 24ms);
 }
 
 @keyframes pop-in {
@@ -133,7 +128,7 @@
 }
 .anim-pop {
   animation: pop-in var(--dur-base) var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 60ms);
+  animation-delay: calc(var(--i, 0) * 28ms);
 }
 
 /* — bottom nav — */
@@ -146,7 +141,7 @@
    to just the icon left the label sitting half in, half out of it, which
    read as broken rather than deliberate. A springy overshoot on the slide
    (rather than a plain ease-out) is what makes it feel like a floating
-   highlight chasing your tap, not a bar sliding into place. */
+   highlight following your tap, not a bar snapping into place. */
 .app-bottomnav-indicator {
   position: absolute;
   top: 0;
@@ -158,7 +153,7 @@
   justify-content: center;
   pointer-events: none;
   transform: translateX(calc(100% * var(--nav-index, 0)));
-  transition: transform 460ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform var(--dur-slow) var(--ease-out);
 }
 .app-bottomnav-indicator::after {
   content: "";
@@ -176,7 +171,7 @@
   transition: box-shadow var(--dur-base) var(--ease-standard);
 }
 .app-bottomnav-btn { position: relative; z-index: 1; }
-.app-bottomnav-btn svg { transition: transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+.app-bottomnav-btn svg { transition: transform var(--dur-base) var(--ease-out); }
 .app-bottomnav-btn.is-active svg { transform: translateY(-2px) scale(1.14); }
 /* — shift CTA — */
 @keyframes pulse-ring {
@@ -207,7 +202,7 @@
   transition: height var(--dur-slower) var(--ease-out);
   transform-origin: bottom;
   animation: bar-grow var(--dur-slower) var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 45ms);
+  animation-delay: calc(var(--i, 0) * 24ms);
 }
 @keyframes bar-grow {
   from { transform: scaleY(0); }
@@ -219,9 +214,9 @@
   transition: height var(--dur-slower) var(--ease-out);
   transform-origin: bottom;
   animation: bar-grow var(--dur-slower) var(--ease-emphasized) both;
-  animation-delay: calc(var(--i, 0) * 60ms + 80ms);
+  animation-delay: calc(var(--i, 0) * 16ms);
 }
-.glance-bar-col.is-today .glance-bar-track { animation: today-ring-in var(--dur-slow) var(--ease-out) 460ms both; }
+.glance-bar-col.is-today .glance-bar-track { animation: today-ring-in var(--dur-base) var(--ease-out) both; }
 @keyframes today-ring-in {
   from { box-shadow: 0 0 0 0 var(--color-accent) inset; }
   to { box-shadow: 0 0 0 2px var(--color-accent) inset; }
@@ -231,24 +226,24 @@
 .goal-ring-fill {
   stroke-dashoffset: var(--ring-offset-target);
   transition: stroke-dashoffset var(--dur-slower) var(--ease-out);
-  animation: ring-fill-in var(--dur-slower) var(--ease-emphasized) 140ms both;
+  animation: ring-fill-in var(--dur-slower) var(--ease-emphasized) 40ms both;
 }
 @keyframes ring-fill-in {
   from { stroke-dashoffset: var(--ring-circumference); }
   to { stroke-dashoffset: var(--ring-offset-target); }
 }
-.goal-ring-center { animation: fade-in var(--dur-base) var(--ease-standard) 380ms both; }
+.goal-ring-center { animation: fade-in var(--dur-base) var(--ease-standard) 60ms both; }
 
 /* — report chart — */
 .chart-line-draw {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  animation: draw-line 900ms var(--ease-out) 120ms both;
+  animation: draw-line var(--dur-slower) var(--ease-out) 60ms both;
 }
 @keyframes draw-line {
   to { stroke-dashoffset: 0; }
 }
-.chart-area-fade { animation: fade-in var(--dur-slower) var(--ease-standard) 200ms both; }
+.chart-area-fade { animation: fade-in var(--dur-slower) var(--ease-standard) 60ms both; }
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -259,19 +254,18 @@
 }
 .chart-point {
   animation: pop-in var(--dur-base) var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 70ms + 420ms);
+  animation-delay: calc(var(--i, 0) * 14ms + 80ms);
   transform-box: fill-box;
   transform-origin: center;
 }
 .chart-x-label {
   animation: fade-in var(--dur-base) var(--ease-standard) both;
-  animation-delay: calc(var(--i, 0) * 70ms + 520ms);
+  animation-delay: calc(var(--i, 0) * 14ms + 100ms);
 }
 
 /* — table rows — */
 .table tbody tr {
   animation: rise-in var(--dur-base) var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 35ms);
 }
 
 /* — form error / toast — */
@@ -366,18 +360,32 @@
 /* — animated numerals — */
 .count-value { font-variant-numeric: tabular-nums; }
 
-/* — bubbly button loading state (log in / create account) — */
-@keyframes bubble-bounce {
-  0%, 80%, 100% { transform: translateY(0) scale(0.85); opacity: 0.6; }
-  40% { transform: translateY(-6px) scale(1); opacity: 1; }
+/* — compact async feedback — */
+@keyframes compact-loader-spin { to { transform: rotate(360deg); } }
+@keyframes live-dot-breathe {
+  0%, 100% { opacity: .72; transform: scale(.88); }
+  50% { opacity: 1; transform: scale(1); }
 }
-.bubble-loader { display: inline-flex; align-items: center; gap: 5px; height: 1em; }
-.bubble-loader-dot {
-  width: 7px; height: 7px; border-radius: 50%; background: currentColor;
-  animation: bubble-bounce 1.1s var(--ease-standard) infinite;
+@keyframes glance-detail-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
 }
-.bubble-loader-dot:nth-child(2) { animation-delay: 0.14s; }
-.bubble-loader-dot:nth-child(3) { animation-delay: 0.28s; }
+.bubble-loader { display: inline-flex; align-items: center; justify-content: center; min-width: 1em; min-height: 1em; }
+.async-button-settled,
+.async-button-busy { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.compact-loader {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  opacity: 0;
+}
+.compact-loader.is-visible {
+  opacity: 1;
+  animation: compact-loader-spin 720ms linear infinite;
+}
 
 /* — skeleton loading placeholders — */
 @keyframes skeleton-pulse {
@@ -397,7 +405,7 @@
 
 /* — reduced motion — collapses every animation/transition to effectively
    instant and stops infinite loops (the active-shift pulse ring, the
-   elapsed-timer breathe, skeleton shimmer, the bubble-loader dots) after one
+   elapsed-timer breathe, skeleton shimmer, compact loader and Live dot) after one
    iteration, for anyone who has turned on "Reduce Motion" at the OS level.
    Screen transitions, staggered entrances, chart draws, and dialog/confirm-
    popup enter/exit all lose their motion this way without needing an

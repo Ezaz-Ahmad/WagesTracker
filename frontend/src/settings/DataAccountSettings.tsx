@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { RETENTION_YEARS, useApp } from "../context/AppContext";
 import { AppCredit } from "../components/AppCredit";
+import { InternalAppLink } from "../components/AppLink";
 import { DeleteAccountDialog } from "./DeleteAccountDialog";
 
 export function DataAccountSettings() {
@@ -20,8 +21,8 @@ export function DataAccountSettings() {
       <h3 className="settings-subsection-title">About</h3>
       <AppCredit showVersion />
       <nav className="settings-policy-links" aria-label="Privacy and support">
-        <a href="/privacy">Privacy Policy</a>
-        <a href="/support">Support</a>
+        <InternalAppLink href="/privacy">Privacy Policy</InternalAppLink>
+        <InternalAppLink href="/support">Support</InternalAppLink>
       </nav>
 
       <div className="hr" />

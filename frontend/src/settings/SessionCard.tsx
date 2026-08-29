@@ -1,7 +1,7 @@
 import type { SessionInfo } from "../lib/api";
 import { parseDeviceKind, parseDeviceLabel, type DeviceKind } from "../lib/parseUserAgent";
 import { MonitorIcon, SmartphoneIcon, TabletIcon } from "../components/icons";
-import { StableLabel } from "../components/StableLabel";
+import { AsyncButton } from "../components/AsyncButton";
 
 /** "Aug 15, 3:42 PM" — falls back to a plain label rather than "Invalid
  * Date" if a timestamp is ever missing or malformed. */
@@ -89,16 +89,17 @@ export function SessionCard({
       <div className="session-card-secondary">First signed in {formatSessionTime(session.createdAt)}</div>
       {session.ipAddress && <div className="session-card-tertiary">IP {session.ipAddress}</div>}
       {!session.isCurrent && (
-        <button
+        <AsyncButton
           type="button"
           className="btn btn-secondary session-card-revoke"
           onClick={onRevoke}
-          disabled={revoking}
+          busy={revoking}
+          idleLabel="Log out"
+          busyLabel="Logging out…"
+          busyAriaLabel={`Logging out ${label}…`}
           data-confirm={`Log out ${label}? It will need to sign in again.`}
           aria-label={`Log out ${label}`}
-        >
-          <StableLabel current={revoking ? "Logging out…" : "Log out"} longest="Logging out…" />
-        </button>
+        />
       )}
     </li>
   );

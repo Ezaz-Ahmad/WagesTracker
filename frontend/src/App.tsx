@@ -18,6 +18,8 @@ import { ReportScreen } from "./screens/ReportScreen";
 import { HistoryScreen } from "./screens/HistoryScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { SpendingScreen } from "./screens/SpendingScreen";
+import { PrivacyPolicyPage } from "./screens/PrivacyPolicyPage";
+import { SupportPage } from "./screens/SupportPage";
 import { useSwipeNav } from "./lib/useSwipeNav";
 import { usePullToRefresh } from "./lib/usePullToRefresh";
 import { useMatchMedia } from "./lib/useMatchMedia";
@@ -26,6 +28,12 @@ import { ViewportDebugOverlay } from "./components/ViewportDebugOverlay";
 import { reloadIfNewVersionDeployed } from "./lib/checkForUpdate";
 import { useStableScreenTransition } from "./lib/useStableScreenTransition";
 import type { Screen } from "./lib/types";
+import {
+  APP_NAVIGATION_EVENT,
+  isPublicAppPath,
+  normaliseAppPath,
+  restoreAppReturnFocus,
+} from "./lib/appNavigation";
 
 // Build-time constant. Vite inlines `import.meta.env.VITE_VIEWPORT_DEBUG`, so
 // in every normal build this folds to `false`, the JSX branch below is dead
@@ -293,6 +301,35 @@ function Root() {
   return status === "loggedIn" ? <AuthedApp /> : <AuthScreen />;
 }
 
+function RoutedRoot() {
+  const [path, setPath] = useState(normaliseAppPath);
+  const publicPage = isPublicAppPath(path) ? path : null;
+
+  useEffect(() => {
+    const updatePath = () => setPath(normaliseAppPath());
+    window.addEventListener("popstate", updatePath);
+    window.addEventListener(APP_NAVIGATION_EVENT, updatePath);
+    return () => {
+      window.removeEventListener("popstate", updatePath);
+      window.removeEventListener(APP_NAVIGATION_EVENT, updatePath);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!publicPage) restoreAppReturnFocus();
+  }, [publicPage]);
+
+  return (
+    <>
+      <div className="app-route-preserved" hidden={Boolean(publicPage)} aria-hidden={publicPage ? true : undefined}>
+        <Root />
+      </div>
+      {publicPage === "/privacy" && <PrivacyPolicyPage />}
+      {publicPage === "/support" && <SupportPage />}
+    </>
+  );
+}
+
 export default function App() {
   // Measures the real visible viewport into `--app-viewport-height` for the
   // whole session (see lib/viewportHeight.ts). Mounted here, outside
@@ -304,7 +341,7 @@ export default function App() {
   return (
     <AppProvider>
       <ConfirmProvider>
-        <Root />
+        <RoutedRoot />
         {VIEWPORT_DEBUG && <ViewportDebugOverlay />}
       </ConfirmProvider>
     </AppProvider>

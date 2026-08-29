@@ -37,4 +37,20 @@ describe("authoritative live clock", () => {
     view.unmount();
     expect(getLiveClockDiagnostics()).toMatchObject({ subscribers: 0, running: false });
   });
+
+  it("pauses the shared interval while the app is backgrounded and catches up on return", async () => {
+    Object.defineProperty(document, "hidden", { configurable: true, value: false });
+    render(<LiveValues />);
+    Object.defineProperty(document, "hidden", { configurable: true, value: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(getLiveClockDiagnostics().running).toBe(false);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+    expect(getLiveClockDiagnostics().tickCount).toBe(0);
+
+    Object.defineProperty(document, "hidden", { configurable: true, value: false });
+    await act(async () => { document.dispatchEvent(new Event("visibilitychange")); });
+    expect(getLiveClockDiagnostics()).toMatchObject({ running: true, tickCount: 1 });
+    expect(screen.getByTestId("timer").textContent).toBe("01:00:05");
+  });
 });
