@@ -404,6 +404,7 @@ export interface ChartPoint {
   valueLabel: string;
   dotColor: string;
   dotStroke: string;
+  inProgress: boolean;
 }
 
 export function buildChartSource(
@@ -433,7 +434,10 @@ export function buildChart(chartSource: WeekSummary[], metric: "earnings" | "hou
   const points: ChartPoint[] = chartSource.map((w, i) => {
     const val = metric === "earnings" ? w.earnings : w.hours;
     const x = n > 1 ? Math.round(plotInset + (i * plotW) / (n - 1)) : chartW / 2;
-    const y = Math.round(chartH - Math.max(6, (val / maxVal) * (chartH - 16)));
+    // Keep the live point sub-pixel precise. Rounding this to a whole pixel
+    // made an active shift sit still and then visibly jump one pixel at a
+    // time; modern SVG renders fractional coordinates smoothly.
+    const y = chartH - Math.max(6, (val / maxVal) * (chartH - 16));
     return {
       x,
       y,
@@ -443,6 +447,7 @@ export function buildChart(chartSource: WeekSummary[], metric: "earnings" | "hou
       valueLabel: metric === "earnings" ? currency + fmt2(val) : `${Math.round(val * 10) / 10}h`,
       dotColor: w.inProgress ? "var(--color-bg)" : "var(--color-accent)",
       dotStroke: "var(--color-accent)",
+      inProgress: !!w.inProgress,
     };
   });
   const linePoints = points.map((p) => `${p.x},${p.y}`).join(" ");
@@ -457,18 +462,22 @@ export interface Bar {
   valueLabel: string;
   barStyle: string;
   barColor: string;
+  inProgress: boolean;
 }
 
 export function buildBars(items: WeekSummary[], metric: "earnings" | "hours", currency: string): Bar[] {
   const maxVal = Math.max(...items.map((w) => (metric === "earnings" ? w.earnings : w.hours)), 1);
   return items.map((w) => {
     const val = metric === "earnings" ? w.earnings : w.hours;
-    const pct = Math.max(4, Math.round((val / maxVal) * 100));
+    // Fractional percentages let a running shift grow continuously instead
+    // of stepping through abrupt one-percent jumps.
+    const pct = Math.max(4, (val / maxVal) * 100);
     return {
       short: w.short,
       valueLabel: metric === "earnings" ? currency + fmt2(val) : `${Math.round(val * 10) / 10}h`,
-      barStyle: `${pct}%`,
+      barStyle: `${pct.toFixed(4)}%`,
       barColor: w.inProgress ? "var(--color-accent-300)" : "var(--color-accent)",
+      inProgress: !!w.inProgress,
     };
   });
 }

@@ -84,7 +84,11 @@ describe("Home active-shift rendering", () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
 
     expect(screen.getByText(/01:00:0[2-3]/)).toBeTruthy();
-    expect(screen.getByText("$30.03")).toBeTruthy();
+    expect(screen.getAllByText("$30.03").length).toBeGreaterThan(0);
+    expect(screen.getByRole("table", { name: "Hours worked each day this week" }).textContent).toContain("1.00h");
+    expect(document.querySelector(".glance-bar-col.is-live")).toBeTruthy();
+    expect(document.querySelector(".goal-ring.is-live")).toBeTruthy();
+    expect(document.querySelectorAll(".live-data-badge.is-active").length).toBeGreaterThanOrEqual(3);
     expect(buildHistory).toHaveBeenCalledTimes(aggregateCallsAfterLoad);
   });
 });

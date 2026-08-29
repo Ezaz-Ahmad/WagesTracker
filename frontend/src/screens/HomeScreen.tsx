@@ -22,7 +22,9 @@ import { Skeleton } from "../components/Skeleton";
 import { Amount } from "../components/Amount";
 import { EarningsHiddenHint } from "../components/EarningsHiddenHint";
 import { ChartDataTable } from "../components/ChartDataTable";
+import { LiveDataBadge } from "../components/LiveDataBadge";
 import { useSpendingSummary } from "../lib/spendingDataCache";
+import { withLiveDay, withLiveSpendingEarnings } from "../lib/liveShiftVisuals";
 import type { DayExpense, Screen, Shift, SpendingSummary, WeekExtra, WeekStart } from "../lib/types";
 
 type HomeDay = ReturnType<typeof buildWeekDaysComputed>[number];
@@ -73,7 +75,7 @@ function categoryPercentage(categoryCents: number, totalCents: number): string {
 }
 
 function clampProgress(hours: number, goalHours: number): number {
-  const raw = goalHours > 0 ? Math.round((hours / goalHours) * 100) : 0;
+  const raw = goalHours > 0 ? (hours / goalHours) * 100 : 0;
   return Number.isFinite(raw) ? Math.max(0, Math.min(100, raw)) : 0;
 }
 
@@ -102,7 +104,7 @@ function LiveWeekSummaryCard(props: {
   const earningsSmoothed = useCountUp(ticking ? props.savedEarnings : totalEarnings, 650);
   const progressSmoothed = Math.round(useCountUp(ticking ? clampProgress(props.savedHours, props.goalHours) : progressPct, 550));
   const displayEarnings = ticking ? totalEarnings : earningsSmoothed;
-  const displayProgress = ticking ? progressPct : progressSmoothed;
+  const displayProgress = ticking ? Math.round(progressPct) : progressSmoothed;
   const comparison = compareWeekEarnings({
     today: props.today,
     weekStartsOn: props.weekStartsOn,
@@ -148,8 +150,15 @@ function LiveWeekSummaryCard(props: {
 function WeekGlanceCard(props: {
   days: HomeDay[];
   earningsHidden: boolean;
+  active: boolean;
+  signIn: string | null;
+  activeShiftInThisWeek: boolean;
+  activeShiftDate: string | null;
+  rate: number;
 }) {
-  const glanceDays = props.days.map((day) => ({
+  const ticking = props.active && props.activeShiftInThisWeek;
+  const liveHours = useLiveElapsedHours(ticking, props.signIn);
+  const glanceDays = withLiveDay(props.days, props.activeShiftDate, liveHours, props.rate, CURRENCY).map((day) => ({
     ...day,
     displayHours: day.hours,
   }));
@@ -157,18 +166,22 @@ function WeekGlanceCard(props: {
 
   return (
     <div className="card elev-sm anim-rise glance-card" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 2 }}>
+      <div className="live-visual-status-row">
+        <span className="card-meta">Current week</span>
+        <LiveDataBadge active={ticking} label="Updating live" />
+      </div>
       <div className="glance-bars" aria-hidden="true">
         {glanceDays.map((day, index) => {
-          const pct = Math.max(4, Math.round((day.displayHours / maxGlanceHours) * 100));
+          const pct = Math.max(4, (day.displayHours / maxGlanceHours) * 100);
           const worked = day.displayHours > 0;
           return (
             <div
               key={day.dateISO}
-              className={`glance-bar-col${day.isToday ? " is-today" : ""}`}
+              className={`glance-bar-col${day.isToday ? " is-today" : ""}${ticking && day.dateISO === props.activeShiftDate ? " is-live" : ""}`}
               style={{ ["--i" as string]: index }}
               title={`${day.dayAbbr} ${day.dateLabel} — ${worked ? `${fmt2(day.displayHours)}h${props.earningsHidden ? "" : ` · ${day.moneyLabel}`}` : "No entry"}`}
             >
-              <div className="glance-bar-track"><div className={`glance-bar-fill${worked ? " is-worked" : ""}`} style={{ height: `${pct}%` }} /></div>
+              <div className="glance-bar-track"><div className={`glance-bar-fill${worked ? " is-worked" : ""}`} style={{ height: `${pct.toFixed(4)}%` }} /></div>
               <div className="glance-bar-label">{day.dayAbbr.charAt(0)}</div>
             </div>
           );
@@ -194,6 +207,140 @@ function HomeSpendingSkeleton() {
       </div>
       <div className="home-spending-values" aria-hidden="true">{[0, 1, 2].map((item) => <div key={item}><span className="data-skeleton is-kicker" /><strong className="data-skeleton is-value" /></div>)}</div>
       <span className="data-skeleton home-spending-skeleton-button" aria-hidden="true" />
+    </div>
+  );
+}
+
+function HomeSpendingSnapshotCard(props: {
+  monthLabel: string;
+  snapshot: SpendingSummary | null;
+  loading: boolean;
+  error: string | null;
+  refresh: () => Promise<unknown>;
+  onNavigate?: (screen: Screen) => void;
+  active: boolean;
+  signIn: string | null;
+  activeShiftInMonth: boolean;
+  rate: number;
+}) {
+  const ticking = props.active && props.activeShiftInMonth;
+  const liveHours = useLiveElapsedHours(ticking, props.signIn);
+  const summary = props.snapshot ? withLiveSpendingEarnings(props.snapshot, liveHours, props.rate) : null;
+  const categories = summary ? homeSnapshotCategories(summary) : [];
+  const donutAmount = summary ? formatHomeDonutAmount(summary.totalSpendingCents) : null;
+
+  return (
+    <section className="card elev-sm home-spending-snapshot anim-rise" aria-labelledby="home-spending-title" aria-busy={props.loading || undefined} style={{ ["--i" as string]: 2 }}>
+      <div className="home-spending-heading">
+        <div className="home-spending-title-row"><SpendingIcon size={18} /><div><span className="card-kicker">Monthly snapshot</span><h2 id="home-spending-title" className="card-title">Personal spending — {props.monthLabel}</h2></div></div>
+        <div className="home-spending-heading-status">
+          <LiveDataBadge active={ticking} label="Earnings live" />
+          {props.error && props.snapshot ? (
+            <button type="button" className="home-spending-refresh-state is-warning" onClick={() => void props.refresh().catch(() => {})} title={props.error}>Retry refresh</button>
+          ) : (
+            <span className={`home-spending-updating${props.loading && props.snapshot ? " is-visible" : ""}`} aria-live="polite">Updating…</span>
+          )}
+        </div>
+      </div>
+      {summary ? (
+        <div className="home-spending-content">
+          <p className="visually-hidden">Personal spending for {props.monthLabel}: {CURRENCY}{fmt2(summary.totalSpendingCents / 100)}. {categories.map((category) => `${category.name} ${((category.totalCents / Math.max(1, summary.totalSpendingCents)) * 100).toFixed(1)} percent`).join(", ")}.</p>
+          <div className="home-spending-chart-row">
+            <div className="home-spending-donut" aria-hidden="true" style={{ background: donutBackground(summary) }} title={donutAmount?.full}>
+              <div className={`home-spending-donut-center is-${donutAmount?.fit}`}>
+                <strong>{donutAmount?.display}</strong><span>Spent this month</span>
+              </div>
+            </div>
+            <ul className="home-spending-legend" aria-label={`${props.monthLabel} spending by category`}>
+              {categories.length ? categories.map((category) => (
+                <li key={category.id}><span style={{ backgroundColor: category.colour }} aria-hidden="true" /><span>{category.name}</span><strong>{categoryPercentage(category.totalCents, summary.totalSpendingCents)}</strong></li>
+              )) : <li className="home-spending-empty">No expenses recorded this month.</li>}
+            </ul>
+          </div>
+          <div className="home-spending-values">
+            <div><span>Recorded earnings</span><strong className="live-metric-value"><Amount>{CURRENCY}{fmt2(summary.earningsCents / 100)}</Amount></strong></div>
+            <div><span>Monthly spending</span><strong>{CURRENCY}{fmt2(summary.totalSpendingCents / 100)}</strong></div>
+            <div><span>{summary.differenceCents < 0 ? "Over earnings" : "Remaining"}</span><strong className="live-metric-value"><Amount>{summary.differenceCents < 0 ? "−" : ""}{CURRENCY}{fmt2(Math.abs(summary.differenceCents) / 100)}</Amount></strong></div>
+          </div>
+          <button type="button" className="btn btn-secondary home-spending-cta" onClick={() => props.onNavigate?.("spending")}>View full spending dashboard <span aria-hidden="true">→</span></button>
+        </div>
+      ) : props.loading ? <HomeSpendingSkeleton /> : props.error ? (
+        <div className="home-spending-error" role="alert"><span>{props.error}</span><button type="button" className="btn btn-secondary" onClick={() => void props.refresh().catch(() => {})}>Retry</button></div>
+      ) : <div className="card-meta">Open Spending to record and review personal expenses.</div>}
+    </section>
+  );
+}
+
+function LiveHomeStats(props: {
+  days: HomeDay[];
+  shifts: Shift[];
+  history: ReturnType<typeof buildWeeklyHistory>;
+  goalEarnings: number;
+  today: Date;
+  rate: number;
+  active: boolean;
+  signIn: string | null;
+  activeShiftInThisWeek: boolean;
+  activeShiftDate: string | null;
+}) {
+  const ticking = props.active && props.activeShiftInThisWeek;
+  const liveHours = useLiveElapsedHours(ticking, props.signIn);
+  const liveDays = withLiveDay(props.days, props.activeShiftDate, liveHours, props.rate, CURRENCY);
+  const { daysLogged } = weekTotals(liveDays, props.rate);
+  const metGoalCount = props.history.filter((week) => week.earnings >= props.goalEarnings).length;
+  const daysLoggedAnim = Math.round(useCountUp(daysLogged, 450));
+  const metGoalAnim = Math.round(useCountUp(metGoalCount, 450));
+  const daysLoggedPct = (daysLogged / 7) * 100;
+  const weeksOnGoalPct = props.history.length > 0 ? (metGoalCount / props.history.length) * 100 : 0;
+
+  const streakShifts = ticking && liveHours > 0 && props.activeShiftDate
+    ? [...props.shifts, { id: "live-display", date: props.activeShiftDate, location: "", signIn: "00:00", signOut: "00:01" }]
+    : props.shifts;
+  const streak = computeStreak(groupByDate(streakShifts), props.today);
+  const streakAnim = Math.round(useCountUp(streak, 450));
+
+  let bestDay: HomeDay | undefined;
+  let bestDayEarnings = 0;
+  for (const day of liveDays) {
+    const earnings = day.hours * props.rate + day.fuelCost;
+    if (earnings > bestDayEarnings) {
+      bestDayEarnings = earnings;
+      bestDay = day;
+    }
+  }
+
+  return (
+    <div className="stat-grid">
+      <div className="card stat-tile stat-tile-ring anim-rise" style={{ ["--i" as string]: 3 }}>
+        <div className="stat-tile-kicker-row"><div className="card-kicker">Days logged</div><LiveDataBadge active={ticking} /></div>
+        <div className="stat-tile-ring-row">
+          <GoalRing pct={daysLoggedPct} value={`${daysLoggedAnim}/7`} live={ticking} />
+          <div className="card-meta stat-tile-ring-caption">days worked</div>
+        </div>
+      </div>
+      <div className="card stat-tile stat-tile-ring anim-rise" style={{ ["--i" as string]: 4 }}>
+        <div className="card-kicker">Weeks on goal</div>
+        <div className="stat-tile-ring-row">
+          <GoalRing pct={weeksOnGoalPct} value={`${metGoalAnim}/${props.history.length}`} />
+          <div className="card-meta stat-tile-ring-caption">on goal</div>
+        </div>
+      </div>
+      <div className="card stat-tile anim-rise" style={{ ["--i" as string]: 5 }}>
+        <div className="card-kicker">Current streak</div>
+        <div className="card-title stat-tile-value stat-tile-icon-row">
+          <FlameIcon size={19} />
+          <span className="count-value">{streakAnim}</span>
+        </div>
+        <div className="card-meta">{streak === 1 ? "day in a row" : "days in a row"}</div>
+      </div>
+      <div className="card stat-tile anim-rise" style={{ ["--i" as string]: 6 }}>
+        <div className="card-kicker">Best day this week</div>
+        <div className="card-title stat-tile-value stat-tile-icon-row">
+          <TrophyIcon size={19} />
+          <span>{bestDay ? bestDay.dayAbbr : "—"}</span>
+        </div>
+        <div className="card-meta live-metric-value">{bestDay ? <Amount>{bestDay.moneyLabel}</Amount> : "Log a shift to see it"}</div>
+      </div>
     </div>
   );
 }
@@ -227,7 +374,7 @@ export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => vo
   const shiftsByDate = groupByDate(shifts);
   const expensesByDate = groupExpensesByDate(dayExpenses);
   const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, CURRENCY, rate, expensesByDate);
-  const { hours: savedHours, earnings: weekEarnings, daysLogged } = weekTotals(days, rate);
+  const { hours: savedHours, earnings: weekEarnings } = weekTotals(days, rate);
   const otherAmount = weekExtraFor(weekStartISO, weekExtras)?.amount ?? 0;
   const savedEarnings = weekEarnings + otherAmount;
 
@@ -244,9 +391,10 @@ export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => vo
   // and then have the total visibly jump backward the moment it's signed
   // out and the real, previous-week-dated total takes over.
   const activeShiftInThisWeek = !!last && isDateInWeek(last.date, weekDays);
+  const activeShiftDate = last?.date ?? null;
+  const activeShiftInMonth = !!activeShiftDate && activeShiftDate >= monthStartISO && activeShiftDate <= monthEndISO;
 
   const history = buildWeeklyHistory(shifts, today, weekStartsOn, rate, 7, new Date(createdAt), dayExpenses, weekExtras);
-  const metGoalCount = history.filter((w) => w.earnings >= goalEarnings).length;
 
   const todayDay = days.find((d) => d.isToday);
   const activeWorkLocations = (workLocations ?? []).filter((location) => !location.archived);
@@ -258,26 +406,6 @@ export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => vo
       ? rememberedLocationId
       : "";
   const clockLocationId = selectedClockLocationId || defaultClockLocationId;
-  const daysLoggedAnim = Math.round(useCountUp(daysLogged, 450));
-  const metGoalAnim = Math.round(useCountUp(metGoalCount, 450));
-
-  const streak = computeStreak(shiftsByDate, today);
-  const streakAnim = Math.round(useCountUp(streak, 450));
-  const daysLoggedPct = Math.round((daysLogged / 7) * 100);
-  const weeksOnGoalPct = history.length > 0 ? Math.round((metGoalCount / history.length) * 100) : 0;
-
-  // The day with the highest earnings this week (hours × rate + fuel cost),
-  // ignoring days with nothing logged. Undefined until at least one shift or
-  // fuel entry exists — the tile falls back to a prompt in that case.
-  let bestDay: (typeof days)[number] | undefined;
-  let bestDayEarnings = 0;
-  for (const d of days) {
-    const earnings = d.hours * rate + d.fuelCost;
-    if (earnings > bestDayEarnings) {
-      bestDayEarnings = earnings;
-      bestDay = d;
-    }
-  }
 
   if (!user) return null;
   // Wait for the first shifts fetch before showing any totals — otherwise this
@@ -322,8 +450,6 @@ export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => vo
         )
       : "Tap to start your shift.";
   const spendingMonthLabel = today.toLocaleDateString("en-AU", { month: "long" });
-  const snapshotCategories = spendingSnapshot ? homeSnapshotCategories(spendingSnapshot) : [];
-  const donutAmount = spendingSnapshot ? formatHomeDonutAmount(spendingSnapshot.totalSpendingCents) : null;
 
   return (
     <div className="screen-wide">
@@ -367,81 +493,43 @@ export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => vo
         </div>
       </div>
 
-      <section className="card elev-sm home-spending-snapshot anim-rise" aria-labelledby="home-spending-title" aria-busy={spendingSnapshotLoading || undefined} style={{ ["--i" as string]: 2 }}>
-        <div className="home-spending-heading">
-          <div className="home-spending-title-row"><SpendingIcon size={18} /><div><span className="card-kicker">Monthly snapshot</span><h2 id="home-spending-title" className="card-title">Personal spending — {spendingMonthLabel}</h2></div></div>
-          {spendingSnapshotError && spendingSnapshot ? (
-            <button type="button" className="home-spending-refresh-state is-warning" onClick={() => void refreshSpendingSnapshot().catch(() => {})} title={spendingSnapshotError}>Retry refresh</button>
-          ) : (
-            <span className={`home-spending-updating${spendingSnapshotLoading && spendingSnapshot ? " is-visible" : ""}`} aria-live="polite">Updating…</span>
-          )}
-        </div>
-        {spendingSnapshot ? (
-          <div className="home-spending-content">
-            <p className="visually-hidden">Personal spending for {spendingMonthLabel}: {CURRENCY}{fmt2(spendingSnapshot.totalSpendingCents / 100)}. {snapshotCategories.map((category) => `${category.name} ${((category.totalCents / Math.max(1, spendingSnapshot.totalSpendingCents)) * 100).toFixed(1)} percent`).join(", ")}.</p>
-            <div className="home-spending-chart-row">
-              <div className="home-spending-donut" aria-hidden="true" style={{ background: donutBackground(spendingSnapshot) }} title={donutAmount?.full}>
-                <div className={`home-spending-donut-center is-${donutAmount?.fit}`}>
-                  <strong>{donutAmount?.display}</strong><span>Spent this month</span>
-                </div>
-              </div>
-              <ul className="home-spending-legend" aria-label={`${spendingMonthLabel} spending by category`}>
-                {snapshotCategories.length ? snapshotCategories.map((category) => (
-                  <li key={category.id}><span style={{ backgroundColor: category.colour }} aria-hidden="true" /><span>{category.name}</span><strong>{categoryPercentage(category.totalCents, spendingSnapshot.totalSpendingCents)}</strong></li>
-                )) : <li className="home-spending-empty">No expenses recorded this month.</li>}
-              </ul>
-            </div>
-            <div className="home-spending-values">
-              <div><span>Recorded earnings</span><strong><Amount>{CURRENCY}{fmt2(spendingSnapshot.earningsCents / 100)}</Amount></strong></div>
-              <div><span>Monthly spending</span><strong>{CURRENCY}{fmt2(spendingSnapshot.totalSpendingCents / 100)}</strong></div>
-              <div><span>{spendingSnapshot.differenceCents < 0 ? "Over earnings" : "Remaining"}</span><strong><Amount>{spendingSnapshot.differenceCents < 0 ? "−" : ""}{CURRENCY}{fmt2(Math.abs(spendingSnapshot.differenceCents) / 100)}</Amount></strong></div>
-            </div>
-            <button type="button" className="btn btn-secondary home-spending-cta" onClick={() => onNavigate?.("spending")}>View full spending dashboard <span aria-hidden="true">→</span></button>
-          </div>
-        ) : spendingSnapshotLoading ? <HomeSpendingSkeleton /> : spendingSnapshotError ? (
-          <div className="home-spending-error" role="alert"><span>{spendingSnapshotError}</span><button type="button" className="btn btn-secondary" onClick={() => void refreshSpendingSnapshot().catch(() => {})}>Retry</button></div>
-        ) : <div className="card-meta">Open Spending to record and review personal expenses.</div>}
-      </section>
+      <HomeSpendingSnapshotCard
+        monthLabel={spendingMonthLabel}
+        snapshot={spendingSnapshot}
+        loading={spendingSnapshotLoading}
+        error={spendingSnapshotError}
+        refresh={refreshSpendingSnapshot}
+        onNavigate={onNavigate}
+        active={active}
+        signIn={last?.signIn ?? null}
+        activeShiftInMonth={activeShiftInMonth}
+        rate={rate}
+      />
 
       <h2 className="section-title home-glance-title">Week at a glance</h2>
       <div className="section-hint">How this week's hours are spread out, day by day.</div>
       <WeekGlanceCard
         days={days}
         earningsHidden={earningsHidden}
+        active={active}
+        signIn={last?.signIn ?? null}
+        activeShiftInThisWeek={activeShiftInThisWeek}
+        activeShiftDate={activeShiftDate}
+        rate={rate}
       />
 
-      <div className="stat-grid">
-        <div className="card stat-tile stat-tile-ring anim-rise" style={{ ["--i" as string]: 3 }}>
-          <div className="card-kicker">Days logged</div>
-          <div className="stat-tile-ring-row">
-            <GoalRing pct={daysLoggedPct} value={`${daysLoggedAnim}/7`} />
-            <div className="card-meta stat-tile-ring-caption">days worked</div>
-          </div>
-        </div>
-        <div className="card stat-tile stat-tile-ring anim-rise" style={{ ["--i" as string]: 4 }}>
-          <div className="card-kicker">Weeks on goal</div>
-          <div className="stat-tile-ring-row">
-            <GoalRing pct={weeksOnGoalPct} value={`${metGoalAnim}/${history.length}`} />
-            <div className="card-meta stat-tile-ring-caption">on goal</div>
-          </div>
-        </div>
-        <div className="card stat-tile anim-rise" style={{ ["--i" as string]: 5 }}>
-          <div className="card-kicker">Current streak</div>
-          <div className="card-title stat-tile-value stat-tile-icon-row">
-            <FlameIcon size={19} />
-            <span className="count-value">{streakAnim}</span>
-          </div>
-          <div className="card-meta">{streak === 1 ? "day in a row" : "days in a row"}</div>
-        </div>
-        <div className="card stat-tile anim-rise" style={{ ["--i" as string]: 6 }}>
-          <div className="card-kicker">Best day this week</div>
-          <div className="card-title stat-tile-value stat-tile-icon-row">
-            <TrophyIcon size={19} />
-            <span>{bestDay ? bestDay.dayAbbr : "—"}</span>
-          </div>
-          <div className="card-meta">{bestDay ? <Amount>{bestDay.moneyLabel}</Amount> : "Log a shift to see it"}</div>
-        </div>
-      </div>
+      <LiveHomeStats
+        days={days}
+        shifts={shifts}
+        history={history}
+        goalEarnings={goalEarnings}
+        today={today}
+        rate={rate}
+        active={active}
+        signIn={last?.signIn ?? null}
+        activeShiftInThisWeek={activeShiftInThisWeek}
+        activeShiftDate={activeShiftDate}
+      />
     </div>
   );
 }

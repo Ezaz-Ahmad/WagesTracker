@@ -12,7 +12,11 @@ import { CURRENCY, useApp } from "../context/AppContext";
 import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
 import { addDays, isoDate, parseIsoDate, shortLabel, startOfWeek } from "../lib/date";
+import { findOpenShift } from "../lib/aggregate";
 import { useFocusTrap } from "../lib/useFocusTrap";
+import { useLiveElapsedHours } from "../lib/useLiveElapsedHours";
+import { isDateInRange, withLiveSpendingEarnings } from "../lib/liveShiftVisuals";
+import { LiveDataBadge } from "../components/LiveDataBadge";
 import {
   invalidateSpendingCategories,
   invalidateSpendingSummaries,
@@ -119,7 +123,9 @@ function periodLabel(period: Period, from: string, to: string): string {
 }
 
 export function SpendingScreen() {
-  const { today, user } = useApp();
+  const { today, user, shifts = [] } = useApp();
+  const last = findOpenShift(shifts);
+  const active = !!last;
   const cacheScope = user?.id ?? "logged-out";
   const [view, setView] = useState<View>("dashboard");
   const [period, setPeriod] = useState<Period>("month");
@@ -289,7 +295,7 @@ export function SpendingScreen() {
       )}
 
       {view === "dashboard" && (
-        <SpendingDashboard
+        <LiveSpendingDashboard
           summary={summary}
           loading={summaryLoading}
           error={summaryError}
@@ -298,6 +304,12 @@ export function SpendingScreen() {
           onEdit={openEditExpense}
           onDelete={(expense) => void deleteExpense(expense)}
           onAdd={openAddExpense}
+          active={active}
+          signIn={last?.signIn ?? null}
+          activeShiftDate={last?.date ?? null}
+          rangeFrom={range.from}
+          rangeTo={range.to}
+          rate={user?.rate ?? 0}
         />
       )}
 
@@ -355,6 +367,28 @@ export function SpendingScreen() {
   );
 }
 
+function LiveSpendingDashboard(props: {
+  summary: SpendingSummary | null;
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+  periodText: string;
+  onEdit: (expense: PersonalExpense) => void;
+  onDelete: (expense: PersonalExpense) => void;
+  onAdd: () => void;
+  active: boolean;
+  signIn: string | null;
+  activeShiftDate: string | null;
+  rangeFrom: string;
+  rangeTo: string;
+  rate: number;
+}) {
+  const ticking = props.active && isDateInRange(props.activeShiftDate, props.rangeFrom, props.rangeTo);
+  const liveHours = useLiveElapsedHours(ticking, props.signIn);
+  const summary = props.summary ? withLiveSpendingEarnings(props.summary, liveHours, props.rate) : null;
+  return <SpendingDashboard {...props} summary={summary} live={ticking && liveHours > 0} />;
+}
+
 function PeriodControls(props: {
   period: Period;
   onPeriod: (period: Period) => void;
@@ -397,6 +431,7 @@ function SpendingDashboard(props: {
   onEdit: (expense: PersonalExpense) => void;
   onDelete: (expense: PersonalExpense) => void;
   onAdd: () => void;
+  live: boolean;
 }) {
   if (props.loading && !props.summary) {
     return <SpendingDashboardSkeleton />;
@@ -433,7 +468,7 @@ function SpendingDashboard(props: {
       <section className="spending-overview" aria-labelledby="spending-overview-title">
         <div className="spending-overview-heading">
           <div>
-            <span className="card-kicker">Money overview</span>
+            <div className="chart-heading-kicker"><span className="card-kicker">Money overview</span><LiveDataBadge active={props.live} label="Earnings live" /></div>
             <h2 id="spending-overview-title">{props.periodText === "this month" ? "This month at a glance" : "Your selected period"}</h2>
           </div>
           <div className="spending-range-chip">
@@ -442,10 +477,10 @@ function SpendingDashboard(props: {
           </div>
         </div>
         <div className="spending-summary-grid">
-          <SummaryCard tone="earnings" label="Recorded earnings" value={formatMoney(summary.earningsCents)} detail={summary.earningsRecorded ? `Earned ${props.periodText}` : "No earnings recorded yet"} />
+          <SummaryCard tone="earnings" label="Recorded earnings" value={formatMoney(summary.earningsCents)} detail={summary.earningsRecorded ? `Earned ${props.periodText}` : "No earnings recorded yet"} live={props.live} />
           <SummaryCard tone="spending" label="Personal spending" value={formatMoney(summary.totalSpendingCents)} detail={`${summary.transactionCount} ${summary.transactionCount === 1 ? "expense" : "expenses"}`} />
-          <SummaryCard tone={summary.differenceCents < 0 ? "warning" : "remaining"} label={summary.differenceCents < 0 ? "Over earnings" : "Remaining"} value={formatMoney(summary.differenceCents)} detail="Earnings minus personal spending" />
-          <SummaryCard tone="percentage" label="Earnings spent" value={summary.spendingPercentage === null ? "—" : `${summary.spendingPercentage.toFixed(1)}%`} detail={summary.earningsCents === 0 ? "Add earnings to compare" : "Of recorded earnings"} />
+          <SummaryCard tone={summary.differenceCents < 0 ? "warning" : "remaining"} label={summary.differenceCents < 0 ? "Over earnings" : "Remaining"} value={formatMoney(summary.differenceCents)} detail="Earnings minus personal spending" live={props.live} />
+          <SummaryCard tone="percentage" label="Earnings spent" value={summary.spendingPercentage === null ? "—" : `${summary.spendingPercentage.toFixed(1)}%`} detail={summary.earningsCents === 0 ? "Add earnings to compare" : "Of recorded earnings"} live={props.live} />
         </div>
       </section>
 
@@ -455,7 +490,7 @@ function SpendingDashboard(props: {
         <CategoryBreakdown summary={summary} periodText={props.periodText} />
         <SpendingTrend summary={summary} />
       </div>
-      <EarningsComparison summary={summary} />
+      <EarningsComparison summary={summary} live={props.live} />
       <ExpenseListSection title="Recent expenses" expenses={summary.recentExpenses} onEdit={props.onEdit} onDelete={props.onDelete} onAdd={props.onAdd} />
     </div>
   );
@@ -494,11 +529,11 @@ function SpendingDashboardSkeleton() {
   );
 }
 
-function SummaryCard({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: "earnings" | "spending" | "remaining" | "warning" | "percentage" }) {
+function SummaryCard({ label, value, detail, tone, live = false }: { label: string; value: string; detail: string; tone: "earnings" | "spending" | "remaining" | "warning" | "percentage"; live?: boolean }) {
   return (
     <div className={`card elev-sm spending-summary-card is-${tone}`}>
       <div className="card-kicker">{label}</div>
-      <div className="spending-summary-value">{value}</div>
+      <div className={`spending-summary-value${live ? " live-metric-value" : ""}`}>{value}</div>
       <div className="card-meta">{detail}</div>
     </div>
   );
@@ -611,7 +646,7 @@ function SpendingTrend({ summary }: { summary: SpendingSummary }) {
   );
 }
 
-function EarningsComparison({ summary }: { summary: SpendingSummary }) {
+function EarningsComparison({ summary, live }: { summary: SpendingSummary; live: boolean }) {
   const max = Math.max(summary.earningsCents, summary.totalSpendingCents, 1);
   const spendingPerDollar = summary.earningsCents > 0 ? summary.totalSpendingCents / summary.earningsCents : null;
   const takeaway = summary.earningsCents === 0
@@ -622,12 +657,12 @@ function EarningsComparison({ summary }: { summary: SpendingSummary }) {
   return (
     <section className="card elev-sm spending-comparison" aria-labelledby="earnings-comparison-title">
       <div className="spending-card-heading">
-        <div><span className="card-kicker">Cash flow</span><h2 id="earnings-comparison-title" className="card-title">Earnings versus spending</h2></div>
+        <div><div className="chart-heading-kicker"><span className="card-kicker">Cash flow</span><LiveDataBadge active={live} /></div><h2 id="earnings-comparison-title" className="card-title">Earnings versus spending</h2></div>
         <span className={`spending-difference-pill${summary.differenceCents < 0 ? " is-negative" : ""}`}>{formatMoney(summary.differenceCents)} difference</span>
       </div>
       <p>{takeaway}{spendingPerDollar !== null ? ` ${formatMoney(Math.round(spendingPerDollar * 100))} of every ${formatMoney(100)} earned went to personal spending.` : ""}</p>
       <div className="comparison-bars" aria-hidden="true">
-        <div><span>Earnings</span><div><i style={{ width: `${(summary.earningsCents / max) * 100}%` }} /></div><strong>{formatMoney(summary.earningsCents)}</strong></div>
+        <div className={live ? "is-live" : undefined}><span>Earnings</span><div><i style={{ width: `${(summary.earningsCents / max) * 100}%` }} /></div><strong className="live-metric-value">{formatMoney(summary.earningsCents)}</strong></div>
         <div><span>Spending</span><div><i className="is-spending" style={{ width: `${(summary.totalSpendingCents / max) * 100}%` }} /></div><strong>{formatMoney(summary.totalSpendingCents)}</strong></div>
       </div>
     </section>

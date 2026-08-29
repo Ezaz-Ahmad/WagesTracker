@@ -603,6 +603,53 @@ button { font-family: inherit; }
 .stat-tile-icon-row span { color: var(--color-text); }
 .stat-tile-ring-row { display: flex; align-items: center; gap: var(--space-3); }
 .stat-tile-ring-caption { line-height: 1.3; }
+.stat-tile-kicker-row,
+.chart-heading-kicker,
+.live-visual-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.live-visual-status-row { min-height: 22px; margin-bottom: var(--space-2); }
+.live-data-badge {
+  min-width: 64px;
+  min-height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 3px 7px;
+  border: 1px solid color-mix(in srgb, var(--color-success) 24%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-success) 9%, var(--color-surface));
+  color: var(--color-success-700);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .025em;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--dur-base) var(--ease-standard), visibility 0s linear var(--dur-base);
+}
+.live-data-badge.is-active {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0s;
+}
+.live-data-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--color-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 13%, transparent);
+}
+.live-metric-value {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 
 /* — week at a glance (home) — */
 .glance-card { padding: var(--space-4) var(--space-3) var(--space-3); }
@@ -623,6 +670,10 @@ button { font-family: inherit; }
 .glance-bar-fill.is-worked { background: var(--color-accent); }
 .glance-bar-col.is-today .glance-bar-track { box-shadow: 0 0 0 2px var(--color-accent) inset; }
 .glance-bar-col.is-today .glance-bar-fill.is-worked { background: var(--color-accent-600); }
+.glance-bar-col.is-live .glance-bar-fill.is-worked {
+  background: linear-gradient(180deg, var(--color-accent-400), var(--color-accent-700));
+  box-shadow: 0 -3px 10px color-mix(in srgb, var(--color-accent) 23%, transparent);
+}
 .glance-bar-label {
   font-size: 11px; font-weight: 600; color: color-mix(in srgb, var(--color-text) 68%, transparent);
 }
@@ -631,6 +682,7 @@ button { font-family: inherit; }
 /* — animated goal ring (home stat tiles) — */
 .goal-ring { position: relative; flex: none; display: grid; place-items: center; }
 .goal-ring-svg { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--color-accent) 20%, transparent)); }
+.goal-ring.is-live .goal-ring-svg { filter: drop-shadow(0 0 7px color-mix(in srgb, var(--color-accent) 30%, transparent)); }
 .goal-ring-center {
   position: absolute; inset: 0; display: grid; place-items: center;
   font-family: var(--font-heading); font-weight: 800; color: var(--color-text);
@@ -1273,6 +1325,8 @@ button.location-picker-option:active { transform: scale(.992); }
 .report-hero-row > .report-hero-divider { width: 2px; flex: none; }
 .report-hero-divider { background: var(--color-divider); }
 .report-hero-hours { color: var(--color-accent-700); }
+.report-live-status { margin-bottom: var(--space-2); }
+.report-hero-row .live-metric-value { min-inline-size: 6.75ch; }
 /* `.week-amount`'s 38px is sized for a card the number has to itself (Home).
    Here it's split into two half-width columns instead — fine for a typical
    2-3 digit total, but a weekly total at or above $1,000 (no thousands
@@ -1295,6 +1349,13 @@ button.location-picker-option:active { transform: scale(.992); }
 .period-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 6px; }
 .period-bar-label { font-size: 10px; opacity: 0.72; }
 .period-bar-fill { width: 100%; }
+.period-bar-col.is-live .period-bar-fill {
+  background: linear-gradient(180deg, var(--color-accent-300), var(--color-accent-500)) !important;
+  box-shadow: 0 -4px 11px color-mix(in srgb, var(--color-accent) 18%, transparent);
+}
+.chart-point.is-live circle {
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--color-accent) 45%, transparent));
+}
 
 /* Empty datasets are a normal first-use condition, not an error. This
    shared treatment keeps them useful and intentional without turning them

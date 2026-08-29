@@ -7,12 +7,14 @@ type GoalRingProps = {
   strokeWidth?: number;
   /** Big text in the center, e.g. "4/7". */
   value: string;
+  /** Marks a ring whose value is being driven by the open shift clock. */
+  live?: boolean;
 };
 
 /** Compact animated circular progress ring — used on the Home screen's
  * "Days logged" / "Weeks on goal" stat tiles so a plain fraction reads as an
  * at-a-glance visual instead of just two numbers. */
-export function GoalRing({ pct, size = 60, strokeWidth = 7, value }: GoalRingProps) {
+export function GoalRing({ pct, size = 60, strokeWidth = 7, value, live = false }: GoalRingProps) {
   const r = (size - strokeWidth) / 2;
   const c = 2 * Math.PI * r;
   const clamped = Math.max(0, Math.min(100, Number.isFinite(pct) ? pct : 0));
@@ -20,7 +22,7 @@ export function GoalRing({ pct, size = 60, strokeWidth = 7, value }: GoalRingPro
 
   return (
     <div
-      className="goal-ring"
+      className={`goal-ring${live ? " is-live" : ""}`}
       style={{
         width: size,
         height: size,
