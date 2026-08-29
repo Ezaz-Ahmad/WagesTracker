@@ -19,6 +19,16 @@ import { computeHours, isoDate, parseIsoDate } from "./date";
 
 export const UNUSUALLY_LONG_SHIFT_HOURS = 16;
 export const LONG_SHIFT_WARNING = "This shift is unusually long. Please confirm that the start and finish times are correct.";
+export const FUTURE_DATE_MESSAGE = "You can't log a shift for a future date.";
+export const FUTURE_DATE_WARNING =
+  "This date is in the future. Saving it can add hours or fuel to your reports before that work happens. Continue only if you are deliberately pre-entering a planned or scheduled entry.";
+
+export function isFutureDate(dateISO: string, today = new Date()): boolean {
+  const date = parseIsoDate(dateISO);
+  if (Number.isNaN(date.getTime())) return false;
+  const localToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  return isoDate(date) > isoDate(localToday);
+}
 
 export function isUnusuallyLongShift(signIn: string | null, signOut: string | null): boolean {
   return !!signIn && !!signOut && signIn !== signOut && computeHours(signIn, signOut) > UNUSUALLY_LONG_SHIFT_HOURS;
@@ -28,15 +38,19 @@ export function isUnusuallyLongShift(signIn: string | null, signOut: string | nu
  * The first problem with this date/time combination, or null if there is
  * none. Message text is written for a person editing a form, not for a log.
  */
-export function describeShiftTimes(dateISO: string, signIn: string | null, signOut: string | null): string | null {
+export function describeShiftTimes(
+  dateISO: string,
+  signIn: string | null,
+  signOut: string | null,
+  allowFutureDate = false,
+  today = new Date()
+): string | null {
   const date = parseIsoDate(dateISO);
   if (Number.isNaN(date.getTime())) return "That isn't a valid date.";
 
   // The browser is already in the current device timezone. The backend uses
   // its own clock plus X-Client-Time-Zone as the authoritative equivalent.
-  const today = new Date();
-  const localToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  if (isoDate(date) > isoDate(localToday)) return "You can't log a shift for a future date.";
+  if (isFutureDate(dateISO, today) && !allowFutureDate) return FUTURE_DATE_MESSAGE;
 
   if (!signIn || !signOut) return null;
   if (signIn === signOut) return "Sign-in and sign-out can't be the same time.";

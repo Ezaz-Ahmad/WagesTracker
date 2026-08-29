@@ -6,10 +6,9 @@ import { CloseIcon } from "../components/icons";
 import { useDismissTransition } from "../lib/useDismissTransition";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { computeHours, fmt2, parseIsoDate } from "../lib/date";
-import { describeShiftTimes } from "../lib/shiftRules";
+import { describeShiftTimes, FUTURE_DATE_WARNING, isFutureDate, isUnusuallyLongShift, LONG_SHIFT_WARNING } from "../lib/shiftRules";
 import { useApp } from "../context/AppContext";
 import { useConfirm } from "../components/ConfirmProvider";
-import { isUnusuallyLongShift, LONG_SHIFT_WARNING } from "../lib/shiftRules";
 
 export interface DayEditorTarget {
   dateISO: string;
@@ -18,7 +17,7 @@ export interface DayEditorTarget {
 interface DayEditorSheetProps {
   target: DayEditorTarget;
   onClose: () => void;
-  onSave: (shiftId: string | null, values: { signIn: string; signOut: string; location: string; workLocationId: string | null; locationChanged: boolean; fuelCost: number | null; shiftChanged: boolean; fuelChanged: boolean }) => Promise<void>;
+  onSave: (shiftId: string | null, values: { signIn: string; signOut: string; location: string; workLocationId: string | null; locationChanged: boolean; fuelCost: number | null; shiftChanged: boolean; fuelChanged: boolean; allowFutureDate: boolean }) => Promise<void>;
   onDelete: (shiftId: string) => Promise<void>;
 }
 
@@ -55,7 +54,7 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
   // time. With a snapshot, `original` below would still hold the pre-save
   // values after a successful save, so `dirty` would never clear and the
   // form would claim unsaved changes for edits that had already landed.
-  const { shifts, dayExpenses, workLocations } = useApp();
+  const { today, shifts, dayExpenses, workLocations } = useApp();
   const activeLocations = (workLocations ?? []).filter((item) => !item.archived);
   const dayShifts = useMemo(
     () => shifts.filter((s) => s.date === target.dateISO),
@@ -77,6 +76,11 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [futureDateAcknowledged, setFutureDateAcknowledged] = useState(false);
+
+  useEffect(() => {
+    setFutureDateAcknowledged(false);
+  }, [target.dateISO]);
 
   // Switching between shifts on the same day reloads the form from that
   // shift. Keyed off the id so it doesn't fire on every render.
@@ -132,7 +136,10 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
   // Live, read-only. Recomputed with the same function every total in the app
   // uses, so the preview cannot disagree with what saving will produce.
   const previewHours = signIn && signOut ? computeHours(signIn, signOut) : 0;
-  const validation = describeShiftTimes(target.dateISO, signIn || null, signOut || null);
+  const futureDate = isFutureDate(target.dateISO, today);
+  // Keep the inline validation focused on malformed times. A future date is
+  // deliberately a confirmable warning, not a permanently disabled form.
+  const validation = describeShiftTimes(target.dateISO, signIn || null, signOut || null, true, today);
   const selectedActiveLocation = activeLocations.find((item) => item.id === workLocationId);
   const canSave = dirty && !saving && fuelValid && (
     !shiftDirty
@@ -169,6 +176,15 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
 
   async function handleSave() {
     if (!canSave) return;
+    let allowFutureDate = false;
+    if (futureDate && !futureDateAcknowledged) {
+      const accepted = await confirm(`${FUTURE_DATE_WARNING}\n\nDate: ${weekdayLabel(target.dateISO)}.`, "danger");
+      if (!accepted) return;
+      setFutureDateAcknowledged(true);
+      allowFutureDate = true;
+    } else if (futureDate) {
+      allowFutureDate = true;
+    }
     if (timeFieldsDirty && isUnusuallyLongShift(signIn, signOut) && !(await confirm(LONG_SHIFT_WARNING))) return;
     setSaving(true);
     setError(null);
@@ -184,6 +200,7 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
         fuelCost: normalisedFuelCost,
         shiftChanged: shiftDirty,
         fuelChanged: fuelDirty,
+        allowFutureDate,
       });
       setSaved(true);
       // Deliberately does NOT close or clear the fields. The values stay on
@@ -366,6 +383,11 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
             {!validation && isUnusuallyLongShift(signIn, signOut) && (
               <StatusBanner tone="warning" className="day-editor-long-warning">
                 {LONG_SHIFT_WARNING}
+              </StatusBanner>
+            )}
+            {futureDate && !futureDateAcknowledged && (
+              <StatusBanner tone="warning" className="day-editor-future-warning">
+                This is a future date. Saving will add the hours and fuel to your reports before the work happens; Save will ask you to confirm.
               </StatusBanner>
             )}
             {signIn && signOut && !validation && computeHours(signIn, signOut) > 0 && signOut < signIn && (

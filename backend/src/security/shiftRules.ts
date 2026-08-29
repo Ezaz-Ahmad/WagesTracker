@@ -115,6 +115,13 @@ export interface ShiftTimesInput {
   signOut: string | null;
 }
 
+export interface ShiftTimesValidationOptions {
+  /** Future dates are opt-in: the UI asks for an explicit acknowledgement
+   * before sending this flag, while the API keeps rejecting accidental writes
+   * from scripts or stale clients by default. */
+  allowFutureDate?: boolean;
+}
+
 /**
  * Everything checkable without looking at the user's other shifts.
  * Returns the first problem found, or null when the shift is acceptable.
@@ -123,14 +130,18 @@ export interface ShiftTimesInput {
  * validated request timezone. Keeping that conversion outside this helper
  * makes the calendar rule deterministic and directly testable.
  */
-export function validateShiftTimes(input: ShiftTimesInput, localToday: string): string | null {
+export function validateShiftTimes(
+  input: ShiftTimesInput,
+  localToday: string,
+  options: ShiftTimesValidationOptions = {}
+): string | null {
   const { date, signIn, signOut } = input;
 
   if (!isValidDate(date)) return "date must be a real calendar date in YYYY-MM-DD form";
   if (signIn !== null && !isValidTime(signIn)) return "signIn must be HH:MM";
   if (signOut !== null && !isValidTime(signOut)) return "signOut must be HH:MM";
 
-  if (date > localToday) return FUTURE_DATE_MESSAGE;
+  if (date > localToday && !options.allowFutureDate) return FUTURE_DATE_MESSAGE;
 
   // A part-filled shift (signed in, not yet out) is a legitimate in-progress
   // state — only a complete pair can be measured.

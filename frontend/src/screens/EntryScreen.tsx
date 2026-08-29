@@ -23,7 +23,7 @@ import { WorkLocationPicker } from "../components/WorkLocationPicker";
 import { AsyncButton } from "../components/AsyncButton";
 import { EarningsHiddenHint } from "../components/EarningsHiddenHint";
 import { useConfirm } from "../components/ConfirmProvider";
-import { isUnusuallyLongShift, LONG_SHIFT_WARNING } from "../lib/shiftRules";
+import { FUTURE_DATE_WARNING, isFutureDate, isUnusuallyLongShift, LONG_SHIFT_WARNING } from "../lib/shiftRules";
 import type { WorkLocation } from "../lib/types";
 import * as api from "../lib/api";
 
@@ -177,6 +177,10 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
   const [otherAmountValue, setOtherAmountValue] = useState(0);
   const [otherPickerOpen, setOtherPickerOpen] = useState(false);
   const otherReasonRef = useRef<HTMLTextAreaElement>(null);
+  // Acknowledging a future day is scoped to this mounted Entry screen. This
+  // avoids asking twice while the user fills sign-in, sign-out, and fuel for
+  // the same planned day, but a fresh visit still gets a fresh warning.
+  const futureDateAcknowledgedRef = useRef<Set<string>>(new Set());
 
   // Hooks below must run every render regardless of loading state, so the
   // bail-out has to come after all of them — see HomeScreen for the same fix.
@@ -317,11 +321,13 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
     const normalized = value || null;
     const mergedSignIn = field === "signIn" ? value || null : row.signIn;
     const mergedSignOut = field === "signOut" ? value || null : row.signOut;
+    if (!(await confirmFutureDate(day))) return false;
     if (isUnusuallyLongShift(mergedSignIn, mergedSignOut) && !(await confirm(LONG_SHIFT_WARNING))) {
       return false;
     }
+    const allowFutureDate = isFutureDate(day.dateISO, today);
     if (row.id) {
-      await updateShift(row.id, { [field]: normalized });
+      await updateShift(row.id, { [field]: normalized, ...(allowFutureDate ? { allowFutureDate: true } : {}) });
       return true;
     }
     if (!row.workLocationId) {
@@ -337,6 +343,7 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
       location: row.location,
       signIn: field === "signIn" ? value || null : row.signIn,
       signOut: field === "signOut" ? value || null : row.signOut,
+      ...(allowFutureDate ? { allowFutureDate: true } : {}),
     });
     clearPending(day.dateISO, row.tempId);
     return true;
@@ -439,13 +446,24 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
     setOpenDays((prev) => ({ ...prev, [dateISO]: !current }));
   }
 
-  function handleFuelAmountPick(day: DayComputed, amount: number) {
+  async function confirmFutureDate(day: DayComputed): Promise<boolean> {
+    if (!isFutureDate(day.dateISO, today) || futureDateAcknowledgedRef.current.has(day.dateISO)) return true;
+    const accepted = await confirm(
+      `${FUTURE_DATE_WARNING}\n\nDate: ${day.dayAbbr} ${day.dateLabel}.`,
+      "danger",
+    );
+    if (accepted) futureDateAcknowledgedRef.current.add(day.dateISO);
+    return accepted;
+  }
+
+  async function handleFuelAmountPick(day: DayComputed, amount: number) {
+    if (!(await confirmFutureDate(day))) return;
     const rounded = Math.round(amount * 100) / 100;
     if (rounded <= 0) {
-      void setFuelCost(day.dateISO, null);
+      await setFuelCost(day.dateISO, null, isFutureDate(day.dateISO, today));
       return;
     }
-    void setFuelCost(day.dateISO, rounded);
+    await setFuelCost(day.dateISO, rounded, isFutureDate(day.dateISO, today));
   }
 
   const otherChecked = otherOpen ?? otherAmount > 0;
@@ -714,7 +732,15 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
                     <span className="fuel-amount-value">{fmt2(displayedFuelAmount)}</span>
                   </button>
                   {hasManualFuel && (
-                    <button type="button" className="btn btn-ghost fuel-restore-btn" onClick={() => void setFuelCost(day.dateISO, null)}>
+                    <button
+                      type="button"
+                      className="btn btn-ghost fuel-restore-btn"
+                      onClick={async () => {
+                        if (await confirmFutureDate(day)) {
+                          await setFuelCost(day.dateISO, null, isFutureDate(day.dateISO, today));
+                        }
+                      }}
+                    >
                       Restore automatic{automaticFuel > 0 ? ` (${CURRENCY}${fmt2(automaticFuel)})` : ""}
                     </button>
                   )}
@@ -831,9 +857,9 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
               currency={CURRENCY}
               initialAmount={initialAmount}
               onCancel={() => setFuelPickerDate(null)}
-              onDone={(amount) => {
-                handleFuelAmountPick(day, amount);
+              onDone={async (amount) => {
                 setFuelPickerDate(null);
+                await handleFuelAmountPick(day, amount);
               }}
             />
           );
