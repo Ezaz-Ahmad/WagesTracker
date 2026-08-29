@@ -164,6 +164,7 @@ const createSchema = z
     workLocationId: z.string().uuid("Invalid work location").nullable().optional().default(null),
     signIn: z.string().regex(TIME_RE).nullable().optional().default(null),
     signOut: z.string().regex(TIME_RE).nullable().optional().default(null),
+    allowFutureDate: z.boolean().optional().default(false),
   })
   .refine((data) => !data.signIn || !data.signOut || isNonZeroDuration(data.signIn, data.signOut), {
     message: ZERO_LENGTH_MESSAGE,
@@ -183,7 +184,7 @@ shiftsRouter.post(
       res.status(400).json({ error: parsed.error.issues[0]?.message || "Invalid input" });
       return;
     }
-    const { date, location, workLocationId, signIn, signOut } = parsed.data;
+    const { date, location, workLocationId, signIn, signOut, allowFutureDate } = parsed.data;
 
     const selectedLocation = await findActiveWorkLocation(req.userId!, workLocationId, location);
     if (workLocationId && !selectedLocation) {
@@ -196,7 +197,7 @@ shiftsRouter.post(
 
     // Real-calendar-date, future-date and zero-duration checks. Applied
     // to every create, not just historical ones — see security/shiftRules.ts.
-    const problem = validateShiftTimes({ date, signIn, signOut }, localToday);
+    const problem = validateShiftTimes({ date, signIn, signOut }, localToday, { allowFutureDate });
     if (problem) {
       res.status(400).json({ error: problem });
       return;
@@ -264,6 +265,7 @@ const patchSchema = z.object({
   workLocationId: z.string().uuid("Invalid work location").nullable().optional(),
   signIn: z.string().regex(TIME_RE).nullable().optional(),
   signOut: z.string().regex(TIME_RE).nullable().optional(),
+  allowFutureDate: z.boolean().optional().default(false),
 });
 
 shiftsRouter.patch(
@@ -289,7 +291,7 @@ shiftsRouter.patch(
       return;
     }
 
-    const updates = parsed.data;
+    const { allowFutureDate, ...updates } = parsed.data;
     const keys = Object.keys(updates) as (keyof typeof updates)[];
     if (keys.length === 0) {
       res.status(400).json({ error: "No fields to update" });
@@ -320,7 +322,11 @@ shiftsRouter.patch(
     // were. The date is not patchable at all, so it never needs re-checking.
     const timesChanged = "signIn" in updates || "signOut" in updates;
     if (timesChanged) {
-      const problem = validateShiftTimes({ date: existing.date, signIn: mergedSignIn, signOut: mergedSignOut }, localToday);
+      const problem = validateShiftTimes(
+        { date: existing.date, signIn: mergedSignIn, signOut: mergedSignOut },
+        localToday,
+        { allowFutureDate }
+      );
       if (problem) {
         res.status(400).json({ error: problem });
         return;

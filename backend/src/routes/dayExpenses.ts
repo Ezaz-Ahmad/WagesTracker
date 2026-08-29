@@ -6,11 +6,29 @@ import { db, pruneExpiredShifts } from "../db.js";
 import { dollarsToCents, hasAtMostTwoDecimals, MAX_FUEL_ALLOWANCE, recalculateDayFuelAllowance } from "../fuelAllowances.js";
 import { requireAuth, type AuthedRequest } from "../auth.js";
 import { toPublicDayExpense, type DayExpenseRow } from "../types.js";
+import {
+  CLIENT_TIME_ZONE_HEADER,
+  isSupportedIanaTimeZone,
+  isValidDate,
+  localDateForTimeZone,
+} from "../security/shiftRules.js";
 
 export const dayExpensesRouter = Router();
 dayExpensesRouter.use(requireAuth);
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const FUTURE_FUEL_DATE_MESSAGE = "You can't record fuel for a future date without confirming it.";
+
+/** Fuel writes predate the client-time-zone requirement used by shift writes,
+ * so an omitted header remains compatible with older clients and scripts.
+ * New clients send it, which makes the future-date guard use the user's local
+ * calendar rather than the server's UTC day. */
+function requestLocalDate(req: AuthedRequest): string | null {
+  const raw = req.get(CLIENT_TIME_ZONE_HEADER);
+  if (!raw) return new Date().toISOString().slice(0, 10);
+  if (!isSupportedIanaTimeZone(raw)) return null;
+  return localDateForTimeZone(new Date(), raw.trim());
+}
 
 dayExpensesRouter.get(
   "/",
@@ -47,13 +65,19 @@ const putSchema = z.object({
     .max(MAX_FUEL_ALLOWANCE)
     .refine(hasAtMostTwoDecimals, "Fuel allowance can have at most two decimal places")
     .nullable(),
+  allowFutureDate: z.boolean().optional().default(false),
 });
 
 dayExpensesRouter.put(
   "/:date",
   asyncHandler<AuthedRequest>(async (req, res) => {
-    if (!DATE_RE.test(req.params.date)) {
+    if (!DATE_RE.test(req.params.date) || !isValidDate(req.params.date)) {
       res.status(400).json({ error: "date must be YYYY-MM-DD" });
+      return;
+    }
+    const localToday = requestLocalDate(req);
+    if (!localToday) {
+      res.status(400).json({ error: "A valid device time zone is required to save fuel.", code: "INVALID_CLIENT_TIME_ZONE" });
       return;
     }
     const parsed = putSchema.safeParse(req.body);
@@ -61,8 +85,13 @@ dayExpensesRouter.put(
       res.status(400).json({ error: parsed.error.issues[0]?.message || "Invalid input" });
       return;
     }
-    const manualOverrideCents = parsed.data.fuelCost && parsed.data.fuelCost > 0
-      ? dollarsToCents(parsed.data.fuelCost)
+    const { fuelCost, allowFutureDate } = parsed.data;
+    if (req.params.date > localToday && !allowFutureDate) {
+      res.status(400).json({ error: FUTURE_FUEL_DATE_MESSAGE });
+      return;
+    }
+    const manualOverrideCents = fuelCost && fuelCost > 0
+      ? dollarsToCents(fuelCost)
       : null;
     const date = req.params.date;
     const now = new Date().toISOString();

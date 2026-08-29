@@ -71,6 +71,23 @@ describe("shift date and time rules", () => {
       expect(res.body.error).toMatch(/future date/i);
     });
 
+    it("allows an explicitly confirmed future date", async () => {
+      const res = await post({ date: daysAhead(1), signIn: "09:00", signOut: "17:00", allowFutureDate: true });
+      expect(res.status).toBe(201);
+      await request(app).delete(`/api/shifts/${res.body.shift.id}`).set("Authorization", `Bearer ${token}`);
+    });
+
+    it("requires the same opt-in when editing a future shift", async () => {
+      const created = await post({ date: daysAhead(2), signIn: "09:00", signOut: "17:00", allowFutureDate: true });
+      expect(created.status).toBe(201);
+      const rejected = await patch(created.body.shift.id, { signOut: "18:00" });
+      expect(rejected.status).toBe(400);
+      expect(rejected.body.error).toMatch(/future date/i);
+      const accepted = await patch(created.body.shift.id, { signOut: "18:00", allowFutureDate: true });
+      expect(accepted.status).toBe(200);
+      await request(app).delete(`/api/shifts/${created.body.shift.id}`).set("Authorization", `Bearer ${token}`);
+    });
+
     it("accepts a past date, which is the entire point of historical editing", async () => {
       const res = await post({ date: daysAgo(40), signIn: "09:00", signOut: "17:00" });
       expect(res.status).toBe(201);

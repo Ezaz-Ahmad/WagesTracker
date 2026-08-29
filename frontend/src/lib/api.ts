@@ -419,6 +419,9 @@ export interface ShiftInput {
   workLocationId?: string | null;
   signIn: string | null;
   signOut: string | null;
+  /** Set only after the user has explicitly acknowledged the future-date
+   * warning. The server rejects future dates when this is omitted. */
+  allowFutureDate?: boolean;
 }
 
 function shiftWriteHeaders(): Record<string, string> {
@@ -471,8 +474,16 @@ export function archiveWorkLocation(id: string): Promise<void> {
 }
 
 /** Upserts (or clears, with `null`) the fuel cost for a single calendar day. */
-export function setDayExpense(date: string, fuelCost: number | null): Promise<{ expense: DayExpense | null }> {
-  return request(`/day-expenses/${date}`, { method: "PUT", body: JSON.stringify({ fuelCost }) });
+export function setDayExpense(
+  date: string,
+  fuelCost: number | null,
+  allowFutureDate = false
+): Promise<{ expense: DayExpense | null }> {
+  return request(`/day-expenses/${date}`, {
+    method: "PUT",
+    headers: shiftWriteHeaders(),
+    body: JSON.stringify({ fuelCost, ...(allowFutureDate ? { allowFutureDate: true } : {}) }),
+  });
 }
 
 export function listWeekExtras(from: string, to: string): Promise<{ extras: WeekExtra[] }> {

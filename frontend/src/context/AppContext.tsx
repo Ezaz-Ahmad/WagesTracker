@@ -204,8 +204,8 @@ interface AppContextValue {
   archiveWorkLocation: (id: string) => Promise<void>;
 
   dayExpenses: DayExpense[];
-  setFuelCost: (date: string, fuelCost: number | null) => Promise<void>;
-  setFuelCostOrThrow: (date: string, fuelCost: number | null) => Promise<void>;
+  setFuelCost: (date: string, fuelCost: number | null, allowFutureDate?: boolean) => Promise<void>;
+  setFuelCostOrThrow: (date: string, fuelCost: number | null, allowFutureDate?: boolean) => Promise<void>;
 
   weekExtras: WeekExtra[];
   setWeekExtra: (weekStart: string, amount: number | null, reason: string) => Promise<boolean>;
@@ -1108,14 +1108,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Optimistic — the amount box is meant to feel instant like everything else on
   // this screen. Rolls back to the previous value if the request fails.
   const setFuelCostOrThrow = useCallback(
-    async (date: string, fuelCost: number | null) => {
+    async (date: string, fuelCost: number | null, allowFutureDate = false) => {
       const prev = dayExpenses;
       setDayExpenses((cur) => {
         const rest = cur.filter((e) => e.date !== date);
         return fuelCost && fuelCost > 0 ? [...rest, { date, fuelCost }] : rest;
       });
       try {
-        const { expense } = await api.setDayExpense(date, fuelCost);
+        const { expense } = allowFutureDate
+          ? await api.setDayExpense(date, fuelCost, true)
+          : await api.setDayExpense(date, fuelCost);
         setDayExpenses((cur) => [
           ...cur.filter((item) => item.date !== date),
           ...(expense ? [expense] : []),
@@ -1130,9 +1132,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const setFuelCost = useCallback(
-    async (date: string, fuelCost: number | null) => {
+    async (date: string, fuelCost: number | null, allowFutureDate = false) => {
       try {
-        await setFuelCostOrThrow(date, fuelCost);
+        await setFuelCostOrThrow(date, fuelCost, allowFutureDate);
       } catch (e) {
         await handleActionError(e, "Couldn't save fuel cost");
       }

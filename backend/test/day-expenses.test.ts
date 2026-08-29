@@ -72,6 +72,27 @@ describe("day-expenses (fuel cost)", () => {
     expect(list.body.expenses.filter((e: { date: string }) => e.date === DATE)).toHaveLength(0);
   });
 
+  it("requires explicit confirmation before writing fuel for a future date", async () => {
+    const futureDate = "2099-01-01";
+    const rejected = await request(app)
+      .put(`/api/day-expenses/${futureDate}`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ fuelCost: 12.5 });
+    expect(rejected.status).toBe(400);
+    expect(rejected.body.error).toMatch(/future date/i);
+
+    const accepted = await request(app)
+      .put(`/api/day-expenses/${futureDate}`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ fuelCost: 12.5, allowFutureDate: true });
+    expect(accepted.status).toBe(200);
+    expect(accepted.body.expense.fuelCost).toBe(12.5);
+    await request(app)
+      .put(`/api/day-expenses/${futureDate}`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ fuelCost: null, allowFutureDate: true });
+  });
+
   it("keeps fuel-cost records fully scoped per user", async () => {
     // A's turn: leave a real record behind again for the isolation checks below.
     await request(app).put(`/api/day-expenses/${DATE}`).set("Authorization", `Bearer ${tokenA}`).send({ fuelCost: 30 });

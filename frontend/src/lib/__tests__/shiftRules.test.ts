@@ -10,6 +10,7 @@ describe("frontend shift date validation", () => {
     vi.setSystemTime(new Date(2026, 7, 13, 23, 30));
     expect(describeShiftTimes("2026-08-13", "09:00", "17:00")).toBeNull();
     expect(describeShiftTimes("2026-08-14", "09:00", "17:00")).toMatch(/future date/i);
+    expect(describeShiftTimes("2026-08-14", "09:00", "17:00", true)).toBeNull();
   });
 
   it("keeps an overnight shift beginning today valid", () => {
