@@ -287,6 +287,21 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
     });
   }
 
+  function pendingAutomaticFuelForRows(renderedRows: Row[]): number {
+    const workedLocationIds = new Set(
+      renderedRows
+        .filter((row) => !!row.signIn && !!row.workLocationId)
+        .map((row) => row.workLocationId as string)
+    );
+    const pendingAllowanceByLocation = new Map<string, number>();
+    renderedRows.forEach((row) => {
+      if (!row.workLocationId || row.signIn || workedLocationIds.has(row.workLocationId)) return;
+      const location = activeLocations.find((item) => item.id === row.workLocationId);
+      if (location?.fuelAllowance != null) pendingAllowanceByLocation.set(location.id, location.fuelAllowance);
+    });
+    return Array.from(pendingAllowanceByLocation.values()).reduce((sum, amount) => sum + amount, 0);
+  }
+
   function locationDraftKey(dateISO: string, row: Row, index: number): string {
     return `${dateISO}:${row.tempId ?? row.id ?? `placeholder-${index}`}`;
   }
@@ -507,18 +522,9 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
         const fuelExpense = dayExpenses.find((expense) => expense.date === day.dateISO);
         const automaticFuel = fuelExpense?.automaticFuelAllowance ?? 0;
         const hasManualFuel = fuelExpense?.source === "manual" || fuelExpense?.manualOverride != null;
-        const workedLocationIds = new Set(
-          renderedRows
-            .filter((row) => !!row.signIn && !!row.workLocationId)
-            .map((row) => row.workLocationId as string)
-        );
-        const pendingAllowanceByLocation = new Map<string, number>();
-        renderedRows.forEach((row) => {
-          if (!row.workLocationId || row.signIn || workedLocationIds.has(row.workLocationId)) return;
-          const location = activeLocations.find((item) => item.id === row.workLocationId);
-          if (location?.fuelAllowance != null) pendingAllowanceByLocation.set(location.id, location.fuelAllowance);
-        });
-        const pendingAutomaticFuel = Array.from(pendingAllowanceByLocation.values()).reduce((sum, amount) => sum + amount, 0);
+        const pendingAutomaticFuel = pendingAutomaticFuelForRows(renderedRows);
+        const isFuelPreview = !hasManualFuel && automaticFuel <= 0 && pendingAutomaticFuel > 0;
+        const displayedFuelAmount = isFuelPreview ? pendingAutomaticFuel : day.fuelCost;
         return (
         <div
           key={day.dateISO}
@@ -680,10 +686,10 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
                     type="button"
                     className="fuel-amount fuel-amount-btn is-open"
                     onClick={() => setFuelPickerDate(day.dateISO)}
-                    aria-label={`${hasManualFuel ? "Edit" : "Set"} fuel allowance for ${day.dayAbbr}; current value ${CURRENCY}${fmt2(day.fuelCost)}`}
+                    aria-label={`${isFuelPreview ? "Preview" : hasManualFuel ? "Edit" : "Set"} fuel allowance for ${day.dayAbbr}; current value ${CURRENCY}${fmt2(displayedFuelAmount)}${isFuelPreview ? ", applied after sign-in" : ""}`}
                   >
                     <span className="fuel-amount-prefix">{CURRENCY}</span>
-                    <span className="fuel-amount-value">{fmt2(day.fuelCost)}</span>
+                    <span className="fuel-amount-value">{fmt2(displayedFuelAmount)}</span>
                   </button>
                   {hasManualFuel && (
                     <button type="button" className="btn btn-ghost fuel-restore-btn" onClick={() => void setFuelCost(day.dateISO, null)}>
@@ -792,11 +798,18 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
         (() => {
           const day = days.find((d) => d.dateISO === fuelPickerDate);
           if (!day) return null;
+          const fuelExpense = dayExpenses.find((expense) => expense.date === day.dateISO);
+          const automaticFuel = fuelExpense?.automaticFuelAllowance ?? 0;
+          const hasManualFuel = fuelExpense?.source === "manual" || fuelExpense?.manualOverride != null;
+          const pendingAutomaticFuel = pendingAutomaticFuelForRows(rowsFor(day));
+          const initialAmount = !hasManualFuel && automaticFuel <= 0 && pendingAutomaticFuel > 0
+            ? pendingAutomaticFuel
+            : day.fuelCost;
           return (
             <AmountWheelPicker
               title={`Fuel allowance — ${day.dayAbbr} ${day.dateLabel}`}
               currency={CURRENCY}
-              initialAmount={day.fuelCost}
+              initialAmount={initialAmount}
               onCancel={() => setFuelPickerDate(null)}
               onDone={(amount) => {
                 handleFuelAmountPick(day, amount);

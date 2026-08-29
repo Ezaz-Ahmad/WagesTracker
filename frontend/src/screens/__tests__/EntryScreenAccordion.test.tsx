@@ -220,8 +220,14 @@ describe("Entry screen — day accordion structure and keyboard behavior", () =>
     const location = within(emptyCard).getByRole("button", { name: /Location for Thu Jan 8: Cafe/i });
     expect(location.textContent).toContain("Cafe");
     expect(within(emptyCard).getByText(/\$12\.50 is ready from the selected location/i)).toBeTruthy();
-    expect(within(emptyCard).getByRole("button", { name: /current value \$0\.00/i })).toBeTruthy();
+    const previewAmount = within(emptyCard).getByRole("button", { name: /Preview fuel allowance.*current value \$12\.50.*applied after sign-in/i });
+    expect(previewAmount.textContent).toContain("$12.50");
     expect(createShift).not.toHaveBeenCalled();
+
+    await user.click(previewAmount);
+    const amountPicker = await screen.findByRole("dialog", { name: /Fuel allowance — Thu Jan 8/i });
+    expect(within(amountPicker).getByText("$12.50", { selector: ".wheel-readout" })).toBeTruthy();
+    await user.click(within(amountPicker).getByRole("button", { name: "Cancel" }));
 
     await user.click(location);
     const picker = await screen.findByRole("dialog", { name: /Choose a location — Thu Jan 8/i });
