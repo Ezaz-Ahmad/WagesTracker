@@ -19,7 +19,8 @@
 ## Verification completed locally
 
 - Backend tests: 280 passed.
-- Frontend component/integration/accessibility tests plus association-file tests: 689 expected after the final additions; rerun the committed branch gates for the authoritative count.
+  - Frontend Vitest tests: 686 passed across 85 files.
+  - Apple association-file tests: 3 passed.
 - TypeScript checks: backend and frontend passed.
 - Desktop and 360px-wide in-app browser checks: state-preserving Privacy/Support navigation, focus restoration, no horizontal overflow and no captured browser warning/error.
 
