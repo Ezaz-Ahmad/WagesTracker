@@ -125,6 +125,8 @@ export function WorkLocationPicker({
                     className={`location-picker-option${selected ? " is-selected" : ""}`}
                     onClick={() => void choose(location.id)}
                     disabled={selectingId !== null}
+                    aria-busy={busy || undefined}
+                    aria-label={busy ? `Selecting ${location.name}…` : undefined}
                     aria-current={selected ? "true" : undefined}
                   >
                     <span className="location-picker-option-icon" aria-hidden="true"><LocationPinIcon size={18} /></span>

@@ -20,6 +20,7 @@ import { Skeleton } from "../components/Skeleton";
 import { Amount } from "../components/Amount";
 import { AmountWheelPicker } from "../components/AmountWheelPicker";
 import { WorkLocationPicker } from "../components/WorkLocationPicker";
+import { AsyncButton } from "../components/AsyncButton";
 import { EarningsHiddenHint } from "../components/EarningsHiddenHint";
 import { useConfirm } from "../components/ConfirmProvider";
 import { isUnusuallyLongShift, LONG_SHIFT_WARNING } from "../lib/shiftRules";
@@ -147,6 +148,7 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
   } = useApp();
   const { active, last, startAtLocation, end } = useTodayShift();
   const [busy, setBusy] = useState(false);
+  const [entryActionBusy, setEntryActionBusy] = useState<string | null>(null);
   const [pending, setPending] = useState<Record<string, string[]>>({});
   const [locationSuggestions, setLocationSuggestions] = useState<Record<string, string[]>>({});
   const [draftLocations, setDraftLocations] = useState<Record<string, string>>({});
@@ -381,19 +383,32 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
   }
 
   async function handleRemoveShift(day: DayComputed, row: Row) {
-    if (row.id) {
-      await removeShift(row.id);
-    } else {
-      clearPending(day.dateISO, row.tempId);
+    const target = `remove:${row.id ?? row.tempId ?? day.dateISO}`;
+    if (entryActionBusy) return;
+    setEntryActionBusy(target);
+    try {
+      if (row.id) {
+        await removeShift(row.id);
+      } else {
+        clearPending(day.dateISO, row.tempId);
+      }
+    } finally {
+      setEntryActionBusy(null);
     }
   }
 
   async function handleClearDay(day: DayComputed) {
     // Confirmation now happens up front via the button's data-confirm popup
     // (see ConfirmProvider) instead of the browser's native confirm().
-    const ids = day.shifts.map((s) => s.id).filter((id): id is string => !!id);
-    await Promise.all(ids.map((id) => removeShift(id)));
-    setPending((prev) => ({ ...prev, [day.dateISO]: [] }));
+    if (entryActionBusy) return;
+    setEntryActionBusy(`clear:${day.dateISO}`);
+    try {
+      const ids = day.shifts.map((s) => s.id).filter((id): id is string => !!id);
+      await Promise.all(ids.map((id) => removeShift(id)));
+      setPending((prev) => ({ ...prev, [day.dateISO]: [] }));
+    } finally {
+      setEntryActionBusy(null);
+    }
   }
 
   async function handleShiftPress() {
@@ -571,15 +586,17 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
             <div className="day-row-actions">
               <div className={`day-hours${day.hours > 0 ? "" : " is-empty"}`}>{day.hoursLabel}</div>
               {dayHasContent && (
-                <button
+                <AsyncButton
                   type="button"
                   className="btn btn-ghost day-clear-btn"
-                  onClick={() => handleClearDay(day)}
+                  onClick={() => void handleClearDay(day)}
+                  busy={entryActionBusy === `clear:${day.dateISO}`}
+                  disabled={entryActionBusy !== null && entryActionBusy !== `clear:${day.dateISO}`}
+                  idleLabel="Clear"
+                  busyLabel="Clearing…"
                   data-confirm={`Clear all shifts for ${day.dayAbbr}, ${day.dateLabel}? This can't be undone.`}
                   data-confirm-tone="danger"
-                >
-                  Clear
-                </button>
+                />
               )}
             </div>
           </div>
@@ -643,14 +660,19 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
                   <div className="shift-hours">{row.hoursLabel}</div>
                   {row.canRemove && (
                     <button
+                      type="button"
                       className="btn btn-icon btn-ghost shift-remove"
-                      onClick={() => handleRemoveShift(day, row)}
-                      aria-label="Remove shift"
+                      onClick={() => void handleRemoveShift(day, row)}
+                      aria-label={entryActionBusy === `remove:${row.id ?? row.tempId ?? day.dateISO}` ? "Removing shift…" : "Remove shift"}
+                      aria-busy={entryActionBusy === `remove:${row.id ?? row.tempId ?? day.dateISO}` || undefined}
+                      disabled={entryActionBusy !== null}
                       title="Remove shift"
                       data-confirm="Remove this shift entry? This can't be undone."
                       data-confirm-tone="danger"
                     >
-                      ×
+                      {entryActionBusy === `remove:${row.id ?? row.tempId ?? day.dateISO}`
+                        ? <span className="compact-loader is-visible" aria-hidden="true" />
+                        : "×"}
                     </button>
                   )}
                 </div>
@@ -739,9 +761,7 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
               rows={2}
             />
             <div className="other-earning-actions">
-              <button className="btn btn-secondary" onClick={handleOtherSave} disabled={otherSaving}>
-                {otherSaving ? "Saving…" : "Save"}
-              </button>
+              <AsyncButton className="btn btn-secondary" onClick={handleOtherSave} busy={otherSaving} idleLabel="Save" busyLabel="Saving…" />
               {otherHint && <span className="other-earning-hint">{otherHint}</span>}
             </div>
           </div>

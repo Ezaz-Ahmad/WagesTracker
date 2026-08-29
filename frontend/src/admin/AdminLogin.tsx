@@ -2,6 +2,7 @@ import { useState } from "react";
 import { AdminApiError, adminLogin } from "./adminApi";
 import { PasswordInput } from "../components/PasswordInput";
 import { Logo } from "../components/Logo";
+import { AsyncButton } from "../components/AsyncButton";
 
 export function AdminLogin({ onLoggedIn }: { onLoggedIn: (token: string) => void }) {
   const [password, setPassword] = useState("");
@@ -44,9 +45,7 @@ export function AdminLogin({ onLoggedIn }: { onLoggedIn: (token: string) => void
                 required
               />
             </div>
-            <button className="btn btn-primary btn-block" type="submit" disabled={busy} style={{ justifyContent: "center" }}>
-              {busy ? "Checking…" : "Log in"}
-            </button>
+            <AsyncButton className="btn btn-primary btn-block" type="submit" busy={busy} idleLabel="Log in" busyLabel="Checking…" style={{ justifyContent: "center" }} />
           </form>
           <div className="auth-demo-note">Not a regular account — a separate admin-only password.</div>
         </div>

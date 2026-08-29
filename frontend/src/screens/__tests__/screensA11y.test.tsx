@@ -165,9 +165,9 @@ describe("chart alternatives", () => {
     const table = await screen.findByRole("table", { name: "Hours worked each day this week" });
     // Seven days, each a row with a header cell naming the day.
     expect(table.querySelectorAll("tbody tr")).toHaveLength(7);
-    // And the drawing itself is not also announced, or every figure would be
-    // read twice.
-    expect(document.querySelector(".glance-bars")?.getAttribute("aria-hidden")).toBe("true");
+    // The drawing is now an operable day selector. Each bar exposes the same
+    // core hours/earnings data and the table remains the full text fallback.
+    expect(screen.getAllByRole("button", { name: /hours|no entry/i }).length).toBeGreaterThanOrEqual(7);
   });
 
   it("Report names its line chart and backs it with a table", async () => {

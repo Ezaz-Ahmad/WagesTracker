@@ -1,4 +1,5 @@
 import { PublicPageShell } from "../components/PublicPageShell";
+import { InternalAppLink } from "../components/AppLink";
 
 const LAST_UPDATED = "28 August 2026";
 
@@ -93,7 +94,7 @@ export function PrivacyPolicyPage() {
           password, and delete your account in the app. Depending on where you live, you may also have rights to
           access, correct, restrict, or object to the processing of your personal information.
         </p>
-        <p>To make a privacy request, use the contact options on the <a href="/support">Support page</a>.</p>
+        <p>To make a privacy request, use the contact options on the <InternalAppLink href="/support">Support page</InternalAppLink>.</p>
       </section>
 
       <section>

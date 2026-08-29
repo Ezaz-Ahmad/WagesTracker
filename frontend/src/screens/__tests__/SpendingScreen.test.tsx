@@ -125,7 +125,7 @@ describe("SpendingScreen", () => {
 
     expect(screen.getAllByText("$1020.00").length).toBeGreaterThan(0);
     expect(document.querySelector(".comparison-bars > .is-live")).toBeTruthy();
-    expect(document.querySelectorAll(".live-data-badge.is-active").length).toBeGreaterThanOrEqual(2);
+    expect(document.querySelectorAll(".live-data-badge.is-active")).toHaveLength(1);
 
     await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
     expect(screen.getAllByText("$1020.02").length).toBeGreaterThan(0);

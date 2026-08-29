@@ -3,11 +3,11 @@ import type { SessionInfo } from "../lib/api";
 import { CloseIcon, RefreshIcon } from "../components/icons";
 import { Overlay } from "../components/Overlay";
 import { Skeleton } from "../components/Skeleton";
-import { StableLabel } from "../components/StableLabel";
 import { StatusBanner } from "../components/StatusBanner";
 import { useDismissTransition } from "../lib/useDismissTransition";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { SessionCard } from "./SessionCard";
+import { AsyncButton } from "../components/AsyncButton";
 
 /**
  * "All active sessions" — the full device list, moved out of the Settings
@@ -136,9 +136,7 @@ export function SessionsDrawer({
             {error ? (
               <div className="sessions-drawer-state">
                 <StatusBanner tone="danger">{error}</StatusBanner>
-                <button type="button" className="btn btn-secondary" onClick={onRefresh} disabled={loading}>
-                  <StableLabel current={loading ? "Retrying…" : "Try again"} longest="Retrying…" />
-                </button>
+                <AsyncButton type="button" className="btn btn-secondary" onClick={onRefresh} busy={loading} idleLabel="Try again" busyLabel="Retrying…" />
               </div>
             ) : loading && sessions.length === 0 ? (
               <div className="session-list-skeleton" role="status" aria-label="Loading your active sessions">
@@ -167,19 +165,16 @@ export function SessionsDrawer({
             // Pinned outside the scrolling pane: the most consequential action
             // here shouldn't require scrolling past twelve devices to reach.
             <div className="sessions-drawer-actions">
-              <button
+              <AsyncButton
                 type="button"
                 className="btn btn-danger btn-block"
                 onClick={onRevokeOthers}
-                disabled={revokingOthers}
+                busy={revokingOthers}
+                idleLabel={`Log out ${others.length} other device${others.length === 1 ? "" : "s"}`}
+                busyLabel="Logging out other devices…"
                 data-confirm="Log out all other devices? Only this device will stay signed in."
                 data-confirm-tone="danger"
-              >
-                <StableLabel
-                  current={revokingOthers ? "Logging out other devices…" : `Log out ${others.length} other device${others.length === 1 ? "" : "s"}`}
-                  longest="Logging out other devices…"
-                />
-              </button>
+              />
             </div>
           )}
         </div>

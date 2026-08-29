@@ -32,7 +32,7 @@ describe("public App Store pages", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Wage Tracker Support" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "ezazahmadshanto@gmail.com" }).getAttribute("href"))
       .toBe("mailto:ezazahmadshanto@gmail.com");
-    expect(screen.getByRole("link", { name: "Report a non-sensitive bug" }).getAttribute("href"))
+    expect(screen.getByRole("link", { name: /Public issue form.*opens in a new tab/ }).getAttribute("href"))
       .toBe("https://github.com/Ezaz-Ahmad/WagesTracker/issues/new");
     expect(screen.getByText(/GitHub issues are public/)).toBeTruthy();
     expect(screen.getByText(/Never include personal information/)).toBeTruthy();

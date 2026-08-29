@@ -1,5 +1,6 @@
 import { VERSION_LABEL } from "../lib/appVersion";
 import { DEVELOPER_LINKS } from "./AuthFooter";
+import { ExternalAppLink } from "./AppLink";
 
 /** Shared creator credit — shown on the auth screen and in Settings.
  * `showVersion` additionally renders the full build label (version, commit
@@ -13,17 +14,15 @@ export function AppCredit({ showVersion = false }: { showVersion?: boolean }) {
       <span className="app-credit-links">
         {/* Shared with the auth footer so the two can't drift apart on a URL. */}
         {DEVELOPER_LINKS.map(({ href, label, Icon, description }) => (
-          <a
+          <ExternalAppLink
             key={href}
             className="app-credit-link"
             href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={`${description} (opens in a new tab)`}
+            description={description}
           >
             <Icon size={13} />
             {label}
-          </a>
+          </ExternalAppLink>
         ))}
       </span>
       {showVersion && <span className="app-credit-version">{VERSION_LABEL}</span>}

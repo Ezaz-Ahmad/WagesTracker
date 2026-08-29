@@ -613,7 +613,7 @@ button { font-family: inherit; }
 }
 .live-visual-status-row { min-height: 22px; margin-bottom: var(--space-2); }
 .live-data-badge {
-  min-width: 64px;
+  max-width: min(46vw, 150px);
   min-height: 20px;
   display: inline-flex;
   align-items: center;
@@ -629,14 +629,15 @@ button { font-family: inherit; }
   letter-spacing: .025em;
   line-height: 1;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   opacity: 0;
-  visibility: hidden;
-  transition: opacity var(--dur-base) var(--ease-standard), visibility 0s linear var(--dur-base);
+  transform: translateY(2px);
+  transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
 }
 .live-data-badge.is-active {
   opacity: 1;
-  visibility: visible;
-  transition-delay: 0s;
+  transform: translateY(0);
 }
 .live-data-dot {
   width: 6px;
@@ -645,6 +646,7 @@ button { font-family: inherit; }
   border-radius: 50%;
   background: var(--color-success);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 13%, transparent);
+  animation: live-dot-breathe 2.4s var(--ease-standard) infinite;
 }
 .live-metric-value {
   font-variant-numeric: tabular-nums;
@@ -657,16 +659,23 @@ button { font-family: inherit; }
    from stretching edge-to-edge into wide gaps once the card is wider than a
    phone (tablet/desktop) — on a narrow phone the cap never kicks in, so
    mobile is unaffected either way. */
-.glance-bars { display: flex; align-items: flex-end; justify-content: center; gap: 6px; height: 84px; }
+.glance-bars { display: flex; align-items: stretch; justify-content: center; gap: clamp(2px, 1.4vw, 8px); height: 116px; }
 .glance-bar-col {
-  flex: 1 1 0; max-width: 64px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
-  height: 100%; gap: 8px; cursor: default;
+  flex: 1 1 0; max-width: 68px; min-width: 0; min-height: 44px; padding: 4px 2px; border: 0; border-radius: 10px;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  height: 100%; gap: 7px; cursor: pointer; color: inherit; background: transparent;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
+.glance-bar-col:hover { background: color-mix(in srgb, var(--color-accent) 6%, transparent); }
+.glance-bar-col:active { transform: scale(.97); }
+.glance-bar-col.is-selected { background: var(--color-accent-100); box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 20%, transparent) inset; }
+.glance-bar-col:focus-visible { outline: 3px solid color-mix(in srgb, var(--color-accent) 55%, transparent); outline-offset: 1px; }
 .glance-bar-track {
-  width: 100%; max-width: 22px; height: 100%; display: flex; align-items: flex-end;
-  background: color-mix(in srgb, var(--color-neutral-900) 4%, transparent);
+  width: 100%; max-width: 24px; height: 82px; display: flex; align-items: flex-end;
+  background: color-mix(in srgb, var(--color-neutral-900) 5%, transparent); border-radius: 5px 5px 2px 2px; overflow: hidden;
 }
-.glance-bar-fill { width: 100%; background: var(--color-neutral-400); }
+.glance-bar-fill { width: 100%; min-height: 3px; background: var(--color-neutral-400); border-radius: 4px 4px 1px 1px; }
 .glance-bar-fill.is-worked { background: var(--color-accent); }
 .glance-bar-col.is-today .glance-bar-track { box-shadow: 0 0 0 2px var(--color-accent) inset; }
 .glance-bar-col.is-today .glance-bar-fill.is-worked { background: var(--color-accent-600); }
@@ -678,6 +687,43 @@ button { font-family: inherit; }
   font-size: 11px; font-weight: 600; color: color-mix(in srgb, var(--color-text) 68%, transparent);
 }
 .glance-bar-col.is-today .glance-bar-label { color: var(--color-accent-700); }
+.glance-bar-col.is-selected .glance-bar-label { color: var(--color-accent-800); font-weight: 800; }
+.glance-day-details {
+  position: relative;
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 16%, var(--color-divider));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--color-accent) 4%, var(--color-surface));
+  animation: glance-detail-in var(--dur-base) var(--ease-out) both;
+}
+.glance-day-details-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: 10px; }
+.glance-day-details-heading > div:first-child { display: flex; align-items: baseline; gap: 7px; }
+.glance-day-details-heading strong { font-size: 15px; }
+.glance-day-details-heading > div:first-child > span { color: color-mix(in srgb, var(--color-text) 64%, transparent); font-size: 12px; }
+.glance-day-details-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 10px; }
+.glance-active-shift { display: inline-flex; align-items: center; gap: 6px; color: var(--color-success-700); font-size: 10px; font-weight: 800; }
+.glance-active-shift > span { width: 7px; height: 7px; border-radius: 50%; background: var(--color-success); }
+.glance-day-details-close {
+  min-height: 32px; padding: 4px 9px; border: 1px solid color-mix(in srgb, var(--color-accent) 22%, var(--color-divider));
+  border-radius: 999px; color: color-mix(in srgb, var(--color-text) 72%, transparent); background: var(--color-surface);
+  font-size: 10px; font-weight: 750; cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.glance-day-details-close:hover { color: var(--color-accent-800); border-color: color-mix(in srgb, var(--color-accent) 38%, var(--color-divider)); background: var(--color-accent-100); }
+.glance-day-details-close:focus-visible { outline: 3px solid color-mix(in srgb, var(--color-accent) 55%, transparent); outline-offset: 2px; }
+.glance-day-detail-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 0; }
+.glance-day-detail-grid > div { min-width: 0; padding: 8px; border-radius: 9px; background: var(--color-surface); }
+.glance-day-detail-grid dt { color: color-mix(in srgb, var(--color-text) 64%, transparent); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .045em; }
+.glance-day-detail-grid dd { margin: 3px 0 0; overflow: hidden; text-overflow: ellipsis; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.glance-day-branches { display: flex; align-items: baseline; gap: 8px; margin: 10px 2px 0; color: var(--color-text); font-size: 11px; overflow-wrap: anywhere; }
+.glance-day-branches span { flex: none; color: color-mix(in srgb, var(--color-text) 64%, transparent); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .045em; }
+
+@media (max-width: 380px) {
+  .glance-card { padding-inline: 9px; }
+  .glance-bar-col { padding-inline: 1px; }
+  .glance-day-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 
 /* — animated goal ring (home stat tiles) — */
 .goal-ring { position: relative; flex: none; display: grid; place-items: center; }

@@ -234,6 +234,21 @@ describe("reduced motion", () => {
   });
 });
 
+describe("responsive live status", () => {
+  it("keeps the active-only badge readable without overflowing narrow chart headings", () => {
+    const badge = block(appCss, ".live-data-badge");
+    expect(badge).toMatch(/max-width:\s*min\(/);
+    expect(badge).toContain("white-space: nowrap");
+    expect(badge).toContain("overflow: hidden");
+    expect(badge).toContain("text-overflow: ellipsis");
+  });
+
+  it("uses a restrained pulse that the global reduced-motion rule stops", () => {
+    expect(block(appCss, ".live-data-dot")).toMatch(/animation:\s*live-dot-breathe\s+2\.4s/);
+    expect(animationsCss).toMatch(/animation-iteration-count:\s*1\s*!important/);
+  });
+});
+
 describe("installed-PWA background continuity", () => {
   it("matches the root surfaces to the app background on an installed phone PWA", () => {
     expect(shellCss).toMatch(/@media \(display-mode: standalone\) and \(max-width: 719px\)/);
