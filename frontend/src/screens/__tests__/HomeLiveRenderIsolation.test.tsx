@@ -90,13 +90,21 @@ describe("Home active-shift rendering", () => {
     expect(document.querySelector(".goal-ring.is-live")).toBeTruthy();
     expect(document.querySelectorAll(".live-data-badge.is-active")).toHaveLength(1);
     const todayBar = screen.getByRole("button", { name: /Thu.*1\.00 hours.*\$30\.03.*shift active/i });
+    expect(todayBar.getAttribute("aria-pressed")).toBe("false");
+    expect(screen.queryByRole("region", { name: /Details for Thu/ })).toBeNull();
+
+    fireEvent.click(todayBar);
     expect(todayBar.getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("region", { name: /Details for Thu/ }).textContent).toContain("Store");
+    expect(screen.getByRole("region", { name: /Details for Thu/ }).textContent).toContain("$30.03");
 
     fireEvent.keyDown(todayBar, { key: "ArrowLeft" });
     const previousBar = screen.getByRole("button", { name: /Wed.*no entry/i });
     expect(previousBar.getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("region", { name: /Details for Wed/ }).textContent).toContain("No branch recorded");
+    fireEvent.click(screen.getByRole("button", { name: "Hide day details" }));
+    expect(screen.queryByRole("region", { name: /Details for Wed/ })).toBeNull();
+    expect(previousBar.getAttribute("aria-pressed")).toBe("false");
     expect(buildHistory).toHaveBeenCalledTimes(aggregateCallsAfterLoad);
   });
 });

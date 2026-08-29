@@ -698,11 +698,20 @@ button { font-family: inherit; }
   animation: glance-detail-in var(--dur-base) var(--ease-out) both;
 }
 .glance-day-details-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: 10px; }
-.glance-day-details-heading > div { display: flex; align-items: baseline; gap: 7px; }
+.glance-day-details-heading > div:first-child { display: flex; align-items: baseline; gap: 7px; }
 .glance-day-details-heading strong { font-size: 15px; }
-.glance-day-details-heading > div > span { color: color-mix(in srgb, var(--color-text) 64%, transparent); font-size: 12px; }
+.glance-day-details-heading > div:first-child > span { color: color-mix(in srgb, var(--color-text) 64%, transparent); font-size: 12px; }
+.glance-day-details-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 10px; }
 .glance-active-shift { display: inline-flex; align-items: center; gap: 6px; color: var(--color-success-700); font-size: 10px; font-weight: 800; }
 .glance-active-shift > span { width: 7px; height: 7px; border-radius: 50%; background: var(--color-success); }
+.glance-day-details-close {
+  min-height: 32px; padding: 4px 9px; border: 1px solid color-mix(in srgb, var(--color-accent) 22%, var(--color-divider));
+  border-radius: 999px; color: color-mix(in srgb, var(--color-text) 72%, transparent); background: var(--color-surface);
+  font-size: 10px; font-weight: 750; cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.glance-day-details-close:hover { color: var(--color-accent-800); border-color: color-mix(in srgb, var(--color-accent) 38%, var(--color-divider)); background: var(--color-accent-100); }
+.glance-day-details-close:focus-visible { outline: 3px solid color-mix(in srgb, var(--color-accent) 55%, transparent); outline-offset: 2px; }
 .glance-day-detail-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 0; }
 .glance-day-detail-grid > div { min-width: 0; padding: 8px; border-radius: 9px; background: var(--color-surface); }
 .glance-day-detail-grid dt { color: color-mix(in srgb, var(--color-text) 64%, transparent); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .045em; }

@@ -164,14 +164,16 @@ function WeekGlanceCard(props: {
     displayHours: day.hours,
   }));
   const maxGlanceHours = Math.max(...glanceDays.map((day) => day.displayHours), 1);
-  const initialDate = glanceDays.find((day) => day.isToday)?.dateISO ?? glanceDays[0]?.dateISO ?? "";
-  const [selectedDate, setSelectedDate] = useState(initialDate);
+  // Keep the chart compact on first render. Day details are an intentional
+  // disclosure: they appear only after the user selects a bar, rather than
+  // making the current day look selected before any interaction.
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!glanceDays.some((day) => day.dateISO === selectedDate)) setSelectedDate(initialDate);
-  }, [glanceDays, initialDate, selectedDate]);
+    if (selectedDate && !glanceDays.some((day) => day.dateISO === selectedDate)) setSelectedDate(null);
+  }, [glanceDays, selectedDate]);
 
-  const selectedDay = glanceDays.find((day) => day.dateISO === selectedDate) ?? glanceDays[0];
+  const selectedDay = selectedDate ? glanceDays.find((day) => day.dateISO === selectedDate) : undefined;
   const selectedIndex = glanceDays.findIndex((day) => day.dateISO === selectedDay?.dateISO);
   const recordedShifts = selectedDay?.shifts.filter((shift) => shift.signIn || shift.signOut || shift.location) ?? [];
   const branches = [...new Set(recordedShifts.map((shift) => shift.location.trim()).filter(Boolean))];
@@ -207,7 +209,8 @@ function WeekGlanceCard(props: {
               className={`glance-bar-col${day.isToday ? " is-today" : ""}${ticking && day.dateISO === props.activeShiftDate ? " is-live" : ""}${selectedDate === day.dateISO ? " is-selected" : ""}`}
               style={{ ["--i" as string]: index }}
               aria-pressed={selectedDate === day.dateISO}
-              aria-controls="week-glance-day-details"
+              aria-expanded={selectedDate === day.dateISO}
+              aria-controls={selectedDate ? "week-glance-day-details" : undefined}
               aria-label={`${day.dayAbbr} ${day.dateLabel}, ${worked ? `${fmt2(day.displayHours)} hours${props.earningsHidden ? "" : `, ${day.moneyLabel}`}` : "no entry"}${ticking && day.dateISO === props.activeShiftDate ? ", shift active" : ""}`}
               onClick={() => setSelectedDate(day.dateISO)}
               onKeyDown={(event) => selectByKeyboard(event, index)}
@@ -228,11 +231,14 @@ function WeekGlanceCard(props: {
         >
           <div className="glance-day-details-heading">
             <div><strong>{selectedDay.dayAbbr}</strong><span>{selectedDay.dateLabel}</span></div>
-            {selectedIsActive && <span className="glance-active-shift"><span aria-hidden="true" />Shift active</span>}
+            <div className="glance-day-details-actions">
+              {selectedIsActive && <span className="glance-active-shift"><span aria-hidden="true" />Live now</span>}
+              <button type="button" className="glance-day-details-close" onClick={() => setSelectedDate(null)} aria-label="Hide day details">Hide</button>
+            </div>
           </div>
           <dl className="glance-day-detail-grid">
             <div><dt>Hours</dt><dd className="live-number-slot">{selectedDay.displayHours > 0 ? `${fmt2(selectedDay.displayHours)}h` : "—"}</dd></div>
-            {!props.earningsHidden && <div><dt>Earnings</dt><dd className="live-number-slot">{selectedDay.moneyLabel}</dd></div>}
+            {!props.earningsHidden && <div><dt>Earnings</dt><dd className="live-number-slot" aria-live={selectedIsActive ? "polite" : undefined} aria-atomic={selectedIsActive ? "true" : undefined}>{selectedDay.moneyLabel}</dd></div>}
             <div><dt>Shifts</dt><dd>{recordedShifts.length || "—"}</dd></div>
             <div><dt>Fuel</dt><dd>{selectedDay.fuelCostLabel}</dd></div>
           </dl>
