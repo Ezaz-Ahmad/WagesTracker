@@ -89,8 +89,8 @@ actor ShiftActivityCoordinator {
                 endedAt: nil,
                 finalDurationSeconds: nil,
                 message: samePending.queued
-                    ? "Clock-out queued"
-                    : (samePending.lastError ?? "Clock-out needs another try")
+                    ? "Signing out…"
+                    : (samePending.lastError ?? "Sign Out needs another try")
             )
         } else {
             state = .init(phase: .active, endedAt: nil, finalDurationSeconds: nil, message: nil)
@@ -129,8 +129,65 @@ actor ShiftActivityCoordinator {
         )
     }
 
+    func requestSignOutConfirmation(shiftId: String) async {
+        guard let credential = readCredential(), credential.shiftId == shiftId else {
+            await updateActivities(
+                for: shiftId,
+                state: .init(
+                    phase: .retry,
+                    endedAt: nil,
+                    finalDurationSeconds: nil,
+                    message: "Open WagesTracker to refresh Sign Out."
+                )
+            )
+            return
+        }
+
+        if let pending = readPendingClockOut(), pending.shiftId == shiftId {
+            await updateActivities(
+                for: shiftId,
+                state: .init(
+                    phase: pending.queued ? .ending : .retry,
+                    endedAt: nil,
+                    finalDurationSeconds: nil,
+                    message: pending.queued
+                        ? "Signing out…"
+                        : (pending.lastError ?? "Sign Out needs another try")
+                )
+            )
+            return
+        }
+
+        await updateActivities(
+            for: shiftId,
+            state: .init(
+                phase: .confirming,
+                endedAt: nil,
+                finalDurationSeconds: nil,
+                message: "This ends the shift only. Your account stays signed in."
+            )
+        )
+    }
+
+    func cancelSignOutConfirmation(shiftId: String) async {
+        guard readPendingClockOut()?.shiftId != shiftId else { return }
+        await updateActivities(
+            for: shiftId,
+            state: .init(phase: .active, endedAt: nil, finalDurationSeconds: nil, message: nil)
+        )
+    }
+
     func queueClockOut(shiftId: String) async -> ShiftClockOutQueueOutcome {
         guard let credential = readCredential(), credential.shiftId == shiftId else {
+            await updateActivities(
+                for: shiftId,
+                state: .init(
+                    phase: .retry,
+                    endedAt: nil,
+                    finalDurationSeconds: nil,
+                    message: "Open WagesTracker to refresh Sign Out."
+                )
+            )
             return .unavailable
         }
 
@@ -151,6 +208,15 @@ actor ShiftActivityCoordinator {
 
         guard var request = makeClockOutRequest(credential: credential, signOut: pending!.signOut),
               let body = request.httpBody else {
+            await updateActivities(
+                for: shiftId,
+                state: .init(
+                    phase: .retry,
+                    endedAt: nil,
+                    finalDurationSeconds: nil,
+                    message: "Couldn't prepare Sign Out. Open WagesTracker and try again."
+                )
+            )
             return .unavailable
         }
         request.httpBody = nil // background upload tasks receive their body from a durable file
@@ -160,7 +226,7 @@ actor ShiftActivityCoordinator {
         writePendingClockOut(pending!)
         await updateActivities(
             for: shiftId,
-            state: .init(phase: .ending, endedAt: nil, finalDurationSeconds: nil, message: "Clock-out queued")
+            state: .init(phase: .ending, endedAt: nil, finalDurationSeconds: nil, message: "Signing out…")
         )
 
         do {
@@ -172,7 +238,7 @@ actor ShiftActivityCoordinator {
             return .queued
         } catch {
             pending!.queued = false
-            pending!.lastError = "Couldn't queue clock-out. Tap Retry."
+            pending!.lastError = "Couldn't queue Sign Out. Tap Retry."
             writePendingClockOut(pending!)
             await updateActivities(
                 for: shiftId,

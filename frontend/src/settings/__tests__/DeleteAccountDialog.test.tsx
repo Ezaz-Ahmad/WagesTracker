@@ -36,6 +36,7 @@ describe("DeleteAccountDialog", () => {
 
     const dialog = screen.getByRole("alertdialog", { name: /delete your account/i });
     expect(dialog).toBeTruthy();
+    expect(dialog.classList.contains("delete-account-dialog")).toBe(true);
     expect(dialog.getAttribute("aria-describedby")).toBeTruthy();
     expect(screen.queryAllByRole("alertdialog")).toHaveLength(1);
 
@@ -65,7 +66,7 @@ describe("DeleteAccountDialog", () => {
 
     // Enable the Delete button so it's part of the tab cycle.
     await user.type(passwordInput, "correct-password");
-    const deleteBtn = screen.getByRole("button", { name: /permanently delete my account/i });
+    const deleteBtn = screen.getByRole("button", { name: /permanently delete account/i });
 
     passwordInput.focus();
     await user.tab({ shift: true }); // wraps from the first focusable to the last
@@ -78,7 +79,7 @@ describe("DeleteAccountDialog", () => {
     render(<Harness onDelete={onDelete} />);
     await user.click(screen.getByRole("button", { name: /open delete dialog/i }));
 
-    const deleteBtn = screen.getByRole("button", { name: /permanently delete my account/i }) as HTMLButtonElement;
+    const deleteBtn = screen.getByRole("button", { name: /permanently delete account/i }) as HTMLButtonElement;
     expect(deleteBtn.disabled).toBe(true);
 
     await user.type(screen.getByLabelText("Password"), "wrong-password");

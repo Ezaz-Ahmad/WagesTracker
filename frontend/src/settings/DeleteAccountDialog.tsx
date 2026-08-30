@@ -49,10 +49,10 @@ export function DeleteAccountDialog({ onClose, onDelete }: DeleteAccountDialogPr
     // screen transform rather than by the viewport, so it never covered the app
     // header and the page behind it kept scrolling. See components/Overlay.
     <Overlay>
-        <div className={`dialog-backdrop${closing ? " is-closing" : ""}`} onClick={close}>
+        <div className={`dialog-backdrop delete-account-backdrop${closing ? " is-closing" : ""}`} onClick={close}>
         <div
           ref={trapRef}
-          className={`dialog${closing ? " is-closing" : ""}`}
+          className={`dialog delete-account-dialog${closing ? " is-closing" : ""}`}
           role="alertdialog"
           aria-modal="true"
           aria-labelledby="delete-account-title"
@@ -87,7 +87,7 @@ export function DeleteAccountDialog({ onClose, onDelete }: DeleteAccountDialogPr
             <button type="button" className="btn btn-secondary" onClick={close} disabled={deleting}>
               Cancel
             </button>
-            <AsyncButton type="button" className="btn btn-danger btn-destructive-final" onClick={handleDelete} disabled={!password} busy={deleting} idleLabel="Yes, permanently delete my account" busyLabel="Deleting account…" />
+            <AsyncButton type="button" className="btn btn-danger btn-destructive-final" onClick={handleDelete} disabled={!password} busy={deleting} idleLabel="Permanently delete account" busyLabel="Deleting account…" />
           </div>
         </div>
       </div>
