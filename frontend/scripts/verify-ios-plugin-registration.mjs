@@ -69,13 +69,14 @@ function checkCompiled(pluginClassName) {
 }
 
 checkCompiled('BiometricAuthPlugin');
+checkCompiled('ActiveShiftActivityPlugin');
 
 // 2. A bridge view controller subclass must exist, be compiled into the
 //    target the same way, and actually call registerPluginInstance with
 //    each plugin — CAPBridgedPlugin conformance alone is not registration
 //    (see the file-level comment above).
 const compiledSwiftFiles = [...pbxproj.matchAll(/\/\* (\w+)\.swift \*\/ = \{isa = PBXFileReference;/g)].map((m) => m[1]);
-const knownPluginNames = ['BiometricAuthPlugin'];
+const knownPluginNames = ['BiometricAuthPlugin', 'ActiveShiftActivityPlugin'];
 const candidateControllers = compiledSwiftFiles.filter(
   (name) => !knownPluginNames.includes(name) && name !== 'AppDelegate',
 );
@@ -140,5 +141,5 @@ if (!/customModule="App"/.test(storyboard)) {
 }
 
 console.log(
-  `Verified BiometricAuthPlugin.swift compiles into the App target and is registered via ${registeringControllerName}.swift, which Main.storyboard's Bridge View Controller is set to use.`,
+  `Verified BiometricAuthPlugin.swift and ActiveShiftActivityPlugin.swift compile into the App target and are registered via ${registeringControllerName}.swift, which Main.storyboard's Bridge View Controller is set to use.`,
 );

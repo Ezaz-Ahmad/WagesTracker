@@ -25,6 +25,10 @@ import {
 // (e.g. https://wage-tracker-api.onrender.com) since the frontend and backend are hosted separately.
 const API_ORIGIN = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
 
+export function getApiOrigin(): string {
+  return API_ORIGIN;
+}
+
 const CLIENT_TIME_ZONE_HEADER = "X-Client-Time-Zone";
 const TIME_ZONE_FALLBACK_MESSAGE = "We couldn't determine your device time zone. Refresh the app and try again.";
 
@@ -428,12 +432,39 @@ function shiftWriteHeaders(): Record<string, string> {
   return { [CLIENT_TIME_ZONE_HEADER]: Intl.DateTimeFormat().resolvedOptions().timeZone };
 }
 
-export function createShift(input: ShiftInput): Promise<{ shift: Shift }> {
+export interface CreateShiftResponse {
+  shift: Shift;
+  /** Present only when the newly-created shift is open. It is scoped by the
+   * backend to clocking out this one shift and cannot call any other API. */
+  clockOutToken?: string;
+}
+
+export interface ClockOutShiftResponse {
+  shift: Shift;
+  alreadyEnded: boolean;
+  finalDurationSeconds: number;
+}
+
+export function createShift(input: ShiftInput): Promise<CreateShiftResponse> {
   return request("/shifts", { method: "POST", headers: shiftWriteHeaders(), body: JSON.stringify(input) });
 }
 
 export function patchShift(id: string, patch: Partial<ShiftInput>): Promise<{ shift: Shift }> {
   return request(`/shifts/${id}`, { method: "PATCH", headers: shiftWriteHeaders(), body: JSON.stringify(patch) });
+}
+
+export function issueShiftClockOutToken(id: string): Promise<{ clockOutToken: string }> {
+  return request(`/shifts/${encodeURIComponent(id)}/clock-out-token`, { method: "POST" });
+}
+
+/** Idempotent live clock-out. The first request fixes the finish time; a
+ * duplicate returns the same completed shift without overwriting it. */
+export function clockOutShift(id: string, signOut: string): Promise<ClockOutShiftResponse> {
+  return request(`/shifts/${encodeURIComponent(id)}/clock-out`, {
+    method: "POST",
+    headers: shiftWriteHeaders(),
+    body: JSON.stringify({ signOut }),
+  });
 }
 
 export function deleteShift(id: string): Promise<void> {

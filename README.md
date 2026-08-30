@@ -98,13 +98,13 @@ A `/api/health` response only ever tells the browser one of two things: it hasn'
 
 ## Product status and roadmap
 
-Wage Tracker is a production web application and installable PWA with a committed Capacitor iOS shell. The current source candidate is **1.19.0**, which adds the final shared motion system, consistent asynchronous feedback, interactive live week chart and state-preserving public navigation on top of the 1.18 work-location and fuel-allowance release. The web deployment, signed TestFlight upload, real-mail recovery flow, Universal Link opening, and physical-device regression are operational release gates; 1.19.0 must not be described as released until those gates have passed. The mobile strategy keeps product logic in one tested React/TypeScript codebase and introduces thin platform adapters only where web and native behaviour genuinely differ.
+Wage Tracker is a production web application and installable PWA with a committed Capacitor iOS shell. The current source candidate is **1.20.0**, which adds the native active-shift Live Activity and atomic notification clock-out flow on top of the 1.19 motion, feedback, live-chart and public-navigation work. The web deployment, signed TestFlight upload, real-mail recovery flow, Universal Link opening, and physical-device regression are operational release gates; 1.20.0 must not be described as released until those gates have passed. The mobile strategy keeps product logic in one tested React/TypeScript codebase and introduces thin platform adapters only where web and native behaviour genuinely differ.
 
 | Capability | Current status | Planned delivery |
 | --- | --- | --- |
 | Responsive web application | Live on Vercel | Continues as the fastest release channel |
 | Installable PWA | Available from supported browsers | Maintained alongside native applications |
-| iPhone application | 1.19.0 source candidate; signed upload and physical-device verification still required | Run the protected TestFlight workflow, complete the device checklist, then consider App Store review |
+| iPhone application | 1.20.0 source candidate; signed upload and physical-device verification still required | Register/sign the Shift Activity extension, run the protected TestFlight workflow, complete the device checklist, then consider App Store review |
 | Android application | Planned after iOS | Same Capacitor foundation, internal testing, then Google Play |
 | Shared backend | Live on Render with Turso | One versioned HTTPS API for web, iOS, and Android |
 
@@ -137,14 +137,14 @@ flowchart TD
 
 The shared application is not three independent implementations. A change to a screen, calculation, validation rule, or API contract is made once and reaches each client in its next release. Delivery cadence remains platform-specific: Vercel can deploy the web build automatically after a merge, while iOS and Android require signed builds, store testing, and store approval.
 
-Only platform boundaries receive adapters. Authentication uses unchanged browser storage on the web. On iOS, an unchecked session remains in memory and ends when the native process restarts, while Remember Me stores the session in an encrypted, device-only Keychain entry. PDF creation remains shared and client-side: browsers retain the existing download adapter, while iOS writes the same bytes temporarily to Cache and presents Apple's share sheet. Connectivity and lifecycle signals also stay behind platform adapters; API responses remain authoritative. This keeps platform code small, auditable, and replaceable without forking core business logic.
+Only platform boundaries receive adapters. Authentication uses unchanged browser storage on the web. On iOS, an unchecked session remains in memory and ends when the native process restarts, while Remember Me stores the session in an encrypted, device-only Keychain entry. PDF creation remains shared and client-side: browsers retain the existing download adapter, while iOS writes the same bytes temporarily to Cache and presents Apple's share sheet. An open shift uses an ActivityKit Live Activity whose system-rendered elapsed clock and scoped, idempotent clock-out action remain functional while the WebView is suspended; the API and shared React timer remain authoritative. Connectivity and lifecycle signals also stay behind platform adapters. See [`docs/active-shift-live-activity.md`](docs/active-shift-live-activity.md) for supported iOS versions, signing, failure recovery, Apple limits and the exact Android foreground-service integration still required. This keeps platform code small, auditable, and replaceable without forking core business logic.
 
 ### Delivery roadmap
 
 1. **Store-readiness foundation - complete** - publish privacy/support pages, allow native API origins, introduce platform-neutral token/PDF boundaries, and verify authentication and account-deletion flows.
 2. **iOS shell and cloud-build foundation - complete** - add the thin, iPhone-only Capacitor/Xcode project, Remember Me storage in Keychain, reproducible SPM dependencies, and an unsigned Simulator build on GitHub-hosted macOS.
 3. **iOS product integration - complete** - add native PDF sharing, lifecycle/connectivity handling, final icons/splash assets, and the reviewed iOS privacy manifest.
-4. **iOS delivery - in progress** - protected signing and TestFlight upload are operational; the 1.18.0 candidate still needs a fresh workflow dispatch, real-device regression, password-recovery verification, work-location/allowance verification and Universal Link verification before release.
+4. **iOS delivery - in progress** - protected signing and TestFlight upload are operational; the 1.20.0 candidate still needs the Shift Activity extension profile, a fresh workflow dispatch, real-device Live Activity/background regression, password-recovery verification and Universal Link verification before release.
 5. **Android delivery** - add the Android project from the same Capacitor codebase, use Android Keystore-backed session storage, test through Google Play's internal track, and prepare a production release.
 6. **Operational maturity** - add mobile crash reporting, privacy-preserving release telemetry, dependency and security scanning, documented rollback procedures, and versioned release notes.
 
@@ -217,7 +217,7 @@ wage-tracker/
 `-- README.md                Architecture, operations, and contributor guidance
 ```
 
-The native foundation defines platform-neutral token-storage and PDF-delivery contracts under `frontend/src/platform/`. Web authentication still uses the existing `localStorage`/`sessionStorage` and Remember Me semantics. A native runtime dynamically selects the secure adapter before authentication begins. Unchecked native sessions remain only in the adapter's in-memory cache; remembered sessions hydrate from iOS Keychain with synchronization disabled and `whenUnlockedThisDeviceOnly` accessibility. The native `ios/` directory contains only the Xcode container, launch assets, and generated SPM bridge; React and Express remain authoritative. Android will consume the same shared application and adapter contract rather than introducing separate business logic.
+The native foundation defines platform-neutral token-storage, PDF-delivery and active-shift contracts under `frontend/src/platform/`. Web authentication still uses the existing `localStorage`/`sessionStorage` and Remember Me semantics. A native runtime dynamically selects the secure adapter before authentication begins. Unchecked native sessions remain only in the adapter's in-memory cache; remembered sessions hydrate from iOS Keychain with synchronization disabled and `whenUnlockedThisDeviceOnly` accessibility. The native `ios/` directory contains the Xcode container, native platform adapters and the ActivityKit widget extension; React and Express remain authoritative for application and wage logic. Android will consume the same shared contracts rather than introducing separate business logic.
 
 ## Tech stack
 
@@ -253,7 +253,7 @@ The native foundation defines platform-neutral token-storage and PDF-delivery co
 
 ## Versioning
 
-The public marketing version follows semantic versioning: major for a breaking/fundamental redesign, minor for new functionality, and patch for compatible fixes. Every release that contains code, UI, feature, or behaviour changes receives a new version; documentation-only maintenance can retain the current version. The 1.18.0 release is a minor bump because it introduces relational work locations, automatic allowances, weekly memory and required rate validation.
+The public marketing version follows semantic versioning: major for a breaking/fundamental redesign, minor for new functionality, and patch for compatible fixes. Every release that contains code, UI, feature, or behaviour changes receives a new version; documentation-only maintenance can retain the current version. The current `1.20.0` source candidate is a minor release because it introduces the native active-shift system surface and its server clock-out contract.
 
 `frontend/package.json` is the release source of truth. The same value must appear in `package-lock.json` and both Xcode build configurations. `frontend/scripts/verify-testflight-config.mjs` derives the expected value dynamically and fails if package metadata, lockfile, Xcode or the protected workflow diverges. The `testflight` GitHub environment variable `IOS_APP_VERSION` must match it. Before release, `git grep` for the previous version and review every result rather than copying a stale value forward.
 

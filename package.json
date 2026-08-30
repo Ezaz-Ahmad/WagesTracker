@@ -18,6 +18,7 @@
     "verify:capacitor": "node frontend/scripts/verify-capacitor-alignment.mjs",
     "verify:capacitor:bundle": "node frontend/scripts/verify-capacitor-alignment.mjs --bundle frontend/dist --bundle ios/App/App/public",
     "verify:ios-plugin-registration": "node frontend/scripts/verify-ios-plugin-registration.mjs",
+    "verify:ios-live-activity": "node frontend/scripts/verify-ios-live-activity.mjs",
     "ios:build:web": "npm run ios:build:web -w frontend",
     "ios:copy:web": "npm run ios:copy:web -w frontend",
     "ios:sync": "npm run ios:sync -w frontend",

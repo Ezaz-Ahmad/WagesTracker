@@ -1,11 +1,16 @@
 import type { InValue } from "@libsql/client";
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { asyncHandler } from "../asyncHandler.js";
 import { db, pruneExpiredShifts } from "../db.js";
 import { recalculateDayFuelAllowance } from "../fuelAllowances.js";
-import { requireAuth, type AuthedRequest } from "../auth.js";
+import {
+  requireAuth,
+  signShiftClockOutToken,
+  verifyShiftClockOutToken,
+  type AuthedRequest,
+} from "../auth.js";
 import { toPublicShift, type ShiftRow, type WorkLocationRow } from "../types.js";
 import {
   FUTURE_DATE_MESSAGE,
@@ -13,6 +18,7 @@ import {
   OVERLAP_MESSAGE,
   TIME_ZONE_REQUIRED_MESSAGE,
   ZERO_LENGTH_MESSAGE as SHARED_ZERO_LENGTH_MESSAGE,
+  durationSeconds,
   findOverlap,
   isSupportedIanaTimeZone,
   localDateForTimeZone,
@@ -20,7 +26,6 @@ import {
 } from "../security/shiftRules.js";
 
 export const shiftsRouter = Router();
-shiftsRouter.use(requireAuth);
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // Accepts "HH:MM" (manual entry) and "HH:MM:SS" (the sign-in/out buttons capture
@@ -39,7 +44,7 @@ function isNonZeroDuration(signIn: string, signOut: string): boolean {
 }
 const ZERO_LENGTH_MESSAGE = SHARED_ZERO_LENGTH_MESSAGE;
 
-function requestLocalDate(req: AuthedRequest): string | null {
+function requestLocalDate(req: Request): string | null {
   const raw = req.get(CLIENT_TIME_ZONE_HEADER);
   if (!raw || !isSupportedIanaTimeZone(raw)) return null;
   // The instant comes from the backend clock. The browser supplies only the
@@ -125,6 +130,149 @@ async function findActiveWorkLocation(
   return (result.rows[0] as unknown as WorkLocationRow | undefined) ?? null;
 }
 
+const clockOutSchema = z.object({
+  signOut: z.string().regex(TIME_RE, "signOut must be HH:MM or HH:MM:SS"),
+});
+
+interface ClockOutResult {
+  shift: ShiftRow;
+  alreadyEnded: boolean;
+  finalDurationSeconds: number;
+}
+
+/**
+ * The one authoritative live clock-out write, shared by the signed-in app
+ * and the native notification action. The conditional UPDATE is the
+ * idempotency boundary: the first request fixes sign_out; later taps/replays
+ * return that same completed row and can never overwrite its finish time.
+ */
+async function clockOutForUser(
+  userId: string,
+  shiftId: string,
+  signOut: string,
+  localToday: string
+): Promise<ClockOutResult | null> {
+  const existingResult = await db.execute({
+    sql: "SELECT * FROM shifts WHERE id = ? AND user_id = ?",
+    args: [shiftId, userId],
+  });
+  const existing = existingResult.rows[0] as unknown as ShiftRow | undefined;
+  if (!existing) return null;
+
+  if (existing.sign_out) {
+    return {
+      shift: existing,
+      alreadyEnded: true,
+      finalDurationSeconds: existing.sign_in
+        ? durationSeconds(existing.sign_in, existing.sign_out)
+        : 0,
+    };
+  }
+  if (!existing.sign_in) return null;
+
+  const problem = validateShiftTimes(
+    { date: existing.date, signIn: existing.sign_in, signOut },
+    localToday
+  );
+  if (problem) throw Object.assign(new Error(problem), { statusCode: 400 });
+  if (
+    findOverlap(
+      { date: existing.date, signIn: existing.sign_in, signOut },
+      await neighbouringShifts(userId, existing.date, existing.id)
+    )
+  ) {
+    throw Object.assign(new Error(OVERLAP_MESSAGE), { statusCode: 409 });
+  }
+
+  const transaction = await db.transaction("write");
+  try {
+    const update = await transaction.execute({
+      sql: `UPDATE shifts SET sign_out = ?, updated_at = ?
+            WHERE id = ? AND user_id = ? AND sign_out IS NULL`,
+      args: [signOut, new Date().toISOString(), shiftId, userId],
+    });
+    const alreadyEnded = Number(update.rowsAffected) === 0;
+    if (!alreadyEnded) {
+      await recalculateDayFuelAllowance(transaction, userId, existing.date);
+    }
+    const finalResult = await transaction.execute({
+      sql: "SELECT * FROM shifts WHERE id = ? AND user_id = ?",
+      args: [shiftId, userId],
+    });
+    const shift = finalResult.rows[0] as unknown as ShiftRow | undefined;
+    if (!shift?.sign_in || !shift.sign_out) {
+      await transaction.rollback();
+      return null;
+    }
+    await transaction.commit();
+    return {
+      shift,
+      alreadyEnded,
+      finalDurationSeconds: durationSeconds(shift.sign_in, shift.sign_out),
+    };
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  } finally {
+    transaction.close();
+  }
+}
+
+async function handleClockOut(
+  req: Request,
+  res: Response,
+  userId: string
+): Promise<void> {
+  const localToday = requestLocalDate(req);
+  if (!localToday) {
+    res.status(400).json({ error: TIME_ZONE_REQUIRED_MESSAGE, code: "INVALID_CLIENT_TIME_ZONE" });
+    return;
+  }
+  const parsed = clockOutSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message || "Invalid input" });
+    return;
+  }
+  try {
+    const result = await clockOutForUser(userId, req.params.id, parsed.data.signOut, localToday);
+    if (!result) {
+      res.status(404).json({ error: "Active shift not found" });
+      return;
+    }
+    res.json({
+      shift: toPublicShift(result.shift),
+      alreadyEnded: result.alreadyEnded,
+      finalDurationSeconds: result.finalDurationSeconds,
+    });
+  } catch (error) {
+    const statusCode = (error as { statusCode?: unknown })?.statusCode;
+    if (statusCode === 400 || statusCode === 409) {
+      res.status(statusCode).json({ error: error instanceof Error ? error.message : "Could not end shift" });
+      return;
+    }
+    throw error;
+  }
+}
+
+// This one route intentionally sits before requireAuth. It accepts only the
+// short-lived, single-shift credential issued below — never a general session
+// token — so a Lock Screen action still works after the app's ordinary idle
+// timeout without granting the native surface access to any other account API.
+shiftsRouter.post(
+  "/:id/clock-out-action",
+  asyncHandler(async (req, res) => {
+    const token = req.get("X-Shift-Clock-Out-Token") || "";
+    const userId = verifyShiftClockOutToken(token, req.params.id);
+    if (!userId) {
+      res.status(401).json({ error: "Invalid or expired shift action token" });
+      return;
+    }
+    await handleClockOut(req, res, userId);
+  })
+);
+
+shiftsRouter.use(requireAuth);
+
 shiftsRouter.get(
   "/",
   asyncHandler<AuthedRequest>(async (req, res) => {
@@ -147,6 +295,32 @@ shiftsRouter.get(
     const result = await db.execute({ sql: query, args: params as (string | number)[] });
     const rows = result.rows as unknown as ShiftRow[];
     res.json({ shifts: rows.map(toPublicShift) });
+  })
+);
+
+/** Reissues the narrow native-action credential after an app/device restart. */
+shiftsRouter.post(
+  "/:id/clock-out-token",
+  asyncHandler<AuthedRequest>(async (req, res) => {
+    const result = await db.execute({
+      sql: `SELECT * FROM shifts
+            WHERE id = ? AND user_id = ? AND sign_in IS NOT NULL AND sign_out IS NULL`,
+      args: [req.params.id, req.userId!],
+    });
+    const shift = result.rows[0] as unknown as ShiftRow | undefined;
+    if (!shift) {
+      res.status(404).json({ error: "Active shift not found" });
+      return;
+    }
+    res.json({ clockOutToken: signShiftClockOutToken(req.userId!, shift.id) });
+  })
+);
+
+/** Signed-in equivalent of the Lock Screen action, using the same atomic path. */
+shiftsRouter.post(
+  "/:id/clock-out",
+  asyncHandler<AuthedRequest>(async (req, res) => {
+    await handleClockOut(req, res, req.userId!);
   })
 );
 
@@ -256,7 +430,12 @@ shiftsRouter.post(
 
     const result = await db.execute({ sql: "SELECT * FROM shifts WHERE id = ?", args: [id] });
     const row = result.rows[0] as unknown as ShiftRow;
-    res.status(201).json({ shift: toPublicShift(row) });
+    res.status(201).json({
+      shift: toPublicShift(row),
+      ...(row.sign_in && !row.sign_out
+        ? { clockOutToken: signShiftClockOutToken(req.userId!, row.id) }
+        : {}),
+    });
   })
 );
 

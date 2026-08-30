@@ -6,6 +6,8 @@ import { touchSessionIfStale, validateSession } from "./security/sessions.js";
 
 const JWT_SECRET = applicationSecret();
 const TOKEN_TTL = "30d";
+const SHIFT_CLOCK_OUT_AUDIENCE = "wagestracker-shift-clock-out";
+const SHIFT_CLOCK_OUT_TOKEN_TTL = "7d";
 
 export interface AuthedRequest extends Request {
   userId?: string;
@@ -54,6 +56,46 @@ export function signToken(
   const payload: RegularUserTokenPayload = { sub: userId, tokenVersion, sid: sessionId };
   const expiresIn = ttlOverrideMs === undefined ? TOKEN_TTL : Math.round(ttlOverrideMs / 1000);
   return jwt.sign(payload, JWT_SECRET, { expiresIn });
+}
+
+interface ShiftClockOutTokenPayload {
+  sub: string;
+  shiftId: string;
+  purpose: "clock-out";
+}
+
+/**
+ * A deliberately narrow credential for the native active-shift control.
+ * Ordinary sessions can idle-expire while somebody is still working, so a
+ * notification action must not carry (or depend on) the user's full session
+ * token. This token can do exactly one thing for at most seven days: request an
+ * idempotent clock-out for the single shift named in its signed claims.
+ */
+export function signShiftClockOutToken(userId: string, shiftId: string): string {
+  const payload: ShiftClockOutTokenPayload = { sub: userId, shiftId, purpose: "clock-out" };
+  return jwt.sign(payload, JWT_SECRET, {
+    audience: SHIFT_CLOCK_OUT_AUDIENCE,
+    expiresIn: SHIFT_CLOCK_OUT_TOKEN_TTL,
+  });
+}
+
+/** Returns the token's user id only when every scoped-action claim matches. */
+export function verifyShiftClockOutToken(token: string, expectedShiftId: string): string | null {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET, {
+      audience: SHIFT_CLOCK_OUT_AUDIENCE,
+    }) as Partial<ShiftClockOutTokenPayload>;
+    if (
+      !decoded.sub ||
+      decoded.shiftId !== expectedShiftId ||
+      decoded.purpose !== "clock-out"
+    ) {
+      return null;
+    }
+    return decoded.sub;
+  } catch {
+    return null;
+  }
 }
 
 /** The one response for every way a protected request can fail to

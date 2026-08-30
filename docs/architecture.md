@@ -1,8 +1,8 @@
 # Wage Tracker architecture
 
-**Applies to:** 1.18.0 source candidate
+**Applies to:** 1.20.0 source candidate
 
-**Last reviewed:** 28 August 2026
+**Last reviewed:** 30 August 2026
 
 This document describes the deployed web/PWA system, the Capacitor iOS application, the security boundaries, and the delivery pipeline. Source code and automated checks remain authoritative if a diagram and implementation ever differ.
 
@@ -13,8 +13,9 @@ flowchart LR
   subgraph U["User-controlled devices"]
     WEB["Browser / installed PWA\nReact 18 + Vite"]
     IOS["WagesTracker iPhone app\nReact bundle in Capacitor/WebKit"]
+    LIVE["ActivityKit + WidgetKit\nactive-shift Live Activity"]
     PDF["Client-side jsPDF\nweekly wage report"]
-    KEYCHAIN["iOS Keychain\nremembered session / biometric credential"]
+    KEYCHAIN["iOS Keychain\nremembered session / biometric credential / scoped shift action"]
   end
 
   subgraph EDGE["Public hosting boundary"]
@@ -44,6 +45,7 @@ flowchart LR
   RENDER -->|"server-side HTTPS API key"| RESEND
   WEB --> PDF
   IOS --> PDF
+  IOS <--> LIVE
   IOS <--> KEYCHAIN
   VERCEL --> AASA
   AASA --> IOS
@@ -116,6 +118,14 @@ flowchart TD
 
 Shift times and plain calendar dates are the source data; hours and earnings are derived. Personal spending is deliberately separate from work/fuel inputs and from employer-facing wage PDFs. Dates are validated with the device IANA timezone and amounts use integer cents at API/persistence boundaries. Weekly extras retain an effective date so changing the user's week-start preference can re-key them without drifting their attribution.
 
+### Active-shift lifecycle and trust boundary
+
+An open shift remains an ordinary `shifts` row and the API remains authoritative. When a native iOS client creates or reloads an open shift, the backend issues a seven-day JWT whose audience, purpose, user and shift claims restrict it to `POST /api/shifts/:id/clock-out-action` for that exact shift. This is not a user session: it cannot read profile data, list shifts or call any other account route. The app stores it as device-only Keychain data so the system Live Activity never receives the full bearer session.
+
+ActivityKit renders elapsed time from the shift's absolute start date, using the same overnight-start rule as `useLiveElapsedHours`; it performs no timer writes. Clock-out from the authenticated UI and from the scoped native action converge on one conditional `UPDATE ... WHERE sign_out IS NULL` transaction. Consequently, only the first accepted finish time wins, while repeated taps and background replays return the same completed row. The native action captures that time once, persists it, and submits it with an iOS-owned background upload that waits for connectivity. Failure leaves the activity in a retry state; success ends it, reports final duration and triggers a dashboard refresh when the WebView is alive.
+
+The embedded `ShiftActivityExtension` contains presentation code and intent metadata. The `LiveActivityIntent` executes in the application process, requires device authentication and confirmation, and reaches the coordinator through the app target. See [`active-shift-live-activity.md`](active-shift-live-activity.md) for the iOS-version matrix, ActivityKit's eight-hour limit, restart boundary, separate extension signing and the Android foreground-service design that is still required.
+
 ### Work locations and allowance invariants
 
 `work_locations` is a user-owned relational table. `GET /api/work-locations` returns active locations for selectors (with `includeArchived=true` for settings); `POST`, `PATCH`, and `DELETE` create, edit, restore, and archive only rows belonging to the authenticated user. Names are normalized per user for duplicate detection, and fuel allowances are stored as positive integer cents with a two-decimal/$10,000 boundary.
@@ -169,8 +179,8 @@ Self-service and admin account deletion explicitly remove dependent rows before 
 | Location | Allowed sensitive values | Must never appear there |
 | --- | --- | --- |
 | Render environment | `JWT_SECRET`, Turso URL/token, `RESEND_API_KEY`, `MAIL_FROM`, optional `MAIL_REPLY_TO`, `ADMIN_PASSWORD` | Apple private keys/certificates unless a separate server feature needs them (none does) |
-| GitHub `testflight` environment secrets | App Store Connect `.p8`, distribution `.p12` + password, App Store provisioning profile | User passwords, database contents, runtime JWTs |
-| GitHub `testflight` variables | Bundle id, marketing version, Team ID, exact profile name | Private key material |
+| GitHub `testflight` environment secrets | App Store Connect `.p8`, distribution `.p12` + password, application and Shift Activity App Store provisioning profiles | User passwords, database contents, runtime JWTs |
+| GitHub `testflight` variables | App/extension bundle ids, marketing version, Team ID, exact profile names | Private key material |
 | Vercel environment | Public `VITE_API_URL`, non-secret `APPLE_TEAM_ID` | `JWT_SECRET`, Turso token, Resend key, admin password, signing material |
 | iOS source/bundle | Public API origin, bundle id, Associated Domains entitlement, compiled UI | Any server secret, password, signing private key, App Store API key |
 | Local ignored `.env` / protected private storage | Development secrets and original signing files | Anything committed to Git |
@@ -194,7 +204,7 @@ frontend/
   src/platform/             web/native storage, lifecycle, deep-link and share adapters
   src/styles/               tokens and responsive component/shell styling
   scripts/                  release, iOS asset, AASA and artifact validation
-ios/App/                    thin Xcode/Capacitor container and native plugins
+ios/App/                    Xcode/Capacitor container, native plugins and ActivityKit widget extension
 .github/workflows/          CI, CodeQL, Simulator and protected TestFlight delivery
 render.yaml                 Render service definition
 docs/                       maintained operations/architecture plus archived engineering handoffs

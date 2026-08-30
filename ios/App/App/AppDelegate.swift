@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import UserNotifications
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -7,7 +8,21 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        UNUserNotificationCenter.current().delegate = ActiveShiftNotificationDelegate.shared
+        ShiftClockOutBackgroundSession.shared.configure()
         return true
+    }
+
+    func application(
+        _ application: UIApplication,
+        handleEventsForBackgroundURLSession identifier: String,
+        completionHandler: @escaping () -> Void
+    ) {
+        guard identifier == ShiftClockOutBackgroundSession.identifier else {
+            completionHandler()
+            return
+        }
+        ShiftClockOutBackgroundSession.shared.setEventsCompletionHandler(completionHandler)
     }
 
     func applicationWillResignActive(_ application: UIApplication) {

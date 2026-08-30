@@ -42,7 +42,9 @@ jobs:
         run: npm run verify:capacitor
 
       - name: Verify iOS native plugins are registered with the bridge
-        run: npm run verify:ios-plugin-registration
+        run: |
+          npm run verify:ios-plugin-registration
+          npm run verify:ios-live-activity
 
       - name: Test distribution entitlement inspection
         run: npm run ios:distribution:test -w frontend

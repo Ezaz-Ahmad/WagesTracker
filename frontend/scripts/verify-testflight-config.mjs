@@ -45,6 +45,7 @@ for (const secret of [
   "IOS_DISTRIBUTION_P12_BASE64",
   "IOS_DISTRIBUTION_P12_PASSWORD",
   "IOS_APP_STORE_PROFILE_BASE64",
+  "IOS_EXTENSION_APP_STORE_PROFILE_BASE64",
 ]) {
   requireMatch(workflow, new RegExp(`secrets\\.${secret}\\b`, "u"), `missing environment secret reference ${secret}`);
 }
@@ -55,6 +56,7 @@ const allowedSecrets = new Set([
   "IOS_DISTRIBUTION_P12_BASE64",
   "IOS_DISTRIBUTION_P12_PASSWORD",
   "IOS_APP_STORE_PROFILE_BASE64",
+  "IOS_EXTENSION_APP_STORE_PROFILE_BASE64",
 ]);
 for (const match of workflow.matchAll(/secrets\.([A-Z0-9_]+)/gu)) {
   if (!allowedSecrets.has(match[1])) throw new Error(`TestFlight configuration invalid: unexpected secret reference ${match[1]}`);
@@ -65,6 +67,7 @@ for (const variable of [
   "IOS_APP_VERSION",
   "APPLE_TEAM_ID",
   "IOS_PROVISIONING_PROFILE_NAME",
+  "IOS_EXTENSION_PROVISIONING_PROFILE_NAME",
 ]) {
   requireMatch(workflow, new RegExp(`vars\\.${variable}\\b`, "u"), `missing environment variable reference ${variable}`);
 }
@@ -80,6 +83,8 @@ for (const requiredStep of [
   /npm run test\b/u,
   /npm run build\b/u,
   /npm run verify:capacitor\b/u,
+  /npm run verify:ios-plugin-registration\b/u,
+  /npm run verify:ios-live-activity\b/u,
   /npm run ios:assets -w frontend/u,
   /npm run ios:assets:verify -w frontend/u,
   /npm run ios:sync\b/u,
@@ -113,6 +118,9 @@ requireMatch(workflow, /PROFILE_ASSOCIATED_DOMAIN/u, "profile installation must 
 requireMatch(workflow, /applinks:wages-tracker-frontend\.vercel\.app/u, "profile must contain the production Universal Link domain");
 requireMatch(workflow, /CODE_SIGN_STYLE=Manual/u, "archive must use explicit manual signing");
 requireMatch(workflow, /CODE_SIGN_IDENTITY="Apple Distribution"/u, "archive must use Apple Distribution signing");
+requireMatch(workflow, /IOS_APP_PROFILE_NAME="\$IOS_PROVISIONING_PROFILE_NAME"/u, "archive must pin the app provisioning profile");
+requireMatch(workflow, /IOS_EXTENSION_PROFILE_NAME="\$IOS_EXTENSION_PROVISIONING_PROFILE_NAME"/u, "archive must pin the extension provisioning profile");
+requireMatch(workflow, /provisioningProfiles:\$IOS_EXTENSION_BUNDLE_ID/u, "export must map the Live Activity extension profile");
 requireMatch(workflow, /method[\s\S]*app-store-connect/u, "export must target App Store Connect");
 
 const releaseVersion = frontendPackage.version;
@@ -126,6 +134,7 @@ const escapedReleaseVersion = releaseVersion.replaceAll(".", "\\.");
 for (const pattern of [
   new RegExp(`MARKETING_VERSION = ${escapedReleaseVersion};`, "u"),
   /PRODUCT_BUNDLE_IDENTIFIER = com\.ezazahmad\.wagestracker;/u,
+  /PRODUCT_BUNDLE_IDENTIFIER = com\.ezazahmad\.wagestracker\.ShiftActivityExtension;/u,
   /IPHONEOS_DEPLOYMENT_TARGET = 15\.0;/u,
   /TARGETED_DEVICE_FAMILY = 1;/u,
 ]) {

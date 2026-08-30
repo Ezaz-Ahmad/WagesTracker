@@ -48,6 +48,8 @@ export function AuthedApp() {
     user,
     actionError,
     clearActionError,
+    activeShiftNotice,
+    dismissActiveShiftNotice,
     sessionNotice,
     dismissSessionNotice,
     logout,
@@ -169,7 +171,7 @@ export function AuthedApp() {
             login succeeded, and dressing it in red would read as a failure.
             Shown once and dismissible; nothing re-sets it, so switching tabs
             or re-rendering can't bring it back (AppContext.sessionNotice). */}
-        {(!connected || sessionNotice || actionError) && (
+        {(!connected || sessionNotice || activeShiftNotice || actionError) && (
           <div className="app-shell-banner" aria-label="Notifications">
             {!connected && (
             <StatusBanner tone="warning">
@@ -182,6 +184,11 @@ export function AuthedApp() {
             {sessionNotice && (
             <StatusBanner tone="info" onDismiss={dismissSessionNotice} dismissLabel="Dismiss this notice">
               {sessionNotice}
+            </StatusBanner>
+            )}
+            {activeShiftNotice && (
+            <StatusBanner tone="warning" onDismiss={dismissActiveShiftNotice} dismissLabel="Dismiss this notice">
+              {activeShiftNotice}
             </StatusBanner>
             )}
             {actionError && (

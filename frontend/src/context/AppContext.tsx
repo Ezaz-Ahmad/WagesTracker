@@ -2,6 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
 import { addDays, isoDate, startOfWeek } from "../lib/date";
+import { findOpenShift } from "../lib/aggregate";
+import { activeShiftStartedAt } from "../lib/useLiveElapsedHours";
 import { settleViewportBeforeAuth } from "../lib/viewportHeight";
 import type { SessionInfo } from "../lib/api";
 import type { DayExpense, Shift, User, WeekExtra, WorkLocation } from "../lib/types";
@@ -20,6 +22,13 @@ import {
   type BiometricFailureReason,
   type BiometricStatus,
 } from "../platform/biometricAuth";
+import {
+  endActiveShiftActivity,
+  isActiveShiftActivityConfigured,
+  retryPendingActiveShiftClockOut,
+  startOrUpdateActiveShiftActivity,
+  subscribeActiveShiftEnded,
+} from "../platform/activeShiftActivity";
 
 export const RETENTION_YEARS = 5;
 export const CURRENCY = "$";
@@ -104,9 +113,11 @@ interface AppContextValue {
   authError: string | null;
   authBusy: boolean;
   actionError: string | null;
+  activeShiftNotice: string | null;
   connected: boolean;
   retryConnectivity: () => Promise<void>;
   clearActionError: () => void;
+  dismissActiveShiftNotice: () => void;
   login: (email: string, password: string, remember?: boolean) => Promise<void>;
   signup: (input: api.SignupInput) => Promise<void>;
   logout: () => Promise<void>;
@@ -192,6 +203,7 @@ interface AppContextValue {
   updateShiftOrThrow: (id: string, patch: Partial<api.ShiftInput>) => Promise<Shift>;
   removeShiftOrThrow: (id: string) => Promise<void>;
   updateShift: (id: string, patch: Partial<api.ShiftInput>) => Promise<Shift | undefined>;
+  clockOutShift: (id: string, signOut: string) => Promise<api.ClockOutShiftResponse | undefined>;
   removeShift: (id: string) => Promise<void>;
 
   workLocations: WorkLocation[];
@@ -232,9 +244,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // back cannot resurrect it (see the regression test).
   const [sessionNotice, setSessionNotice] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [activeShiftNotice, setActiveShiftNotice] = useState<string | null>(null);
   const [connected, setConnected] = useState(true);
   const connectedRef = useRef(true);
   const [shifts, setShifts] = useState<Shift[]>([]);
+  // Scoped clock-out credentials returned alongside newly-created open
+  // shifts. They never enter React state or localStorage; after the native
+  // layer has copied one into Keychain this in-memory copy is discarded.
+  const shiftClockOutTokensRef = useRef(new Map<string, string>());
+  const lastActiveShiftNoticeRef = useRef<string | null>(null);
   const [dayExpenses, setDayExpenses] = useState<DayExpense[]>([]);
   const [workLocations, setWorkLocations] = useState<WorkLocation[]>([]);
   const [workLocationsLoading, setWorkLocationsLoading] = useState(false);
@@ -698,6 +716,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setShiftsLoaded(false);
     setSessions([]);
     setSessionNotice(null);
+    setActiveShiftNotice(null);
+    lastActiveShiftNoticeRef.current = null;
+    shiftClockOutTokensRef.current.clear();
     setStatus("loggedOut");
     clearSpendingDataCache();
     hideEarningsNow();
@@ -750,6 +771,88 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (connectedRef.current) void refreshOnceRef.current();
     });
   }, [status]);
+
+  // A native notification/Live Activity action can finish a shift while the
+  // WebView is backgrounded. Refresh as soon as the bridge reports success so
+  // every dashboard total and wage calculation swaps to the saved duration.
+  useEffect(() => {
+    if (!isActiveShiftActivityConfigured()) return;
+    let disposed = false;
+    let unsubscribe: (() => void) | undefined;
+    void subscribeActiveShiftEnded(() => {
+      if (!disposed) void refreshOnceRef.current();
+    }).then((remove) => {
+      if (disposed) remove();
+      else unsubscribe = remove;
+    });
+    return () => {
+      disposed = true;
+      unsubscribe?.();
+    };
+  }, []);
+
+  // The database remains authoritative. Whenever authenticated shift data is
+  // loaded (fresh start, app restart, resume, or connectivity recovery), make
+  // the native surface match the one open shift. The native implementation
+  // de-duplicates by shift id, so this also repairs a missing activity without
+  // ever creating two of them.
+  useEffect(() => {
+    if (!isActiveShiftActivityConfigured() || status !== "loggedIn" || !shiftsLoaded) return;
+
+    const activeShift = findOpenShift(shifts);
+    if (!activeShift?.signIn) {
+      shiftClockOutTokensRef.current.clear();
+      lastActiveShiftNoticeRef.current = null;
+      setActiveShiftNotice(null);
+      void endActiveShiftActivity();
+      return;
+    }
+    const activeShiftSignIn = activeShift.signIn;
+
+    let cancelled = false;
+    const reportOnce = (message: string | null) => {
+      if (lastActiveShiftNoticeRef.current === message) return;
+      lastActiveShiftNoticeRef.current = message;
+      if (!cancelled) setActiveShiftNotice(message);
+    };
+
+    void (async () => {
+      try {
+        let clockOutToken = shiftClockOutTokensRef.current.get(activeShift.id);
+        if (!clockOutToken) {
+          ({ clockOutToken } = await api.issueShiftClockOutToken(activeShift.id));
+        }
+        if (cancelled) return;
+
+        const result = await startOrUpdateActiveShiftActivity({
+          shiftId: activeShift.id,
+          apiBaseUrl: api.getApiOrigin(),
+          clockOutToken,
+          startedAtEpochMs: activeShiftStartedAt(activeShiftSignIn).getTime(),
+          location: activeShift.location || "Work shift",
+        });
+        shiftClockOutTokensRef.current.delete(activeShift.id);
+        if (result.status === "failed") {
+          reportOnce(`Your shift is active, but its Live Activity couldn't be shown: ${result.error}`);
+        } else if (result.status === "unavailable") {
+          reportOnce(`Your shift is active, but this device can't show the Live Activity. ${result.reason}`);
+        } else {
+          reportOnce(result.completionNotifications === "denied"
+            ? "Your shift Live Activity is active. Completion alerts are off in iOS Settings."
+            : null);
+          if (result.pendingClockOut && connectedRef.current) {
+            await retryPendingActiveShiftClockOut();
+          }
+        }
+      } catch (error) {
+        reportOnce(`Your shift is active, but its Live Activity couldn't be refreshed: ${
+          error instanceof Error ? error.message : "Please try again when connected."
+        }`);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [status, shiftsLoaded, shifts, connected]);
 
   const retryConnectivity = useCallback(async () => {
     try {
@@ -1025,7 +1128,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const createShiftOrThrow = useCallback(
     (input: api.ShiftInput) =>
       rethrowingAction(async () => {
-        const { shift } = await api.createShift(input);
+        const { shift, clockOutToken } = await api.createShift(input);
+        if (clockOutToken) shiftClockOutTokensRef.current.set(shift.id, clockOutToken);
         setShifts((prev) => [...prev, shift]);
         await refreshFuelDate(shift.date).catch(() => {});
         invalidateSpendingSummaries();
@@ -1061,7 +1165,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const createShift = useCallback(
     async (input: api.ShiftInput) => {
       try {
-        const { shift } = await api.createShift(input);
+        const { shift, clockOutToken } = await api.createShift(input);
+        if (clockOutToken) shiftClockOutTokensRef.current.set(shift.id, clockOutToken);
         setShifts((prev) => [...prev, shift]);
         await refreshFuelDate(shift.date).catch(() => {});
         invalidateSpendingSummaries();
@@ -1084,6 +1189,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return shift;
       } catch (e) {
         await handleActionError(e, "Couldn't update shift");
+        return undefined;
+      }
+    },
+    [handleActionError, refreshFuelDate]
+  );
+
+  const clockOutShift = useCallback(
+    async (id: string, signOut: string) => {
+      try {
+        const result = await api.clockOutShift(id, signOut);
+        setShifts((prev) => prev.map((shift) => (shift.id === id ? result.shift : shift)));
+        await refreshFuelDate(result.shift.date).catch(() => {});
+        invalidateSpendingSummaries();
+        shiftClockOutTokensRef.current.delete(id);
+        return result;
+      } catch (error) {
+        await handleActionError(error, "Couldn't end shift");
         return undefined;
       }
     },
@@ -1330,9 +1452,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       authError,
       authBusy,
       actionError,
+      activeShiftNotice,
       connected,
       retryConnectivity,
       clearActionError: () => setActionError(null),
+      dismissActiveShiftNotice: () => setActiveShiftNotice(null),
       login,
       signup,
       logout,
@@ -1364,6 +1488,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       shiftsLoaded,
       createShift,
       updateShift,
+      clockOutShift,
       removeShift,
       createShiftOrThrow,
       updateShiftOrThrow,
@@ -1389,6 +1514,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       authError,
       authBusy,
       actionError,
+      activeShiftNotice,
       connected,
       retryConnectivity,
       sessionNotice,
@@ -1420,6 +1546,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       shiftsLoaded,
       createShift,
       updateShift,
+      clockOutShift,
       removeShift,
       createShiftOrThrow,
       updateShiftOrThrow,

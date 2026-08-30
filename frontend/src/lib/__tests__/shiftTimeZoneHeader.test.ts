@@ -41,6 +41,7 @@ describe("shift-write timezone header", () => {
     await api.createShift(shift);
     await api.patchShift("shift-1", { signOut: "18:00" });
     await api.patchShift("shift-1", { location: "New location" });
+    await api.clockOutShift("shift-1", "18:00:01");
 
     for (const [, options] of fetchMock.mock.calls) {
       expect((options.headers as Record<string, string>)["X-Client-Time-Zone"]).toBe(expected);
