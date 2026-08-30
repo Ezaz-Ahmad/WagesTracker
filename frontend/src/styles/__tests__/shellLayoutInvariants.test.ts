@@ -383,6 +383,25 @@ describe("looping animation restraint", () => {
   });
 });
 
+describe("delete-account dialog responsiveness", () => {
+  it("cannot grow wider than the viewport and scrolls internally when height is constrained", () => {
+    const dialog = block(settingsCss, ".delete-account-dialog");
+    expect(dialog).toContain("max-width: 100%");
+    expect(dialog).toContain("min-width: 0");
+    expect(dialog).toMatch(/--app-viewport-height/);
+    expect(dialog).toMatch(/overflow-y:\s*auto/);
+    expect(dialog).toMatch(/overscroll-behavior:\s*contain/);
+  });
+
+  it("stacks the final actions into one shrinkable column on phones", () => {
+    const source = stripComments(settingsCss);
+    expect(source).toMatch(
+      /@media \(max-width: 480px\)[\s\S]*?\.delete-account-dialog \.dialog-actions\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/
+    );
+    expect(block(settingsCss, ".delete-account-dialog .dialog-actions .btn")).toContain("min-width: 0");
+  });
+});
+
 describe("history day editor", () => {
   // The editor is a second modal alongside the sessions drawer, and the two
   // are easy to let drift apart. Each of these pins something the drawer

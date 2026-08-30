@@ -4,11 +4,12 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const read = (relative) => readFile(path.join(root, relative), "utf8");
-const [project, appInfo, extensionInfo, widget, coordinator, appDelegate] = await Promise.all([
+const [project, appInfo, extensionInfo, widget, intent, coordinator, appDelegate] = await Promise.all([
   read("ios/App/App.xcodeproj/project.pbxproj"),
   read("ios/App/App/Info.plist"),
   read("ios/App/ShiftActivityExtension/Info.plist"),
   read("ios/App/ShiftActivityExtension/ShiftActivityWidget.swift"),
+  read("ios/App/App/EndShiftIntent.swift"),
   read("ios/App/App/ShiftActivityCoordinator.swift"),
   read("ios/App/App/AppDelegate.swift"),
 ]);
@@ -40,9 +41,17 @@ requireMatch(project, /PRODUCT_BUNDLE_IDENTIFIER = com\.ezazahmad\.wagestracker\
 requireMatch(project, /IPHONEOS_DEPLOYMENT_TARGET = 16\.1;/u, "extension must target iOS 16.1 or later");
 requireMatch(widget, /ActivityConfiguration\(for: ShiftActivityAttributes\.self\)/u, "ActivityKit configuration is missing");
 requireMatch(widget, /Text\(\s*timerInterval:/u, "system-rendered elapsed timer is missing");
-requireMatch(widget, /Button\(intent: EndShiftIntent/u, "interactive Clock Out action is missing");
+requireMatch(widget, /Button\(intent: RequestShiftSignOutIntent/u, "interactive Sign Out action is missing");
+requireMatch(widget, /Button\(intent: CancelShiftSignOutIntent/u, "in-activity Sign Out cancellation is missing");
+requireMatch(widget, /Button\(intent: EndShiftIntent/u, "confirmed Sign Out action is missing");
+requireMatch(intent, /struct RequestShiftSignOutIntent: LiveActivityIntent/u, "Sign Out confirmation intent is missing");
+requireMatch(intent, /struct EndShiftIntent: LiveActivityIntent/u, "shift-ending LiveActivityIntent is missing");
+if (/requestConfirmation\s*\(/u.test(intent)) {
+  throw new Error("iOS Live Activity check failed: Sign Out must use the visible in-activity confirmation state");
+}
+requireMatch(coordinator, /phase: \.confirming/u, "visible Sign Out confirmation state is missing");
 requireMatch(coordinator, /URLSessionConfiguration\.background/u, "durable offline clock-out queue is missing");
 requireMatch(coordinator, /X-Shift-Clock-Out-Token/u, "scoped clock-out token header is missing");
 requireMatch(appDelegate, /handleEventsForBackgroundURLSession/u, "background URLSession relaunch handling is missing");
 
-console.log("Verified the embedded ActivityKit widget extension, system timer, interactive clock-out intent, scoped credential, and background retry wiring.");
+console.log("Verified the embedded ActivityKit widget extension, system timer, two-step Sign Out intent, scoped credential, and background retry wiring.");

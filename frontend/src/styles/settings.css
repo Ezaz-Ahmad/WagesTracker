@@ -250,6 +250,47 @@
 .btn-icon-label { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; white-space: nowrap; }
 .btn-destructive-final { font-weight: 800; }
 
+/* The final account-deletion confirmation has unusually long copy and uses
+   AsyncButton's width-stabilising ghost label. Give that content an explicit
+   shrink/scroll boundary so neither the button nor iOS text sizing can widen
+   the fixed overlay beyond the visual viewport. */
+.delete-account-backdrop {
+  overflow-y: auto;
+  padding:
+    max(var(--space-3), env(safe-area-inset-top))
+    max(var(--space-3), env(safe-area-inset-right))
+    max(var(--space-3), env(safe-area-inset-bottom))
+    max(var(--space-3), env(safe-area-inset-left));
+}
+.delete-account-dialog {
+  width: min(440px, 100%);
+  max-width: 100%;
+  min-width: 0;
+  max-height: min(90vh, calc(var(--app-viewport-height, 100dvh) - 24px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.delete-account-dialog > *,
+.delete-account-dialog .field,
+.delete-account-dialog .password-field,
+.delete-account-dialog .input { min-width: 0; max-width: 100%; }
+.delete-account-dialog .dialog-body { overflow-wrap: anywhere; }
+.delete-account-dialog .dialog-actions { flex-wrap: wrap; }
+.delete-account-dialog .dialog-actions .btn { min-width: 0; max-width: 100%; white-space: normal; text-align: center; }
+
+@media (max-width: 480px) {
+  .delete-account-dialog { padding: var(--space-3); }
+  .delete-account-dialog .dialog-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+  .delete-account-dialog .dialog-actions .btn { width: 100%; }
+  .delete-account-dialog .stable-label-ghost,
+  .delete-account-dialog .stable-label-current { white-space: normal; }
+}
+
 /* — session cards —
    Three tiers of type, deliberately: the device name reads first, "last
    active" second, and the sign-in time / IP recede into a quiet footnote.

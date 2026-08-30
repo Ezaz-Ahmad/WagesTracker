@@ -6,6 +6,7 @@ struct ShiftActivityAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable {
         enum Phase: String, Codable {
             case active
+            case confirming
             case ending
             case retry
             case completed
