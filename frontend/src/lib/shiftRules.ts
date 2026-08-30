@@ -17,7 +17,11 @@ import { computeHours, isoDate, parseIsoDate } from "./date";
  *
  */
 
-export const UNUSUALLY_LONG_SHIFT_HOURS = 16;
+// A long-shift warning is reserved for a genuinely exceptional duration. A
+// normal overnight shift is valid, so anything at or below one full day must
+// stay silent until the user has finished the time picker and committed the
+// complete pair.
+export const UNUSUALLY_LONG_SHIFT_HOURS = 24;
 export const LONG_SHIFT_WARNING = "This shift is unusually long. Please confirm that the start and finish times are correct.";
 export const FUTURE_DATE_MESSAGE = "You can't log a shift for a future date.";
 export const FUTURE_DATE_WARNING =
@@ -32,6 +36,28 @@ export function isFutureDate(dateISO: string, today = new Date()): boolean {
 
 export function isUnusuallyLongShift(signIn: string | null, signOut: string | null): boolean {
   return !!signIn && !!signOut && signIn !== signOut && computeHours(signIn, signOut) > UNUSUALLY_LONG_SHIFT_HOURS;
+}
+
+/** True when a live shift has actually crossed the 24-hour threshold. */
+export function isElapsedShiftOver24Hours(
+  dateISO: string,
+  signIn: string | null,
+  now = new Date()
+): boolean {
+  if (!signIn) return false;
+  const date = parseIsoDate(dateISO);
+  if (Number.isNaN(date.getTime())) return false;
+  const [hours, minutes, seconds = 0] = signIn.split(":").map(Number);
+  const startedAt = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    hours,
+    minutes,
+    seconds,
+    0
+  );
+  return now.getTime() - startedAt.getTime() > UNUSUALLY_LONG_SHIFT_HOURS * 60 * 60 * 1000;
 }
 
 /**
