@@ -23,12 +23,14 @@ import {
   type BiometricStatus,
 } from "../platform/biometricAuth";
 import {
+  dismissActiveShiftActivity,
   endActiveShiftActivity,
   isActiveShiftActivityConfigured,
   retryPendingActiveShiftClockOut,
   startOrUpdateActiveShiftActivity,
   subscribeActiveShiftEnded,
 } from "../platform/activeShiftActivity";
+import { readActiveShiftPreference, writeActiveShiftPreference } from "../platform/activeShiftPreference";
 
 export const RETENTION_YEARS = 5;
 export const CURRENCY = "$";
@@ -114,6 +116,9 @@ interface AppContextValue {
   authBusy: boolean;
   actionError: string | null;
   activeShiftNotice: string | null;
+  /** Per-account, per-installation opt-in. Missing storage is always off. */
+  activeShiftActivityEnabled: boolean;
+  setActiveShiftActivityEnabled: (enabled: boolean) => Promise<void>;
   connected: boolean;
   retryConnectivity: () => Promise<void>;
   clearActionError: () => void;
@@ -266,6 +271,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // before the real numbers arrive, without re-showing it on background refetches.
   const [shiftsLoaded, setShiftsLoaded] = useState(false);
   const [today, setToday] = useState(() => new Date());
+  // `null` means the currently authenticated account's device preference has
+  // not been hydrated yet. The native sync effect waits for that state so an
+  // enabled activity is never briefly dismissed during account restoration.
+  const [activeShiftActivityEnabledState, setActiveShiftActivityEnabledState] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (status === "loggedIn" && user) {
+      setActiveShiftActivityEnabledState(readActiveShiftPreference(user.id));
+    } else {
+      setActiveShiftActivityEnabledState(null);
+    }
+  }, [status, user?.id]);
 
   const [biometricCapabilities, setBiometricCapabilities] = useState<BiometricCapabilities>({
     kind: "none",
@@ -719,6 +736,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActiveShiftNotice(null);
     lastActiveShiftNoticeRef.current = null;
     shiftClockOutTokensRef.current.clear();
+    setActiveShiftActivityEnabledState(null);
     setStatus("loggedOut");
     clearSpendingDataCache();
     hideEarningsNow();
@@ -791,6 +809,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const setActiveShiftActivityEnabled = useCallback(async (enabled: boolean): Promise<void> => {
+    if (!user || !isActiveShiftActivityConfigured()) return;
+    writeActiveShiftPreference(user.id, enabled);
+    setActiveShiftActivityEnabledState(enabled);
+    lastActiveShiftNoticeRef.current = null;
+    setActiveShiftNotice(null);
+    if (!enabled) {
+      shiftClockOutTokensRef.current.clear();
+      await dismissActiveShiftActivity();
+    }
+  }, [user?.id]);
+
   // The database remains authoritative. Whenever authenticated shift data is
   // loaded (fresh start, app restart, resume, or connectivity recovery), make
   // the native surface match the one open shift. The native implementation
@@ -798,6 +828,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // ever creating two of them.
   useEffect(() => {
     if (!isActiveShiftActivityConfigured() || status !== "loggedIn" || !shiftsLoaded) return;
+    if (activeShiftActivityEnabledState === null) return;
 
     const activeShift = findOpenShift(shifts);
     if (!activeShift?.signIn) {
@@ -805,6 +836,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       lastActiveShiftNoticeRef.current = null;
       setActiveShiftNotice(null);
       void endActiveShiftActivity();
+      return;
+    }
+    if (!activeShiftActivityEnabledState) {
+      shiftClockOutTokensRef.current.clear();
+      lastActiveShiftNoticeRef.current = null;
+      setActiveShiftNotice(null);
+      void dismissActiveShiftActivity();
       return;
     }
     const activeShiftSignIn = activeShift.signIn;
@@ -852,7 +890,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })();
 
     return () => { cancelled = true; };
-  }, [status, shiftsLoaded, shifts, connected]);
+  }, [status, shiftsLoaded, shifts, connected, activeShiftActivityEnabledState]);
 
   const retryConnectivity = useCallback(async () => {
     try {
@@ -1453,6 +1491,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       authBusy,
       actionError,
       activeShiftNotice,
+      activeShiftActivityEnabled: activeShiftActivityEnabledState === true,
+      setActiveShiftActivityEnabled,
       connected,
       retryConnectivity,
       clearActionError: () => setActionError(null),
@@ -1515,6 +1555,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       authBusy,
       actionError,
       activeShiftNotice,
+      activeShiftActivityEnabledState,
+      setActiveShiftActivityEnabled,
       connected,
       retryConnectivity,
       sessionNotice,

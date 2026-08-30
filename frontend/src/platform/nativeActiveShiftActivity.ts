@@ -8,6 +8,7 @@ import type {
 
 export interface ActiveShiftActivityPluginPort {
   startOrUpdate(options: ActiveShiftActivityInfo): Promise<ActiveShiftActivityStartResult>;
+  dismiss(): Promise<void>;
   end(options: { shiftId?: string; finalDurationSeconds?: number }): Promise<void>;
   retryPendingClockOut(): Promise<{ queued: boolean }>;
   addListener(
@@ -28,6 +29,14 @@ export class NativeActiveShiftActivityAdapter implements ActiveShiftActivityAdap
     } catch (error) {
       console.error("Could not start the active-shift Live Activity", error);
       return { status: "failed", error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  async dismiss(): Promise<void> {
+    try {
+      await this.plugin.dismiss();
+    } catch (error) {
+      console.error("Could not dismiss the active-shift Live Activity", error);
     }
   }
 

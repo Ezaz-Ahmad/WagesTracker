@@ -188,6 +188,27 @@ actor ShiftActivityCoordinator {
         return outcome == .queued || outcome == .alreadyQueued
     }
 
+    /**
+     * User-facing preference off: remove every Live Activity immediately but
+     * do not end the work shift. An already-confirmed offline clock-out keeps
+     * its captured time and iOS-owned upload; without one, the narrow Keychain
+     * credential is no longer needed and is removed.
+     */
+    func dismissSurface() async {
+        let neutralState = ShiftActivityAttributes.ContentState(
+            phase: .active,
+            endedAt: nil,
+            finalDurationSeconds: nil,
+            message: nil
+        )
+        for activity in Activity<ShiftActivityAttributes>.activities {
+            await end(activity, state: neutralState, immediate: true)
+        }
+        if readPendingClockOut() == nil {
+            deleteCredential()
+        }
+    }
+
     func finishFromApp(shiftId: String?, finalDurationSeconds: Int?) async {
         if let shiftId {
             await ShiftClockOutBackgroundSession.shared.cancelTasks(for: shiftId)

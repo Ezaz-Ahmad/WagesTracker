@@ -19,6 +19,9 @@ export interface ActiveShiftEndedEvent {
 
 export interface ActiveShiftActivityAdapter {
   startOrUpdate(info: ActiveShiftActivityInfo): Promise<ActiveShiftActivityStartResult>;
+  /** Removes the system surface without ending the work shift or discarding
+   * an already-confirmed offline clock-out request. */
+  dismiss(): Promise<void>;
   end(options: { shiftId?: string; finalDurationSeconds?: number }): Promise<void>;
   retryPendingClockOut(): Promise<{ queued: boolean }>;
   subscribeEnded(listener: (event: ActiveShiftEndedEvent) => void): Promise<() => void>;
@@ -28,6 +31,7 @@ class WebActiveShiftActivityAdapter implements ActiveShiftActivityAdapter {
   async startOrUpdate(): Promise<ActiveShiftActivityStartResult> {
     return { status: "unavailable", reason: "Native active-shift activities are not available in a web browser." };
   }
+  async dismiss(): Promise<void> {}
   async end(): Promise<void> {}
   async retryPendingClockOut(): Promise<{ queued: boolean }> { return { queued: false }; }
   async subscribeEnded(): Promise<() => void> { return () => {}; }
@@ -52,6 +56,10 @@ export function startOrUpdateActiveShiftActivity(info: ActiveShiftActivityInfo):
 
 export function endActiveShiftActivity(options: { shiftId?: string; finalDurationSeconds?: number } = {}): Promise<void> {
   return activeAdapter.end(options);
+}
+
+export function dismissActiveShiftActivity(): Promise<void> {
+  return activeAdapter.dismiss();
 }
 
 export function retryPendingActiveShiftClockOut(): Promise<{ queued: boolean }> {

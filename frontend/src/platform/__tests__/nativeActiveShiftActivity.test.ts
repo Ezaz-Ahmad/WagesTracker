@@ -8,6 +8,7 @@ function plugin(overrides: Partial<ActiveShiftActivityPluginPort> = {}): ActiveS
       pendingClockOut: false,
       completionNotifications: "authorized",
     }),
+    dismiss: vi.fn().mockResolvedValue(undefined),
     end: vi.fn().mockResolvedValue(undefined),
     retryPendingClockOut: vi.fn().mockResolvedValue({ queued: true }),
     addListener: vi.fn().mockResolvedValue({ remove: vi.fn().mockResolvedValue(undefined) }),
@@ -46,6 +47,13 @@ describe("NativeActiveShiftActivityAdapter", () => {
     const adapter = new NativeActiveShiftActivityAdapter(plugin({ end }));
     await expect(adapter.end({ shiftId: "shift-1", finalDurationSeconds: 30_450 })).resolves.toBeUndefined();
     expect(end).toHaveBeenCalledWith({ shiftId: "shift-1", finalDurationSeconds: 30_450 });
+  });
+
+  it("contains dismissal failures without affecting the active shift", async () => {
+    const dismiss = vi.fn().mockRejectedValue(new Error("already dismissed"));
+    const adapter = new NativeActiveShiftActivityAdapter(plugin({ dismiss }));
+    await expect(adapter.dismiss()).resolves.toBeUndefined();
+    expect(dismiss).toHaveBeenCalledTimes(1);
   });
 
   it("subscribes to native completion events and removes the listener", async () => {

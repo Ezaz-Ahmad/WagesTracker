@@ -4,8 +4,11 @@
 
 **Last reviewed:** 30 August 2026
 
-WagesTracker uses a real ActivityKit Live Activity for an open shift. It does
-not use a repeating JavaScript timer or a scheduled local-notification loop.
+When the user enables **Settings → Profile & preferences → Active shift
+notification**, WagesTracker uses a real ActivityKit Live Activity for an open
+shift. The preference is off by default and stored separately for each account
+on each installation; enabling it on one iPhone does not turn it on elsewhere.
+It does not use a repeating JavaScript timer or a scheduled local-notification loop.
 The operating system renders elapsed time from the same absolute start instant
 used by the React dashboard, so it continues to advance while the WebView is
 suspended, the screen is locked, or the user is in another app.
@@ -20,13 +23,17 @@ suspended, the screen is locked, or the user is in another app.
 | Web / installed PWA | Shift behaviour is unchanged; browsers cannot provide the native persistence guarantee |
 | Android | Not yet available because this repository does not contain an Android native shell; see [Android integration required](#android-integration-required) |
 
-Starting a shift remains a database-first operation. The API returns a
-seven-day, signed credential that is limited to clocking out that one shift. The
-native bridge stores only that narrow credential in the device-only Keychain;
+Starting a shift remains a database-first operation whether the preference is
+on or off. When enabled, the API's seven-day signed credential is passed to the
+native bridge and limited to clocking out that one shift. The native bridge
+stores only that narrow credential in the device-only Keychain;
 it never exposes or persists the user's general account token for a Lock Screen
 action. On an authenticated app restart, the client finds the authoritative
 open shift, asks the API for a fresh scoped credential and de-duplicates or
-recreates the Live Activity by shift ID.
+recreates the Live Activity by shift ID. Turning the preference off immediately
+removes the system surface without ending the shift or signing the user out. If
+an offline clock-out was already confirmed, its captured finish time and
+background upload are preserved.
 
 Clock-out from the app and from the Live Activity use one server operation. A
 conditional database update makes it idempotent: the first accepted request
@@ -133,7 +140,9 @@ be reviewed against the exact target SDK at implementation time. See Google's
 
 ## Physical-device acceptance matrix
 
-Test a normal shift and an offline clock-out on at least one small and one tall
+Verify the setting is absent on web/PWA, off on a fresh native installation,
+account-isolated, and able to start/remove the Live Activity during an existing
+shift without changing that shift. Test a normal shift and an offline clock-out on at least one small and one tall
 iPhone, in light/dark mode, from an unlocked app, another app, Lock Screen and
 after force-removing WagesTracker from recent apps. Also test permission denied,
 Live Activities disabled, rapid repeat taps, backend failure/retry, app relaunch,

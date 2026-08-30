@@ -7,6 +7,7 @@ public class ActiveShiftActivityPlugin: CAPPlugin, CAPBridgedPlugin {
     public let jsName = "ActiveShiftActivity"
     public let pluginMethods: [CAPPluginMethod] = [
         .init(#selector(startOrUpdate)),
+        .init(#selector(dismiss)),
         .init(#selector(end)),
         .init(#selector(retryPendingClockOut))
     ]
@@ -72,6 +73,17 @@ public class ActiveShiftActivityPlugin: CAPPlugin, CAPBridgedPlugin {
             } catch {
                 call.reject(error.localizedDescription, "activity_error")
             }
+        }
+    }
+
+    @objc func dismiss(_ call: CAPPluginCall) {
+        Task {
+            guard #available(iOS 16.1, *) else {
+                call.resolve()
+                return
+            }
+            await ShiftActivityCoordinator.shared.dismissSurface()
+            call.resolve()
         }
     }
 
