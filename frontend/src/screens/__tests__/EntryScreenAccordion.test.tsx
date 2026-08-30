@@ -130,25 +130,44 @@ function getShiftDayCard(): HTMLElement {
 }
 
 describe("Entry screen — day accordion structure and keyboard behavior", () => {
-  it("asks before saving an unusually long manual shift and cancellation does not update it", async () => {
+  it("keeps a time-wheel draft local until the picker is committed", async () => {
     const user = userEvent.setup();
     render(<ConfirmProvider><EntryScreen /></ConfirmProvider>);
     const card = getShiftDayCard();
     await user.click(card.querySelector(".day-row-toggle") as HTMLButtonElement);
 
     const signOut = within(card).getByLabelText("Sign-out time") as HTMLInputElement;
-    fireEvent.change(signOut, { target: { value: "01:30" } });
-    const dialog = await screen.findByRole("alertdialog");
-    expect(dialog.textContent).toMatch(/unusually long/i);
-    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
-
-    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    fireEvent.change(signOut, { target: { value: "16:30" } });
     expect(updateShift).not.toHaveBeenCalled();
-    expect(signOut.value).toBe("17:00");
+    expect(screen.queryByRole("alertdialog")).toBeNull();
 
-    fireEvent.change(signOut, { target: { value: "01:30" } });
-    await user.click(await screen.findByRole("button", { name: "Confirm" }));
-    await waitFor(() => expect(updateShift).toHaveBeenCalledWith("shift-1", { signOut: "01:30" }));
+    // The native Done/check action dismisses the time control and blurs it;
+    // only then should the completed value reach the API.
+    fireEvent.blur(signOut);
+    await waitFor(() => expect(updateShift).toHaveBeenCalledWith("shift-1", { signOut: "16:30" }));
+  });
+
+  it("does not turn a historical sign-in-only draft into an active shift", async () => {
+    const user = userEvent.setup();
+    render(<ConfirmProvider><EntryScreen /></ConfirmProvider>);
+    const card = screen.getByText("Jan 6", { selector: ".day-date" }).closest(".day-card") as HTMLElement;
+    await user.click(card.querySelector(".day-row-toggle") as HTMLButtonElement);
+    await user.click(within(card).getByRole("button", { name: "+ Add another shift" }));
+
+    const signIn = within(card).getAllByLabelText("Sign-in time").at(-1) as HTMLInputElement;
+    const signOut = within(card).getAllByLabelText("Sign-out time").at(-1) as HTMLInputElement;
+    fireEvent.change(signIn, { target: { value: "09:00" } });
+    fireEvent.blur(signIn);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(createShift).not.toHaveBeenCalled();
+
+    fireEvent.change(signOut, { target: { value: "17:00" } });
+    fireEvent.blur(signOut);
+    await waitFor(() => expect(createShift).toHaveBeenCalledWith(expect.objectContaining({
+      date: "2026-01-06",
+      signIn: "09:00",
+      signOut: "17:00",
+    })));
   });
   it("uses a real <button> trigger (not a div role=button) with Clear as a sibling, not nested inside it", () => {
     render(<EntryScreen />);

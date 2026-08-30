@@ -107,14 +107,15 @@ afterEach(() => {
 });
 
 describe("useTodayShift across a midnight rollover", () => {
-  it("requires confirmation before clocking out a 16-hour-40-minute shift", async () => {
+  it("requires confirmation before clocking out without flagging a normal overnight shift", async () => {
     const user = userEvent.setup();
     shifts = [{ ...openShift, signIn: "08:50:00" }];
     render(<ConfirmProvider><Harness /></ConfirmProvider>);
 
     await user.click(screen.getByRole("button", { name: /sign out/i }));
     const dialog = await screen.findByRole("alertdialog");
-    expect(dialog.textContent).toMatch(/unusually long/i);
+    expect(dialog.textContent).toMatch(/end your shift now/i);
+    expect(dialog.textContent).not.toMatch(/unusually long/i);
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     expect(clockOutShift).not.toHaveBeenCalled();
@@ -122,6 +123,18 @@ describe("useTodayShift across a midnight rollover", () => {
     await user.click(screen.getByRole("button", { name: /sign out/i }));
     await user.click(await screen.findByRole("button", { name: "Yes, continue" }));
     await waitFor(() => expect(clockOutShift).toHaveBeenCalledWith("shift-aug8", "01:30:00"));
+  });
+
+  it("warns only after a live shift has actually exceeded 24 hours", async () => {
+    const user = userEvent.setup();
+    shifts = [{ ...openShift, signIn: "00:00:00" }];
+    today = new Date("2026-08-09T01:30:00");
+    vi.setSystemTime(new Date("2026-08-09T01:30:00"));
+    render(<ConfirmProvider><Harness /></ConfirmProvider>);
+
+    await user.click(screen.getByRole("button", { name: /sign out/i }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toMatch(/unusually long/i);
   });
   it("keeps a shift signed in before midnight active after the date rolls over", () => {
     render(<Harness />);

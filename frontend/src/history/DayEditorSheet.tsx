@@ -380,11 +380,6 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
                 {validation}
               </p>
             )}
-            {!validation && isUnusuallyLongShift(signIn, signOut) && (
-              <StatusBanner tone="warning" className="day-editor-long-warning">
-                {LONG_SHIFT_WARNING}
-              </StatusBanner>
-            )}
             {futureDate && !futureDateAcknowledged && (
               <StatusBanner tone="warning" className="day-editor-future-warning">
                 This is a future date. Saving will add the hours and fuel to your reports before the work happens; Save will ask you to confirm.

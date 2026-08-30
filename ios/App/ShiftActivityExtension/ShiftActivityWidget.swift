@@ -28,43 +28,46 @@ struct ShiftActivityWidget: Widget {
         ActivityConfiguration(for: ShiftActivityAttributes.self) { context in
             let accent = phaseAccent(context.state.phase)
 
-            VStack(alignment: .leading, spacing: 13) {
-                HStack(spacing: 10) {
+            // Lock Screen activities have a much tighter vertical budget than
+            // the app itself. Keep the confirmation in one compact row so the
+            // action buttons never fall below the visible activity card.
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 9) {
                     ZStack {
                         Circle().fill(accent.opacity(0.15))
                         Circle().stroke(accent.opacity(0.2), lineWidth: 1)
                         Image(systemName: phaseSymbol(context.state.phase))
-                            .font(.system(size: 18, weight: .semibold))
+                            .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(accent)
                     }
-                    .frame(width: 40, height: 40)
+                    .frame(width: 34, height: 34)
 
                     VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: 6) {
-                            Circle().fill(accent).frame(width: 7, height: 7)
+                            Circle().fill(accent).frame(width: 6, height: 6)
                             Text(phaseTitle(context.state.phase))
-                                .font(.headline)
+                                .font(.subheadline.weight(.bold))
                                 .lineLimit(1)
-                                .minimumScaleFactor(0.82)
+                                .minimumScaleFactor(0.76)
                         }
                         Text(context.attributes.location)
-                            .font(.caption)
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
                     Spacer(minLength: 8)
                 }
 
-                HStack(alignment: .firstTextBaseline) {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
                         ShiftElapsedText(
                             startedAt: context.attributes.startedAt,
                             endedAt: context.state.endedAt
                         )
-                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .font(.system(size: 27, weight: .bold, design: .rounded))
                         .foregroundStyle(.primary)
                         Text("worked today")
-                            .font(.caption)
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
                     Spacer(minLength: 12)
@@ -74,27 +77,30 @@ struct ShiftActivityWidget: Widget {
                 }
 
                 if context.state.phase == .confirming {
-                    VStack(alignment: .leading, spacing: 9) {
-                        Divider().opacity(0.45)
+                    VStack(alignment: .leading, spacing: 7) {
+                        Divider().opacity(0.35)
                         Text(context.state.message ?? "This ends the shift only. Your account stays signed in.")
-                            .font(.caption)
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.82)
                         action(for: context)
-                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 } else if let message = context.state.message,
                           context.state.phase == .ending || context.state.phase == .retry {
                     Text(message)
                         .font(.caption2)
                         .foregroundStyle(context.state.phase == .retry ? attentionOrange : Color.secondary)
-                        .lineLimit(2)
+                        .lineLimit(1)
                 }
             }
-            .padding(16)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
             .activityBackgroundTint(Color(uiColor: .secondarySystemBackground))
             .activitySystemActionForegroundColor(accent)
             .widgetURL(URL(string: "wagestracker://active-shift"))
+            .animation(.easeInOut(duration: 0.18), value: context.state.phase)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -115,10 +121,11 @@ struct ShiftActivityWidget: Widget {
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     if context.state.phase == .confirming {
-                        VStack(alignment: .leading, spacing: 7) {
-                            Text("End this shift only?")
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("End this shift only? Your account stays signed in.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                                .lineLimit(2)
                             action(for: context)
                         }
                     } else {
@@ -191,13 +198,13 @@ struct ShiftActivityWidget: Widget {
                 HStack(spacing: 8) {
                     Button(intent: CancelShiftSignOutIntent(shiftId: context.attributes.shiftId)) {
                         Label("Cancel", systemImage: "xmark")
-                            .font(.caption.weight(.semibold))
+                            .font(.caption2.weight(.semibold))
                     }
                     .buttonStyle(.bordered)
 
                     Button(intent: EndShiftIntent(shiftId: context.attributes.shiftId)) {
-                        Label("Yes, Sign Out", systemImage: "checkmark")
-                            .font(.caption.weight(.bold))
+                        Label("Sign Out", systemImage: "checkmark")
+                            .font(.caption2.weight(.bold))
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(brandGreenDark)

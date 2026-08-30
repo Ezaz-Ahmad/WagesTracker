@@ -28,6 +28,7 @@ import type { WorkLocation } from "../lib/types";
 import * as api from "../lib/api";
 
 type Row = ShiftComputed & { tempId?: string };
+type TimeDraft = { signIn: string | null; signOut: string | null };
 type LocationPickerTarget =
   | { kind: "clock" }
   | { kind: "shift"; day: DayComputed; row: Row; rowIndex: number };
@@ -150,6 +151,11 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
   const [busy, setBusy] = useState(false);
   const [entryActionBusy, setEntryActionBusy] = useState<string | null>(null);
   const [pending, setPending] = useState<Record<string, string[]>>({});
+  // Native iOS/Android time wheels can emit `change` while the wheel is still
+  // moving. Keep that value local until the control is finished (blur after
+  // the picker’s Done/check action), so browsing a historical day never writes
+  // a partial open shift or triggers the active-shift surface.
+  const [timeDrafts, setTimeDrafts] = useState<Record<string, TimeDraft>>({});
   const [locationSuggestions, setLocationSuggestions] = useState<Record<string, string[]>>({});
   const [draftLocations, setDraftLocations] = useState<Record<string, string>>({});
   const [clockLocationId, setClockLocationId] = useState("");
@@ -279,8 +285,13 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
       });
     });
     return rows.map((row, index) => {
-      if (row.id) return row;
       const key = locationDraftKey(day.dateISO, row, index);
+      const timeDraft = timeDrafts[key];
+      if (row.id) {
+        return timeDraft
+          ? { ...row, signIn: timeDraft.signIn, signOut: timeDraft.signOut }
+          : row;
+      }
       const remembered = locationSuggestions[day.dateISO]?.[index];
       const automatic = activeLocations.length === 1
         ? activeLocations[0].id
@@ -289,7 +300,13 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
           : "";
       const workLocationId = draftLocations[key] ?? automatic;
       const location = activeLocations.find((item) => item.id === workLocationId)?.name ?? "";
-      return { ...row, workLocationId: workLocationId || null, location };
+      return {
+        ...row,
+        workLocationId: workLocationId || null,
+        location,
+        signIn: timeDraft?.signIn ?? row.signIn,
+        signOut: timeDraft?.signOut ?? row.signOut,
+      };
     });
   }
 
@@ -317,18 +334,56 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
     setPending((prev) => ({ ...prev, [dateISO]: (prev[dateISO] ?? []).filter((id) => id !== tempId) }));
   }
 
-  async function handleFieldChange(day: DayComputed, row: Row, field: "signIn" | "signOut", value: string): Promise<boolean> {
+  function setTimeDraft(day: DayComputed, row: Row, index: number, field: "signIn" | "signOut", value: string) {
+    const key = locationDraftKey(day.dateISO, row, index);
+    setTimeDrafts((current) => ({
+      ...current,
+      [key]: {
+        signIn: current[key]?.signIn ?? row.signIn,
+        signOut: current[key]?.signOut ?? row.signOut,
+        [field]: value || null,
+      },
+    }));
+  }
+
+  function clearTimeDraft(day: DayComputed, row: Row, index: number) {
+    const key = locationDraftKey(day.dateISO, row, index);
+    setTimeDrafts((current) => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  }
+
+  async function handleFieldCommit(day: DayComputed, row: Row, rowIndex: number, field: "signIn" | "signOut", value: string): Promise<boolean> {
     const normalized = value || null;
-    const mergedSignIn = field === "signIn" ? value || null : row.signIn;
-    const mergedSignOut = field === "signOut" ? value || null : row.signOut;
-    if (!(await confirmFutureDate(day))) return false;
+    const draft = timeDrafts[locationDraftKey(day.dateISO, row, rowIndex)];
+    // Read the counterpart from the draft first. On iOS the picker can blur
+    // immediately after its Done/check action, before React has rendered the
+    // preceding wheel change into `row`; using the draft avoids losing that
+    // value when the second field is committed straight away.
+    const mergedSignIn = field === "signIn" ? normalized : (draft?.signIn ?? row.signIn);
+    const mergedSignOut = field === "signOut" ? normalized : (draft?.signOut ?? row.signOut);
+    if (!(await confirmFutureDate(day))) {
+      clearTimeDraft(day, row, rowIndex);
+      return false;
+    }
     if (isUnusuallyLongShift(mergedSignIn, mergedSignOut) && !(await confirm(LONG_SHIFT_WARNING))) {
+      clearTimeDraft(day, row, rowIndex);
       return false;
     }
     const allowFutureDate = isFutureDate(day.dateISO, today);
     if (row.id) {
-      await updateShift(row.id, { [field]: normalized, ...(allowFutureDate ? { allowFutureDate: true } : {}) });
-      return true;
+      // A historical day may be edited as a complete manual pair, but it must
+      // never become an active shift just because the first wheel was saved.
+      // Today's sign-in-only state remains the intentional Start Shift path.
+      if ((!mergedSignIn || !mergedSignOut) && !(day.isToday && mergedSignIn && !mergedSignOut)) {
+        return true;
+      }
+      const updated = await updateShift(row.id, { [field]: normalized, ...(allowFutureDate ? { allowFutureDate: true } : {}) });
+      if (updated) clearTimeDraft(day, row, rowIndex);
+      return !!updated;
     }
     if (!row.workLocationId) {
       setClockLocationError(activeLocations.length === 0
@@ -337,16 +392,25 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
       return false;
     }
     setClockLocationError(null);
-    await createShift({
+    if ((!mergedSignIn || !mergedSignOut) && !(day.isToday && mergedSignIn && !mergedSignOut)) {
+      // Keep a partial historical entry as a draft until both times have been
+      // deliberately committed. This prevents it from being discovered by
+      // findOpenShift and shown as a live shift/notification.
+      return true;
+    }
+    const created = await createShift({
       date: day.dateISO,
       workLocationId: row.workLocationId ?? null,
       location: row.location,
-      signIn: field === "signIn" ? value || null : row.signIn,
-      signOut: field === "signOut" ? value || null : row.signOut,
+      signIn: mergedSignIn,
+      signOut: mergedSignOut,
       ...(allowFutureDate ? { allowFutureDate: true } : {}),
     });
-    clearPending(day.dateISO, row.tempId);
-    return true;
+    if (created) {
+      clearPending(day.dateISO, row.tempId);
+      clearTimeDraft(day, row, rowIndex);
+    }
+    return !!created;
   }
 
   async function handleLocationChange(day: DayComputed, row: Row, index: number, workLocationId: string): Promise<boolean> {
@@ -653,11 +717,9 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
                       type="time"
                       aria-label="Sign-in time"
                       title="Sign-in time"
-                      defaultValue={row.signIn ?? ""}
-                      onChange={async (e) => {
-                        const input = e.currentTarget;
-                        if (!(await handleFieldChange(day, row, "signIn", input.value))) input.value = row.signIn ?? "";
-                      }}
+                      value={row.signIn ?? ""}
+                      onChange={(e) => setTimeDraft(day, row, rowIndex, "signIn", e.currentTarget.value)}
+                      onBlur={(e) => void handleFieldCommit(day, row, rowIndex, "signIn", e.currentTarget.value)}
                     />
                   </div>
                   <div className="shift-field shift-field-time">
@@ -668,11 +730,9 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
                       type="time"
                       aria-label="Sign-out time"
                       title="Sign-out time"
-                      defaultValue={row.signOut ?? ""}
-                      onChange={async (e) => {
-                        const input = e.currentTarget;
-                        if (!(await handleFieldChange(day, row, "signOut", input.value))) input.value = row.signOut ?? "";
-                      }}
+                      value={row.signOut ?? ""}
+                      onChange={(e) => setTimeDraft(day, row, rowIndex, "signOut", e.currentTarget.value)}
+                      onBlur={(e) => void handleFieldCommit(day, row, rowIndex, "signOut", e.currentTarget.value)}
                     />
                   </div>
                   <div className="shift-hours">{row.hoursLabel}</div>

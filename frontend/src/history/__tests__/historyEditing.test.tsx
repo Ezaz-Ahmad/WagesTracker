@@ -227,7 +227,7 @@ describe("the calculated-hours preview", () => {
 });
 
 describe("validation", () => {
-  it("warns about an unusually long shift, allows confirmation, and does not treat it as invalid", async () => {
+  it("allows a normal overnight shift without an unusually-long warning", async () => {
     const user = userEvent.setup();
     renderHistory();
     const dialog = await openEditor(user, /Edit hours for Mon/);
@@ -237,20 +237,11 @@ describe("validation", () => {
     await user.clear(within(dialog).getByLabelText("Sign out"));
     await user.type(within(dialog).getByLabelText("Sign out"), "01:30");
 
-    expect(await within(dialog).findByText(/unusually long/i)).toBeTruthy();
     const save = within(dialog).getByRole("button", { name: /^Save/ }) as HTMLButtonElement;
     expect(save.disabled).toBe(false);
     expect((within(dialog).getByLabelText("Sign out") as HTMLInputElement).getAttribute("aria-invalid")).toBeNull();
 
     await user.click(save);
-    const confirmation = await screen.findByRole("alertdialog");
-    expect(confirmation.textContent).toMatch(/start and finish times are correct/i);
-    await user.click(within(confirmation).getByRole("button", { name: "Cancel" }));
-    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
-    expect(serverShifts[0].signOut).toBe("13:00");
-
-    await user.click(save);
-    await user.click(await screen.findByRole("button", { name: "Confirm" }));
     await within(dialog).findByText("Saved");
     expect(serverShifts[0]).toMatchObject({ signIn: "08:50", signOut: "01:30" });
   });

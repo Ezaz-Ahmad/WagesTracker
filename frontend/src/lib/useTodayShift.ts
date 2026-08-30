@@ -3,7 +3,7 @@ import { useApp } from "../context/AppContext";
 import { findOpenShift } from "./aggregate";
 import { isoDate, nowHHMMSS } from "./date";
 import { useConfirm } from "../components/ConfirmProvider";
-import { isUnusuallyLongShift, LONG_SHIFT_WARNING } from "./shiftRules";
+import { isElapsedShiftOver24Hours, isUnusuallyLongShift, LONG_SHIFT_WARNING } from "./shiftRules";
 import { endActiveShiftActivity } from "../platform/activeShiftActivity";
 
 export const END_SHIFT_CONFIRMATION = "Are you sure you want to end your shift now?";
@@ -51,7 +51,8 @@ export function useTodayShift() {
     // it started regardless of what today's date is by the time this runs.
     if (last && !last.signOut && !endInFlightRef.current) {
       const signOut = nowHHMMSS();
-      const message = isUnusuallyLongShift(last.signIn, signOut)
+      const message = isElapsedShiftOver24Hours(last.date, last.signIn)
+        || isUnusuallyLongShift(last.signIn, signOut)
         ? `${END_SHIFT_CONFIRMATION} ${LONG_SHIFT_WARNING}`
         : END_SHIFT_CONFIRMATION;
       if (!(await confirm(message, "danger"))) return;

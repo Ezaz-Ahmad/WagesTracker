@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { describeShiftTimes, isUnusuallyLongShift, LONG_SHIFT_WARNING } from "../shiftRules";
+import { describeShiftTimes, isElapsedShiftOver24Hours, isUnusuallyLongShift, LONG_SHIFT_WARNING } from "../shiftRules";
 import { isoDate } from "../date";
 
 afterEach(() => vi.useRealTimers());
@@ -36,15 +36,20 @@ describe("frontend shift date validation", () => {
 });
 
 describe("long-shift warning", () => {
-  it("flags 08:50 to 01:30 as unusual without making it a validation error", () => {
+  it("does not flag a normal overnight shift under 24 hours", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 7, 13, 12, 0));
-    expect(isUnusuallyLongShift("08:50", "01:30")).toBe(true);
+    expect(isUnusuallyLongShift("08:50", "01:30")).toBe(false);
     expect(LONG_SHIFT_WARNING).toMatch(/confirm/i);
     expect(describeShiftTimes("2026-08-13", "08:50", "01:30")).toBeNull();
   });
 
   it("does not warn for a normal overnight shift", () => {
     expect(isUnusuallyLongShift("22:00", "06:00")).toBe(false);
+  });
+
+  it("detects a live shift that has actually crossed 24 hours", () => {
+    expect(isElapsedShiftOver24Hours("2026-08-08", "00:00", new Date(2026, 7, 9, 0, 1))).toBe(true);
+    expect(isElapsedShiftOver24Hours("2026-08-08", "00:00", new Date(2026, 7, 8, 23, 59))).toBe(false);
   });
 });
