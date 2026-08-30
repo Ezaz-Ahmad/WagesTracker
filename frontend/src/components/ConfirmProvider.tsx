@@ -22,11 +22,11 @@ export function useConfirm(): ConfirmRequest {
  * to do anything — replacing the browser's native `confirm()` with one
  * consistent, styled dialog. Opt-in, not opt-out: only buttons explicitly
  * marked `data-confirm="..."` are gated. Routine, frequent, or reversible
- * actions (switching tabs, saving settings, logging in, clocking in/out,
+ * actions (switching tabs, saving settings, logging in, clocking in,
  * downloading a PDF) are left alone — a popup on every single click was
  * tried and was more annoying than useful. This is reserved for actions
- * that lose data or end a session: clearing/removing a shift, logging out,
- * deleting the account.
+ * that lose data or end a session: clocking out, clearing/removing a shift,
+ * logging out, deleting the account.
  *
  * How it works: a capture-phase listener on `document` sees every click
  * before React's own event system does. If the clicked button has

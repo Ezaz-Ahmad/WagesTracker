@@ -1,8 +1,12 @@
+import { useRef } from "react";
 import { useApp } from "../context/AppContext";
 import { findOpenShift } from "./aggregate";
 import { isoDate, nowHHMMSS } from "./date";
 import { useConfirm } from "../components/ConfirmProvider";
 import { isUnusuallyLongShift, LONG_SHIFT_WARNING } from "./shiftRules";
+import { endActiveShiftActivity } from "../platform/activeShiftActivity";
+
+export const END_SHIFT_CONFIRMATION = "Are you sure you want to end your shift now?";
 
 /**
  * Tracks the shift the Sign in/Sign out button (and the elapsed-time
@@ -14,7 +18,8 @@ import { isUnusuallyLongShift, LONG_SHIFT_WARNING } from "./shiftRules";
  */
 export function useTodayShift() {
   const confirm = useConfirm();
-  const { today, shifts, workLocations, createShift, updateShift } = useApp();
+  const { today, shifts, workLocations, createShift, clockOutShift } = useApp();
+  const endInFlightRef = useRef(false);
   const todayISO = isoDate(today);
   const last = findOpenShift(shifts);
   const active = !!last;
@@ -44,10 +49,28 @@ export function useTodayShift() {
     // PATCHes the original shift by id — never creates a new one, and never
     // touches its `date`, so an overnight shift stays filed under the day
     // it started regardless of what today's date is by the time this runs.
-    if (last && !last.signOut) {
+    if (last && !last.signOut && !endInFlightRef.current) {
       const signOut = nowHHMMSS();
-      if (isUnusuallyLongShift(last.signIn, signOut) && !(await confirm(LONG_SHIFT_WARNING))) return;
-      await updateShift(last.id, { signOut });
+      const message = isUnusuallyLongShift(last.signIn, signOut)
+        ? `${END_SHIFT_CONFIRMATION} ${LONG_SHIFT_WARNING}`
+        : END_SHIFT_CONFIRMATION;
+      if (!(await confirm(message, "danger"))) return;
+
+      // The backend's dedicated clock-out endpoint is atomic and idempotent;
+      // this local gate improves the tap experience, while the server still
+      // guarantees that two devices/replays cannot overwrite the first end.
+      endInFlightRef.current = true;
+      try {
+        const result = await clockOutShift(last.id, signOut);
+        if (result) {
+          void endActiveShiftActivity({
+            shiftId: result.shift.id,
+            finalDurationSeconds: result.finalDurationSeconds,
+          });
+        }
+      } finally {
+        endInFlightRef.current = false;
+      }
     }
   };
 

@@ -29,5 +29,6 @@ import UIKit
 class MainViewController: CAPBridgeViewController {
   override open func capacitorDidLoad() {
     bridge?.registerPluginInstance(BiometricAuthPlugin())
+    bridge?.registerPluginInstance(ActiveShiftActivityPlugin())
   }
 }

@@ -1,8 +1,8 @@
 # Signed TestFlight delivery
 
-**Current source marketing version:** `1.19.0`
+**Current source marketing version:** `1.20.0`
 
-**Last reviewed:** 29 August 2026
+**Last reviewed:** 30 August 2026
 
 WagesTracker's signed iOS delivery is intentionally separate from pull-request, push, Simulator and CodeQL workflows. `.github/workflows/ios-testflight.yml` can be started only with `workflow_dispatch`; its delivery job additionally refuses every ref except protected `main`, rejects fork context, uses the protected `testflight` environment and serializes uploads through one non-cancelling concurrency group.
 
@@ -21,9 +21,10 @@ Create these non-secret environment variables:
 | Variable | Value |
 | --- | --- |
 | `IOS_BUNDLE_ID` | `com.ezazahmad.wagestracker` |
-| `IOS_APP_VERSION` | `1.19.0` (must match `frontend/package.json`) |
+| `IOS_APP_VERSION` | `1.20.0` (must match `frontend/package.json`) |
 | `APPLE_TEAM_ID` | The 10-character Team ID shown in Apple Developer membership details and the App Store profile |
 | `IOS_PROVISIONING_PROFILE_NAME` | The exact `Name` inside the uploaded profile. Prefer a release-independent name such as `WagesTracker App Store Distribution` when next regenerating it |
+| `IOS_EXTENSION_PROVISIONING_PROFILE_NAME` | The exact `Name` inside the App Store profile for `com.ezazahmad.wagestracker.ShiftActivityExtension` |
 
 Create these encrypted environment secrets:
 
@@ -35,6 +36,7 @@ Create these encrypted environment secrets:
 | `IOS_DISTRIBUTION_P12_BASE64` | Base64 of the password-protected Apple Distribution `.p12` |
 | `IOS_DISTRIBUTION_P12_PASSWORD` | Password used when the `.p12` was exported |
 | `IOS_APP_STORE_PROFILE_BASE64` | Base64 of the App Store `.mobileprovision` file |
+| `IOS_EXTENSION_APP_STORE_PROFILE_BASE64` | Base64 of the App Store `.mobileprovision` file for the embedded Shift Activity extension |
 
 Encode each credential file locally and paste only the resulting Base64 text into its GitHub environment secret. For example, in PowerShell, run this locally with the real path and copy the returned string directly into GitHub:
 
@@ -63,13 +65,13 @@ Do not trigger the signed workflow from this feature branch. Pull-request valida
 
 ## Build numbers
 
-`CFBundleShortVersionString` is `1.19.0` for this release. `frontend/package.json` is the source of truth; the lockfile, Xcode project and GitHub `IOS_APP_VERSION` variable must match, and the validation script/workflow fail if they do not. Each new workflow dispatch derives `CFBundleVersion` directly from `github.run_number`, which increases across new runs without committing build-number churn to the Xcode project. The workflow accepts only `github.run_attempt == 1`; GitHub reruns keep the original run number and could therefore break reliable ordering after a newer dispatch. If a run fails, fix the cause and start a new **Run workflow** dispatch instead of using **Re-run jobs**.
+`CFBundleShortVersionString` is `1.20.0` for this release. `frontend/package.json` is the source of truth; the lockfile, Xcode project and GitHub `IOS_APP_VERSION` variable must match, and the validation script/workflow fail if they do not. Each new workflow dispatch derives `CFBundleVersion` directly from `github.run_number`, which increases across new runs without committing build-number churn to the Xcode project. The workflow accepts only `github.run_attempt == 1`; GitHub reruns keep the original run number and could therefore break reliable ordering after a newer dispatch. If a run fails, fix the cause and start a new **Run workflow** dispatch instead of using **Re-run jobs**.
 
 ## Signing, validation and cleanup
 
 Before signing, the workflow runs all backend/frontend tests, type-checks and production builds, then verifies Capacitor alignment, deterministic assets, the privacy manifest, the exact production iOS build, Capacitor sync and the single-runtime invariant.
 
-Signing material exists only on the ephemeral macOS runner. The workflow creates a temporary keychain, imports the Apple Distribution identity, validates and installs the named App Store profile, exports an App Store Connect IPA, inspects the extracted application, then asks App Store Connect to validate it before upload. The signed IPA is never published as a GitHub artifact.
+Signing material exists only on the ephemeral macOS runner. The workflow creates a temporary keychain, imports the Apple Distribution identity, validates and installs the named application and Shift Activity extension App Store profiles, exports an App Store Connect IPA, inspects the extracted application and embedded extension, then asks App Store Connect to validate it before upload. The signed IPA is never published as a GitHub artifact.
 
 The extracted application must prove the expected bundle ID, team, distribution identity, App Store profile, TestFlight entitlement, `applinks:wages-tracker-frontend.vercel.app` Associated Domains entitlement, marketing/build versions, iPhone-only family, iOS 15 minimum, production API, runtime count and release-only content. It rejects localhost/live-reload configuration, admin/debug bundles, broad ATS exceptions, certificate-validation bypass markers, protected-resource permissions and development source files. Apple can serialize the Associated Domains authorization in a provisioning profile as the wildcard string `*`; the workflow accepts that profile-level form, while the signed application is still required to contain the concrete production domain. This entitlement inspection prevents the exact archive failure caused by using a profile generated before Associated Domains was enabled.
 
@@ -91,6 +93,9 @@ An `always()` cleanup step deletes the temporary keychain, `.p12`, API key, deco
 - Signup, normal login, logout, authenticated password change, session list/revoke, account deletion confirmation and biometric enable/cancel/success/soft-lock/retry.
 - With a real registered mailbox: request reset, receive email, open it as a Universal Link, set a policy-valid new password, reject token reuse, reject old password, prove previous sessions are revoked, sign in with the new password, and re-enable/verify biometric login.
 - Home, Entry, Spending (all tabs and dialogs), Report PDF share sheet, History edits/PDF, Settings and public pages with realistic long and large values.
+- Start a shift and verify the Live Activity in light/dark mode, Lock Screen, notification area and Dynamic Island where supported; confirm elapsed time remains accurate in the background and after removing the app from recent apps.
+- Clock out from the Live Activity after native confirmation; verify repeat taps are idempotent, offline clock-out retains its first finish time and retries, failures preserve the active shift, completion shows the final duration, and dashboard/fuel/wage totals refresh.
+- Deny ordinary notification permission and disable Live Activities separately; neither setting may prevent Start Shift. Re-enable and verify restoration on app launch. Record the documented eight-hour/boot-restoration ActivityKit boundaries from [`active-shift-live-activity.md`](active-shift-live-activity.md).
 - No repeatable white screen, console/device log error, unhandled request failure, overlapping content or silent action failure.
 
 Record the exact build number and result of each item. A simulator or responsive browser is useful but cannot replace this checklist.

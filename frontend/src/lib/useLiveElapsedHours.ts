@@ -16,13 +16,18 @@ import { useLiveNow } from "./liveClock";
  * exactly the case someone most wants to see their live timer keep counting:
  * a night shift that's still going.
  */
-export function computeElapsedHours(signInHHMM: string, now: Date = new Date()): number {
+export function activeShiftStartedAt(signInHHMM: string, now: Date = new Date()): Date {
   const [h, m, s = 0] = signInHHMM.split(":").map(Number);
   const start = new Date(now);
   start.setHours(h, m, s, 0);
   if (start.getTime() > now.getTime()) {
     start.setDate(start.getDate() - 1);
   }
+  return start;
+}
+
+export function computeElapsedHours(signInHHMM: string, now: Date = new Date()): number {
+  const start = activeShiftStartedAt(signInHHMM, now);
   return Math.max(0, (now.getTime() - start.getTime()) / 3_600_000);
 }
 

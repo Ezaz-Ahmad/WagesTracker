@@ -49,6 +49,7 @@ let today: Date;
 let shifts: Shift[];
 let createShift: ReturnType<typeof vi.fn>;
 let updateShift: ReturnType<typeof vi.fn>;
+let clockOutShift: ReturnType<typeof vi.fn>;
 
 function useFakeApp(): AppCtx {
   return {
@@ -57,6 +58,7 @@ function useFakeApp(): AppCtx {
     user: testUser,
     createShift,
     updateShift,
+    clockOutShift,
   } as unknown as AppCtx;
 }
 
@@ -89,6 +91,11 @@ beforeEach(() => {
   shifts = [openShift];
   createShift = vi.fn().mockResolvedValue(undefined);
   updateShift = vi.fn().mockResolvedValue(undefined);
+  clockOutShift = vi.fn().mockResolvedValue({
+    shift: { ...openShift, signOut: "01:30:00" },
+    alreadyEnded: false,
+    finalDurationSeconds: 55_800,
+  });
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-08-09T01:30:00"));
 });
@@ -110,11 +117,11 @@ describe("useTodayShift across a midnight rollover", () => {
     expect(dialog.textContent).toMatch(/unusually long/i);
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
-    expect(updateShift).not.toHaveBeenCalled();
+    expect(clockOutShift).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: /sign out/i }));
-    await user.click(await screen.findByRole("button", { name: "Confirm" }));
-    await waitFor(() => expect(updateShift).toHaveBeenCalledWith("shift-aug8", { signOut: "01:30:00" }));
+    await user.click(await screen.findByRole("button", { name: "Yes, continue" }));
+    await waitFor(() => expect(clockOutShift).toHaveBeenCalledWith("shift-aug8", "01:30:00"));
   });
   it("keeps a shift signed in before midnight active after the date rolls over", () => {
     render(<Harness />);
@@ -140,18 +147,16 @@ describe("useTodayShift across a midnight rollover", () => {
     expect(timer!.textContent).toBe("15:30:00");
   });
 
-  it("PATCHes the original shift (by id, same date) when Sign out is pressed after midnight, without creating a new shift", async () => {
+  it("clocks out the original shift (by id, same date) after midnight without creating a new shift", async () => {
     const user = userEvent.setup();
-    render(<Harness />);
+    render(<ConfirmProvider><Harness /></ConfirmProvider>);
 
     await user.click(screen.getByRole("button", { name: /sign out/i }));
+    expect((await screen.findByRole("alertdialog")).textContent).toMatch(/end your shift now/i);
+    await user.click(screen.getByRole("button", { name: "Yes, continue" }));
 
-    await waitFor(() => expect(updateShift).toHaveBeenCalledTimes(1));
-    expect(updateShift).toHaveBeenCalledWith("shift-aug8", { signOut: "01:30:00" });
-    // No `date` key at all in the patch — the shift's starting date is
-    // never touched, let alone changed to today's date.
-    const patch = updateShift.mock.calls[0][1];
-    expect(patch).not.toHaveProperty("date");
+    await waitFor(() => expect(clockOutShift).toHaveBeenCalledTimes(1));
+    expect(clockOutShift).toHaveBeenCalledWith("shift-aug8", "01:30:00");
     expect(createShift).not.toHaveBeenCalled();
   });
 

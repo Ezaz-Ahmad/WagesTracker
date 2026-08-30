@@ -26,6 +26,8 @@ jobs:
       IOS_APP_VERSION: ${{ vars.IOS_APP_VERSION }}
       APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
       IOS_PROVISIONING_PROFILE_NAME: ${{ vars.IOS_PROVISIONING_PROFILE_NAME }}
+      IOS_EXTENSION_PROVISIONING_PROFILE_NAME: ${{ vars.IOS_EXTENSION_PROVISIONING_PROFILE_NAME }}
+      IOS_EXTENSION_BUNDLE_ID: com.ezazahmad.wagestracker.ShiftActivityExtension
 
     steps:
       - name: Checkout protected main
@@ -48,6 +50,7 @@ jobs:
           [[ "$EXPECTED_APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           [[ "$IOS_APP_VERSION" == "$EXPECTED_APP_VERSION" ]]
           [[ -n "$IOS_PROVISIONING_PROFILE_NAME" ]]
+          [[ -n "$IOS_EXTENSION_PROVISIONING_PROFILE_NAME" ]]
           [[ "$APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]
           if [[ "$GITHUB_RUN_ATTEMPT" != "1" ]]; then
             echo "TestFlight delivery reruns are disabled because an older run could produce a lower build number. Start a new workflow dispatch instead." >&2
@@ -63,10 +66,11 @@ jobs:
           IOS_DISTRIBUTION_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_P12_BASE64 }}
           IOS_DISTRIBUTION_P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_P12_PASSWORD }}
           IOS_APP_STORE_PROFILE_BASE64: ${{ secrets.IOS_APP_STORE_PROFILE_BASE64 }}
+          IOS_EXTENSION_APP_STORE_PROFILE_BASE64: ${{ secrets.IOS_EXTENSION_APP_STORE_PROFILE_BASE64 }}
         run: |
           set -euo pipefail
           missing=()
-          for variable in ASC_KEY_ID ASC_ISSUER_ID ASC_API_KEY_P8_BASE64 IOS_DISTRIBUTION_P12_BASE64 IOS_DISTRIBUTION_P12_PASSWORD IOS_APP_STORE_PROFILE_BASE64; do
+          for variable in ASC_KEY_ID ASC_ISSUER_ID ASC_API_KEY_P8_BASE64 IOS_DISTRIBUTION_P12_BASE64 IOS_DISTRIBUTION_P12_PASSWORD IOS_APP_STORE_PROFILE_BASE64 IOS_EXTENSION_APP_STORE_PROFILE_BASE64; do
             [[ -n "${!variable:-}" ]] || missing+=("$variable")
           done
           if (( ${#missing[@]} > 0 )); then
@@ -94,6 +98,11 @@ jobs:
 
       - name: Verify Capacitor dependency alignment
         run: npm run verify:capacitor
+
+      - name: Verify native plugin and Live Activity integration
+        run: |
+          npm run verify:ios-plugin-registration
+          npm run verify:ios-live-activity
 
       - name: Run all type-checks
         run: npm run typecheck
@@ -135,13 +144,16 @@ jobs:
           IOS_DISTRIBUTION_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_P12_BASE64 }}
           IOS_DISTRIBUTION_P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_P12_PASSWORD }}
           IOS_APP_STORE_PROFILE_BASE64: ${{ secrets.IOS_APP_STORE_PROFILE_BASE64 }}
+          IOS_EXTENSION_APP_STORE_PROFILE_BASE64: ${{ secrets.IOS_EXTENSION_APP_STORE_PROFILE_BASE64 }}
         run: |
           set -euo pipefail
           umask 077
           KEYCHAIN_PATH="$RUNNER_TEMP/wagestracker-signing.keychain-db"
           P12_PATH="$RUNNER_TEMP/wagestracker-distribution.p12"
           PROFILE_PATH="$RUNNER_TEMP/wagestracker-app-store.mobileprovision"
+          EXTENSION_PROFILE_PATH="$RUNNER_TEMP/wagestracker-shift-activity.mobileprovision"
           PROFILE_PLIST="$RUNNER_TEMP/wagestracker-profile.plist"
+          EXTENSION_PROFILE_PLIST="$RUNNER_TEMP/wagestracker-extension-profile.plist"
           ASC_KEY_DIRECTORY="$HOME/.appstoreconnect/private_keys"
           ASC_KEY_PATH="$ASC_KEY_DIRECTORY/AuthKey_${ASC_KEY_ID}.p8"
           KEYCHAIN_PASSWORD="$(openssl rand -hex 32)"
@@ -150,8 +162,9 @@ jobs:
           mkdir -p "$ASC_KEY_DIRECTORY" "$HOME/Library/MobileDevice/Provisioning Profiles"
           printf '%s' "$IOS_DISTRIBUTION_P12_BASE64" | base64 -D > "$P12_PATH"
           printf '%s' "$IOS_APP_STORE_PROFILE_BASE64" | base64 -D > "$PROFILE_PATH"
+          printf '%s' "$IOS_EXTENSION_APP_STORE_PROFILE_BASE64" | base64 -D > "$EXTENSION_PROFILE_PATH"
           printf '%s' "$ASC_API_KEY_P8_BASE64" | base64 -D > "$ASC_KEY_PATH"
-          [[ -s "$P12_PATH" && -s "$PROFILE_PATH" && -s "$ASC_KEY_PATH" ]]
+          [[ -s "$P12_PATH" && -s "$PROFILE_PATH" && -s "$EXTENSION_PROFILE_PATH" && -s "$ASC_KEY_PATH" ]]
           grep -q -- 'BEGIN PRIVATE KEY' "$ASC_KEY_PATH"
 
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
@@ -163,6 +176,7 @@ jobs:
           security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep -F 'Apple Distribution:' | grep -F "($APPLE_TEAM_ID)" >/dev/null
 
           security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST"
+          security cms -D -i "$EXTENSION_PROFILE_PATH" > "$EXTENSION_PROFILE_PLIST"
           PROFILE_UUID="$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$PROFILE_PLIST")"
           PROFILE_NAME="$(/usr/libexec/PlistBuddy -c 'Print :Name' "$PROFILE_PLIST")"
           PROFILE_TEAM="$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "$PROFILE_PLIST")"
@@ -173,15 +187,27 @@ jobs:
           # concrete production domain, so accept either the wildcard profile
           # form or an array containing the expected domain here.
           PROFILE_ASSOCIATED_DOMAIN="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.developer.associated-domains' "$PROFILE_PLIST")"
+          EXTENSION_PROFILE_UUID="$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$EXTENSION_PROFILE_PLIST")"
+          EXTENSION_PROFILE_NAME="$(/usr/libexec/PlistBuddy -c 'Print :Name' "$EXTENSION_PROFILE_PLIST")"
+          EXTENSION_PROFILE_TEAM="$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "$EXTENSION_PROFILE_PLIST")"
+          EXTENSION_PROFILE_APP_ID="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$EXTENSION_PROFILE_PLIST")"
+          EXTENSION_PROFILE_BETA="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:beta-reports-active' "$EXTENSION_PROFILE_PLIST")"
           [[ "$PROFILE_NAME" == "$IOS_PROVISIONING_PROFILE_NAME" ]]
           [[ "$PROFILE_TEAM" == "$APPLE_TEAM_ID" ]]
           [[ "$PROFILE_APP_ID" == "$APPLE_TEAM_ID.$IOS_BUNDLE_ID" ]]
           [[ "$PROFILE_BETA" == "true" ]]
           [[ "$PROFILE_ASSOCIATED_DOMAIN" == "*" || "$PROFILE_ASSOCIATED_DOMAIN" == *"applinks:wages-tracker-frontend.vercel.app"* ]]
+          [[ "$EXTENSION_PROFILE_NAME" == "$IOS_EXTENSION_PROVISIONING_PROFILE_NAME" ]]
+          [[ "$EXTENSION_PROFILE_TEAM" == "$APPLE_TEAM_ID" ]]
+          [[ "$EXTENSION_PROFILE_APP_ID" == "$APPLE_TEAM_ID.$IOS_EXTENSION_BUNDLE_ID" ]]
+          [[ "$EXTENSION_PROFILE_BETA" == "true" ]]
           INSTALLED_PROFILE_PATH="$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
           install -m 600 "$PROFILE_PATH" "$INSTALLED_PROFILE_PATH"
+          INSTALLED_EXTENSION_PROFILE_PATH="$HOME/Library/MobileDevice/Provisioning Profiles/$EXTENSION_PROFILE_UUID.mobileprovision"
+          install -m 600 "$EXTENSION_PROFILE_PATH" "$INSTALLED_EXTENSION_PROFILE_PATH"
           printf '%s' "$INSTALLED_PROFILE_PATH" > "$RUNNER_TEMP/wagestracker-installed-profile-path"
-          echo "Temporary distribution identity and App Store profile validated and installed."
+          printf '%s' "$INSTALLED_EXTENSION_PROFILE_PATH" > "$RUNNER_TEMP/wagestracker-installed-extension-profile-path"
+          echo "Temporary distribution identity and both App Store profiles validated and installed."
 
       - name: Resolve native dependencies
         run: npm run ios:resolve:native
@@ -199,12 +225,12 @@ jobs:
             -archivePath "$ARCHIVE_PATH" \
             clean archive \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            PRODUCT_BUNDLE_IDENTIFIER="$IOS_BUNDLE_ID" \
             MARKETING_VERSION="$IOS_APP_VERSION" \
             CURRENT_PROJECT_VERSION="$IOS_BUILD_NUMBER" \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="$IOS_PROVISIONING_PROFILE_NAME" \
+            IOS_APP_PROFILE_NAME="$IOS_PROVISIONING_PROFILE_NAME" \
+            IOS_EXTENSION_PROFILE_NAME="$IOS_EXTENSION_PROVISIONING_PROFILE_NAME" \
             OTHER_CODE_SIGN_FLAGS="--keychain $RUNNER_TEMP/wagestracker-signing.keychain-db"
           echo "ARCHIVE_PATH=$ARCHIVE_PATH" >> "$GITHUB_ENV"
 
@@ -224,6 +250,7 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Add :uploadSymbols bool true' "$EXPORT_OPTIONS"
           /usr/libexec/PlistBuddy -c 'Add :provisioningProfiles dict' "$EXPORT_OPTIONS"
           /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:$IOS_BUNDLE_ID string $IOS_PROVISIONING_PROFILE_NAME" "$EXPORT_OPTIONS"
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:$IOS_EXTENSION_BUNDLE_ID string $IOS_EXTENSION_PROVISIONING_PROFILE_NAME" "$EXPORT_OPTIONS"
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
             -exportPath "$EXPORT_PATH" \
@@ -243,6 +270,10 @@ jobs:
           plutil -lint "$APP_PATH/Info.plist" "$APP_PATH/PrivacyInfo.xcprivacy"
           node frontend/scripts/inspect-ios-artifact.mjs "$APP_PATH"
           node frontend/scripts/inspect-ios-distribution.mjs "$APP_PATH"
+          EXTENSION_PATH="$APP_PATH/PlugIns/ShiftActivityExtension.appex"
+          [[ -d "$EXTENSION_PATH" ]]
+          [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$EXTENSION_PATH/Info.plist")" == "$IOS_EXTENSION_BUNDLE_ID" ]]
+          codesign --verify --strict "$EXTENSION_PATH"
 
       - name: Validate IPA with App Store Connect
         shell: bash
@@ -282,11 +313,22 @@ jobs:
                 ;;
             esac
           fi
+          if [[ -f "$RUNNER_TEMP/wagestracker-installed-extension-profile-path" ]]; then
+            INSTALLED_EXTENSION_PROFILE_PATH="$(cat "$RUNNER_TEMP/wagestracker-installed-extension-profile-path")"
+            case "$INSTALLED_EXTENSION_PROFILE_PATH" in
+              "$HOME/Library/MobileDevice/Provisioning Profiles/"*.mobileprovision)
+                rm -f -- "$INSTALLED_EXTENSION_PROFILE_PATH"
+                ;;
+            esac
+          fi
           rm -f -- \
             "$RUNNER_TEMP/wagestracker-distribution.p12" \
             "$RUNNER_TEMP/wagestracker-app-store.mobileprovision" \
+            "$RUNNER_TEMP/wagestracker-shift-activity.mobileprovision" \
             "$RUNNER_TEMP/wagestracker-profile.plist" \
+            "$RUNNER_TEMP/wagestracker-extension-profile.plist" \
             "$RUNNER_TEMP/wagestracker-installed-profile-path" \
+            "$RUNNER_TEMP/wagestracker-installed-extension-profile-path" \
             "$RUNNER_TEMP/ExportOptions.plist" \
             "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
           rm -rf -- \

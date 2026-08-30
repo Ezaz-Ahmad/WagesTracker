@@ -10,6 +10,15 @@
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		B10000020000000000000001 /* BiometricAuthPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000010000000000000001 /* BiometricAuthPlugin.swift */; };
 		B10000040000000000000001 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000030000000000000001 /* MainViewController.swift */; };
+		C20000010000000000000001 /* ActiveShiftActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C21000010000000000000001 /* ActiveShiftActivityPlugin.swift */; };
+		C20000020000000000000001 /* ShiftActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C21000020000000000000001 /* ShiftActivityAttributes.swift */; };
+		C20000030000000000000001 /* ShiftActivityCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C21000030000000000000001 /* ShiftActivityCoordinator.swift */; };
+		C20000040000000000000001 /* EndShiftIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = C21000040000000000000001 /* EndShiftIntent.swift */; };
+		C20000050000000000000001 /* ShiftActivityBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C21000050000000000000001 /* ShiftActivityBundle.swift */; };
+		C20000060000000000000001 /* ShiftActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = C21000060000000000000001 /* ShiftActivityWidget.swift */; };
+		C20000070000000000000001 /* ShiftActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C21000020000000000000001 /* ShiftActivityAttributes.swift */; };
+		C20000090000000000000001 /* EndShiftIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = C21000040000000000000001 /* EndShiftIntent.swift */; };
+		C200000A0000000000000001 /* ShiftActivityExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = C21000090000000000000001 /* ShiftActivityExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 4D22ABE82AF431CB00220026 /* CapApp-SPM */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
 		504EC3081FED79650016851F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504EC3071FED79650016851F /* AppDelegate.swift */; };
@@ -19,6 +28,30 @@
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		A16000010000000000000001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A16000020000000000000001 /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		C23000030000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C23000010000000000000001;
+			remoteInfo = ShiftActivityExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		C22000040000000000000001 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				C200000A0000000000000001 /* ShiftActivityExtension.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
@@ -35,9 +68,24 @@
 		B10000010000000000000001 /* BiometricAuthPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricAuthPlugin.swift; sourceTree = "<group>"; };
 		B10000030000000000000001 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
 		B10000070000000000000001 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
+		C21000010000000000000001 /* ActiveShiftActivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveShiftActivityPlugin.swift; sourceTree = "<group>"; };
+		C21000020000000000000001 /* ShiftActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShiftActivityAttributes.swift; sourceTree = "<group>"; };
+		C21000030000000000000001 /* ShiftActivityCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShiftActivityCoordinator.swift; sourceTree = "<group>"; };
+		C21000040000000000000001 /* EndShiftIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndShiftIntent.swift; sourceTree = "<group>"; };
+		C21000050000000000000001 /* ShiftActivityBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShiftActivityBundle.swift; sourceTree = "<group>"; };
+		C21000060000000000000001 /* ShiftActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShiftActivityWidget.swift; sourceTree = "<group>"; };
+		C21000070000000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		C21000090000000000000001 /* ShiftActivityExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShiftActivityExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		C22000020000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		504EC3011FED79650016851F /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -54,6 +102,7 @@
 			children = (
 				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
 				504EC3061FED79650016851F /* App */,
+				C25000010000000000000001 /* ShiftActivityExtension */,
 				504EC3051FED79650016851F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -62,6 +111,7 @@
 			isa = PBXGroup;
 			children = (
 				504EC3041FED79650016851F /* App.app */,
+				C21000090000000000000001 /* ShiftActivityExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -73,6 +123,10 @@
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				B10000010000000000000001 /* BiometricAuthPlugin.swift */,
 				B10000030000000000000001 /* MainViewController.swift */,
+				C21000010000000000000001 /* ActiveShiftActivityPlugin.swift */,
+				C21000020000000000000001 /* ShiftActivityAttributes.swift */,
+				C21000030000000000000001 /* ShiftActivityCoordinator.swift */,
+				C21000040000000000000001 /* EndShiftIntent.swift */,
 				B10000070000000000000001 /* App.entitlements */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
@@ -85,9 +139,38 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		C25000010000000000000001 /* ShiftActivityExtension */ = {
+			isa = PBXGroup;
+			children = (
+				C21000050000000000000001 /* ShiftActivityBundle.swift */,
+				C21000060000000000000001 /* ShiftActivityWidget.swift */,
+				C21000070000000000000001 /* Info.plist */,
+			);
+			path = ShiftActivityExtension;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		C23000010000000000000001 /* ShiftActivityExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C24000030000000000000001 /* Build configuration list for PBXNativeTarget "ShiftActivityExtension" */;
+			buildPhases = (
+				C22000010000000000000001 /* Sources */,
+				C22000020000000000000001 /* Frameworks */,
+				C22000030000000000000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ShiftActivityExtension;
+			packageProductDependencies = (
+			);
+			productName = ShiftActivityExtension;
+			productReference = C21000090000000000000001 /* ShiftActivityExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		504EC3031FED79650016851F /* App */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 504EC3161FED79650016851F /* Build configuration list for PBXNativeTarget "App" */;
@@ -95,10 +178,12 @@
 				504EC3001FED79650016851F /* Sources */,
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
+				C22000040000000000000001 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				C23000020000000000000001 /* PBXTargetDependency */,
 			);
 			name = App;
 			packageProductDependencies = (
@@ -117,6 +202,10 @@
 				LastSwiftUpdateCheck = 0920;
 				LastUpgradeCheck = 0920;
 				TargetAttributes = {
+					C23000010000000000000001 = {
+						CreatedOnToolsVersion = 26.0;
+						ProvisioningStyle = Automatic;
+					};
 					504EC3031FED79650016851F = {
 						CreatedOnToolsVersion = 9.2;
 						LastSwiftMigration = 1100;
@@ -141,11 +230,19 @@
 			projectRoot = "";
 			targets = (
 				504EC3031FED79650016851F /* App */,
+				C23000010000000000000001 /* ShiftActivityExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		C22000030000000000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		504EC3021FED79650016851F /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -163,6 +260,17 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		C22000010000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C20000050000000000000001 /* ShiftActivityBundle.swift in Sources */,
+				C20000060000000000000001 /* ShiftActivityWidget.swift in Sources */,
+				C20000070000000000000001 /* ShiftActivityAttributes.swift in Sources */,
+				C20000090000000000000001 /* EndShiftIntent.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		504EC3001FED79650016851F /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -170,10 +278,22 @@
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				B10000020000000000000001 /* BiometricAuthPlugin.swift in Sources */,
 				B10000040000000000000001 /* MainViewController.swift in Sources */,
+				C20000010000000000000001 /* ActiveShiftActivityPlugin.swift in Sources */,
+				C20000020000000000000001 /* ShiftActivityAttributes.swift in Sources */,
+				C20000030000000000000001 /* ShiftActivityCoordinator.swift in Sources */,
+				C20000040000000000000001 /* EndShiftIntent.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		C23000020000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C23000010000000000001 /* ShiftActivityExtension */;
+			targetProxy = C23000030000000000000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
 		504EC30B1FED79650016851F /* Main.storyboard */ = {
@@ -195,6 +315,56 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
+		C24000010000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ShiftActivityExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.20.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ezazahmad.wagestracker.ShiftActivityExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "$(IOS_EXTENSION_PROFILE_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) WIDGET_EXTENSION";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		C24000020000000000000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ShiftActivityExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.20.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ezazahmad.wagestracker.ShiftActivityExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "$(IOS_EXTENSION_PROFILE_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) WIDGET_EXTENSION";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 		504EC3141FED79650016851F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 958DCC722DB07C7200EA8C5F /* debug.xcconfig */;
@@ -322,6 +492,7 @@
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
 				PRODUCT_BUNDLE_IDENTIFIER = com.ezazahmad.wagestracker;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "$(IOS_APP_PROFILE_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -344,6 +515,7 @@
 				MARKETING_VERSION = 1.20.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ezazahmad.wagestracker;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "$(IOS_APP_PROFILE_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -353,6 +525,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		C24000030000000000000001 /* Build configuration list for PBXNativeTarget "ShiftActivityExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C24000010000000000000001 /* Debug */,
+				C24000020000000000000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		504EC2FF1FED79650016851F /* Build configuration list for PBXProject "App" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
