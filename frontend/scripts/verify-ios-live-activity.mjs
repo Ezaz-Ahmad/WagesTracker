@@ -20,6 +20,17 @@ function requireMatch(value, pattern, message) {
 requireMatch(appInfo, /<key>NSSupportsLiveActivities<\/key>\s*<true\/>/u, "app Info.plist must enable Live Activities");
 requireMatch(extensionInfo, /com\.apple\.widgetkit-extension/u, "widget extension point is missing");
 requireMatch(extensionInfo, /<key>NSSupportsLiveActivities<\/key>\s*<true\/>/u, "extension Info.plist must enable Live Activities");
+for (const key of [
+  "CFBundleExecutable",
+  "CFBundleIdentifier",
+  "CFBundleInfoDictionaryVersion",
+  "CFBundleName",
+  "CFBundlePackageType",
+  "CFBundleShortVersionString",
+  "CFBundleVersion",
+]) {
+  requireMatch(extensionInfo, new RegExp(`<key>${key}<\\/key>`), `extension Info.plist is missing ${key}`);
+}
 requireMatch(project, /PBXNativeTarget[\s\S]*name = ShiftActivityExtension;/u, "ShiftActivityExtension target is missing");
 requireMatch(project, /ShiftActivityExtension\.appex in Embed App Extensions/u, "Live Activity extension is not embedded in the app");
 for (const file of ["ShiftActivityBundle", "ShiftActivityWidget", "ShiftActivityAttributes", "EndShiftIntent"]) {
