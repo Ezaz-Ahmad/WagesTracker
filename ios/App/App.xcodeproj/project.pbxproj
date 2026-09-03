@@ -329,7 +329,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.20.0;
+				MARKETING_VERSION = 1.20.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ezazahmad.wagestracker.ShiftActivityExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "$(IOS_EXTENSION_PROFILE_NAME)";
@@ -354,7 +354,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.20.0;
+				MARKETING_VERSION = 1.20.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ezazahmad.wagestracker.ShiftActivityExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "$(IOS_EXTENSION_PROFILE_NAME)";
@@ -488,7 +488,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.20.0;
+				MARKETING_VERSION = 1.20.1;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
 				PRODUCT_BUNDLE_IDENTIFIER = com.ezazahmad.wagestracker;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -512,7 +512,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.20.0;
+				MARKETING_VERSION = 1.20.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ezazahmad.wagestracker;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "$(IOS_APP_PROFILE_NAME)";
