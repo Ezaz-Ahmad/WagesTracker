@@ -4,7 +4,7 @@
   flex-direction: column;
   background:
     radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--color-accent) 10%, transparent), transparent 31rem),
-    var(--color-neutral-300);
+    var(--color-page-chrome);
   color: var(--color-text);
 }
 

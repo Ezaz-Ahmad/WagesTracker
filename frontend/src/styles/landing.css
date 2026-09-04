@@ -10,7 +10,7 @@
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: var(--color-neutral-300);
+  background: var(--color-page-chrome);
   background-image:
     radial-gradient(circle at 12% 12%, color-mix(in srgb, var(--color-accent) 9%, transparent), transparent 28%),
     radial-gradient(circle at 88% 86%, color-mix(in srgb, var(--color-accent-2) 8%, transparent), transparent 30%);
@@ -20,8 +20,8 @@
   display: none;
   position: relative;
   overflow: hidden;
-  background: var(--color-neutral-900);
-  color: var(--color-bg);
+  background: var(--color-hero);
+  color: var(--color-on-hero);
   padding: var(--space-8) var(--space-6);
 }
 
@@ -39,7 +39,7 @@
   position: relative; gap: var(--space-3); padding: clamp(20px, 5vw, 30px);
   border-radius: 26px;
   border: 1px solid color-mix(in srgb, var(--color-text) 9%, transparent);
-  background: linear-gradient(155deg, color-mix(in srgb, white 38%, var(--color-surface)), var(--color-surface));
+  background: linear-gradient(155deg, var(--color-surface-raised), var(--color-surface));
   box-shadow:
     0 28px 70px -38px color-mix(in srgb, var(--color-text) 58%, transparent),
     inset 0 1px 0 color-mix(in srgb, white 65%, transparent);
@@ -77,8 +77,8 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--color-neutral-900);
-  color: var(--color-bg);
+  background: var(--color-hero);
+  color: var(--color-on-hero);
   padding: max(var(--space-8), env(safe-area-inset-top)) var(--space-6) max(var(--space-6), env(safe-area-inset-bottom));
   /* This surface owns the swipe-up gesture (useSwipeUp binds directly to
      it) — telling the browser up front that it shouldn't try to interpret
@@ -146,7 +146,7 @@
 .welcome-swipe-hint {
   display: flex; flex-direction: column; align-items: center; gap: 2px;
   font-size: 13px; font-weight: 600; letter-spacing: 0.05em;
-  color: color-mix(in srgb, var(--color-bg) 68%, transparent);
+  color: color-mix(in srgb, var(--color-on-hero) 68%, transparent);
 }
 .welcome-swipe-chevrons { position: relative; width: 22px; height: 28px; }
 /* ChevronDownIcon rotated 180deg rather than a dedicated chevron-up icon —
@@ -249,7 +249,7 @@
 .landing-kicker {
   display: inline-flex; align-items: center; gap: 8px;
   font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase;
-  color: var(--color-accent-300);
+  color: var(--color-on-hero-accent);
   margin-bottom: var(--space-4);
 }
 .landing-kicker::before {
@@ -259,12 +259,12 @@
 .landing-headline {
   font-family: var(--font-heading); font-weight: 800;
   font-size: 44px; line-height: 1.06; letter-spacing: -0.02em;
-  margin: 0 0 var(--space-4); color: var(--color-bg);
+  margin: 0 0 var(--space-4); color: var(--color-on-hero);
 }
 
 .landing-subtext {
   font-size: 16px; line-height: 1.6; margin: 0 0 var(--space-6); max-width: 420px;
-  color: color-mix(in srgb, var(--color-bg) 78%, transparent);
+  color: color-mix(in srgb, var(--color-on-hero) 78%, transparent);
 }
 
 .landing-features {
@@ -275,35 +275,35 @@
 .landing-feature-icon {
   flex: none; width: 36px; height: 36px; display: grid; place-items: center;
   background: color-mix(in srgb, var(--color-accent) 22%, transparent);
-  color: var(--color-accent-300);
+  color: var(--color-on-hero-accent);
 }
 .landing-feature-title {
-  font-family: var(--font-heading); font-weight: 800; font-size: 14px; color: var(--color-bg);
+  font-family: var(--font-heading); font-weight: 800; font-size: 14px; color: var(--color-on-hero);
 }
 .landing-feature-body {
-  font-size: 13px; margin-top: 2px; color: color-mix(in srgb, var(--color-bg) 62%, transparent);
+  font-size: 13px; margin-top: 2px; color: color-mix(in srgb, var(--color-on-hero) 62%, transparent);
 }
 
 /* — live preview card — */
 .landing-preview-card {
   position: relative; z-index: 2;
-  background: var(--color-neutral-800);
-  border: 1px solid color-mix(in srgb, var(--color-bg) 14%, transparent);
+  background: var(--color-hero-surface);
+  border: 1px solid color-mix(in srgb, var(--color-on-hero) 14%, transparent);
   padding: var(--space-4);
   max-width: 280px;
 }
 .landing-preview-kicker {
   font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
-  color: color-mix(in srgb, var(--color-bg) 55%, transparent);
+  color: color-mix(in srgb, var(--color-on-hero) 55%, transparent);
   margin-bottom: 4px;
 }
 .landing-preview-amount {
-  font-family: var(--font-heading); font-weight: 800; font-size: 30px; color: var(--color-bg);
+  font-family: var(--font-heading); font-weight: 800; font-size: 30px; color: var(--color-on-hero);
 }
-.landing-preview-trend { font-size: 12px; color: var(--color-accent-300); margin: 2px 0 var(--space-3); }
-.landing-preview-track { background: color-mix(in srgb, var(--color-bg) 14%, transparent); }
+.landing-preview-trend { font-size: 12px; color: var(--color-on-hero-accent); margin: 2px 0 var(--space-3); }
+.landing-preview-track { background: color-mix(in srgb, var(--color-on-hero) 14%, transparent); }
 .landing-preview-caption {
-  font-size: 11px; margin-top: 6px; color: color-mix(in srgb, var(--color-bg) 55%, transparent);
+  font-size: 11px; margin-top: 6px; color: color-mix(in srgb, var(--color-on-hero) 55%, transparent);
 }
 
 /* — mode toggle (login / create account) — */
@@ -331,7 +331,7 @@
   margin: 8px 0 0; max-width: 34ch; font-size: 12.5px; line-height: 1.5;
   color: color-mix(in srgb, var(--color-text) 66%, transparent);
 }
-.auth-card form .input { min-height: 50px; border-radius: 13px; background: color-mix(in srgb, white 22%, var(--color-bg)); }
+.auth-card form .input { min-height: 50px; border-radius: 13px; background: color-mix(in srgb, var(--color-text) 5%, var(--color-bg)); }
 .auth-card form .btn-primary { min-height: 50px; border-radius: 13px; font-size: 14px; box-shadow: 0 14px 28px -16px color-mix(in srgb, var(--color-accent) 72%, transparent); }
 .auth-trust-note {
   display: flex; align-items: center; justify-content: center; gap: 9px;

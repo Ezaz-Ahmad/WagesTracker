@@ -31,6 +31,7 @@ import {
   subscribeActiveShiftEnded,
 } from "../platform/activeShiftActivity";
 import { readActiveShiftPreference, writeActiveShiftPreference } from "../platform/activeShiftPreference";
+import { useTheme } from "./ThemeContext";
 
 export const RETENTION_YEARS = 5;
 export const CURRENCY = "$";
@@ -237,6 +238,7 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const { preference: themePreference } = useTheme();
   const [status, setStatus] = useState<Status>("loading");
   const [user, setUser] = useState<User | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -868,6 +870,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           clockOutToken,
           startedAtEpochMs: activeShiftStartedAt(activeShiftSignIn).getTime(),
           location: activeShift.location || "Work shift",
+          appearance: themePreference,
         });
         shiftClockOutTokensRef.current.delete(activeShift.id);
         if (result.status === "failed") {
@@ -890,7 +893,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })();
 
     return () => { cancelled = true; };
-  }, [status, shiftsLoaded, shifts, connected, activeShiftActivityEnabledState]);
+  }, [status, shiftsLoaded, shifts, connected, activeShiftActivityEnabledState, themePreference]);
 
   const retryConnectivity = useCallback(async () => {
     try {

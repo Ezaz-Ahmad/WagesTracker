@@ -26,7 +26,7 @@ export function ActiveShiftActivitySettings() {
         <div className="active-shift-preference-copy">
           <h3 className="settings-subsection-title">Active shift notification</h3>
           <p id="active-shift-preference-hint" className="section-hint">
-            Show a live elapsed-time activity on this iPhone while a shift is running, with a secure Sign Out action.
+            Show elapsed time, start time and a secure End Shift action on your iPhone at a glance.
             This is off by default and affects only this account on this device.
           </p>
         </div>

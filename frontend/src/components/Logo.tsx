@@ -11,7 +11,7 @@ export function Logo({ size = 24 }: { size?: number }) {
         fontFamily="Arial, Helvetica, sans-serif"
         fontWeight="800"
         fontSize="18"
-        fill="var(--color-bg)"
+        fill="var(--color-on-accent)"
         textAnchor="middle"
       >
         $

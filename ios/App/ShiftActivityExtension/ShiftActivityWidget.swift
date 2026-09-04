@@ -22,16 +22,58 @@ struct ShiftElapsedText: View {
     }
 }
 
+/** A restrained eight-hour reference rail. It updates once a minute through
+ * SwiftUI's timeline rather than waking the host app or running a custom
+ * second-by-second timer; the system-rendered elapsed text remains the exact
+ * source of truth above it. */
+@available(iOSApplicationExtension 16.1, *)
+struct ShiftProgressRail: View {
+    let startedAt: Date
+    let endedAt: Date?
+    let accent: Color
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 60)) { timeline in
+            let current = endedAt ?? timeline.date
+            let elapsed = max(0, current.timeIntervalSince(startedAt))
+            let progress = min(1, elapsed / (8 * 60 * 60))
+
+            VStack(spacing: 3) {
+                GeometryReader { proxy in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.secondary.opacity(0.14))
+                        Capsule()
+                            .fill(accent.gradient)
+                            .frame(width: max(4, proxy.size.width * progress))
+                    }
+                }
+                .frame(height: 4)
+
+                HStack {
+                    Text("START")
+                    Spacer()
+                    Text("8H MARK")
+                }
+                .font(.system(size: 8, weight: .semibold))
+                .tracking(0.45)
+                .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
 @available(iOSApplicationExtension 16.1, *)
 struct ShiftActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: ShiftActivityAttributes.self) { context in
             let accent = phaseAccent(context.state.phase)
 
-            // Lock Screen activities have a much tighter vertical budget than
-            // the app itself. Keep the confirmation in one compact row so the
-            // action buttons never fall below the visible activity card.
-            VStack(alignment: .leading, spacing: 8) {
+            // A glanceable hierarchy for the Lock Screen: state and location,
+            // explicit start time, the live elapsed value, then one clear
+            // action. The small rail adds progress context without competing
+            // with the timer or spending battery on app-driven refreshes.
+            VStack(alignment: .leading, spacing: 9) {
                 HStack(spacing: 9) {
                     ZStack {
                         Circle().fill(accent.opacity(0.15))
@@ -56,24 +98,45 @@ struct ShiftActivityWidget: Widget {
                             .lineLimit(1)
                     }
                     Spacer(minLength: 8)
+
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("STARTED")
+                            .font(.system(size: 8, weight: .semibold))
+                            .tracking(0.45)
+                            .foregroundStyle(.secondary)
+                        Text(context.attributes.startedAt, style: .time)
+                            .font(.caption.weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(.primary)
+                    }
                 }
 
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                HStack(alignment: .bottom, spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
+                        Text("ELAPSED")
+                            .font(.system(size: 8, weight: .semibold))
+                            .tracking(0.45)
+                            .foregroundStyle(.secondary)
                         ShiftElapsedText(
                             startedAt: context.attributes.startedAt,
                             endedAt: context.state.endedAt
                         )
                         .font(.system(size: 27, weight: .bold, design: .rounded))
                         .foregroundStyle(.primary)
-                        Text("worked today")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        .accessibilityLabel("Elapsed shift time")
                     }
                     Spacer(minLength: 12)
                     if context.state.phase != .confirming {
                         action(for: context)
                     }
+                }
+
+                if context.state.phase == .active {
+                    ShiftProgressRail(
+                        startedAt: context.attributes.startedAt,
+                        endedAt: context.state.endedAt,
+                        accent: accent
+                    )
                 }
 
                 if context.state.phase == .confirming {
@@ -101,6 +164,7 @@ struct ShiftActivityWidget: Widget {
             .activitySystemActionForegroundColor(accent)
             .widgetURL(URL(string: "wagestracker://active-shift"))
             .animation(.easeInOut(duration: 0.18), value: context.state.phase)
+            .preferredColorScheme(preferredColorScheme(context.state.appearance))
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -130,10 +194,15 @@ struct ShiftActivityWidget: Widget {
                         }
                     } else {
                         HStack {
-                            Text(context.attributes.location)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(context.attributes.location)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                Text("Started \(context.attributes.startedAt.formatted(date: .omitted, time: .shortened))")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
                             Spacer()
                             action(for: context)
                         }
@@ -161,9 +230,9 @@ struct ShiftActivityWidget: Widget {
     private func phaseTitle(_ phase: ShiftActivityAttributes.ContentState.Phase) -> String {
         switch phase {
         case .active: return "Shift in progress"
-        case .confirming: return "Sign out of this shift?"
-        case .ending: return "Signing out…"
-        case .retry: return "Sign Out needs attention"
+        case .confirming: return "End this shift?"
+        case .ending: return "Ending shift…"
+        case .retry: return "End Shift needs attention"
         case .completed: return "Shift saved"
         }
     }
@@ -182,13 +251,21 @@ struct ShiftActivityWidget: Widget {
         phase == .retry || phase == .confirming ? attentionOrange : brandGreen
     }
 
+    private func preferredColorScheme(_ appearance: String?) -> ColorScheme? {
+        switch appearance {
+        case "light": return .light
+        case "dark": return .dark
+        default: return nil
+        }
+    }
+
     @ViewBuilder
     private func action(for context: ActivityViewContext<ShiftActivityAttributes>) -> some View {
         if #available(iOSApplicationExtension 17.0, *) {
             switch context.state.phase {
             case .active:
                 Button(intent: RequestShiftSignOutIntent(shiftId: context.attributes.shiftId)) {
-                    Label("Sign Out", systemImage: "stop.fill")
+                    Label("End Shift", systemImage: "stop.fill")
                         .font(.caption.weight(.bold))
                 }
                 .buttonStyle(.borderedProminent)
@@ -203,7 +280,7 @@ struct ShiftActivityWidget: Widget {
                     .buttonStyle(.bordered)
 
                     Button(intent: EndShiftIntent(shiftId: context.attributes.shiftId)) {
-                        Label("Sign Out", systemImage: "checkmark")
+                        Label("End Shift", systemImage: "checkmark")
                             .font(.caption2.weight(.bold))
                     }
                     .buttonStyle(.borderedProminent)
@@ -211,7 +288,7 @@ struct ShiftActivityWidget: Widget {
                 }
 
             case .ending:
-                Label("Signing out…", systemImage: "arrow.triangle.2.circlepath")
+                Label("Ending shift…", systemImage: "arrow.triangle.2.circlepath")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
 
@@ -229,7 +306,7 @@ struct ShiftActivityWidget: Widget {
                     .foregroundStyle(brandGreen)
             }
         } else {
-            Label("Open to Sign Out", systemImage: "arrow.up.forward.app")
+            Label("Open to End Shift", systemImage: "arrow.up.forward.app")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(brandGreen)
         }

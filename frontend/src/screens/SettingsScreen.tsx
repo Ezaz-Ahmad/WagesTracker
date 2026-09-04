@@ -10,7 +10,7 @@ import { DataAccountSettings } from "../settings/DataAccountSettings";
 import { BriefcaseIcon, DatabaseIcon, LockIcon, TargetIcon, UserIcon } from "../components/icons";
 
 const SETTINGS_CATEGORIES: readonly SettingsCategory[] = [
-  { id: "profile", label: "Profile & preferences", hint: "Name, address, week start", icon: UserIcon },
+  { id: "profile", label: "Profile & preferences", hint: "Profile, appearance, app layout", icon: UserIcon },
   { id: "workpay", label: "Work & pay", hint: "Location, address, hourly rate", icon: BriefcaseIcon },
   { id: "goals", label: "Weekly goals", hint: "Hours and earnings targets", icon: TargetIcon },
   { id: "security", label: "Security", hint: "Password and active sessions", icon: LockIcon },

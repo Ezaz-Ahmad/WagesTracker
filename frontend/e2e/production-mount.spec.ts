@@ -54,7 +54,11 @@ async function captureRuntimeErrors(page: Page): Promise<string[]> {
   return errors;
 }
 
-async function mockAuthenticatedApi(page: Page, options: { summaryDelayMs?: number; spendingTotalCents?: number } = {}) {
+async function mockAuthenticatedApi(page: Page, options: {
+  summaryDelayMs?: number;
+  spendingTotalCents?: number;
+  activeShift?: boolean;
+} = {}) {
   let summaryRequests = 0;
   let categoryRequests = 0;
   await page.addInitScript(() => {
@@ -69,7 +73,21 @@ async function mockAuthenticatedApi(page: Page, options: { summaryDelayMs?: numb
     if (pathname === "/api/me") body = { user: USER };
     else if (pathname === "/api/me/sessions") body = { sessions: [] };
     else if (pathname === "/api/work-locations") body = { locations: WORK_LOCATIONS };
-    else if (pathname === "/api/shifts") body = { shifts: [] };
+    else if (pathname === "/api/shifts") {
+      const now = new Date();
+      const startedAt = new Date(now.getTime() - 75 * 60 * 1000);
+      const date = [now.getFullYear(), now.getMonth() + 1, now.getDate()]
+        .map((part, index) => String(part).padStart(index === 0 ? 4 : 2, "0"))
+        .join("-");
+      const signIn = [startedAt.getHours(), startedAt.getMinutes(), startedAt.getSeconds()]
+        .map((part) => String(part).padStart(2, "0"))
+        .join(":");
+      body = {
+        shifts: options.activeShift
+          ? [{ id: "active-shift", date, location: "Newcastle City", signIn, signOut: null }]
+          : [],
+      };
+    }
     else if (pathname === "/api/day-expenses") body = { expenses: [] };
     else if (pathname === "/api/week-extras") body = { extras: [] };
     else if (pathname === "/api/spending/categories") {
@@ -174,6 +192,57 @@ test("existing authenticated session mounts Home and Spending from the productio
   await expect(page.locator(".spending-dashboard-skeleton")).toHaveCount(0);
   expect(requests.summaryRequests()).toBe(1);
   expect(requests.categoryRequests()).toBe(1);
+  expect(errors).toEqual([]);
+});
+
+test("appearance choices apply immediately, follow the device and survive reload", async ({ page }) => {
+  const errors = await captureRuntimeErrors(page);
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.addInitScript(() => {
+    if (!localStorage.getItem("wagesTracker.theme.preference.v1")) {
+      localStorage.setItem("wagesTracker.theme.preference.v1", "dark");
+    }
+  });
+  await mockAuthenticatedApi(page);
+
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", "#101114");
+
+  const mainNav = page.getByRole("navigation", { name: "Main" });
+  await mainNav.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: /Profile & preferences/ }).click();
+  await expect(page.getByRole("radio", { name: /Dark\./ })).toBeChecked();
+
+  await page.getByRole("radio", { name: /Light\./ }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+
+  await mainNav.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: /Profile & preferences/ }).click();
+  await page.getByRole("radio", { name: /System\./ }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  expect(errors).toEqual([]);
+});
+
+test("active shift presents a compact live status without disturbing the Home layout", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const errors = await captureRuntimeErrors(page);
+  await page.addInitScript(() => localStorage.setItem("wagesTracker.theme.preference.v1", "dark"));
+  await mockAuthenticatedApi(page, { activeShift: true });
+
+  await page.goto("/");
+  const activeCard = page.locator(".home-shift-card.is-active");
+  await expect(activeCard).toBeVisible();
+  await expect(activeCard.locator(".active-shift-status-badge")).toHaveText("Active");
+  await expect(activeCard.getByText(/Started .*Newcastle City/)).toBeVisible();
+  await expect(activeCard.locator(".elapsed-timer")).toHaveText(/\d{2}:\d{2}:\d{2}/);
+  await expect(activeCard.getByRole("button", { name: "Sign out" })).toBeVisible();
+  await expect(page.locator(".live-data-badge.is-active")).toHaveCount(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   expect(errors).toEqual([]);
 });
 

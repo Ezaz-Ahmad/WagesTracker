@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { useShiftTimer } from "../lib/useShiftTimer";
 import { CheckIcon } from "./icons";
 import { BubbleLoader } from "./BubbleLoader";
+import { formatTime12 } from "../lib/date";
 
 // A flat inline fill read as plain next to the rest of the redesigned UI —
 // these match the same 3-stop gradient recipe `.btn-primary` uses (light
 // highlight -> base -> deep shadow stop) so the CTA reads as a glossy sphere
 // rather than a solid-color disc, in whichever semantic color the state
 // calls for (red to stop a running shift, green to start one).
-const ACTIVE_COLOR = "linear-gradient(155deg, var(--color-accent-300), var(--color-accent-600) 55%, var(--color-accent-700))";
+const ACTIVE_COLOR = "linear-gradient(155deg, var(--color-accent-400), var(--color-accent) 55%, var(--color-accent-solid))";
 const INACTIVE_COLOR = "linear-gradient(155deg, oklch(74% 0.15 150), oklch(52% 0.13 150) 55%, oklch(36% 0.11 150))";
 
 export function ShiftButton({
@@ -59,4 +60,19 @@ export function ElapsedTimer({ active, signIn }: { active: boolean; signIn: stri
   const label = useShiftTimer(active, signIn);
   if (!active) return null;
   return <div className="elapsed-timer">{label}</div>;
+}
+
+export function ActiveShiftStatus({ signIn, location }: { signIn: string | null; location?: string | null }) {
+  if (!signIn) return null;
+  return (
+    <div className="active-shift-status-row">
+      <span className="active-shift-status-badge">
+        <span className="active-shift-status-dot" aria-hidden="true" />
+        Active
+      </span>
+      <span className="active-shift-start-time">
+        Started {formatTime12(signIn)}{location ? ` · ${location}` : ""}
+      </span>
+    </div>
+  );
 }

@@ -125,6 +125,55 @@
 
 .settings-section-card { gap: 0; }
 .settings-section-card .field-spaced { margin-bottom: var(--space-3); }
+.profile-appearance-settings {
+  margin-top: var(--space-3);
+  gap: var(--space-3);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--color-accent) 4%, var(--color-surface)), var(--color-surface) 76%);
+}
+.profile-appearance-heading { display: flex; align-items: flex-start; gap: var(--space-3); }
+.profile-appearance-heading > div { min-width: 0; }
+.profile-appearance-heading h3 { margin: 0; font: 700 15px/1.25 var(--font-heading); }
+.profile-appearance-heading p {
+  margin: 4px 0 0; max-width: 50ch; color: color-mix(in srgb, var(--color-text) 66%, transparent);
+  font-size: 11.5px; line-height: 1.4;
+}
+.profile-appearance-heading-icon {
+  width: 42px; height: 42px; flex: none; display: grid; place-items: center;
+  border-radius: 13px; color: var(--color-accent-text); background: var(--color-accent-100);
+}
+.theme-choice-group { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.theme-choice {
+  position: relative; min-width: 0; min-height: 82px; display: flex; flex-direction: column;
+  align-items: flex-start; justify-content: space-between; gap: 8px; padding: 11px;
+  border: 1px solid var(--color-divider); border-radius: 13px;
+  background: color-mix(in srgb, var(--color-text) 3%, var(--color-bg)); cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+}
+.theme-choice:hover { border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-divider)); }
+.theme-choice:active { transform: scale(.985); }
+.theme-choice.is-selected {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 9%, var(--color-bg));
+  box-shadow: 0 7px 18px -13px color-mix(in srgb, var(--color-accent) 72%, transparent);
+}
+.theme-choice input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.theme-choice:has(input:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.theme-choice-icon { display: grid; place-items: center; color: color-mix(in srgb, var(--color-text) 62%, transparent); }
+.theme-choice.is-selected .theme-choice-icon { color: var(--color-accent-text); }
+.theme-choice-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.theme-choice-copy strong { font: 700 12px/1.2 var(--font-heading); }
+.theme-choice-copy small { color: color-mix(in srgb, var(--color-text) 58%, transparent); font-size: 9.5px; line-height: 1.25; }
+.theme-choice-check {
+  position: absolute; top: 10px; right: 10px; width: 8px; height: 8px;
+  border-radius: 50%; background: var(--color-divider); box-shadow: 0 0 0 3px transparent;
+  transition: background-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard);
+}
+.theme-choice.is-selected .theme-choice-check { background: var(--color-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 14%, transparent); }
+.theme-current-state {
+  margin: -2px 0 0; color: color-mix(in srgb, var(--color-text) 64%, transparent);
+  font-size: 10.5px; line-height: 1.35;
+}
+.theme-current-state strong { color: var(--color-text); }
 .profile-layout-settings {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -210,6 +259,9 @@
 .field-optional { color: color-mix(in srgb, var(--color-text) 62%, transparent); font-size: 0.85em; font-weight: 400; }
 
 @media (max-width: 560px) {
+  .theme-choice-group { grid-template-columns: 1fr; }
+  .theme-choice { min-height: 58px; display: grid; grid-template-columns: 22px minmax(0, 1fr) 10px; align-items: center; }
+  .theme-choice-check { position: static; }
   .settings-subsection-head, .work-location-card { align-items: stretch; flex-direction: column; }
   .settings-subsection-head .btn, .work-location-actions .btn { flex: 1; justify-content: center; }
 }
@@ -469,7 +521,7 @@
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  background: color-mix(in srgb, #000 46%, transparent);
+  background: var(--color-overlay);
   -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
   animation: sessions-drawer-fade-in var(--dur-base, 200ms) var(--ease-out, ease);

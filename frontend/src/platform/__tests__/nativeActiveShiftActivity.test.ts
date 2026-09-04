@@ -22,6 +22,7 @@ const info = {
   clockOutToken: "scoped-token",
   startedAtEpochMs: 1_786_000_000_000,
   location: "Newcastle",
+  appearance: "dark" as const,
 };
 
 describe("NativeActiveShiftActivityAdapter", () => {

@@ -23,6 +23,14 @@ function token(name: string): string {
   return m[1];
 }
 
+const DARK_TOKENS = TOKENS.match(/:root\[data-theme="dark"\]\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+
+function darkToken(name: string): string {
+  const m = DARK_TOKENS.match(new RegExp(`--${name}\\s*:\\s*(#[0-9a-fA-F]{6})\\s*;`));
+  if (!m) throw new Error(`--${name} is not a literal hex value in the dark theme`);
+  return m[1];
+}
+
 function channel(v: number): number {
   const c = v / 255;
   return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
@@ -101,4 +109,27 @@ describe("tag contrast", () => {
       expect(ratio(token(fg), token(bg))).toBeGreaterThanOrEqual(AA_NORMAL);
     });
   }
+});
+
+describe("dark theme contrast", () => {
+  it("keeps primary text readable on both dark surfaces", () => {
+    expect(ratio(darkToken("color-text"), darkToken("color-bg"))).toBeGreaterThanOrEqual(AA_NORMAL);
+    expect(ratio(darkToken("color-text"), darkToken("color-surface"))).toBeGreaterThanOrEqual(AA_NORMAL);
+  });
+
+  for (const [name, foreground, background] of [
+    ["success", "color-success-700", "color-success-100"],
+    ["warning", "color-warning-700", "color-warning-100"],
+    ["danger", "color-danger-700", "color-danger-100"],
+    ["info", "color-info-700", "color-info-100"],
+  ] as const) {
+    it(`${name} status text remains readable on its dark tint`, () => {
+      expect(ratio(darkToken(foreground), darkToken(background))).toBeGreaterThanOrEqual(AA_NORMAL);
+    });
+  }
+
+  it("keeps white button text readable on dark-theme solid fills", () => {
+    expect(ratio(darkToken("color-on-accent"), darkToken("color-accent-solid"))).toBeGreaterThanOrEqual(AA_NORMAL);
+    expect(ratio(darkToken("color-on-success"), darkToken("color-success"))).toBeGreaterThanOrEqual(AA_NORMAL);
+  });
 });
