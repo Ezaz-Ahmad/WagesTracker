@@ -16,6 +16,7 @@ struct ShiftActivityAttributes: ActivityAttributes {
         var endedAt: Date?
         var finalDurationSeconds: Int?
         var message: String?
+        var appearance: String?
     }
 
     let shiftId: String

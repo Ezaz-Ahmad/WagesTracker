@@ -1,6 +1,6 @@
 html, body, #root { height: 100%; }
 body {
-  margin: 0; background: var(--color-neutral-300);
+  margin: 0; background: var(--color-page-chrome);
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
@@ -11,7 +11,7 @@ button { font-family: inherit; }
 
 /* — auth — */
 .auth-wrap {
-  min-height: 100vh; background: var(--color-neutral-300);
+  min-height: 100vh; background: var(--color-page-chrome);
   display: flex; align-items: center; justify-content: center; padding: var(--space-4) 0;
 }
 .auth-card { width: 100%; max-width: 430px; padding: var(--space-4); }
@@ -123,7 +123,7 @@ button { font-family: inherit; }
 .app-shell {
   height: 100vh; height: 100dvh;
   overflow: hidden;
-  background: var(--color-neutral-300);
+  background: var(--color-page-chrome);
   display: flex; justify-content: center;
   /* Cosmetic entrance only. This used to be the attempted fix for the gap
      described above — an opacity animation recomposites every frame, which
@@ -403,7 +403,7 @@ button { font-family: inherit; }
   position: relative; width: min(380px, calc(100vw - 32px));
   display: flex; flex-direction: column; align-items: center; gap: 14px;
   padding: var(--space-6) var(--space-5);
-  background: color-mix(in srgb, var(--color-bg) 92%, white 8%);
+  background: linear-gradient(155deg, var(--color-surface-raised), var(--color-surface));
   border: 1px solid color-mix(in srgb, var(--color-text) 9%, transparent);
   border-radius: 22px;
   box-shadow:
@@ -492,7 +492,7 @@ button { font-family: inherit; }
 .wakeup-stages li.is-current { color: var(--color-accent-700); }
 .wakeup-stages li.is-current > span { border-color: var(--color-accent); box-shadow: 0 0 0 3px var(--color-accent-100); }
 .wakeup-stages li.is-complete { color: var(--color-success-700); }
-.wakeup-stages li.is-complete > span { color: #fff; border-color: var(--color-success); background: var(--color-success); }
+.wakeup-stages li.is-complete > span { color: var(--color-on-success); border-color: var(--color-success); background: var(--color-success); }
 .wakeup-stages small { overflow: hidden; text-overflow: ellipsis; font-size: 10px; line-height: 1.2; }
 
 .wakeup-text {
@@ -545,7 +545,7 @@ button { font-family: inherit; }
   position: relative; overflow: hidden;
   flex: none; width: 76px; height: 76px; border-radius: 50%; padding: 0;
   text-align: center; justify-content: center; font-size: 11px; line-height: 1.15;
-  white-space: normal; color: #fff; border: none; cursor: pointer;
+  white-space: normal; color: var(--color-on-accent); border: none; cursor: pointer;
   /* Reach kept tight on purpose — the parent card clips overflow, and a wide
      blur (the old 26px/-8px spread reached ~18px past the circle) landed
      right on the card's edge and got hard-clipped by that clip, reading as
@@ -592,8 +592,40 @@ button { font-family: inherit; }
 .week-trend.is-none { color: color-mix(in srgb, var(--color-text) 62%, transparent); font-weight: 500; }
 .week-trend.is-muted { color: color-mix(in srgb, var(--color-text) 45%, transparent); font-weight: 500; }
 .today-card-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.home-shift-card,
+.entry-today-card {
+  transition: background-color var(--dur-base) var(--ease-standard), border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard);
+}
+.home-shift-card.is-active,
+.entry-today-card.is-active {
+  background:
+    radial-gradient(90% 130% at 92% 0%, color-mix(in srgb, var(--color-success) 10%, transparent), transparent 62%),
+    var(--color-surface);
+  border-color: color-mix(in srgb, var(--color-success) 34%, var(--color-divider));
+  box-shadow: var(--shadow-sm), inset 3px 0 0 color-mix(in srgb, var(--color-success) 78%, transparent);
+}
 .today-headline { font-size: 16px; }
 .today-subline { margin: 2px 0 0; }
+.active-shift-status-row {
+  min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 5px 8px;
+  margin: 6px 0 4px;
+}
+.active-shift-status-badge {
+  min-height: 20px; display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 7px; border: 1px solid color-mix(in srgb, var(--color-success) 24%, transparent);
+  border-radius: 999px; background: color-mix(in srgb, var(--color-success) 9%, var(--color-surface));
+  color: var(--color-success-700); font-size: 9px; font-weight: 800;
+  letter-spacing: .025em; line-height: 1; white-space: nowrap;
+}
+.active-shift-status-dot {
+  width: 6px; height: 6px; flex: none; border-radius: 50%;
+  background: var(--color-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 13%, transparent);
+}
+.active-shift-start-time {
+  min-width: 0; color: color-mix(in srgb, var(--color-text) 66%, transparent);
+  font-size: 10.5px; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere;
+}
 .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .stat-tile { background: var(--color-neutral-100); }
 .stat-tile-value { font-size: 18px; }
@@ -646,8 +678,14 @@ button { font-family: inherit; }
   border-radius: 50%;
   background: var(--color-success);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 13%, transparent);
-  animation: live-dot-breathe 2.4s var(--ease-standard) infinite;
+  animation: live-dot-breathe 2.4s var(--ease-standard) 3;
 }
+
+/* Native controls and scrollbars should never look borrowed from the
+   opposite theme. These are intentionally small, global refinements: the
+   browser remains free to render platform-appropriate controls. */
+:root { accent-color: var(--color-accent); scrollbar-color: color-mix(in srgb, var(--color-text) 28%, transparent) transparent; }
+:root[data-theme="dark"] input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(1) brightness(.88); }
 .live-metric-value {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -673,7 +711,7 @@ button { font-family: inherit; }
 .glance-bar-col:focus-visible { outline: 3px solid color-mix(in srgb, var(--color-accent) 55%, transparent); outline-offset: 1px; }
 .glance-bar-track {
   width: 100%; max-width: 24px; height: 82px; display: flex; align-items: flex-end;
-  background: color-mix(in srgb, var(--color-neutral-900) 5%, transparent); border-radius: 5px 5px 2px 2px; overflow: hidden;
+  background: color-mix(in srgb, var(--color-text) 6%, transparent); border-radius: 5px 5px 2px 2px; overflow: hidden;
 }
 .glance-bar-fill { width: 100%; min-height: 3px; background: var(--color-neutral-400); border-radius: 4px 4px 1px 1px; }
 .glance-bar-fill.is-worked { background: var(--color-accent); }
@@ -815,7 +853,7 @@ button { font-family: inherit; }
   border-color: color-mix(in srgb, var(--color-accent) 34%, var(--color-divider));
   box-shadow:
     0 10px 26px -14px color-mix(in srgb, var(--color-accent) 38%, transparent),
-    0 6px 20px -10px color-mix(in srgb, var(--color-neutral-900) 20%, transparent);
+    0 6px 20px -10px color-mix(in srgb, #000 34%, transparent);
 }
 /* .day-row-head is now just a plain layout row — the interactive accordion
    trigger is the real <button class="day-row-toggle"> inside it, with
@@ -1104,7 +1142,7 @@ button { font-family: inherit; }
 }
 .location-picker-backdrop::before {
   content: ""; position: absolute; inset: 0; z-index: -1;
-  background: color-mix(in srgb, #000 48%, transparent);
+  background: var(--color-overlay);
   -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
   animation: day-editor-fade-in var(--dur-base, 200ms) var(--ease-out, ease);
 }
@@ -1233,7 +1271,7 @@ button.location-picker-option:active { transform: scale(.992); }
 .wheel-backdrop {
   position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center;
   padding: var(--space-4);
-  background: color-mix(in srgb, var(--color-neutral-900) 68%, transparent);
+  background: var(--color-overlay);
   backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   animation: fade-in var(--dur-fast) var(--ease-standard) both;
 }
@@ -1247,7 +1285,7 @@ button.location-picker-option:active { transform: scale(.992); }
   max-height: calc(100dvh - 32px); overflow-y: auto; -webkit-overflow-scrolling: touch;
   display: flex; flex-direction: column; align-items: center; gap: var(--space-3);
   padding: var(--space-6) var(--space-4) var(--space-4);
-  background: color-mix(in srgb, var(--color-bg) 90%, white 10%);
+  background: linear-gradient(155deg, var(--color-surface-raised), var(--color-surface));
   border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
   border-radius: 26px;
   box-shadow:
@@ -1510,7 +1548,7 @@ button.location-picker-option:active { transform: scale(.992); }
 .day-editor-backdrop {
   position: fixed; inset: 0; z-index: 70;
   display: flex; align-items: flex-end; justify-content: center;
-  background: color-mix(in srgb, #000 46%, transparent);
+  background: var(--color-overlay);
   -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
   animation: day-editor-fade-in var(--dur-base, 200ms) var(--ease-out, ease);
 }

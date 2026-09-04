@@ -15,7 +15,7 @@ import { compareWeekEarnings } from "../lib/weekComparison";
 import { useTodayShift } from "../lib/useTodayShift";
 import { useCountUp } from "../lib/useCountUp";
 import { useLiveElapsedHours } from "../lib/useLiveElapsedHours";
-import { ElapsedTimer, ShiftButton } from "../components/ShiftButton";
+import { ActiveShiftStatus, ElapsedTimer, ShiftButton } from "../components/ShiftButton";
 import { GoalRing } from "../components/GoalRing";
 import { ChevronRightIcon, EntryIcon, FlameIcon, HistoryIcon, SlidersIcon, SpendingIcon, TrophyIcon } from "../components/icons";
 import { Skeleton } from "../components/Skeleton";
@@ -706,7 +706,7 @@ export function HomeScreen({ onNavigate, onManageLocations }: { onNavigate?: (sc
   const todayHasExtra = todayDay.hours > 0 || todayDay.fuelCost > 0;
   const headline = active ? "Shift in progress" : todayHasExtra ? "Today logged" : "Today not logged yet";
   const subline = active
-    ? `Started at ${formatTime12(last?.signIn)} — tap to end shift.`
+    ? "Your elapsed time updates live."
     : todayHasExtra
       ? (
           <>
@@ -743,10 +743,11 @@ export function HomeScreen({ onNavigate, onManageLocations }: { onNavigate?: (sc
     if (widgetId === "today-shift") {
       return (
         <div key={widgetId} data-flip-key={widgetId} data-widget-id={widgetId} className="home-widget home-widget-medium anim-rise" style={animationStyle}>
-          <div className="card elev-sm">
+          <div className={`card elev-sm home-shift-card${active ? " is-active" : ""}`}>
             <div className="today-card-row">
               <div>
                 <div className="card-title today-headline">{headline}</div>
+                {active && <ActiveShiftStatus signIn={last?.signIn ?? null} location={last?.location} />}
                 <p className="card-body today-subline">{subline}</p>
                 <ElapsedTimer active={active} signIn={last?.signIn ?? null} />
                 {!active && (

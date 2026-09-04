@@ -104,7 +104,10 @@ describe("AppProvider active-shift opt-in", () => {
 
     await act(async () => { await changePreference(true); });
     await screen.findByText("loggedIn:true:true");
-    await waitFor(() => expect(startOrUpdate).toHaveBeenCalledWith(expect.objectContaining({ shiftId: "open-shift" })));
+    await waitFor(() => expect(startOrUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      shiftId: "open-shift",
+      appearance: "system",
+    })));
 
     dismiss.mockClear();
     await act(async () => { await changePreference(false); });

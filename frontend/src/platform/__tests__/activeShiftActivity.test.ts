@@ -20,6 +20,7 @@ describe("active-shift activity platform contract", () => {
       clockOutToken: "",
       startedAtEpochMs: 0,
       location: "",
+      appearance: "system",
     })).resolves.toMatchObject({ status: "unavailable" });
     await expect(endActiveShiftActivity()).resolves.toBeUndefined();
   });

@@ -430,6 +430,25 @@ export function MonitorIcon({ size = 18 }: IconProps) {
   );
 }
 
+/** Appearance controls use familiar system glyphs rather than colour-only
+ * previews, so Light and Dark remain unambiguous in either active theme. */
+export function SunIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42" />
+    </svg>
+  );
+}
+
+export function MoonIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <path d="M20.2 15.2A8.8 8.8 0 018.8 3.8 8.9 8.9 0 1020.2 15.2z" />
+    </svg>
+  );
+}
+
 /** Download affordance on History's per-week PDF button. A tray with an
  * arrow into it, rather than a document glyph — the action is "save this to
  * your device", and the button's own label already says PDF. */

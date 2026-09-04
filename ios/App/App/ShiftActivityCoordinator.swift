@@ -43,6 +43,7 @@ actor ShiftActivityCoordinator {
         let clockOutToken: String
         let startedAt: Date
         let location: String
+        let appearance: String?
     }
 
     private struct PendingClockOut: Codable {
@@ -57,7 +58,8 @@ actor ShiftActivityCoordinator {
         apiBaseUrl: String,
         clockOutToken: String,
         startedAt: Date,
-        location: String
+        location: String,
+        appearance: String
     ) async throws -> ShiftActivityStartOutcome {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
             return ShiftActivityStartOutcome(
@@ -72,7 +74,8 @@ actor ShiftActivityCoordinator {
             apiBaseUrl: apiBaseUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/")),
             clockOutToken: clockOutToken,
             startedAt: startedAt,
-            location: location
+            location: location,
+            appearance: appearance
         )
         try writeCredential(credential)
 
@@ -89,11 +92,18 @@ actor ShiftActivityCoordinator {
                 endedAt: nil,
                 finalDurationSeconds: nil,
                 message: samePending.queued
-                    ? "Signing out…"
-                    : (samePending.lastError ?? "Sign Out needs another try")
+                    ? "Ending shift…"
+                    : (samePending.lastError ?? "End Shift needs another try"),
+                appearance: credential.appearance
             )
         } else {
-            state = .init(phase: .active, endedAt: nil, finalDurationSeconds: nil, message: nil)
+            state = .init(
+                phase: .active,
+                endedAt: nil,
+                finalDurationSeconds: nil,
+                message: nil,
+                appearance: credential.appearance
+            )
         }
 
         let attributes = ShiftActivityAttributes(
@@ -110,7 +120,13 @@ actor ShiftActivityCoordinator {
             } else {
                 await end(
                     activity,
-                    state: .init(phase: .active, endedAt: nil, finalDurationSeconds: nil, message: nil),
+                    state: .init(
+                        phase: .active,
+                        endedAt: nil,
+                        finalDurationSeconds: nil,
+                        message: nil,
+                        appearance: credential.appearance
+                    ),
                     immediate: true
                 )
             }
@@ -137,7 +153,8 @@ actor ShiftActivityCoordinator {
                     phase: .retry,
                     endedAt: nil,
                     finalDurationSeconds: nil,
-                    message: "Open WagesTracker to refresh Sign Out."
+                    message: "Open WagesTracker to refresh End Shift.",
+                    appearance: nil
                 )
             )
             return
@@ -151,8 +168,9 @@ actor ShiftActivityCoordinator {
                     endedAt: nil,
                     finalDurationSeconds: nil,
                     message: pending.queued
-                        ? "Signing out…"
-                        : (pending.lastError ?? "Sign Out needs another try")
+                        ? "Ending shift…"
+                        : (pending.lastError ?? "End Shift needs another try"),
+                    appearance: credential.appearance
                 )
             )
             return
@@ -164,7 +182,8 @@ actor ShiftActivityCoordinator {
                 phase: .confirming,
                 endedAt: nil,
                 finalDurationSeconds: nil,
-                message: "This ends the shift only. Your account stays signed in."
+                message: "This ends the shift only. Your account stays signed in.",
+                appearance: credential.appearance
             )
         )
     }
@@ -173,7 +192,13 @@ actor ShiftActivityCoordinator {
         guard readPendingClockOut()?.shiftId != shiftId else { return }
         await updateActivities(
             for: shiftId,
-            state: .init(phase: .active, endedAt: nil, finalDurationSeconds: nil, message: nil)
+            state: .init(
+                phase: .active,
+                endedAt: nil,
+                finalDurationSeconds: nil,
+                message: nil,
+                appearance: readCredential()?.appearance
+            )
         )
     }
 
@@ -185,7 +210,8 @@ actor ShiftActivityCoordinator {
                     phase: .retry,
                     endedAt: nil,
                     finalDurationSeconds: nil,
-                    message: "Open WagesTracker to refresh Sign Out."
+                    message: "Open WagesTracker to refresh End Shift.",
+                    appearance: nil
                 )
             )
             return .unavailable
@@ -214,7 +240,8 @@ actor ShiftActivityCoordinator {
                     phase: .retry,
                     endedAt: nil,
                     finalDurationSeconds: nil,
-                    message: "Couldn't prepare Sign Out. Open WagesTracker and try again."
+                    message: "Couldn't prepare End Shift. Open WagesTracker and try again.",
+                    appearance: credential.appearance
                 )
             )
             return .unavailable
@@ -226,7 +253,13 @@ actor ShiftActivityCoordinator {
         writePendingClockOut(pending!)
         await updateActivities(
             for: shiftId,
-            state: .init(phase: .ending, endedAt: nil, finalDurationSeconds: nil, message: "Signing out…")
+            state: .init(
+                phase: .ending,
+                endedAt: nil,
+                finalDurationSeconds: nil,
+                message: "Ending shift…",
+                appearance: credential.appearance
+            )
         )
 
         do {
@@ -238,11 +271,17 @@ actor ShiftActivityCoordinator {
             return .queued
         } catch {
             pending!.queued = false
-            pending!.lastError = "Couldn't queue Sign Out. Tap Retry."
+            pending!.lastError = "Couldn't queue End Shift. Tap Retry."
             writePendingClockOut(pending!)
             await updateActivities(
                 for: shiftId,
-                state: .init(phase: .retry, endedAt: nil, finalDurationSeconds: nil, message: pending!.lastError)
+                state: .init(
+                    phase: .retry,
+                    endedAt: nil,
+                    finalDurationSeconds: nil,
+                    message: pending!.lastError,
+                    appearance: credential.appearance
+                )
             )
             return .unavailable
         }
@@ -265,7 +304,8 @@ actor ShiftActivityCoordinator {
             phase: .active,
             endedAt: nil,
             finalDurationSeconds: nil,
-            message: nil
+            message: nil,
+            appearance: nil
         )
         for activity in Activity<ShiftActivityAttributes>.activities {
             await end(activity, state: neutralState, immediate: true)
@@ -280,11 +320,13 @@ actor ShiftActivityCoordinator {
             await ShiftClockOutBackgroundSession.shared.cancelTasks(for: shiftId)
         }
         let endedAt = Date()
+        let appearance = readCredential()?.appearance
         let finalState = ShiftActivityAttributes.ContentState(
             phase: .completed,
             endedAt: endedAt,
             finalDurationSeconds: finalDurationSeconds,
-            message: "Shift saved"
+            message: "Shift saved",
+            appearance: appearance
         )
         for activity in Activity<ShiftActivityAttributes>.activities
         where shiftId == nil || activity.attributes.shiftId == shiftId {
@@ -323,7 +365,13 @@ actor ShiftActivityCoordinator {
         writePendingClockOut(failed)
         await updateActivities(
             for: shiftId,
-            state: .init(phase: .retry, endedAt: nil, finalDurationSeconds: nil, message: failed.lastError)
+            state: .init(
+                phase: .retry,
+                endedAt: nil,
+                finalDurationSeconds: nil,
+                message: failed.lastError,
+                appearance: readCredential()?.appearance
+            )
         )
     }
 
@@ -339,7 +387,7 @@ actor ShiftActivityCoordinator {
                 attributes: attributes,
                 content: ActivityContent(
                     state: state,
-                    staleDate: attributes.startedAt.addingTimeInterval(8 * 60 * 60)
+                    staleDate: attributes.startedAt.addingTimeInterval(48 * 60 * 60)
                 ),
                 pushType: nil
             )

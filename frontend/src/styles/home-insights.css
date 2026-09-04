@@ -16,7 +16,7 @@
   content: "";
   position: absolute;
   inset: 0;
-  background: color-mix(in srgb, #101018 54%, transparent);
+  background: var(--color-overlay);
   animation: home-insight-backdrop-in 180ms var(--ease-out) both;
 }
 .home-insight-backdrop.is-closing {

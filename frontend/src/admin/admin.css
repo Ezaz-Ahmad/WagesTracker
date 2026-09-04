@@ -6,7 +6,7 @@
 
 .admin-shell {
   min-height: 100vh;
-  background: var(--color-neutral-300);
+  background: var(--color-page-chrome);
 }
 .admin-nav {
   background: var(--color-bg);

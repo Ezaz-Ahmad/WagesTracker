@@ -4,13 +4,26 @@
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap');
 
 :root {
+  color-scheme: light;
   --banner-duration: 8000ms;
   --color-bg: #f6f4f3;
   --color-surface: #fffdfc;
+  --color-surface-raised: #ffffff;
   --color-text: #201e1d;
   --color-accent: #ec3013;
   --color-accent-2: #e15b47;
   --color-divider: color-mix(in srgb, #201e1d 16%, transparent);
+  --color-page-chrome: #d7d3d3;
+  --color-hero: #2d2b2b;
+  --color-hero-surface: #444141;
+  --color-on-hero: #f6f4f3;
+  --color-on-hero-accent: #ffc4b8;
+  --color-overlay: color-mix(in srgb, #101018 58%, transparent);
+  --color-on-accent: #ffffff;
+  --color-on-success: #ffffff;
+  --color-accent-solid: #dd2b0f;
+  --color-accent-solid-hover: #ae1800;
+  --color-accent-solid-active: #7c1405;
 
   /* Tonal ramps — generated in OKLCH on one shared lightness scale, so the
      same step of any role matches the others in visual value. */
@@ -112,10 +125,87 @@
   --color-accent-text: var(--color-accent-700);
 }
 
+/* Dark mode is a first-class semantic palette, not a filter over the light
+   UI. Background roles stay dark, text roles stay light, and status tints
+   retain their meaning and contrast. Component CSS continues to consume the
+   same role names, which keeps every screen, chart, popup and navigation
+   surface in sync when the root theme changes. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #101114;
+  --color-surface: #191a1f;
+  --color-surface-raised: #222329;
+  --color-text: #f4f0ef;
+  --color-accent: #ff654e;
+  --color-accent-2: #f27b68;
+  --color-divider: color-mix(in srgb, #f4f0ef 16%, transparent);
+  --color-page-chrome: #090a0d;
+  --color-hero: #0d0f13;
+  --color-hero-surface: #181b21;
+  --color-on-hero: #f7f4f3;
+  --color-on-hero-accent: #ff9a87;
+  --color-overlay: color-mix(in srgb, #030407 72%, transparent);
+  --color-on-accent: #ffffff;
+  --color-on-success: #ffffff;
+  --color-accent-solid: #d83d28;
+  --color-accent-solid-hover: #c93422;
+  --color-accent-solid-active: #b52d1e;
+
+  --color-neutral-100: #202126;
+  --color-neutral-200: #292b31;
+  --color-neutral-300: #36383f;
+  --color-neutral-400: #52555e;
+  --color-neutral-500: #777a84;
+  --color-neutral-600: #9da0a9;
+  --color-neutral-700: #c2c3c9;
+  --color-neutral-800: #e1e0e3;
+  --color-neutral-900: #f5f2f3;
+
+  --color-accent-100: #301a17;
+  --color-accent-200: #48211c;
+  --color-accent-300: #6d2d24;
+  --color-accent-400: #ff9a87;
+  --color-accent-500: #ff765f;
+  --color-accent-600: #e84b35;
+  --color-accent-700: #ff9b89;
+  --color-accent-800: #ffc0b4;
+  --color-accent-900: #ffddd6;
+
+  --color-accent-2-100: #2d1b18;
+  --color-accent-2-200: #43231e;
+  --color-accent-2-300: #66332a;
+  --color-accent-2-400: #f8a08f;
+  --color-accent-2-500: #f18370;
+  --color-accent-2-600: #d76450;
+  --color-accent-2-700: #f29b89;
+  --color-accent-2-800: #ffc1b4;
+  --color-accent-2-900: #ffded7;
+
+  --color-success: #218245;
+  --color-success-700: #72db96;
+  --color-success-100: #15271b;
+  --color-warning: #d99a3e;
+  --color-warning-700: #f4c06d;
+  --color-warning-100: #2c2113;
+  --color-danger: #ff755f;
+  --color-danger-700: #ffa08f;
+  --color-danger-100: #301a17;
+  --color-info: #67aaf0;
+  --color-info-700: #91c7ff;
+  --color-info-100: #14263a;
+  --color-accent-text: #ff9b89;
+
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #000000 72%, transparent), inset 0 0 0 1px color-mix(in srgb, #ffffff 4%, transparent);
+  --shadow-md: 0 5px 16px color-mix(in srgb, #000000 58%, transparent), inset 0 0 0 1px color-mix(in srgb, #ffffff 4%, transparent);
+  --shadow-lg: 0 20px 46px color-mix(in srgb, #000000 62%, transparent), inset 0 0 0 1px color-mix(in srgb, #ffffff 4%, transparent);
+}
+
 body {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 h1, h2, h3, h4 { font-family: var(--font-heading); font-weight: var(--font-heading-weight); }
 
@@ -274,14 +364,14 @@ figcaption {
 .btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none !important; transform: none !important; }
 
 .btn-primary {
-  background: linear-gradient(155deg, var(--color-accent-400), var(--color-accent) 55%, var(--color-accent-600));
-  color: #fff;
+  background: linear-gradient(155deg, var(--color-accent-400), var(--color-accent) 55%, var(--color-accent-solid));
+  color: var(--color-on-accent);
   box-shadow:
     0 10px 22px -9px color-mix(in srgb, var(--color-accent) 65%, transparent),
     inset 0 1px 0 color-mix(in srgb, white 30%, transparent);
 }
 .btn-primary:hover {
-  background: linear-gradient(155deg, var(--color-accent-300), var(--color-accent-600) 55%, var(--color-accent-700));
+  background: linear-gradient(155deg, var(--color-accent-400), var(--color-accent-solid) 55%, var(--color-accent-solid-hover));
   box-shadow:
     0 14px 26px -8px color-mix(in srgb, var(--color-accent) 70%, transparent),
     inset 0 1px 0 color-mix(in srgb, white 30%, transparent);
@@ -409,13 +499,13 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 .checkbox:hover .box { border-color: var(--color-accent); }
 .checkbox input:checked + .box {
   border-color: var(--color-accent);
-  background: linear-gradient(155deg, var(--color-accent-400), var(--color-accent) 60%, var(--color-accent-600));
+  background: linear-gradient(155deg, var(--color-accent-400), var(--color-accent) 60%, var(--color-accent-solid));
   box-shadow: 0 3px 8px -3px color-mix(in srgb, var(--color-accent) 55%, transparent);
 }
 .checkbox input:checked + .box::after {
   content: "";
   width: 4px; height: 8px;
-  border: solid var(--color-bg);
+  border: solid var(--color-on-accent);
   border-width: 0 2px 2px 0;
   transform: rotate(45deg) translate(-1px, -1px);
 }
@@ -437,8 +527,8 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
     box-shadow var(--dur-base) var(--ease-standard);
 }
 .seg-opt:has(input:checked) {
-  background: linear-gradient(155deg, var(--color-accent-400), var(--color-accent) 55%, var(--color-accent-600));
-  color: #fff;
+  background: linear-gradient(155deg, var(--color-accent-400), var(--color-accent) 55%, var(--color-accent-solid));
+  color: var(--color-on-accent);
   box-shadow: 0 6px 14px -6px color-mix(in srgb, var(--color-accent) 60%, transparent), inset 0 1px 0 color-mix(in srgb, white 30%, transparent);
 }
 .seg-opt:not(:has(input:checked)):hover { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
@@ -510,7 +600,7 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
      (which can legitimately open on top of a dialog). */
   position: fixed; inset: 0; z-index: 200; display: grid; place-items: center;
   padding: var(--space-4);
-  background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
+  background: var(--color-overlay);
 }
 .dialog {
   width: min(440px, 100%); display: flex; flex-direction: column; gap: var(--space-3);
@@ -536,7 +626,7 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 .confirm-backdrop {
   position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center;
   padding: var(--space-4);
-  background: color-mix(in srgb, var(--color-neutral-900) 64%, transparent);
+  background: var(--color-overlay);
   backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
 }
 .confirm-modal {
@@ -573,14 +663,14 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 .confirm-action-cancel:hover { background: var(--color-neutral-300); }
 .confirm-action-cancel:active { background: var(--color-neutral-400); }
 .confirm-action-confirm {
-  background: var(--color-accent); color: #fff;
+  background: var(--color-accent-solid); color: var(--color-on-accent);
   box-shadow: 0 8px 18px -4px color-mix(in srgb, var(--color-accent) 55%, transparent);
 }
-.confirm-action-confirm:hover { background: var(--color-accent-600); }
-.confirm-action-confirm:active { background: var(--color-accent-700); }
+.confirm-action-confirm:hover { background: var(--color-accent-solid-hover); }
+.confirm-action-confirm:active { background: var(--color-accent-solid-active); }
 .confirm-modal.is-danger .confirm-action-confirm {
-  background: var(--color-accent-700);
-  box-shadow: 0 8px 18px -4px color-mix(in srgb, var(--color-accent-700) 55%, transparent);
+  background: var(--color-accent-solid);
+  box-shadow: 0 8px 18px -4px color-mix(in srgb, var(--color-accent-solid) 55%, transparent);
 }
-.confirm-modal.is-danger .confirm-action-confirm:hover { background: var(--color-accent-800); }
-.confirm-modal.is-danger .confirm-action-confirm:active { background: var(--color-accent-900); }
+.confirm-modal.is-danger .confirm-action-confirm:hover { background: var(--color-accent-solid-hover); }
+.confirm-modal.is-danger .confirm-action-confirm:active { background: var(--color-accent-solid-active); }

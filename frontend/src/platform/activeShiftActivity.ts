@@ -5,6 +5,9 @@ export interface ActiveShiftActivityInfo {
   clockOutToken: string;
   startedAtEpochMs: number;
   location: string;
+  /** App appearance preference. `system` keeps the system-owned surface
+   * adaptive even if iOS changes while the activity is already visible. */
+  appearance: "light" | "dark" | "system";
 }
 
 export type ActiveShiftActivityStartResult =

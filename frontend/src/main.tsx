@@ -9,6 +9,7 @@ import { configureConnectivityAdapter } from "./platform/connectivity";
 import { configureAppLifecycleAdapter } from "./platform/appLifecycle";
 import { configureBiometricAuth } from "./platform/biometricAuth";
 import { configureActiveShiftActivity } from "./platform/activeShiftActivity";
+import { ThemeProvider } from "./context/ThemeContext";
 import "./styles/tokens.css";
 import "./styles/app.css";
 import "./styles/animations.css";
@@ -74,6 +75,8 @@ async function route() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <ErrorBoundary>{await route()}</ErrorBoundary>
+    <ThemeProvider>
+      <ErrorBoundary>{await route()}</ErrorBoundary>
+    </ThemeProvider>
   </StrictMode>
 );

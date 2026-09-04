@@ -10,11 +10,11 @@ import {
   type DayComputed,
   type ShiftComputed,
 } from "../lib/aggregate";
-import { buildWeekDays, fmt2, formatTime12, isoDate } from "../lib/date";
+import { buildWeekDays, fmt2, isoDate } from "../lib/date";
 import { useTodayShift } from "../lib/useTodayShift";
 import { useCountUp } from "../lib/useCountUp";
 import { useLiveElapsedHours } from "../lib/useLiveElapsedHours";
-import { ElapsedTimer, ShiftButton } from "../components/ShiftButton";
+import { ActiveShiftStatus, ElapsedTimer, ShiftButton } from "../components/ShiftButton";
 import { ChevronDownIcon, ExtraEarningIcon, FuelIcon } from "../components/icons";
 import { Skeleton } from "../components/Skeleton";
 import { Amount } from "../components/Amount";
@@ -515,11 +515,12 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
       <h1 className="section-title">This week's hours</h1>
       <div className="section-hint">Tap a time to set sign-in and sign-out for each day, or use the clock button for today.</div>
 
-      <div className="card entry-today-card anim-rise">
+      <div className={`card entry-today-card anim-rise${active ? " is-active" : ""}`}>
         <div>
+          {active && <ActiveShiftStatus signIn={last?.signIn ?? null} location={last?.location} />}
           <p className="card-body entry-today-sub">
             {active ? (
-              `Started at ${formatTime12(last?.signIn)} — tap to end shift.`
+              "Your elapsed time updates live."
             ) : todayDay.hours > 0 || todayDay.fuelCost > 0 ? (
               <>
                 {fmt2(todayDay.hours)}h · <Amount>{CURRENCY}{fmt2(todayDay.hours * user.rate + todayDay.fuelCost)}</Amount>

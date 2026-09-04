@@ -43,6 +43,10 @@ public class ActiveShiftActivityPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
         let location = call.getString("location") ?? "Work shift"
+        let requestedAppearance = call.getString("appearance") ?? "system"
+        let appearance = ["light", "dark", "system"].contains(requestedAppearance)
+            ? requestedAppearance
+            : "system"
 
         Task {
             guard #available(iOS 16.1, *) else {
@@ -58,7 +62,8 @@ public class ActiveShiftActivityPlugin: CAPPlugin, CAPBridgedPlugin {
                     apiBaseUrl: apiBaseUrl,
                     clockOutToken: clockOutToken,
                     startedAt: Date(timeIntervalSince1970: startedAtEpochMs / 1000),
-                    location: location
+                    location: location,
+                    appearance: appearance
                 )
                 switch outcome.status {
                 case .active:

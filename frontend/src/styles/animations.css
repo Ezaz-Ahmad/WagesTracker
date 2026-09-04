@@ -33,6 +33,28 @@
   --press-scale: 0.97;
 }
 
+/* Theme changes are deliberately opt-in and short-lived. Keeping these
+   transitions off during ordinary scrolling avoids permanent paint work;
+   ThemeProvider adds the class only for the 220ms appearance handoff. */
+.theme-transitioning body,
+.theme-transitioning .app-shell,
+.theme-transitioning .app-frame,
+.theme-transitioning .nav,
+.theme-transitioning .card,
+.theme-transitioning .dialog,
+.theme-transitioning .confirm-modal,
+.theme-transitioning .app-bottomnav,
+.theme-transitioning .settings-nav-item,
+.theme-transitioning .input,
+.theme-transitioning .public-page-shell,
+.theme-transitioning .landing-shell,
+.theme-transitioning .landing-auth-pane,
+.theme-transitioning .admin-shell {
+  transition-property: background-color, border-color, color, box-shadow;
+  transition-duration: 180ms;
+  transition-timing-function: var(--ease-standard);
+}
+
 /* — global interactive feel — */
 .btn,
 .app-bottomnav-btn,
@@ -178,13 +200,13 @@
   0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 45%, transparent); }
   100% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--color-accent) 0%, transparent); }
 }
-.cta-circle.is-active { animation: pulse-ring 1.8s var(--ease-standard) infinite; }
+.cta-circle.is-active { animation: pulse-ring 1.8s var(--ease-standard) 3; }
 
 @keyframes timer-breathe {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.72; }
 }
-.elapsed-timer { animation: timer-breathe 2.2s var(--ease-standard) infinite; }
+.elapsed-timer { animation: timer-breathe 2.2s var(--ease-standard) 2; }
 
 /* — progress bars — */
 .progress-fill {
