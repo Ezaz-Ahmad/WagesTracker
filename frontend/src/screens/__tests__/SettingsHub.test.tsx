@@ -82,6 +82,17 @@ describe("Settings hub — category navigation", () => {
     render(<SettingsScreen />);
     expect(screen.getByRole("heading", { name: "Settings", level: 1 })).toBeTruthy();
     expect(screen.getByLabelText("Your name")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Customise app layout" })).toBeTruthy();
+  });
+
+  it("opens layout customisation from Profile & preferences", async () => {
+    const user = userEvent.setup();
+    render(<SettingsScreen />);
+
+    await user.click(screen.getByRole("button", { name: "Customise app layout" }));
+    expect(screen.getByRole("dialog", { name: "Customise your layout" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Dashboard" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Tab bar" })).toBeTruthy();
   });
 
   it("shows distinct content for each category and marks the active one aria-current", async () => {

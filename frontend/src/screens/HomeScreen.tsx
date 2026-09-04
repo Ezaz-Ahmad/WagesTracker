@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { CURRENCY, useApp } from "../context/AppContext";
 import {
   buildWeekDaysComputed,
@@ -10,14 +10,14 @@ import {
   weekExtraFor,
   weekTotals,
 } from "../lib/aggregate";
-import { buildWeekDays, fmt2, formatTime12, isoDate } from "../lib/date";
+import { addDays, buildWeekDays, computeHours, fmt2, formatTime12, isoDate, parseIsoDate } from "../lib/date";
 import { compareWeekEarnings } from "../lib/weekComparison";
 import { useTodayShift } from "../lib/useTodayShift";
 import { useCountUp } from "../lib/useCountUp";
 import { useLiveElapsedHours } from "../lib/useLiveElapsedHours";
 import { ElapsedTimer, ShiftButton } from "../components/ShiftButton";
 import { GoalRing } from "../components/GoalRing";
-import { FlameIcon, SpendingIcon, TrophyIcon } from "../components/icons";
+import { ChevronRightIcon, EntryIcon, FlameIcon, HistoryIcon, SlidersIcon, SpendingIcon, TrophyIcon } from "../components/icons";
 import { Skeleton } from "../components/Skeleton";
 import { Amount } from "../components/Amount";
 import { EarningsHiddenHint } from "../components/EarningsHiddenHint";
@@ -26,6 +26,10 @@ import { LiveDataBadge } from "../components/LiveDataBadge";
 import { useSpendingSummary } from "../lib/spendingDataCache";
 import { withLiveDay, withLiveSpendingEarnings } from "../lib/liveShiftVisuals";
 import type { DayExpense, Screen, Shift, SpendingSummary, WeekExtra, WeekStart } from "../lib/types";
+import { useLayoutPreferences, type HomeWidgetId } from "../context/LayoutPreferencesContext";
+import { useFlipAnimation } from "../lib/useFlipAnimation";
+import { HomeInsightSheet } from "../components/HomeInsightSheet";
+import { WorkLocationPicker, WorkLocationTrigger } from "../components/WorkLocationPicker";
 
 type HomeDay = ReturnType<typeof buildWeekDaysComputed>[number];
 
@@ -116,7 +120,7 @@ function LiveWeekSummaryCard(props: {
   });
 
   return (
-    <div className="card elev-sm anim-rise" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 0 }}>
+    <div className="card elev-sm">
       <div className="week-card-top">
         <div className="week-amount count-value live-number-slot">
           <Amount>{CURRENCY}{fmt2(displayEarnings)}</Amount>
@@ -174,7 +178,6 @@ function WeekGlanceCard(props: {
   }, [glanceDays, selectedDate]);
 
   const selectedDay = selectedDate ? glanceDays.find((day) => day.dateISO === selectedDate) : undefined;
-  const selectedIndex = glanceDays.findIndex((day) => day.dateISO === selectedDay?.dateISO);
   const recordedShifts = selectedDay?.shifts.filter((shift) => shift.signIn || shift.signOut || shift.location) ?? [];
   const branches = [...new Set(recordedShifts.map((shift) => shift.location.trim()).filter(Boolean))];
   const selectedIsActive = Boolean(ticking && selectedDay?.dateISO === props.activeShiftDate);
@@ -187,71 +190,87 @@ function WeekGlanceCard(props: {
     else if (event.key === "End") nextIndex = glanceDays.length - 1;
     else return;
     event.preventDefault();
-    setSelectedDate(glanceDays[nextIndex].dateISO);
     barRefs.current[nextIndex]?.focus();
   };
 
   return (
-    <div className="card elev-sm anim-rise glance-card" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 2 }}>
-      <div className="live-visual-status-row">
-        <span className="card-meta">Current week</span>
-        <LiveDataBadge active={ticking} label="Updating live" />
+    <>
+      <div className="card elev-sm glance-card">
+        <div className="live-visual-status-row">
+          <span className="card-meta">Current week</span>
+          <LiveDataBadge active={ticking} label="Updating live" />
+        </div>
+        <div className="glance-bars" role="group" aria-label="Select a day to review this week's details">
+          {glanceDays.map((day, index) => {
+            const pct = Math.max(4, (day.displayHours / maxGlanceHours) * 100);
+            const worked = day.displayHours > 0;
+            return (
+              <button
+                type="button"
+                key={day.dateISO}
+                ref={(element) => { barRefs.current[index] = element; }}
+                className={`glance-bar-col${day.isToday ? " is-today" : ""}${ticking && day.dateISO === props.activeShiftDate ? " is-live" : ""}${selectedDate === day.dateISO ? " is-selected" : ""}`}
+                style={{ ["--i" as string]: index }}
+                aria-pressed={selectedDate === day.dateISO}
+                aria-haspopup="dialog"
+                aria-expanded={selectedDate === day.dateISO}
+                aria-label={`${day.dayAbbr} ${day.dateLabel}, ${worked ? `${fmt2(day.displayHours)} hours${props.earningsHidden ? "" : `, ${day.moneyLabel}`}` : "no entry"}${ticking && day.dateISO === props.activeShiftDate ? ", shift active" : ""}`}
+                onClick={() => setSelectedDate(day.dateISO)}
+                onKeyDown={(event) => selectByKeyboard(event, index)}
+              >
+                <span className="glance-bar-track" aria-hidden="true"><span className={`glance-bar-fill${worked ? " is-worked" : ""}`} style={{ height: `${pct.toFixed(4)}%` }} /></span>
+                <span className="glance-bar-label" aria-hidden="true">{day.dayAbbr.charAt(0)}</span>
+              </button>
+            );
+          })}
+        </div>
+        <ChartDataTable
+          caption="Hours worked each day this week"
+          labelHeading="Day"
+          valueHeading="Hours"
+          rows={glanceDays.map((day) => ({ label: `${day.dayAbbr} ${day.dateLabel}`, value: day.displayHours > 0 ? `${fmt2(day.displayHours)}h` : "No entry" }))}
+        />
       </div>
-      <div className="glance-bars" role="group" aria-label="Select a day to review this week's details">
-        {glanceDays.map((day, index) => {
-          const pct = Math.max(4, (day.displayHours / maxGlanceHours) * 100);
-          const worked = day.displayHours > 0;
-          return (
-            <button
-              type="button"
-              key={day.dateISO}
-              ref={(element) => { barRefs.current[index] = element; }}
-              className={`glance-bar-col${day.isToday ? " is-today" : ""}${ticking && day.dateISO === props.activeShiftDate ? " is-live" : ""}${selectedDate === day.dateISO ? " is-selected" : ""}`}
-              style={{ ["--i" as string]: index }}
-              aria-pressed={selectedDate === day.dateISO}
-              aria-expanded={selectedDate === day.dateISO}
-              aria-controls={selectedDate ? "week-glance-day-details" : undefined}
-              aria-label={`${day.dayAbbr} ${day.dateLabel}, ${worked ? `${fmt2(day.displayHours)} hours${props.earningsHidden ? "" : `, ${day.moneyLabel}`}` : "no entry"}${ticking && day.dateISO === props.activeShiftDate ? ", shift active" : ""}`}
-              onClick={() => setSelectedDate(day.dateISO)}
-              onKeyDown={(event) => selectByKeyboard(event, index)}
-            >
-              <span className="glance-bar-track" aria-hidden="true"><span className={`glance-bar-fill${worked ? " is-worked" : ""}`} style={{ height: `${pct.toFixed(4)}%` }} /></span>
-              <span className="glance-bar-label" aria-hidden="true">{day.dayAbbr.charAt(0)}</span>
-            </button>
-          );
-        })}
-      </div>
+
       {selectedDay && (
-        <section
-          key={selectedDay.dateISO}
-          id="week-glance-day-details"
-          className="glance-day-details"
-          aria-label={`Details for ${selectedDay.dayAbbr} ${selectedDay.dateLabel}`}
-          style={{ ["--selected-index" as string]: Math.max(0, selectedIndex) }}
+        <HomeInsightSheet
+          eyebrow="Day details"
+          title={parseIsoDate(selectedDay.dateISO).toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" })}
+          description={recordedShifts.length ? `${recordedShifts.length} ${recordedShifts.length === 1 ? "shift" : "shifts"} recorded for this day.` : "No shift has been logged for this day yet."}
+          icon={<EntryIcon size={20} />}
+          live={selectedIsActive}
+          onClose={() => setSelectedDate(null)}
         >
-          <div className="glance-day-details-heading">
-            <div><strong>{selectedDay.dayAbbr}</strong><span>{selectedDay.dateLabel}</span></div>
-            <div className="glance-day-details-actions">
-              {selectedIsActive && <span className="glance-active-shift"><span aria-hidden="true" />Live now</span>}
-              <button type="button" className="glance-day-details-close" onClick={() => setSelectedDate(null)} aria-label="Hide day details">Hide</button>
-            </div>
-          </div>
-          <dl className="glance-day-detail-grid">
+          <dl className="home-insight-metrics">
             <div><dt>Hours</dt><dd className="live-number-slot">{selectedDay.displayHours > 0 ? `${fmt2(selectedDay.displayHours)}h` : "—"}</dd></div>
             {!props.earningsHidden && <div><dt>Earnings</dt><dd className="live-number-slot" aria-live={selectedIsActive ? "polite" : undefined} aria-atomic={selectedIsActive ? "true" : undefined}>{selectedDay.moneyLabel}</dd></div>}
+            {props.earningsHidden && <div><dt>Status</dt><dd>{selectedIsActive ? "Live" : selectedDay.displayHours > 0 ? "Logged" : "No entry"}</dd></div>}
             <div><dt>Shifts</dt><dd>{recordedShifts.length || "—"}</dd></div>
             <div><dt>Fuel</dt><dd>{selectedDay.fuelCostLabel}</dd></div>
           </dl>
-          <p className="glance-day-branches"><span>{branches.length === 1 ? "Branch" : "Branches"}</span>{branches.length ? branches.join(" · ") : "No branch recorded"}</p>
-        </section>
+
+          <div className="home-insight-section">
+            <h3 className="home-insight-section-title">Shift timeline</h3>
+            {recordedShifts.length ? (
+              <ul className="home-insight-list">
+                {recordedShifts.map((shift, index) => (
+                  <li key={shift.id ?? `${selectedDay.dateISO}-${index}`}>
+                    <span className={`home-insight-row-marker${shift.signIn ? " is-positive" : ""}`} aria-hidden="true">{index + 1}</span>
+                    <span className="home-insight-row-copy">
+                      <strong>{shift.location || "Branch not recorded"}</strong>
+                      <span>{formatTime12(shift.signIn)} – {shift.signOut ? formatTime12(shift.signOut) : "In progress"}</span>
+                    </span>
+                    <span className={`home-insight-row-value${!shift.signOut && selectedIsActive ? " is-positive" : ""}`}>{!shift.signOut && selectedIsActive ? "Live" : shift.hoursLabel}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="home-insight-empty">Nothing logged here yet. Add a shift from the Entry tab whenever you’re ready.</p>}
+          </div>
+
+          <p className="home-insight-note"><span><strong>{branches.length === 1 ? "Branch:" : "Branches:"}</strong> {branches.length ? branches.join(" · ") : "No branch recorded"}</span></p>
+        </HomeInsightSheet>
       )}
-      <ChartDataTable
-        caption="Hours worked each day this week"
-        labelHeading="Day"
-        valueHeading="Hours"
-        rows={glanceDays.map((day) => ({ label: `${day.dayAbbr} ${day.dateLabel}`, value: day.displayHours > 0 ? `${fmt2(day.displayHours)}h` : "No entry" }))}
-      />
-    </div>
+    </>
   );
 }
 
@@ -288,7 +307,7 @@ function HomeSpendingSnapshotCard(props: {
   const donutAmount = summary ? formatHomeDonutAmount(summary.totalSpendingCents) : null;
 
   return (
-    <section className="card elev-sm home-spending-snapshot anim-rise" aria-labelledby="home-spending-title" aria-busy={props.loading || undefined} style={{ ["--i" as string]: 2 }}>
+    <section className="card elev-sm home-spending-snapshot" aria-labelledby="home-spending-title" aria-busy={props.loading || undefined}>
       <div className="home-spending-heading">
         <div className="home-spending-title-row"><SpendingIcon size={18} /><div><span className="card-kicker">Monthly snapshot</span><h2 id="home-spending-title" className="card-title">Personal spending — {props.monthLabel}</h2></div></div>
         <div className="home-spending-heading-status">
@@ -328,7 +347,28 @@ function HomeSpendingSnapshotCard(props: {
   );
 }
 
-function LiveHomeStats(props: {
+interface HomeStatsValue {
+  ticking: boolean;
+  liveDays: HomeDay[];
+  daysLogged: number;
+  daysLoggedDisplay: number;
+  daysLoggedPct: number;
+  metGoalCount: number;
+  metGoalDisplay: number;
+  weeksOnGoalPct: number;
+  historyLength: number;
+  streak: number;
+  streakDisplay: number;
+  recentStreakDates: Array<{ dateISO: string; label: string }>;
+  history: ReturnType<typeof buildWeeklyHistory>;
+  goalEarnings: number;
+  earningsHidden: boolean;
+  bestDay?: HomeDay;
+}
+
+const HomeStatsContext = createContext<HomeStatsValue | null>(null);
+
+function HomeStatsProvider(props: {
   days: HomeDay[];
   shifts: Shift[];
   history: ReturnType<typeof buildWeeklyHistory>;
@@ -339,6 +379,8 @@ function LiveHomeStats(props: {
   signIn: string | null;
   activeShiftInThisWeek: boolean;
   activeShiftDate: string | null;
+  earningsHidden: boolean;
+  children: ReactNode;
 }) {
   const ticking = props.active && props.activeShiftInThisWeek;
   const liveHours = useLiveElapsedHours(ticking, props.signIn);
@@ -355,6 +397,17 @@ function LiveHomeStats(props: {
     : props.shifts;
   const streak = computeStreak(groupByDate(streakShifts), props.today);
   const streakAnim = Math.round(useCountUp(streak, 450));
+  const streakByDate = groupByDate(streakShifts);
+  const dateHasHours = (date: Date) => (streakByDate.get(isoDate(date)) ?? []).some((shift) => computeHours(shift.signIn, shift.signOut) > 0);
+  let streakCursor = props.today;
+  if (!dateHasHours(streakCursor)) streakCursor = addDays(streakCursor, -1);
+  const recentStreakDates = Array.from({ length: Math.min(streak, 7) }, (_, index) => {
+    const date = addDays(streakCursor, -index);
+    return {
+      dateISO: isoDate(date),
+      label: date.toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "short" }),
+    };
+  });
 
   let bestDay: HomeDay | undefined;
   let bestDayEarnings = 0;
@@ -367,46 +420,200 @@ function LiveHomeStats(props: {
   }
 
   return (
-    <div className="stat-grid">
-      <div className="card stat-tile stat-tile-ring anim-rise" style={{ ["--i" as string]: 3 }}>
-        <div className="card-kicker">Days logged</div>
-        <div className="stat-tile-ring-row">
-          <GoalRing pct={daysLoggedPct} value={`${daysLoggedAnim}/7`} live={ticking} />
-          <div className="card-meta stat-tile-ring-caption">days worked</div>
-        </div>
-      </div>
-      <div className="card stat-tile stat-tile-ring anim-rise" style={{ ["--i" as string]: 4 }}>
-        <div className="card-kicker">Weeks on goal</div>
-        <div className="stat-tile-ring-row">
-          <GoalRing pct={weeksOnGoalPct} value={`${metGoalAnim}/${props.history.length}`} />
-          <div className="card-meta stat-tile-ring-caption">on goal</div>
-        </div>
-      </div>
-      <div className="card stat-tile anim-rise" style={{ ["--i" as string]: 5 }}>
-        <div className="card-kicker">Current streak</div>
-        <div className="card-title stat-tile-value stat-tile-icon-row">
-          <FlameIcon size={19} />
-          <span className="count-value">{streakAnim}</span>
-        </div>
-        <div className="card-meta">{streak === 1 ? "day in a row" : "days in a row"}</div>
-      </div>
-      <div className="card stat-tile anim-rise" style={{ ["--i" as string]: 6 }}>
-        <div className="card-kicker">Best day this week</div>
-        <div className="card-title stat-tile-value stat-tile-icon-row">
-          <TrophyIcon size={19} />
-          <span>{bestDay ? bestDay.dayAbbr : "—"}</span>
-        </div>
-        <div className="card-meta live-metric-value">{bestDay ? <Amount>{bestDay.moneyLabel}</Amount> : "Log a shift to see it"}</div>
-      </div>
-    </div>
+    <HomeStatsContext.Provider value={{
+      ticking,
+      liveDays,
+      daysLogged,
+      daysLoggedDisplay: daysLoggedAnim,
+      daysLoggedPct,
+      metGoalCount,
+      metGoalDisplay: metGoalAnim,
+      weeksOnGoalPct,
+      historyLength: props.history.length,
+      streak,
+      streakDisplay: streakAnim,
+      recentStreakDates,
+      history: props.history,
+      goalEarnings: props.goalEarnings,
+      earningsHidden: props.earningsHidden,
+      bestDay,
+    }}>
+      {props.children}
+    </HomeStatsContext.Provider>
   );
 }
 
-export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => void } = {}) {
+type HomeStatWidgetId = Extract<HomeWidgetId, "days-logged" | "weeks-on-goal" | "current-streak" | "best-day">;
+
+function HomeStatWidget({ id, index }: { id: HomeStatWidgetId; index: number }) {
+  const stats = useContext(HomeStatsContext);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  if (!stats) return null;
+
+  if (id === "best-day") return (
+      <div data-flip-key={id} data-widget-id={id} className="card stat-tile home-widget home-widget-compact anim-rise" style={{ ["--i" as string]: index }}>
+        <div className="card-kicker">Best day this week</div>
+        <div className="card-title stat-tile-value stat-tile-icon-row">
+          <TrophyIcon size={19} />
+          <span>{stats.bestDay ? stats.bestDay.dayAbbr : "—"}</span>
+        </div>
+        <div className="card-meta live-metric-value">{stats.bestDay ? <Amount>{stats.bestDay.moneyLabel}</Amount> : "Log a shift to see it"}</div>
+      </div>
+  );
+
+  const cardContent = id === "days-logged" ? (
+    <>
+      <div className="card-kicker">Days logged</div>
+      <div className="stat-tile-ring-row">
+        <GoalRing pct={stats.daysLoggedPct} value={`${stats.daysLoggedDisplay}/7`} live={stats.ticking} />
+        <div className="card-meta stat-tile-ring-caption">days worked</div>
+      </div>
+    </>
+  ) : id === "weeks-on-goal" ? (
+    <>
+      <div className="card-kicker">Weeks on goal</div>
+      <div className="stat-tile-ring-row">
+        <GoalRing pct={stats.weeksOnGoalPct} value={`${stats.metGoalDisplay}/${stats.historyLength}`} />
+        <div className="card-meta stat-tile-ring-caption">on goal</div>
+      </div>
+    </>
+  ) : (
+    <>
+      <div className="card-kicker">Current streak</div>
+      <div className="card-title stat-tile-value stat-tile-icon-row">
+        <FlameIcon size={19} />
+        <span className="count-value">{stats.streakDisplay}</span>
+      </div>
+      <div className="card-meta">{stats.streak === 1 ? "day in a row" : "days in a row"}</div>
+    </>
+  );
+
+  const sheet = id === "days-logged" ? (
+    <HomeInsightSheet
+      eyebrow="Days logged"
+      title={`${stats.daysLogged} of 7 days worked`}
+      description="Your completed and active workdays in the current week."
+      icon={<EntryIcon size={20} />}
+      live={stats.ticking}
+      onClose={() => setDetailsOpen(false)}
+    >
+      <dl className="home-insight-metrics">
+        <div><dt>Worked</dt><dd>{stats.daysLogged}</dd></div>
+        <div><dt>Remaining</dt><dd>{7 - stats.daysLogged}</dd></div>
+      </dl>
+      <div className="home-insight-section">
+        <h3 className="home-insight-section-title">This week</h3>
+        <ul className="home-insight-list">
+          {stats.liveDays.map((day) => {
+            const worked = day.hours > 0;
+            return (
+              <li key={day.dateISO}>
+                <span className={`home-insight-row-marker${worked ? " is-positive" : ""}`} aria-hidden="true">{worked ? "✓" : day.dayAbbr.charAt(0)}</span>
+                <span className="home-insight-row-copy"><strong>{day.dayAbbr} · {day.dateLabel}{day.isToday ? " · Today" : ""}</strong><span>{worked ? "Work logged" : "No shift logged"}</span></span>
+                <span className={`home-insight-row-value${worked ? " is-positive" : ""}`}>{worked ? `${fmt2(day.hours)}h` : "—"}</span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </HomeInsightSheet>
+  ) : id === "weeks-on-goal" ? (
+    <HomeInsightSheet
+      eyebrow="Weeks on goal"
+      title={stats.historyLength ? `${stats.metGoalCount} of ${stats.historyLength} weeks` : "No completed weeks yet"}
+      description="A seven-week lookback showing how often you reached your weekly earnings goal."
+      icon={<HistoryIcon size={20} />}
+      onClose={() => setDetailsOpen(false)}
+    >
+      <dl className="home-insight-metrics">
+        <div><dt>Goal reached</dt><dd>{stats.metGoalCount}</dd></div>
+        <div><dt>Success rate</dt><dd>{stats.historyLength ? `${Math.round(stats.weeksOnGoalPct)}%` : "—"}</dd></div>
+      </dl>
+      <div className="home-insight-section">
+        <h3 className="home-insight-section-title">Completed weeks</h3>
+        {stats.history.length ? (
+          <ul className="home-insight-list">
+            {[...stats.history].reverse().map((week) => {
+              const metGoal = week.earnings >= stats.goalEarnings;
+              return (
+                <li key={week.startISO}>
+                  <span className={`home-insight-row-marker${metGoal ? " is-positive" : ""}`} aria-hidden="true">{metGoal ? "✓" : "–"}</span>
+                  <span className="home-insight-row-copy"><strong>{week.label}</strong><span>{fmt2(week.hours)}h logged</span></span>
+                  <span className={`home-insight-row-value${metGoal ? " is-positive" : ""}`}>{stats.earningsHidden ? (metGoal ? "On goal" : "Below") : `${CURRENCY}${fmt2(week.earnings)}`}</span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : <p className="home-insight-empty">Your completed weeks will appear here as your history builds.</p>}
+      </div>
+      <p className="home-insight-note"><span><strong>Weekly target:</strong> {stats.earningsHidden ? "Hidden while earnings privacy is on" : `${CURRENCY}${fmt2(stats.goalEarnings)}`}.</span></p>
+    </HomeInsightSheet>
+  ) : (
+    <HomeInsightSheet
+      eyebrow="Current streak"
+      title={stats.streak ? `${stats.streak} ${stats.streak === 1 ? "day" : "days"} in a row` : "Start your next streak"}
+      description="Consecutive calendar days with completed work, including streaks that cross week boundaries."
+      icon={<FlameIcon size={21} />}
+      live={stats.ticking}
+      onClose={() => setDetailsOpen(false)}
+    >
+      <dl className="home-insight-metrics">
+        <div><dt>Current streak</dt><dd>{stats.streak}</dd></div>
+        <div><dt>Status</dt><dd>{stats.streak ? "Active" : "Ready"}</dd></div>
+      </dl>
+      <div className="home-insight-section">
+        <h3 className="home-insight-section-title">Recent streak days</h3>
+        {stats.recentStreakDates.length ? (
+          <ul className="home-insight-list">
+            {stats.recentStreakDates.map((date, index) => (
+              <li key={date.dateISO}>
+                <span className="home-insight-row-marker is-positive" aria-hidden="true">✓</span>
+                <span className="home-insight-row-copy"><strong>{date.label}</strong><span>Day {stats.streak - index} of your streak</span></span>
+                <span className="home-insight-row-value is-positive">Logged</span>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="home-insight-empty">Log work on consecutive days to begin building a streak.</p>}
+      </div>
+      <p className="home-insight-note"><span>Today will not break your streak while the day is still in progress. If nothing is logged today, the count continues from yesterday.</span></p>
+    </HomeInsightSheet>
+  );
+
+  const accessibleLabel = id === "days-logged" ? "Days logged" : id === "weeks-on-goal" ? "Weeks on goal" : "Current streak";
+  return (
+    <>
+      <button
+        type="button"
+        data-flip-key={id}
+        data-widget-id={id}
+        className={`card stat-tile home-summary-card home-widget home-widget-compact anim-rise${id !== "current-streak" ? " stat-tile-ring" : ""}`}
+        style={{ ["--i" as string]: index }}
+        onClick={() => setDetailsOpen(true)}
+        aria-haspopup="dialog"
+        aria-expanded={detailsOpen}
+        aria-label={`View ${accessibleLabel} details`}
+      >
+        {cardContent}
+        <span className="home-summary-card-affordance" aria-hidden="true">View details <ChevronRightIcon size={13} /></span>
+      </button>
+      {detailsOpen && sheet}
+    </>
+  );
+}
+
+export function HomeScreen({ onNavigate, onManageLocations }: { onNavigate?: (screen: Screen) => void; onManageLocations?: () => void } = {}) {
   const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras, earningsHidden, workLocations } = useApp();
   const { active, last, startAtLocation, end } = useTodayShift();
   const [busy, setBusy] = useState(false);
   const [selectedClockLocationId, setSelectedClockLocationId] = useState("");
+  const [locationPickerOpen, setLocationPickerOpen] = useState(false);
+  const { homeWidgetOrder, hiddenHomeWidgets } = useLayoutPreferences();
+  const hiddenWidgets = useMemo(() => new Set(hiddenHomeWidgets), [hiddenHomeWidgets]);
+  const visibleWidgets = useMemo(
+    () => homeWidgetOrder.filter((widgetId) => !hiddenWidgets.has(widgetId)),
+    [homeWidgetOrder, hiddenWidgets]
+  );
+  const dashboardRef = useFlipAnimation<HTMLDivElement>(visibleWidgets.join("|"));
 
   // Every hook below must run on every render regardless of loading state —
   // React requires the same hooks in the same order every time, so the
@@ -463,6 +670,7 @@ export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => vo
       ? rememberedLocationId
       : "";
   const clockLocationId = selectedClockLocationId || defaultClockLocationId;
+  const clockLocation = activeWorkLocations.find((location) => location.id === clockLocationId) ?? null;
 
   if (!user) return null;
   // Wait for the first shifts fetch before showing any totals — otherwise this
@@ -489,7 +697,7 @@ export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => vo
     try {
       if (active) await end();
       else if (clockLocationId) await startAtLocation(clockLocationId);
-      else onNavigate?.(activeWorkLocations.length === 0 ? "settings" : "entry");
+      else setLocationPickerOpen(true);
     } finally {
       setBusy(false);
     }
@@ -508,74 +716,106 @@ export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => vo
       : "Tap to start your shift.";
   const spendingMonthLabel = today.toLocaleDateString("en-AU", { month: "long" });
 
+  const renderWidget = (widgetId: HomeWidgetId, index: number) => {
+    const animationStyle = { ["--i" as string]: index };
+    if (widgetId === "week-summary") {
+      return (
+        <div key={widgetId} data-flip-key={widgetId} data-widget-id={widgetId} className="home-widget home-widget-medium anim-rise" style={animationStyle}>
+          <LiveWeekSummaryCard
+            active={active}
+            signIn={last?.signIn ?? null}
+            activeShiftInThisWeek={activeShiftInThisWeek}
+            savedHours={savedHours}
+            savedEarnings={savedEarnings}
+            rate={rate}
+            goalHours={goalHours}
+            today={today}
+            weekStartsOn={weekStartsOn}
+            shifts={shifts}
+            dayExpenses={dayExpenses}
+            weekExtras={weekExtras}
+            earningsHidden={earningsHidden}
+          />
+        </div>
+      );
+    }
+
+    if (widgetId === "today-shift") {
+      return (
+        <div key={widgetId} data-flip-key={widgetId} data-widget-id={widgetId} className="home-widget home-widget-medium anim-rise" style={animationStyle}>
+          <div className="card elev-sm">
+            <div className="today-card-row">
+              <div>
+                <div className="card-title today-headline">{headline}</div>
+                <p className="card-body today-subline">{subline}</p>
+                <ElapsedTimer active={active} signIn={last?.signIn ?? null} />
+                {!active && (
+                  <div className="home-clock-location">
+                    <span className="home-clock-location-label">Work location</span>
+                    <WorkLocationTrigger
+                      id="home-clock-location"
+                      label="Work location"
+                      location={clockLocation}
+                      emptyLabel={activeWorkLocations.length ? "Choose a location" : "Add a work location"}
+                      expanded={locationPickerOpen}
+                      onClick={() => setLocationPickerOpen(true)}
+                    />
+                    {activeWorkLocations.length === 0 && <span className="field-hint">Add a work location before starting your shift.</span>}
+                  </div>
+                )}
+              </div>
+              <ShiftButton active={active} onStart={handlePress} onEnd={handlePress} busy={busy} />
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (widgetId === "spending") {
+      return (
+        <div key={widgetId} data-flip-key={widgetId} data-widget-id={widgetId} className="home-widget home-widget-wide anim-rise" style={animationStyle}>
+          <HomeSpendingSnapshotCard
+            monthLabel={spendingMonthLabel}
+            snapshot={spendingSnapshot}
+            loading={spendingSnapshotLoading}
+            error={spendingSnapshotError}
+            refresh={refreshSpendingSnapshot}
+            onNavigate={onNavigate}
+            active={active}
+            signIn={last?.signIn ?? null}
+            activeShiftInMonth={activeShiftInMonth}
+            rate={rate}
+          />
+        </div>
+      );
+    }
+
+    if (widgetId === "week-glance") {
+      return (
+        <section key={widgetId} data-flip-key={widgetId} data-widget-id={widgetId} className="home-widget home-widget-wide home-widget-glance anim-rise" style={animationStyle}>
+          <h2 className="section-title home-glance-title">Week at a glance</h2>
+          <div className="section-hint">How this week's hours are spread out, day by day.</div>
+          <WeekGlanceCard
+            days={days}
+            earningsHidden={earningsHidden}
+            active={active}
+            signIn={last?.signIn ?? null}
+            activeShiftInThisWeek={activeShiftInThisWeek}
+            activeShiftDate={activeShiftDate}
+            rate={rate}
+          />
+        </section>
+      );
+    }
+
+    return <HomeStatWidget key={widgetId} id={widgetId} index={index} />;
+  };
+
   return (
     <div className="screen-wide">
       <h1 className="section-title">This week</h1>
-      <div className="home-top-grid">
-        <LiveWeekSummaryCard
-          active={active}
-          signIn={last?.signIn ?? null}
-          activeShiftInThisWeek={activeShiftInThisWeek}
-          savedHours={savedHours}
-          savedEarnings={savedEarnings}
-          rate={rate}
-          goalHours={goalHours}
-          today={today}
-          weekStartsOn={weekStartsOn}
-          shifts={shifts}
-          dayExpenses={dayExpenses}
-          weekExtras={weekExtras}
-          earningsHidden={earningsHidden}
-        />
 
-        <div className="card elev-sm anim-rise" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 1 }}>
-          <div className="today-card-row">
-            <div>
-              <div className="card-title today-headline">{headline}</div>
-              <p className="card-body today-subline">{subline}</p>
-              <ElapsedTimer active={active} signIn={last?.signIn ?? null} />
-              {!active && activeWorkLocations.length > 0 && (
-                <label className="home-clock-location">
-                  <span>Work location</span>
-                  <select className="input" value={clockLocationId} onChange={(event) => setSelectedClockLocationId(event.target.value)}>
-                    {activeWorkLocations.length > 1 && <option value="">Choose a location</option>}
-                    {activeWorkLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
-                  </select>
-                </label>
-              )}
-              {!active && activeWorkLocations.length === 0 && <p className="field-hint">Add a work location in Settings before starting.</p>}
-            </div>
-            <ShiftButton active={active} onStart={handlePress} onEnd={handlePress} busy={busy} />
-          </div>
-        </div>
-      </div>
-
-      <HomeSpendingSnapshotCard
-        monthLabel={spendingMonthLabel}
-        snapshot={spendingSnapshot}
-        loading={spendingSnapshotLoading}
-        error={spendingSnapshotError}
-        refresh={refreshSpendingSnapshot}
-        onNavigate={onNavigate}
-        active={active}
-        signIn={last?.signIn ?? null}
-        activeShiftInMonth={activeShiftInMonth}
-        rate={rate}
-      />
-
-      <h2 className="section-title home-glance-title">Week at a glance</h2>
-      <div className="section-hint">How this week's hours are spread out, day by day.</div>
-      <WeekGlanceCard
-        days={days}
-        earningsHidden={earningsHidden}
-        active={active}
-        signIn={last?.signIn ?? null}
-        activeShiftInThisWeek={activeShiftInThisWeek}
-        activeShiftDate={activeShiftDate}
-        rate={rate}
-      />
-
-      <LiveHomeStats
+      <HomeStatsProvider
         days={days}
         shifts={shifts}
         history={history}
@@ -586,7 +826,41 @@ export function HomeScreen({ onNavigate }: { onNavigate?: (screen: Screen) => vo
         signIn={last?.signIn ?? null}
         activeShiftInThisWeek={activeShiftInThisWeek}
         activeShiftDate={activeShiftDate}
-      />
+        earningsHidden={earningsHidden}
+      >
+        {visibleWidgets.length > 0 ? (
+          <div ref={dashboardRef} className="home-widget-grid">
+            {visibleWidgets.map(renderWidget)}
+          </div>
+        ) : (
+          <div className="card home-dashboard-empty">
+            <div>
+              <span className="home-dashboard-empty-icon" aria-hidden="true"><SlidersIcon size={22} /></span>
+              <h2>Your dashboard is ready for you</h2>
+              <p>Add back only the widgets you want from Settings → Profile & preferences.</p>
+              <button type="button" className="btn btn-primary" onClick={() => onNavigate?.("settings")}>Open layout settings</button>
+            </div>
+          </div>
+        )}
+      </HomeStatsProvider>
+
+      {locationPickerOpen && (
+        <WorkLocationPicker
+          title="Choose today's work location"
+          locations={activeWorkLocations}
+          selectedId={clockLocationId || null}
+          onSelect={(locationId) => {
+            setSelectedClockLocationId(locationId);
+            return true;
+          }}
+          onManageLocations={() => {
+            setLocationPickerOpen(false);
+            if (onManageLocations) onManageLocations();
+            else onNavigate?.("settings");
+          }}
+          onClose={() => setLocationPickerOpen(false)}
+        />
+      )}
     </div>
   );
 }

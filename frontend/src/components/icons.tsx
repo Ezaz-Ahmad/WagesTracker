@@ -343,6 +343,47 @@ export function CloseIcon({ size = 16 }: IconProps) {
   );
 }
 
+/** Three horizontal controls — the shared affordance for personalising a layout. */
+export function SlidersIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <path d="M4 7h5M15 7h5M4 17h9M19 17h1" />
+      <circle cx="12" cy="7" r="3" />
+      <circle cx="16" cy="17" r="3" />
+    </svg>
+  );
+}
+
+/** Six-dot grip used only where an item can be directly dragged. */
+export function GripIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <circle cx="9" cy="6" r="1" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="6" r="1" fill="currentColor" stroke="none" />
+      <circle cx="9" cy="12" r="1" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="12" r="1" fill="currentColor" stroke="none" />
+      <circle cx="9" cy="18" r="1" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="18" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+export function ArrowUpIcon({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <path d="M6 14l6-6 6 6" />
+    </svg>
+  );
+}
+
+export function ArrowDownIcon({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <path d="M6 10l6 6 6-6" />
+    </svg>
+  );
+}
+
 /** The informational tone's glyph (StatusBanner) — deliberately a distinct
  * shape from CheckCircleIcon and AlertTriangleIcon so the three tones are
  * distinguishable without relying on their colours. */

@@ -11,11 +11,23 @@ export const TABS: { screen: Screen; label: string; Icon: typeof HomeIcon }[] = 
   { screen: "settings", label: "Settings", Icon: SettingsIcon },
 ];
 
-export function BottomNav({ screen, onNavigate }: { screen: Screen; onNavigate: (s: Screen) => void }) {
-  const activeIndex = Math.max(0, TABS.findIndex((t) => t.screen === screen));
+export function tabsInOrder(order: readonly Screen[]) {
+  return order.map((screen) => TABS.find((tab) => tab.screen === screen)).filter((tab): tab is (typeof TABS)[number] => Boolean(tab));
+}
+
+export function BottomNav({
+  screen,
+  onNavigate,
+  tabs = TABS,
+}: {
+  screen: Screen;
+  onNavigate: (s: Screen) => void;
+  tabs?: typeof TABS;
+}) {
+  const activeIndex = Math.max(0, tabs.findIndex((t) => t.screen === screen));
   const navStyle = {
     "--nav-index": activeIndex,
-    "--nav-count": TABS.length,
+    "--nav-count": tabs.length,
   } as React.CSSProperties;
 
   return (
@@ -25,7 +37,7 @@ export function BottomNav({ screen, onNavigate }: { screen: Screen; onNavigate: 
         <Logo size={22} />
         Wage Tracker
       </div>
-      {TABS.map(({ screen: s, label, Icon }) => (
+      {tabs.map(({ screen: s, label, Icon }) => (
         <button
           key={s}
           type="button"
