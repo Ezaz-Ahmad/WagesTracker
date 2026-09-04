@@ -9,15 +9,15 @@ const SCREEN_ORDER: Screen[] = ["home", "entry", "spending", "report", "history"
  * otherwise changing the CSS animation name restarts a full-screen entrance
  * animation for a timer/API/context update.
  */
-export function useStableScreenTransition(screen: Screen): string {
+export function useStableScreenTransition(screen: Screen, screenOrder: readonly Screen[] = SCREEN_ORDER): string {
   const transition = useRef<{ screen: Screen; className: string }>({
     screen,
     className: "screen-transition",
   });
 
   if (transition.current.screen !== screen) {
-    const previousIndex = SCREEN_ORDER.indexOf(transition.current.screen);
-    const nextIndex = SCREEN_ORDER.indexOf(screen);
+    const previousIndex = screenOrder.indexOf(transition.current.screen);
+    const nextIndex = screenOrder.indexOf(screen);
     transition.current = {
       screen,
       className: `screen-transition ${nextIndex > previousIndex ? "dir-fwd" : "dir-back"}`,

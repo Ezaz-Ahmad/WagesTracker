@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useLayoutEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { AppProvider, useApp } from "./context/AppContext";
-import { BottomNav, TABS } from "./components/BottomNav";
+import { BottomNav, tabsInOrder } from "./components/BottomNav";
 import { ConfirmProvider } from "./components/ConfirmProvider";
 import { Logo } from "./components/Logo";
 import { EyeIcon, EyeOffIcon, LogoutIcon, RefreshIcon } from "./components/icons";
@@ -34,6 +34,7 @@ import {
   normaliseAppPath,
   restoreAppReturnFocus,
 } from "./lib/appNavigation";
+import { LayoutPreferencesProvider, useLayoutPreferences } from "./context/LayoutPreferencesContext";
 
 // Build-time constant. Vite inlines `import.meta.env.VITE_VIEWPORT_DEBUG`, so
 // in every normal build this folds to `false`, the JSX branch below is dead
@@ -42,7 +43,7 @@ import {
 //   VITE_VIEWPORT_DEBUG=true npm run build -w frontend
 const VIEWPORT_DEBUG = !__NATIVE_CONSUMER_BUILD__ && import.meta.env.VITE_VIEWPORT_DEBUG === "true";
 
-export function AuthedApp() {
+function AuthedAppShell() {
   const {
     today,
     user,
@@ -60,6 +61,8 @@ export function AuthedApp() {
     revealEarnings,
     hideEarningsNow,
   } = useApp();
+  const { tabOrder } = useLayoutPreferences();
+  const tabs = useMemo(() => tabsInOrder(tabOrder), [tabOrder]);
   const [screen, setScreen] = useState<Screen>("home");
   const [settingsInitialCategory, setSettingsInitialCategory] = useState<string | null>(null);
 
@@ -73,9 +76,9 @@ export function AuthedApp() {
     setSettingsInitialCategory("workpay");
     setScreen("settings");
   }, []);
-  const activeIndex = Math.max(0, TABS.findIndex((t) => t.screen === screen));
-  const handleSwipeNavigate = useCallback((index: number) => navigate(TABS[index].screen), [navigate]);
-  const { ref: swipeRef } = useSwipeNav<HTMLDivElement>(activeIndex, TABS.length, handleSwipeNavigate);
+  const activeIndex = Math.max(0, tabs.findIndex((t) => t.screen === screen));
+  const handleSwipeNavigate = useCallback((index: number) => navigate(tabs[index].screen), [navigate, tabs]);
+  const { ref: swipeRef } = useSwipeNav<HTMLDivElement>(activeIndex, tabs.length, handleSwipeNavigate);
 
   // Each tab is a new screen, not another section in one long document.
   // Reset the shell's sole scroll container before the next screen paints so
@@ -101,7 +104,7 @@ export function AuthedApp() {
   // land here) — drives a directional slide on mount instead of a plain
   // fade, so tapping a tab feels like the same physical motion as swiping to
   // it, not two different transitions depending on how you got there.
-  const screenTransitionClass = useStableScreenTransition(screen);
+  const screenTransitionClass = useStableScreenTransition(screen, tabOrder);
 
   // Purely cosmetic: the shell fades in rather than snapping in. This used
   // to double as the (unsuccessful) fix for the post-login bottom-nav gap —
@@ -212,7 +215,7 @@ export function AuthedApp() {
           <div className="swipe-track">
             <div key={screen} className={screenTransitionClass}>
               <ScreenErrorBoundary key={screen}>
-                {screen === "home" && <HomeScreen onNavigate={navigate} />}
+                {screen === "home" && <HomeScreen onNavigate={navigate} onManageLocations={openWorkLocationSettings} />}
                 {screen === "entry" && <EntryScreen onManageLocations={openWorkLocationSettings} />}
                 {screen === "spending" && <SpendingScreen />}
                 {screen === "report" && <ReportScreen />}
@@ -223,9 +226,18 @@ export function AuthedApp() {
           </div>
         </main>
 
-        <BottomNav screen={screen} onNavigate={navigate} />
+        <BottomNav screen={screen} onNavigate={navigate} tabs={tabs} />
       </div>
     </div>
+  );
+}
+
+export function AuthedApp() {
+  const { user } = useApp();
+  return (
+    <LayoutPreferencesProvider userId={user?.id}>
+      <AuthedAppShell />
+    </LayoutPreferencesProvider>
   );
 }
 

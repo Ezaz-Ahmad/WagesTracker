@@ -5,6 +5,8 @@ import type { WeekStart } from "../lib/types";
 import { SettingsSaveBar } from "./SettingsSaveBar";
 import { WEEK_DAYS, weekEndDay } from "../lib/weekBoundary.mjs";
 import { ActiveShiftActivitySettings } from "./ActiveShiftActivitySettings";
+import { LayoutCustomizer } from "../components/LayoutCustomizer";
+import { ChevronRightIcon, SlidersIcon } from "../components/icons";
 
 interface ProfileDraft {
   name: string;
@@ -22,6 +24,7 @@ export function ProfileSettings() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [customizerOpen, setCustomizerOpen] = useState(false);
 
   if (!user) return null;
 
@@ -93,7 +96,19 @@ export function ProfileSettings() {
 
         <SettingsSaveBar saving={saving} dirty={dirty} success={success} error={error} onSave={handleSave} />
       </div>
+      <section className="card profile-layout-settings" aria-labelledby="profile-layout-title">
+        <span className="profile-layout-settings-icon" aria-hidden="true"><SlidersIcon size={20} /></span>
+        <div className="profile-layout-settings-copy">
+          <span className="weekly-cycle-eyebrow">Personalisation</span>
+          <h3 id="profile-layout-title">App layout</h3>
+          <p>Reorder or hide Home widgets, and arrange the tab bar to match how you use the app.</p>
+        </div>
+        <button type="button" className="profile-layout-settings-action" onClick={() => setCustomizerOpen(true)} aria-haspopup="dialog">
+          <span>Customise app layout</span><ChevronRightIcon size={17} />
+        </button>
+      </section>
       <ActiveShiftActivitySettings />
+      {customizerOpen && <LayoutCustomizer onClose={() => setCustomizerOpen(false)} />}
     </>
   );
 }

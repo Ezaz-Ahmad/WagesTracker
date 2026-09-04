@@ -15,11 +15,11 @@ import { useTodayShift } from "../lib/useTodayShift";
 import { useCountUp } from "../lib/useCountUp";
 import { useLiveElapsedHours } from "../lib/useLiveElapsedHours";
 import { ElapsedTimer, ShiftButton } from "../components/ShiftButton";
-import { ChevronDownIcon, ExtraEarningIcon, FuelIcon, LocationPinIcon } from "../components/icons";
+import { ChevronDownIcon, ExtraEarningIcon, FuelIcon } from "../components/icons";
 import { Skeleton } from "../components/Skeleton";
 import { Amount } from "../components/Amount";
 import { AmountWheelPicker } from "../components/AmountWheelPicker";
-import { WorkLocationPicker } from "../components/WorkLocationPicker";
+import { WorkLocationPicker, WorkLocationTrigger, type WorkLocationDisplay } from "../components/WorkLocationPicker";
 import { AsyncButton } from "../components/AsyncButton";
 import { EarningsHiddenHint } from "../components/EarningsHiddenHint";
 import { useConfirm } from "../components/ConfirmProvider";
@@ -32,60 +32,6 @@ type TimeDraft = { signIn: string | null; signOut: string | null };
 type LocationPickerTarget =
   | { kind: "clock" }
   | { kind: "shift"; day: DayComputed; row: Row; rowIndex: number };
-
-interface LocationDisplay {
-  name: string;
-  address: string;
-  fuelAllowance: number | null;
-  archived?: boolean;
-}
-
-function LocationPickerTrigger({
-  id,
-  label,
-  location,
-  emptyLabel,
-  expanded,
-  onClick,
-}: {
-  id: string;
-  label: string;
-  location: LocationDisplay | null;
-  emptyLabel: string;
-  expanded: boolean;
-  onClick: () => void;
-}) {
-  const valueId = `${id}-value`;
-  const triggerClassName = location ? "input location-picker-trigger has-value" : "input location-picker-trigger";
-  return (
-    <button
-      id={id}
-      type="button"
-      className={triggerClassName}
-      aria-label={`${label}: ${location?.name ?? emptyLabel}`}
-      aria-haspopup="dialog"
-      aria-expanded={expanded}
-      onClick={onClick}
-    >
-      <span className="location-picker-trigger-icon" aria-hidden="true"><LocationPinIcon size={17} /></span>
-      <span className="location-picker-trigger-copy">
-        <span id={valueId} className="location-picker-trigger-name">{location?.name ?? emptyLabel}</span>
-        {location && (
-          <span className="location-picker-trigger-meta">
-            {location.address && <span>{location.address}</span>}
-            <span className={location.fuelAllowance == null ? "is-empty" : ""}>
-              {location.fuelAllowance == null
-                ? "No automatic fuel allowance"
-                : `${CURRENCY}${fmt2(location.fuelAllowance)} fuel allowance/day`}
-            </span>
-            {location.archived && <span>Archived</span>}
-          </span>
-        )}
-      </span>
-      <ChevronDownIcon size={16} className="location-picker-trigger-chevron" />
-    </button>
-  );
-}
 
 function LiveEntryWeekTotal(props: {
   active: boolean;
@@ -426,7 +372,7 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
     return true;
   }
 
-  function displayLocationFor(row: Row): LocationDisplay | null {
+  function displayLocationFor(row: Row): WorkLocationDisplay | null {
     if (!row.workLocationId && !row.location) return null;
     const location = allLocations.find((item) => item.id === row.workLocationId);
     const savedShift = row.id ? shifts.find((shift) => shift.id === row.id) : undefined;
@@ -586,7 +532,7 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
           {!active && (
             <div className="entry-clock-location">
               <span className="entry-clock-location-label">Today's work location</span>
-              <LocationPickerTrigger
+              <WorkLocationTrigger
                 id="entry-clock-location"
                 label="Today's work location"
                 location={activeLocations.find((location) => location.id === clockLocationId) ?? null}
@@ -692,7 +638,7 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
                 <div className="shift-row" key={rowKey}>
                   <div className="shift-field shift-field-location">
                     <span className="shift-field-label">Location</span>
-                    <LocationPickerTrigger
+                    <WorkLocationTrigger
                       id={`shift-location-${rowKey}`}
                       label={`Location for ${day.dayAbbr} ${day.dateLabel}`}
                       location={selectedLocation}

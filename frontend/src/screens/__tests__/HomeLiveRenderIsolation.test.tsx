@@ -91,20 +91,46 @@ describe("Home active-shift rendering", () => {
     expect(document.querySelectorAll(".live-data-badge.is-active")).toHaveLength(1);
     const todayBar = screen.getByRole("button", { name: /Thu.*1\.00 hours.*\$30\.03.*shift active/i });
     expect(todayBar.getAttribute("aria-pressed")).toBe("false");
-    expect(screen.queryByRole("region", { name: /Details for Thu/ })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: /Thursday 20 August/ })).toBeNull();
 
     fireEvent.click(todayBar);
     expect(todayBar.getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("region", { name: /Details for Thu/ }).textContent).toContain("Store");
-    expect(screen.getByRole("region", { name: /Details for Thu/ }).textContent).toContain("$30.03");
+    expect(screen.getByRole("dialog", { name: /Thursday 20 August/ }).textContent).toContain("Store");
+    expect(screen.getByRole("dialog", { name: /Thursday 20 August/ }).textContent).toContain("$30.03");
+
+    fireEvent.click(screen.getByRole("button", { name: "Close day details" }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+    expect(screen.queryByRole("dialog", { name: /Thursday 20 August/ })).toBeNull();
 
     fireEvent.keyDown(todayBar, { key: "ArrowLeft" });
     const previousBar = screen.getByRole("button", { name: /Wed.*no entry/i });
+    expect(document.activeElement).toBe(previousBar);
+    expect(previousBar.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(previousBar);
     expect(previousBar.getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("region", { name: /Details for Wed/ }).textContent).toContain("No branch recorded");
-    fireEvent.click(screen.getByRole("button", { name: "Hide day details" }));
-    expect(screen.queryByRole("region", { name: /Details for Wed/ })).toBeNull();
+    expect(screen.getByRole("dialog", { name: /Wednesday 19 August/ }).textContent).toContain("No branch recorded");
+    fireEvent.click(screen.getByRole("button", { name: "Close day details" }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+    expect(screen.queryByRole("dialog", { name: /Wednesday 19 August/ })).toBeNull();
     expect(previousBar.getAttribute("aria-pressed")).toBe("false");
     expect(buildHistory).toHaveBeenCalledTimes(aggregateCallsAfterLoad);
+  });
+
+  it("opens useful detail sheets from each interactive summary card", async () => {
+    render(<ConfirmProvider><HomeScreen /></ConfirmProvider>);
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+
+    fireEvent.click(screen.getByRole("button", { name: "View Days logged details" }));
+    expect(screen.getByRole("dialog", { name: "1 of 7 days worked" }).textContent).toContain("Thu · Aug 20 · Today");
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+
+    fireEvent.click(screen.getByRole("button", { name: "View Weeks on goal details" }));
+    expect(screen.getByRole("dialog", { name: "0 of 7 weeks" }).textContent).toContain("Weekly target");
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+
+    fireEvent.click(screen.getByRole("button", { name: "View Current streak details" }));
+    expect(screen.getByRole("dialog", { name: "1 day in a row" }).textContent).toContain("Recent streak days");
   });
 });

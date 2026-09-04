@@ -366,10 +366,6 @@
   0%, 100% { opacity: .72; transform: scale(.88); }
   50% { opacity: 1; transform: scale(1); }
 }
-@keyframes glance-detail-in {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
-}
 .bubble-loader { display: inline-flex; align-items: center; justify-content: center; min-width: 1em; min-height: 1em; }
 .async-button-settled,
 .async-button-busy { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }

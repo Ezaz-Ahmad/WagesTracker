@@ -1,0 +1,290 @@
+/* Home detail sheets share one lightweight motion language. The sheet moves
+   on its own compositor layer and the dashboard never changes size behind it,
+   keeping taps responsive even on older phones. */
+.home-insight-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-top: max(12px, env(safe-area-inset-top));
+  background: transparent;
+  overscroll-behavior: contain;
+}
+.home-insight-backdrop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, #101018 54%, transparent);
+  animation: home-insight-backdrop-in 180ms var(--ease-out) both;
+}
+.home-insight-backdrop.is-closing {
+  pointer-events: none;
+}
+.home-insight-backdrop.is-closing::before { animation: home-insight-backdrop-out 180ms var(--ease-standard) both; }
+.home-insight-sheet {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 620px);
+  max-height: min(88vh, calc(var(--app-viewport-height, 100dvh) - max(12px, env(safe-area-inset-top))));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--color-text) 9%, transparent);
+  border-bottom: 0;
+  border-radius: 26px 26px 0 0;
+  background: var(--color-bg);
+  box-shadow: 0 -26px 70px -28px color-mix(in srgb, #000 72%, transparent);
+  animation: home-insight-sheet-in 300ms var(--ease-out) both;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+  contain: layout paint;
+}
+.home-insight-sheet.is-closing {
+  animation: home-insight-sheet-out 190ms var(--ease-standard) both;
+  pointer-events: none;
+}
+.home-insight-grabber {
+  width: 38px;
+  height: 4px;
+  flex: none;
+  margin: 8px auto 2px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--color-text) 20%, transparent);
+}
+.home-insight-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: var(--space-3) var(--space-4);
+}
+.home-insight-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  color: var(--color-accent-700);
+  background: linear-gradient(145deg, var(--color-accent-100), color-mix(in srgb, var(--color-accent) 5%, var(--color-bg)));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 8%, transparent);
+}
+.home-insight-heading-copy { min-width: 0; }
+.home-insight-eyebrow {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--color-accent-text);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+.home-insight-head h2 { margin: 0; font: 750 19px/1.2 var(--font-heading); letter-spacing: -.012em; }
+.home-insight-head p { margin: 3px 0 0; font-size: 11px; line-height: 1.35; color: color-mix(in srgb, var(--color-text) 64%, transparent); }
+.home-insight-close {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-text) 6%, var(--color-bg));
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-out);
+}
+.home-insight-close:hover { background: color-mix(in srgb, var(--color-text) 11%, var(--color-bg)); }
+.home-insight-close:active { transform: scale(.94); }
+.home-insight-close:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.home-insight-live {
+  margin: 0 var(--space-4) var(--space-2);
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  color: var(--color-success-700);
+  background: color-mix(in srgb, var(--color-success) 8%, var(--color-bg));
+  font-size: 10.5px;
+  font-weight: 750;
+}
+.home-insight-live > span {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--color-success);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-success) 13%, transparent);
+}
+.home-insight-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 2px var(--space-4) var(--space-4);
+}
+.home-insight-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+.home-insight-metrics > div {
+  min-width: 0;
+  min-height: 66px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent);
+  border-radius: 14px;
+  background: var(--color-surface);
+}
+.home-insight-metrics dt {
+  color: color-mix(in srgb, var(--color-text) 58%, transparent);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .065em;
+  text-transform: uppercase;
+}
+.home-insight-metrics dd {
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-text);
+  font: 800 18px/1.15 var(--font-heading);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-insight-section { margin-top: var(--space-4); }
+.home-insight-section-title { margin: 0 0 9px; color: color-mix(in srgb, var(--color-text) 67%, transparent); font: 750 10px/1.2 var(--font-heading); letter-spacing: .065em; text-transform: uppercase; }
+.home-insight-list { list-style: none; display: grid; gap: 7px; margin: 0; padding: 0; }
+.home-insight-list > li {
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--color-surface) 97%, var(--color-accent));
+}
+.home-insight-row-marker {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: color-mix(in srgb, var(--color-text) 45%, transparent);
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+  font-size: 11px;
+  font-weight: 850;
+}
+.home-insight-row-marker.is-positive { color: var(--color-success-700); background: color-mix(in srgb, var(--color-success) 11%, transparent); }
+.home-insight-row-copy { min-width: 0; flex: 1; display: grid; gap: 2px; }
+.home-insight-row-copy strong { overflow: hidden; font: 700 12.5px/1.25 var(--font-heading); text-overflow: ellipsis; white-space: nowrap; }
+.home-insight-row-copy span { overflow: hidden; color: color-mix(in srgb, var(--color-text) 61%, transparent); font-size: 10.5px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.home-insight-row-value { flex: none; color: var(--color-text); font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; }
+.home-insight-row-value.is-positive { color: var(--color-success-700); }
+.home-insight-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: var(--space-4) 0 0;
+  padding: 11px 12px;
+  border-radius: 13px;
+  color: color-mix(in srgb, var(--color-text) 70%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 6%, var(--color-bg));
+  font-size: 11px;
+  line-height: 1.45;
+}
+.home-insight-note strong { color: var(--color-text); }
+.home-insight-empty { margin: 0; padding: var(--space-5) var(--space-3); border: 1px dashed var(--color-divider); border-radius: 14px; text-align: center; color: color-mix(in srgb, var(--color-text) 62%, transparent); font-size: 12px; }
+.home-insight-footer {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-3) var(--space-4);
+  padding-bottom: max(var(--space-3), calc(env(safe-area-inset-bottom) + var(--space-2)));
+  border-top: 1px solid var(--color-divider);
+  background: var(--color-bg);
+}
+.home-insight-footer .btn { min-width: 104px; }
+
+.home-summary-card {
+  width: 100%;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-out);
+}
+.home-summary-card:hover { border-color: color-mix(in srgb, var(--color-accent) 25%, var(--color-divider)); background: color-mix(in srgb, var(--color-accent) 4%, var(--color-neutral-100)); }
+.home-summary-card:active { transform: scale(.985); }
+.home-summary-card:focus-visible { outline: 3px solid color-mix(in srgb, var(--color-accent) 48%, transparent); outline-offset: 2px; }
+.home-summary-card-affordance {
+  min-height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  margin-top: auto;
+  color: color-mix(in srgb, var(--color-accent-text) 80%, transparent);
+  font-size: 9.5px;
+  font-weight: 750;
+}
+.home-summary-card-affordance svg { transition: transform var(--dur-fast) var(--ease-out); }
+.home-summary-card:hover .home-summary-card-affordance svg { transform: translateX(2px); }
+
+@keyframes home-insight-backdrop-in { from { opacity: 0; } }
+@keyframes home-insight-backdrop-out { to { opacity: 0; } }
+@keyframes home-insight-sheet-in {
+  from { transform: translate3d(0, 34px, 0) scale(.99); }
+  to { transform: translate3d(0, 0, 0) scale(1); }
+}
+@keyframes home-insight-sheet-out {
+  to { transform: translate3d(0, 28px, 0) scale(.99); }
+}
+
+@media (min-width: 720px) {
+  .home-insight-backdrop { align-items: center; padding: var(--space-4); }
+  .home-insight-sheet {
+    max-height: min(82vh, calc(var(--app-viewport-height, 100dvh) - 48px));
+    border-bottom: 1px solid color-mix(in srgb, var(--color-text) 9%, transparent);
+    border-radius: 24px;
+    animation-name: home-insight-modal-in;
+  }
+  .home-insight-sheet.is-closing { animation-name: home-insight-modal-out; }
+  .home-insight-grabber { display: none; }
+  .home-insight-footer { padding-bottom: var(--space-3); }
+  @keyframes home-insight-modal-in {
+    from { opacity: 0; transform: translate3d(0, 8px, 0) scale(.975); }
+    to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+  }
+  @keyframes home-insight-modal-out {
+    to { opacity: 0; transform: translate3d(0, 5px, 0) scale(.985); }
+  }
+}
+
+@media (max-width: 380px) {
+  .home-insight-head, .home-insight-body, .home-insight-footer { padding-inline: var(--space-3); }
+  .home-insight-live { margin-inline: var(--space-3); }
+  .home-insight-icon { width: 40px; height: 40px; }
+  .home-insight-head h2 { font-size: 17px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-insight-backdrop::before,
+  .home-insight-backdrop.is-closing::before,
+  .home-insight-sheet,
+  .home-insight-sheet.is-closing { animation: none; }
+  .home-summary-card,
+  .home-summary-card-affordance svg { transition: none; }
+}

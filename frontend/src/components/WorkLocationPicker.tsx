@@ -2,7 +2,7 @@ import { useId, useRef, useState } from "react";
 import type { WorkLocation } from "../lib/types";
 import { fmt2 } from "../lib/date";
 import { CURRENCY } from "../context/AppContext";
-import { CheckIcon, CloseIcon, FuelIcon, LocationPinIcon, SettingsIcon } from "./icons";
+import { CheckIcon, ChevronDownIcon, CloseIcon, FuelIcon, LocationPinIcon, SettingsIcon } from "./icons";
 import { Overlay } from "./Overlay";
 import { useDismissTransition } from "../lib/useDismissTransition";
 import { useFocusTrap } from "../lib/useFocusTrap";
@@ -15,6 +15,64 @@ interface WorkLocationPickerProps {
   onSelect: (locationId: string) => boolean | void | Promise<boolean | void>;
   onManageLocations: () => void;
   onClose: () => void;
+}
+
+export interface WorkLocationDisplay {
+  name: string;
+  address: string;
+  fuelAllowance: number | null;
+  archived?: boolean;
+}
+
+/** Shared trigger for the responsive picker, so Home and Entry present work
+ * locations with the same polished treatment instead of falling back to the
+ * operating system's visually inconsistent native select menu. */
+export function WorkLocationTrigger({
+  id,
+  label,
+  location,
+  emptyLabel,
+  expanded,
+  onClick,
+}: {
+  id: string;
+  label: string;
+  location: WorkLocationDisplay | null;
+  emptyLabel: string;
+  expanded: boolean;
+  onClick: () => void;
+}) {
+  const valueId = `${id}-value`;
+  const triggerClassName = location ? "input location-picker-trigger has-value" : "input location-picker-trigger";
+  return (
+    <button
+      id={id}
+      type="button"
+      className={triggerClassName}
+      aria-label={`${label}: ${location?.name ?? emptyLabel}`}
+      aria-haspopup="dialog"
+      aria-expanded={expanded}
+      aria-describedby={valueId}
+      onClick={onClick}
+    >
+      <span className="location-picker-trigger-icon" aria-hidden="true"><LocationPinIcon size={17} /></span>
+      <span className="location-picker-trigger-copy">
+        <span id={valueId} className="location-picker-trigger-name">{location?.name ?? emptyLabel}</span>
+        {location && (
+          <span className="location-picker-trigger-meta">
+            {location.address && <span>{location.address}</span>}
+            <span className={location.fuelAllowance == null ? "is-empty" : ""}>
+              {location.fuelAllowance == null
+                ? "No automatic fuel allowance"
+                : `${CURRENCY}${fmt2(location.fuelAllowance)} fuel allowance/day`}
+            </span>
+            {location.archived && <span>Archived</span>}
+          </span>
+        )}
+      </span>
+      <ChevronDownIcon size={16} className="location-picker-trigger-chevron" />
+    </button>
+  );
 }
 
 function allowanceLabel(amount: number | null): string {

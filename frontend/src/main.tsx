@@ -17,6 +17,8 @@ import "./styles/landing.css";
 import "./styles/settings.css";
 import "./styles/public-pages.css";
 import "./styles/spending.css";
+import "./styles/customization.css";
+import "./styles/home-insights.css";
 
 // Last-resort net for a stray rejected promise nothing else catches (every
 // data-changing action already goes through AppContext's try/catch, and

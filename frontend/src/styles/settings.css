@@ -125,6 +125,47 @@
 
 .settings-section-card { gap: 0; }
 .settings-section-card .field-spaced { margin-bottom: var(--space-3); }
+.profile-layout-settings {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0 12px;
+  margin-top: var(--space-3);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--color-accent) 5%, var(--color-surface)), var(--color-surface) 72%);
+}
+.profile-layout-settings-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  color: var(--color-accent-700);
+  background: var(--color-accent-100);
+}
+.profile-layout-settings-copy { min-width: 0; }
+.profile-layout-settings-copy h3 { margin: 0; font: 700 15px/1.25 var(--font-heading); }
+.profile-layout-settings-copy p { margin: 4px 0 0; max-width: 48ch; color: color-mix(in srgb, var(--color-text) 66%, transparent); font-size: 11.5px; line-height: 1.4; }
+.profile-layout-settings-action {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 19%, var(--color-divider));
+  border-radius: 12px;
+  color: var(--color-accent-text);
+  background: color-mix(in srgb, var(--color-accent) 7%, var(--color-bg));
+  cursor: pointer;
+  font: 700 12.5px/1 var(--font-heading);
+  transition: background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard);
+}
+.profile-layout-settings-action:hover { border-color: color-mix(in srgb, var(--color-accent) 36%, var(--color-divider)); background: color-mix(in srgb, var(--color-accent) 12%, var(--color-bg)); }
+.profile-layout-settings-action:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.profile-layout-settings-action svg { flex: none; }
 .weekly-cycle-field {
   position: relative; margin-top: var(--space-1); padding: var(--space-3);
   border-radius: var(--radius-sm);
