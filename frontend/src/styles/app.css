@@ -1427,6 +1427,63 @@ button.location-picker-option:active { transform: scale(.992); }
     background-color var(--dur-fast) var(--ease-standard),
     box-shadow var(--dur-fast) var(--ease-out);
 }
+.report-chart-value-label {
+  position: absolute;
+  left: 50%;
+  bottom: calc(50% + 7px);
+  z-index: 1;
+  display: block;
+  max-width: 36px;
+  padding: 2px 3px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--color-text) 9%, transparent);
+  border-radius: 6px;
+  color: color-mix(in srgb, var(--color-text) 82%, transparent);
+  background: color-mix(in srgb, var(--color-chart-canvas) 92%, transparent);
+  box-shadow: 0 2px 7px color-mix(in srgb, #000 10%, transparent);
+  font-size: 8.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+  transition:
+    color var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard),
+    background-color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+.report-chart-value-label.is-selected {
+  color: var(--color-text);
+  border-color: color-mix(in srgb, var(--color-accent) 42%, var(--color-divider));
+  background: color-mix(in srgb, var(--color-chart-canvas) 84%, var(--color-accent) 16%);
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--color-accent) 18%, transparent);
+}
+.report-chart-value-label.is-private {
+  min-width: 27px;
+  color: color-mix(in srgb, var(--color-text) 72%, transparent);
+  letter-spacing: .08em;
+  text-align: center;
+}
+.report-chart-value-content {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: chart-value-swap var(--dur-base) var(--ease-out) both;
+}
+@keyframes chart-value-swap {
+  from { opacity: .25; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.report-chart-value-full { display: none; }
+.report-chart-value-compact { display: block; }
+.chart-reveal:not(.is-chart-visible) .report-chart-value-label { opacity: 0; }
+.chart-reveal.is-chart-visible .report-chart-value-label {
+  animation: chart-value-in var(--dur-slow) var(--ease-standard) both;
+  animation-delay: calc(var(--delay-chart) + var(--i, 0) * 42ms + 220ms);
+}
+@keyframes chart-value-in { from { opacity: 0; } to { opacity: 1; } }
 .report-chart-point-button:active { transform: translate(-50%, -50%) scale(.9); }
 .report-chart-point-button:focus-visible {
   outline: 2px solid var(--color-accent); outline-offset: 1px;
@@ -1435,6 +1492,11 @@ button.location-picker-option:active { transform: scale(.992); }
 }
 @media (hover: hover) and (pointer: fine) {
   .report-chart-point-button:hover { background: color-mix(in srgb, var(--color-accent) 9%, transparent); }
+}
+@media (min-width: 680px) {
+  .report-chart-value-label { max-width: 80px; padding-inline: 5px; font-size: 10px; }
+  .report-chart-value-full { display: block; }
+  .report-chart-value-compact { display: none; }
 }
 .chart-x-labels { display: flex; gap: 0; padding: 0; margin-top: 6px; }
 /* Was an inline `style={{ marginTop: "var(--space-5)" }}` on the heading —
