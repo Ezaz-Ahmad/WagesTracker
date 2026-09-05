@@ -344,15 +344,43 @@ test("desktop Weekly Trend stays compact and supports precise pointer and keyboa
   await mockAuthenticatedApi(page, { chartData: true });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Show earnings for 20 minutes" }).click();
   await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Report", exact: true }).click();
 
   const trendCard = page.locator(".report-trend-card");
   const trendVisual = trendCard.locator(".report-trend-visual");
   const trendPlot = trendCard.locator(".report-trend-plot");
   const pointTargets = trendCard.locator("[data-chart-point]");
+  const valueLabels = trendCard.locator("[data-chart-value]");
+  const fullValueLabels = trendCard.locator(".report-chart-value-full:visible");
   await expect(trendVisual).toBeVisible();
   await expect(pointTargets).toHaveCount(8);
+  await expect(valueLabels).toHaveCount(8);
+  await expect(fullValueLabels).toHaveCount(8);
+  await expect.poll(() => fullValueLabels.allTextContents()).toEqual(Array(8).fill("***"));
+  await expect.poll(() => valueLabels.evaluateAll((labels) => labels.map((label) => label.getAttribute("data-value-privacy"))))
+    .toEqual(Array(8).fill("hidden"));
+
+  await trendCard.locator("label.seg-opt").filter({ hasText: "Hours" }).click();
+  await expect.poll(() => fullValueLabels.allTextContents()).toEqual(expect.arrayContaining([
+    expect.stringMatching(/^\d+\.\d{2}h$/),
+  ]));
+  for (const label of await fullValueLabels.allTextContents()) {
+    expect(label).toMatch(/^\d+\.\d{2}h$/);
+  }
+  await expect.poll(() => valueLabels.evaluateAll((labels) => labels.map((label) => label.getAttribute("data-value-privacy"))))
+    .toEqual(Array(8).fill("visible"));
+
+  await trendCard.locator("label.seg-opt").filter({ hasText: "Earnings" }).click();
+  await expect.poll(() => fullValueLabels.allTextContents()).toEqual(Array(8).fill("***"));
+  await page.getByRole("button", { name: "Show earnings for 20 minutes" }).click();
+  await expect.poll(() => fullValueLabels.allTextContents()).toEqual(expect.arrayContaining([
+    expect.stringMatching(/^\$\d+\.\d{2}$/),
+  ]));
+  for (const label of await fullValueLabels.allTextContents()) {
+    expect(label).toMatch(/^\$\d+\.\d{2}$/);
+  }
+  await expect.poll(() => valueLabels.evaluateAll((labels) => labels.map((label) => label.getAttribute("data-value-privacy"))))
+    .toEqual(Array(8).fill("visible"));
 
   const visualBox = await trendVisual.boundingBox();
   const plotBox = await trendPlot.boundingBox();
@@ -389,6 +417,25 @@ test("desktop Weekly Trend stays compact and supports precise pointer and keyboa
     expect(offset.y).toBeLessThanOrEqual(1.5);
   }
 
+  const valueLabelBoxes = await fullValueLabels.evaluateAll((labels) => labels.map((label) => {
+    const rect = label.parentElement!.getBoundingClientRect();
+    return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+  }));
+  for (const box of valueLabelBoxes) {
+    expect(box.left).toBeGreaterThanOrEqual(visualBox!.x - 0.5);
+    expect(box.right).toBeLessThanOrEqual(visualBox!.x + visualBox!.width + 0.5);
+    expect(box.top).toBeGreaterThanOrEqual(visualBox!.y - 0.5);
+    expect(box.bottom).toBeLessThanOrEqual(visualBox!.y + visualBox!.height + 0.5);
+  }
+  for (let index = 0; index < valueLabelBoxes.length; index += 1) {
+    for (let otherIndex = index + 1; otherIndex < valueLabelBoxes.length; otherIndex += 1) {
+      const first = valueLabelBoxes[index];
+      const second = valueLabelBoxes[otherIndex];
+      const overlapWidth = Math.min(first.right, second.right) - Math.max(first.left, second.left);
+      const overlapHeight = Math.min(first.bottom, second.bottom) - Math.max(first.top, second.top);
+      expect(overlapWidth > 0.5 && overlapHeight > 0.5).toBe(false);
+    }
+  }
   const inspectedPoint = pointTargets.nth(2);
   await inspectedPoint.hover();
   const tooltip = page.getByRole("tooltip");
@@ -406,6 +453,58 @@ test("desktop Weekly Trend stays compact and supports precise pointer and keyboa
   await inspectedPoint.press("Escape");
   await expect(page.getByRole("tooltip")).toHaveCount(0);
   await expect(trendCard.locator(".report-trend-inspector")).toHaveClass(/is-idle/);
+  expect(errors).toEqual([]);
+});
+
+test("mobile Weekly Trend uses compact private-safe point labels without horizontal overflow", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  const errors = await captureRuntimeErrors(page);
+  await mockAuthenticatedApi(page, { chartData: true });
+
+  await page.goto("/");
+  await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Report", exact: true }).click();
+
+  const trendCard = page.locator(".report-trend-card");
+  const trendVisual = trendCard.locator(".report-trend-visual");
+  const valueLabels = trendCard.locator("[data-chart-value]");
+  const compactValueLabels = trendCard.locator(".report-chart-value-compact:visible");
+  await expect(trendVisual).toBeVisible();
+  await expect(valueLabels).toHaveCount(8);
+  await expect(compactValueLabels).toHaveCount(8);
+  await expect.poll(() => compactValueLabels.allTextContents()).toEqual(Array(8).fill("***"));
+  await expect.poll(() => valueLabels.evaluateAll((labels) => labels.map((label) => label.getAttribute("data-value-privacy"))))
+    .toEqual(Array(8).fill("hidden"));
+
+  await trendCard.locator("label.seg-opt").filter({ hasText: "Hours" }).click();
+  await expect.poll(() => compactValueLabels.allTextContents()).toEqual(expect.arrayContaining([
+    expect.stringMatching(/^\d+(?:\.\d)?h$/),
+  ]));
+  for (const label of await compactValueLabels.allTextContents()) {
+    expect(label).toMatch(/^\d+(?:\.\d)?h$/);
+  }
+
+  await trendCard.locator("label.seg-opt").filter({ hasText: "Earnings" }).click();
+  await expect.poll(() => compactValueLabels.allTextContents()).toEqual(Array(8).fill("***"));
+  await page.getByRole("button", { name: "Show earnings for 20 minutes" }).click();
+  await expect.poll(() => compactValueLabels.allTextContents()).toEqual(expect.arrayContaining([
+    expect.stringMatching(/^\$\d+(?:\.\d)?[km]?$/),
+  ]));
+  for (const label of await compactValueLabels.allTextContents()) {
+    expect(label).toMatch(/^\$\d+(?:\.\d)?[km]?$/);
+  }
+
+  const visualBox = await trendVisual.boundingBox();
+  expect(visualBox).not.toBeNull();
+  const labelBoxes = await valueLabels.evaluateAll((labels) => labels.map((label) => {
+    const rect = label.getBoundingClientRect();
+    return { left: rect.left, right: rect.right };
+  }));
+  for (const box of labelBoxes) {
+    expect(box.left).toBeGreaterThanOrEqual(visualBox!.x - 0.5);
+    expect(box.right).toBeLessThanOrEqual(visualBox!.x + visualBox!.width + 0.5);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   expect(errors).toEqual([]);
 });
 

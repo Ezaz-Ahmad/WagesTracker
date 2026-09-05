@@ -61,6 +61,18 @@ function pointControls(metric: Metric = "earnings") {
   return within(group).getAllByRole("button");
 }
 
+function chartValueLabels() {
+  return Array.from(document.querySelectorAll<HTMLElement>("[data-chart-value]"));
+}
+
+function fullValueLabels() {
+  return Array.from(document.querySelectorAll<HTMLElement>(".report-chart-value-full"));
+}
+
+function compactValueLabels() {
+  return Array.from(document.querySelectorAll<HTMLElement>(".report-chart-value-compact"));
+}
+
 afterEach(cleanup);
 
 describe("WeeklyTrendChart", () => {
@@ -75,6 +87,26 @@ describe("WeeklyTrendChart", () => {
     expect(points.every((point) => point.getAttribute("aria-pressed") === "false")).toBe(true);
     expect(screen.getByRole("img").getAttribute("aria-label")).toMatch(/weekly earnings/i);
     expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("renders exact earnings values alongside their compact display variants", () => {
+    renderChart();
+
+    expect(fullValueLabels().map((label) => label.textContent)).toEqual([
+      "$2050.49",
+      "$862.50",
+      "$90.42",
+    ]);
+    expect(compactValueLabels().map((label) => label.textContent)).toEqual([
+      "$2.1k",
+      "$863",
+      "$90",
+    ]);
+    expect(chartValueLabels().map((label) => label.dataset.valuePrivacy)).toEqual([
+      "visible",
+      "visible",
+      "visible",
+    ]);
   });
 
   it("shows and describes details on mouse hover and keyboard focus", () => {
@@ -105,11 +137,11 @@ describe("WeeklyTrendChart", () => {
     renderChart();
     const points = pointControls();
 
-    fireEvent.click(points[0], { detail: 1 });
+    fireEvent.click(fullValueLabels()[0], { detail: 1 });
     expect(screen.getByRole("tooltip").textContent).toContain("Jul 27 – Aug 2");
     expect(points[0].getAttribute("aria-pressed")).toBe("true");
 
-    fireEvent.click(points[0], { detail: 1 });
+    fireEvent.click(compactValueLabels()[0], { detail: 1 });
     expect(screen.queryByRole("tooltip")).toBeNull();
     expect(points[0].getAttribute("aria-pressed")).toBe("false");
 
@@ -148,6 +180,16 @@ describe("WeeklyTrendChart", () => {
     const { container } = renderChart({ earningsHidden: true });
     const points = pointControls();
 
+    expect(fullValueLabels().map((label) => label.textContent)).toEqual(["***", "***", "***"]);
+    expect(compactValueLabels().map((label) => label.textContent)).toEqual(["***", "***", "***"]);
+    expect(chartValueLabels().map((label) => label.dataset.valuePrivacy)).toEqual([
+      "hidden",
+      "hidden",
+      "hidden",
+    ]);
+    expect(chartValueLabels().every((label) => label.getAttribute("aria-hidden") === "true")).toBe(true);
+    expect(chartValueLabels().map((label) => label.textContent).join(" ")).not.toMatch(/2050\.49|862\.50|90\.42/);
+
     expect(points.map((point) => point.getAttribute("aria-label")).join(" ")).not.toMatch(/\$\d/);
     expect(points[0].getAttribute("aria-label")).toContain("Earnings hidden");
 
@@ -158,6 +200,72 @@ describe("WeeklyTrendChart", () => {
     expect(tooltip.textContent).toContain("Progress hidden");
     expect(tooltip.textContent).not.toMatch(/\$\d/);
     expect(container.textContent).not.toMatch(/\$\d/);
+  });
+
+  it("keeps hour values visible while earnings privacy remains active", () => {
+    const view = renderChart({ earningsHidden: true });
+
+    view.rerender(
+      <WeeklyTrendChart
+        chart={buildChart(WEEKS, "hours", CURRENCY)}
+        weeks={WEEKS}
+        metric="hours"
+        currency={CURRENCY}
+        earningsHidden
+        goalHours={38}
+        goalEarnings={950}
+        ticking
+        summary="Line chart of weekly hours. Exact figures follow in the table."
+      />
+    );
+
+    expect(fullValueLabels().map((label) => label.textContent)).toEqual(["80.00h", "34.50h", "2.58h"]);
+    expect(compactValueLabels().map((label) => label.textContent)).toEqual(["80h", "34.5h", "2.6h"]);
+    expect(chartValueLabels().map((label) => label.dataset.valuePrivacy)).toEqual([
+      "visible",
+      "visible",
+      "visible",
+    ]);
+
+    const points = pointControls("hours");
+    expect(points[0].getAttribute("aria-label")).toBe("Jul 27 – Aug 2: 80.00h; earnings hidden");
+    expect(points.map((point) => point.getAttribute("aria-label")).join(" ")).not.toMatch(/\$\d/);
+
+    fireEvent.focus(points[1]);
+    expect(screen.getByRole("tooltip").textContent).toContain("34.50h");
+    expect(screen.getByRole("tooltip").textContent).toContain("Earnings hidden");
+    expect(screen.getByRole("tooltip").textContent).not.toMatch(/\$\d/);
+  });
+
+  it("swaps privacy labels without remounting the trend line or point label containers", () => {
+    const view = renderChart();
+    const line = view.container.querySelector(".chart-line-draw");
+    const pointLabels = chartValueLabels();
+    const pointButtons = pointControls();
+
+    view.rerender(
+      <WeeklyTrendChart
+        chart={buildChart(WEEKS, "earnings", CURRENCY)}
+        weeks={WEEKS}
+        metric="earnings"
+        currency={CURRENCY}
+        earningsHidden
+        goalHours={38}
+        goalEarnings={950}
+        ticking
+        summary="Line chart of weekly earnings. Exact figures follow in the table."
+      />
+    );
+
+    expect(view.container.querySelector(".chart-line-draw")).toBe(line);
+    expect(chartValueLabels()).toEqual(pointLabels);
+    expect(pointControls()).toEqual(pointButtons);
+    expect(fullValueLabels().map((label) => label.textContent)).toEqual(["***", "***", "***"]);
+    expect(compactValueLabels().map((label) => label.textContent)).toEqual(["***", "***", "***"]);
+
+    fireEvent.click(fullValueLabels()[2], { detail: 1 });
+    expect(screen.getByRole("tooltip").textContent).toContain("Earnings hidden");
+    expect(pointControls()[2].getAttribute("aria-pressed")).toBe("true");
   });
 
   it("clears selection and recalculates accessible details when the metric changes", () => {

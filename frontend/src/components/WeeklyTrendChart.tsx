@@ -38,6 +38,47 @@ function valueLabel(week: WeekSummary, metric: Metric, currency: string, earning
   return `${fmt2(week.hours)}h`;
 }
 
+function compactNumber(value: number): string {
+  const absolute = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  if (absolute >= 1_000_000) {
+    const scaled = absolute / 1_000_000;
+    const formatted = scaled < 10 ? scaled.toFixed(1).replace(/\.0$/, "") : `${Math.round(scaled)}`;
+    return `${sign}${formatted}m`;
+  }
+  if (absolute >= 1_000) {
+    const scaled = absolute / 1_000;
+    const formatted = scaled < 10 ? scaled.toFixed(1).replace(/\.0$/, "") : `${Math.round(scaled)}`;
+    return `${sign}${formatted}k`;
+  }
+  return `${Math.round(value)}`;
+}
+
+function visualValueLabels(
+  week: WeekSummary,
+  metric: Metric,
+  currency: string,
+  earningsHidden: boolean,
+): { full: string; compact: string; private: boolean } {
+  if (metric === "earnings") {
+    if (earningsHidden) return { full: "***", compact: "***", private: true };
+    const exact = `${currency}${fmt2(week.earnings)}`;
+    const compact = `${currency}${compactNumber(week.earnings)}`;
+    return {
+      full: exact.length <= 10 ? exact : compact,
+      compact,
+      private: false,
+    };
+  }
+
+  const compactHours = Math.round(week.hours * 10) / 10;
+  return {
+    full: `${fmt2(week.hours)}h`,
+    compact: `${compactHours}h`,
+    private: false,
+  };
+}
+
 function comparisonLabel(current: number, previous: number | null, hidden: boolean) {
   if (hidden) return { label: "Change hidden", tone: "neutral" } as const;
   if (previous === null) return { label: "First week shown", tone: "neutral" } as const;
@@ -144,12 +185,11 @@ export function WeeklyTrendChart({
   const comparison = comparisonLabel(selectedValue, previousValue, hidesSelectedMetric);
   const selectedGoal = metric === "earnings" ? goalEarnings : goalHours;
   const otherMetricLabel = metric === "earnings" ? "Hours worked" : "Earnings";
+  const hidesOtherMetric = metric === "hours" && earningsHidden;
   const otherMetricValue = selectedWeek
     ? metric === "earnings"
       ? `${fmt2(selectedWeek.hours)}h`
-      : earningsHidden
-        ? "Hidden"
-        : `${currency}${fmt2(selectedWeek.earnings)}`
+      : `${currency}${fmt2(selectedWeek.earnings)}`
     : "—";
 
   return (
@@ -220,6 +260,7 @@ export function WeeklyTrendChart({
             {chart.points.slice(0, pointCount).map((point, index) => {
               const week = weeks[index];
               const mainLabel = valueLabel(week, metric, currency, earningsHidden);
+              const visualLabels = visualValueLabels(week, metric, currency, earningsHidden);
               const secondaryLabel = metric === "earnings"
                 ? `${fmt2(week.hours)} hours worked`
                 : earningsHidden
@@ -235,6 +276,7 @@ export function WeeklyTrendChart({
                   style={{
                     ["--chart-point-x" as string]: `${(point.x / CHART_WIDTH) * 100}%`,
                     ["--chart-point-y" as string]: `${(point.y / CHART_HEIGHT) * 100}%`,
+                    ["--i" as string]: index,
                   } as CSSProperties}
                   tabIndex={index === keyboardIndex ? 0 : -1}
                   aria-label={`${week.label}${week.inProgress ? ", in progress" : ""}: ${mainLabel}; ${secondaryLabel}`}
@@ -254,6 +296,20 @@ export function WeeklyTrendChart({
                   }}
                   onKeyDown={(event) => handlePointKeyDown(event, index)}
                 >
+                  <span
+                    className={`report-chart-value-label${activeIndex === index ? " is-selected" : ""}${visualLabels.private ? " is-private" : ""}`}
+                    data-chart-value={index}
+                    data-value-privacy={visualLabels.private ? "hidden" : "visible"}
+                    aria-hidden="true"
+                  >
+                    <span
+                      className="report-chart-value-content"
+                      key={`${metric}:${visualLabels.private ? "private" : "visible"}`}
+                    >
+                      <span className="report-chart-value-full">{visualLabels.full}</span>
+                      <span className="report-chart-value-compact">{visualLabels.compact}</span>
+                    </span>
+                  </span>
                   <span className="visually-hidden">Inspect {week.label}</span>
                 </button>
               );
@@ -285,11 +341,18 @@ export function WeeklyTrendChart({
             </div>
             <strong className="report-trend-inspector-title">{selectedWeek.label}</strong>
             <strong className={`report-trend-inspector-value${hidesSelectedMetric ? " is-hidden" : ""}`}>
-              {valueLabel(selectedWeek, metric, currency, earningsHidden)}
+              {hidesSelectedMetric ? (
+                <><span aria-hidden="true">***</span><span className="visually-hidden">Earnings hidden</span></>
+              ) : valueLabel(selectedWeek, metric, currency, earningsHidden)}
             </strong>
             <span className="report-trend-inspector-metric">Weekly {metric}</span>
             <dl>
-              <div><dt>{otherMetricLabel}</dt><dd>{otherMetricValue}</dd></div>
+              <div>
+                <dt>{otherMetricLabel}</dt>
+                <dd>{hidesOtherMetric ? (
+                  <><span aria-hidden="true">***</span><span className="visually-hidden">Earnings hidden</span></>
+                ) : otherMetricValue}</dd>
+              </div>
               <div><dt>Vs prior week</dt><dd className={`is-${comparison.tone}`}>{comparison.label}</dd></div>
               <div><dt>Weekly target</dt><dd>{goalLabel(selectedValue, selectedGoal, hidesSelectedMetric)}</dd></div>
             </dl>
