@@ -229,33 +229,33 @@ struct ShiftLockScreenView: View {
             }
 
             if state.phase == .active || state.phase == .completed || dynamicTypeSize <= .large {
-              HStack(alignment: .bottom, spacing: 16) {
-                VStack(alignment: .leading, spacing: 1) {
-                    caption(state.phase == .completed ? "TOTAL TIME" : "TIME WORKED")
-                    ShiftElapsedText(
-                        startedAt: attributes.startedAt,
-                        endedAt: state.endedAt,
-                        finalDurationSeconds: state.finalDurationSeconds
-                    )
-                    .font(.system(size: dynamicTypeSize.isAccessibilitySize ? 34 : 30, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.primary)
-                    .accessibilityLabel(state.phase == .completed ? "Total shift time" : "Elapsed shift time")
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                VStack(alignment: .trailing, spacing: 2) {
-                    caption("STARTED")
-                    Text(attributes.startedAt, style: .time)
-                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                        .monospacedDigit()
+                HStack(alignment: .bottom, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        caption(state.phase == .completed ? "TOTAL TIME" : "TIME WORKED")
+                        ShiftElapsedText(
+                            startedAt: attributes.startedAt,
+                            endedAt: state.endedAt,
+                            finalDurationSeconds: state.finalDurationSeconds
+                        )
+                        .font(.system(size: dynamicTypeSize.isAccessibilitySize ? 34 : 30, weight: .semibold, design: .rounded))
                         .foregroundStyle(.primary)
-                    Text(attributes.startedAt, format: .dateTime.weekday(.abbreviated).day().month(.abbreviated))
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityElement(children: .combine)
+                    VStack(alignment: .trailing, spacing: 2) {
+                        caption("STARTED")
+                        Text(attributes.startedAt, style: .time)
+                            .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(.primary)
+                        Text(attributes.startedAt, format: .dateTime.weekday(.abbreviated).day().month(.abbreviated))
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .accessibilityElement(children: .combine)
                 }
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .accessibilityElement(children: .combine)
-              }
             }
 
             if state.phase == .confirming {
@@ -290,7 +290,7 @@ struct ShiftLockScreenView: View {
 struct ShiftActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: ShiftActivityAttributes.self) { context in
-            ShiftLockScreenView(attributes: context.attributes, state: context.state, isStale: context.isStale)
+            ShiftLockScreenView(attributes: context.attributes, state: context.state, isStale: contentIsStale(context))
                 .activityBackgroundTint(Color(uiColor: .secondarySystemBackground))
                 .activitySystemActionForegroundColor(.primary)
                 .widgetURL(URL(string: "wagestracker://active-shift"))
@@ -312,7 +312,6 @@ struct ShiftActivityWidget: Widget {
                     )
                     .font(.system(.headline, design: .rounded, weight: .semibold))
                     .frame(width: 94, alignment: .trailing)
-                    .accessibilityLabel("Elapsed shift time")
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(alignment: .leading, spacing: 10) {
@@ -367,6 +366,11 @@ struct ShiftActivityWidget: Widget {
             .keylineTint(context.state.phase.accent(in: .dark))
             .widgetURL(URL(string: "wagestracker://active-shift"))
         }
+    }
+
+    private func contentIsStale(_ context: ActivityViewContext<ShiftActivityAttributes>) -> Bool {
+        if #available(iOSApplicationExtension 16.2, *) { return context.isStale }
+        return false
     }
 
     private func preferredColorScheme(_ appearance: String?) -> ColorScheme? {
