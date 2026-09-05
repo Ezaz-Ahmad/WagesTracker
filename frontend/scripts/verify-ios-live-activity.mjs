@@ -41,8 +41,11 @@ requireMatch(project, /PRODUCT_BUNDLE_IDENTIFIER = com\.ezazahmad\.wagestracker\
 requireMatch(project, /IPHONEOS_DEPLOYMENT_TARGET = 16\.1;/u, "extension must target iOS 16.1 or later");
 requireMatch(widget, /ActivityConfiguration\(for: ShiftActivityAttributes\.self\)/u, "ActivityKit configuration is missing");
 requireMatch(widget, /Text\(\s*timerInterval:/u, "system-rendered elapsed timer is missing");
-requireMatch(widget, /Text\(context\.attributes\.startedAt, style: \.time\)/u, "visible shift start time is missing");
-requireMatch(widget, /TimelineView\(\.periodic\(from: \.now, by: 60\)\)/u, "battery-efficient progress rail is missing");
+requireMatch(widget, /Text\(attributes\.startedAt, style: \.time\)/u, "visible shift start time is missing");
+requireMatch(widget, /ProgressView\(timerInterval:/u, "system-driven hourly chart is missing");
+if (/TimelineView\s*\(|Timer\.scheduledTimer|\.onReceive\s*\(/u.test(widget)) {
+  throw new Error("iOS Live Activity check failed: lock-screen time must use system-rendered controls, not app timers");
+}
 requireMatch(widget, /Label\("End Shift", systemImage: "stop\.fill"\)/u, "clear End Shift action is missing");
 requireMatch(widget, /preferredColorScheme\(preferredColorScheme\(context\.state\.appearance\)\)/u, "Live Activity appearance must follow the app preference");
 requireMatch(widget, /Button\(intent: RequestShiftSignOutIntent/u, "interactive Sign Out action is missing");
@@ -58,4 +61,4 @@ requireMatch(coordinator, /URLSessionConfiguration\.background/u, "durable offli
 requireMatch(coordinator, /X-Shift-Clock-Out-Token/u, "scoped clock-out token header is missing");
 requireMatch(appDelegate, /handleEventsForBackgroundURLSession/u, "background URLSession relaunch handling is missing");
 
-console.log("Verified the adaptive Live Activity, system timer, start time, efficient progress rail, two-step End Shift action, scoped credential, and background retry wiring.");
+console.log("Verified the adaptive Live Activity, system timer and hourly chart, start time, two-step End Shift action, scoped credential, and background retry wiring.");

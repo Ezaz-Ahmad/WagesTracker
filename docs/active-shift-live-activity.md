@@ -2,7 +2,7 @@
 
 **Implemented platform:** iOS native application
 
-**Last reviewed:** 30 August 2026
+**Last reviewed:** 5 September 2026
 
 When the user enables **Settings → Profile & preferences → Active shift
 notification**, WagesTracker uses a real ActivityKit Live Activity for an open
@@ -12,6 +12,42 @@ It does not use a repeating JavaScript timer or a scheduled local-notification l
 The operating system renders elapsed time from the same absolute start instant
 used by the React dashboard, so it continues to advance while the WebView is
 suspended, the screen is locked, or the user is in another app.
+
+## Lock Screen and Dynamic Island design
+
+The Lock Screen panel groups the shift status and location with a clear
+**End Shift** action, a large elapsed timer, and the start time/date. The date
+helps distinguish overnight shifts. The expanded Dynamic Island uses the same
+hourly chart and actions; compact presentations retain the elapsed timer.
+
+The hourly chart displays 24 equal columns: each holds one hour of actual
+elapsed time, and the current hour fills continuously from the bottom. The
+axis is labelled 0–24 hours and the legend explains each bar. It represents
+time worked, not earnings, productivity, a scheduled end, or an overtime rule.
+It covers the first 24 hours; the exact elapsed timer remains the source of
+truth for longer shifts. The previous arbitrary eight-hour rail is removed.
+
+Both the elapsed text and the chart use system-rendered date controls
+(`Text(timerInterval:)` and built-in linear `ProgressView(timerInterval:)`).
+They do not depend on `TimelineView`, JavaScript, per-second server updates,
+or an app that stays awake. iOS controls the actual refresh cadence and Live
+Activity lifetime; the chart does not extend the platform limit below.
+
+Confirmation replaces the chart with **Keep working / End Shift** controls.
+Saving/retry states show their explanatory message. Light/dark colors adapt
+to the app preference, and reduced motion/Always-On mode suppress transition
+animation. At larger text sizes, the chart gives way to the essential text;
+text scaling is bounded to fit the system's 160-point presentation height.
+VoiceOver receives the exact elapsed value, location and start time instead
+of reading 24 decorative columns. A completed timer uses the saved duration,
+so an offline clock-out's response time cannot inflate it.
+
+On macOS, `node frontend/scripts/render-ios-live-activity.mjs` renders the
+actual SwiftUI views at 320, 356 and 408 points in light/dark mode, all five
+phases, plus larger accessibility sizes. It fails for layouts over 160 points.
+The iOS Simulator workflow uploads those PNGs as `live-activity-previews`.
+These are native view previews; physical-device testing must still confirm
+Lock Screen timer refreshes, Dynamic Island placement and real intent actions.
 
 ## Supported behaviour
 

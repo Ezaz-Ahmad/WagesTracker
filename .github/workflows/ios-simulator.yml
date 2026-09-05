@@ -91,6 +91,18 @@ jobs:
           plutil -lint ios/DerivedData/Build/Products/Debug-iphonesimulator/App.app/PrivacyInfo.xcprivacy
           node frontend/scripts/inspect-ios-artifact.mjs ios/DerivedData/Build/Products/Debug-iphonesimulator/App.app | tee ios-artifact-inspection.json
 
+      - name: Render and verify Live Activity layouts
+        run: node frontend/scripts/render-ios-live-activity.mjs
+
+      - name: Upload Live Activity previews
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: live-activity-previews
+          path: test-results/ios-live-activity/screenshots
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Upload iOS build log
         if: always()
         uses: actions/upload-artifact@v6
