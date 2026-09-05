@@ -151,9 +151,11 @@ struct ShiftActivityAction: View {
                     HStack(spacing: 10) {
                         Button(intent: CancelShiftSignOutIntent(shiftId: shiftId)) {
                             Text("Keep working")
+                                .foregroundStyle(.primary)
                                 .frame(maxWidth: .infinity, minHeight: 28)
                         }
                         .buttonStyle(.bordered)
+                        .tint(.secondary)
                         Button(intent: EndShiftIntent(shiftId: shiftId)) {
                             Label("End Shift", systemImage: "checkmark")
                                 .frame(maxWidth: .infinity, minHeight: 28)
@@ -200,6 +202,12 @@ struct ShiftLockScreenView: View {
 
     private var accent: Color { state.phase.accent(in: colorScheme) }
 
+    private var title: String {
+        if isStale && state.phase == .active { return "Open app to refresh" }
+        if state.phase == .active && dynamicTypeSize > .large { return "On shift" }
+        return state.phase.title
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 8) {
@@ -210,7 +218,7 @@ struct ShiftLockScreenView: View {
                     .background(accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(isStale && state.phase == .active ? "Open app to refresh" : state.phase.title)
+                    Text(title)
                         .font(.system(.subheadline, design: .rounded, weight: .bold))
                         .foregroundStyle(.primary)
                         .lineLimit(1)

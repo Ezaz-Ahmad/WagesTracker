@@ -66,6 +66,9 @@ final class LiveActivityPreviewApp: UIResponder, UIApplicationDelegate {
         .environment(\.colorScheme, scheme)
         .environment(\.dynamicTypeSize, size)
         let controller = UIHostingController(rootView: view)
+        // A Live Activity has no app status bar or home-indicator safe area.
+        // Exclude those UIKit insets when measuring the actual widget content.
+        controller.safeAreaRegions = []
         window?.rootViewController = controller
         let fit = controller.sizeThatFits(in: CGSize(width: width, height: 1000))
         let height = ceil(fit.height)
