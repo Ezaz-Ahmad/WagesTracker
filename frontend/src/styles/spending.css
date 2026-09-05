@@ -66,6 +66,8 @@
 .home-spending-donut,
 .spending-donut {
   position: relative;
+  isolation: isolate;
+  overflow: hidden;
   aspect-ratio: 1;
   border-radius: 50%;
   display: grid;
@@ -73,21 +75,31 @@
   text-align: center;
   background: var(--color-neutral-300);
 }
+.home-spending-donut::before,
+.spending-donut::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  background: var(--donut-background, var(--color-neutral-300));
+}
 .home-spending-donut { width: min(142px, 100%); margin-inline: auto; }
 .home-spending-donut::after,
 .spending-donut::after {
   content: "";
   position: absolute;
   inset: 20%;
+  z-index: 1;
   border-radius: 50%;
   background: var(--color-surface);
 }
 .home-spending-donut strong,
 .home-spending-donut span,
 .spending-donut span,
-.spending-donut small { position: relative; z-index: 1; }
+.spending-donut small { position: relative; z-index: 2; }
 .home-spending-donut-center {
-  position: relative; z-index: 1; width: 59%; display: flex; flex-direction: column;
+  position: relative; z-index: 2; width: 59%; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 4px;
 }
 .home-spending-donut-center strong {
@@ -180,7 +192,7 @@
   padding: 7px 5px;
   border: 1px solid var(--color-divider);
   border-radius: 999px;
-  background: var(--color-bg);
+  background: var(--color-surface-raised);
   font-size: 11px;
   font-weight: 700;
   line-height: 1.15;
@@ -441,7 +453,8 @@
   flex-direction: column;
   overflow: hidden;
   border-radius: 22px;
-  background: var(--color-bg);
+  background: var(--color-surface-raised);
+  border: 1px solid color-mix(in srgb, var(--color-text) 11%, transparent);
   box-shadow: 0 25px 80px -18px #000;
 }
 .spending-dialog-header {
@@ -452,7 +465,7 @@
   gap: var(--space-3);
   padding: var(--space-4) var(--space-5) var(--space-3);
   border-bottom: 1px solid var(--color-divider);
-  background: var(--color-bg);
+  background: var(--color-surface-raised);
 }
 .spending-dialog-header > div { min-width: 0; }
 .spending-dialog-header h2 { margin: 2px 0 0; font-size: 24px; }
@@ -515,7 +528,7 @@
   gap: var(--space-2);
   padding: var(--space-3) var(--space-5) max(var(--space-3), env(safe-area-inset-bottom));
   border-top: 1px solid var(--color-divider);
-  background: var(--color-bg);
+  background: var(--color-surface-raised);
   box-shadow: 0 -12px 24px -24px #000;
 }
 .spending-dialog-actions .btn { min-width: 120px; min-height: 44px; justify-content: center; }

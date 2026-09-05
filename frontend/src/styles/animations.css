@@ -21,11 +21,17 @@
   --dur-instant: 90ms;
   --dur-fast: 140ms;
   /* Shared interaction timings: 90ms acknowledgement, 140–160ms controls,
-     180ms small state changes, 260ms panels/screens, 320ms charts. */
+     180ms small state changes and 260–320ms panels. Data visualisations get
+     their own slower, eye-soothing reveal without slowing ordinary taps. */
   --dur-btn: 160ms;
   --dur-base: 180ms;
   --dur-slow: 260ms;
   --dur-slower: 320ms;
+  --dur-chart: 960ms;
+  /* A short pause lets the surrounding card settle before data begins to
+     draw. It is long enough to make the reveal feel intentional, but keeps
+     the complete line animation close to one second. */
+  --delay-chart: 140ms;
   /* One consistent press-scale for every interactive control in the app —
      buttons, nav items, icon buttons, the shift CTA — rather than each
      picking its own amount (previously ranged from 0.86 to 0.97 across
@@ -212,7 +218,11 @@
 .progress-fill {
   transition: width var(--dur-slower) var(--ease-out);
   transform-origin: left;
-  animation: fill-grow var(--dur-slower) var(--ease-out) both;
+}
+.landing-preview-card .progress-fill { animation: fill-grow var(--dur-chart) var(--ease-out) both; }
+.chart-reveal:not(.is-chart-visible) .progress-fill { transform: scaleX(0); }
+.chart-reveal.is-chart-visible .progress-fill {
+  animation: fill-grow var(--dur-chart) var(--ease-out) var(--delay-chart) both;
 }
 @keyframes fill-grow {
   from { transform: scaleX(0); }
@@ -223,8 +233,11 @@
 .period-bar-fill {
   transition: height var(--dur-slower) var(--ease-out);
   transform-origin: bottom;
-  animation: bar-grow var(--dur-slower) var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 24ms);
+}
+.chart-reveal:not(.is-chart-visible) .period-bar-fill { transform: scaleY(0); }
+.chart-reveal.is-chart-visible .period-bar-fill {
+  animation: bar-grow var(--dur-chart) var(--ease-emphasized) both;
+  animation-delay: calc(var(--delay-chart) + var(--i, 0) * 30ms);
 }
 @keyframes bar-grow {
   from { transform: scaleY(0); }
@@ -235,10 +248,13 @@
 .glance-bar-fill {
   transition: height var(--dur-slower) var(--ease-out);
   transform-origin: bottom;
-  animation: bar-grow var(--dur-slower) var(--ease-emphasized) both;
-  animation-delay: calc(var(--i, 0) * 16ms);
 }
-.glance-bar-col.is-today .glance-bar-track { animation: today-ring-in var(--dur-base) var(--ease-out) both; }
+.chart-reveal:not(.is-chart-visible) .glance-bar-fill { transform: scaleY(0); }
+.chart-reveal.is-chart-visible .glance-bar-fill {
+  animation: bar-grow var(--dur-chart) var(--ease-emphasized) both;
+  animation-delay: calc(var(--delay-chart) + var(--i, 0) * 28ms);
+}
+.chart-reveal.is-chart-visible .glance-bar-col.is-today .glance-bar-track { animation: today-ring-in var(--dur-slow) var(--ease-out) both; }
 @keyframes today-ring-in {
   from { box-shadow: 0 0 0 0 var(--color-accent) inset; }
   to { box-shadow: 0 0 0 2px var(--color-accent) inset; }
@@ -248,24 +264,41 @@
 .goal-ring-fill {
   stroke-dashoffset: var(--ring-offset-target);
   transition: stroke-dashoffset var(--dur-slower) var(--ease-out);
-  animation: ring-fill-in var(--dur-slower) var(--ease-emphasized) 40ms both;
+}
+.chart-reveal:not(.is-chart-visible) .goal-ring-fill { stroke-dashoffset: var(--ring-circumference); }
+.chart-reveal.is-chart-visible .goal-ring-fill {
+  animation: ring-fill-in var(--dur-chart) var(--ease-emphasized) var(--delay-chart) both;
 }
 @keyframes ring-fill-in {
   from { stroke-dashoffset: var(--ring-circumference); }
   to { stroke-dashoffset: var(--ring-offset-target); }
 }
-.goal-ring-center { animation: fade-in var(--dur-base) var(--ease-standard) 60ms both; }
+.chart-reveal:not(.is-chart-visible) .goal-ring-center { opacity: 0; }
+.chart-reveal.is-chart-visible .goal-ring-center { animation: fade-in var(--dur-slow) var(--ease-standard) 180ms both; }
 
 /* — report chart — */
 .chart-line-draw {
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: draw-line var(--dur-slower) var(--ease-out) 60ms both;
+  clip-path: inset(0 100% 0 0);
+}
+.chart-reveal:not(.is-chart-visible) .chart-line-draw { clip-path: inset(0 100% 0 0); }
+.chart-reveal.is-chart-visible .chart-line-draw {
+  animation: draw-line var(--dur-chart) var(--ease-out) var(--delay-chart) both;
 }
 @keyframes draw-line {
-  to { stroke-dashoffset: 0; }
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
 }
-.chart-area-fade { animation: fade-in var(--dur-slower) var(--ease-standard) 60ms both; }
+.chart-reveal:not(.is-chart-visible) .chart-area-fade {
+  opacity: 0;
+  clip-path: inset(0 100% 0 0);
+}
+.chart-reveal.is-chart-visible .chart-area-fade {
+  animation: chart-area-in var(--dur-chart) var(--ease-standard) calc(var(--delay-chart) + 90ms) both;
+}
+@keyframes chart-area-in {
+  from { opacity: 0; clip-path: inset(0 100% 0 0); }
+  to { opacity: 1; clip-path: inset(0 0 0 0); }
+}
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -275,14 +308,72 @@
   to { opacity: 0; }
 }
 .chart-point {
-  animation: pop-in var(--dur-base) var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 14ms + 80ms);
   transform-box: fill-box;
   transform-origin: center;
 }
-.chart-x-label {
-  animation: fade-in var(--dur-base) var(--ease-standard) both;
-  animation-delay: calc(var(--i, 0) * 14ms + 100ms);
+.chart-reveal:not(.is-chart-visible) .chart-point { opacity: 0; transform: scale(.72); }
+.chart-reveal.is-chart-visible .chart-point {
+  animation: pop-in var(--dur-slow) var(--ease-out) both;
+  animation-delay: calc(var(--delay-chart) + var(--i, 0) * 42ms + 220ms);
+}
+.chart-reveal:not(.is-chart-visible) .chart-x-label { opacity: 0; }
+.chart-reveal.is-chart-visible .chart-x-label {
+  animation: fade-in var(--dur-slow) var(--ease-standard) both;
+  animation-delay: calc(var(--delay-chart) + var(--i, 0) * 30ms + 150ms);
+}
+
+/* — spending charts —
+   Donut gradients remain the exact data source; only their tiny visual layer
+   is swept into view. Typed angle interpolation is supported by the app's
+   iOS/Chromium targets and bounds the brief paint work to a 142–154px disc. */
+@property --donut-reveal-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 360deg;
+}
+.home-spending-donut::before,
+.spending-donut::before {
+  --donut-reveal-angle: 360deg;
+  -webkit-mask-image: conic-gradient(from -90deg, #000 0deg var(--donut-reveal-angle), transparent var(--donut-reveal-angle) 360deg);
+  mask-image: conic-gradient(from -90deg, #000 0deg var(--donut-reveal-angle), transparent var(--donut-reveal-angle) 360deg);
+}
+.chart-reveal:not(.is-chart-visible) .home-spending-donut,
+.chart-reveal:not(.is-chart-visible) .spending-donut { opacity: 0; transform: scale(.92); }
+.chart-reveal.is-chart-visible .home-spending-donut,
+.chart-reveal.is-chart-visible .spending-donut {
+  animation: donut-fallback-reveal var(--dur-chart) var(--ease-emphasized) var(--delay-chart) both;
+}
+.chart-reveal:not(.is-chart-visible) .home-spending-donut::before,
+.chart-reveal:not(.is-chart-visible) .spending-donut::before { --donut-reveal-angle: 0deg; }
+.chart-reveal.is-chart-visible .home-spending-donut.supports-donut-sweep::before,
+.chart-reveal.is-chart-visible .spending-donut.supports-donut-sweep::before {
+  animation: donut-segment-reveal var(--dur-chart) var(--ease-emphasized) var(--delay-chart) both;
+}
+@keyframes donut-fallback-reveal {
+  from { opacity: 0; transform: scale(.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes donut-segment-reveal {
+  from { --donut-reveal-angle: 0deg; }
+  to { --donut-reveal-angle: 360deg; }
+}
+
+.spending-trend-track span { transform-origin: bottom; }
+.chart-reveal:not(.is-chart-visible) .spending-trend-track span { transform: scaleY(0); }
+.chart-reveal.is-chart-visible .spending-trend-track span {
+  animation: bar-grow var(--dur-chart) var(--ease-emphasized) both;
+  animation-delay: calc(var(--delay-chart) + var(--i, 0) * 32ms);
+}
+
+.comparison-bars i { transform-origin: left; }
+.chart-reveal:not(.is-chart-visible) .comparison-bars i { transform: scaleX(0); }
+.chart-reveal.is-chart-visible .comparison-bars i {
+  animation: comparison-bar-reveal var(--dur-chart) var(--ease-emphasized) both;
+  animation-delay: calc(var(--delay-chart) + var(--i, 0) * 90ms);
+}
+@keyframes comparison-bar-reveal {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
 }
 
 /* — table rows — */
@@ -436,8 +527,10 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0.01ms !important;
     scroll-behavior: auto !important;
   }
 }

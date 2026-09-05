@@ -79,7 +79,7 @@ export function applyThemeToDocument(preference: ThemePreference, dark = systemI
   root.style.colorScheme = resolved;
 
   const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-  themeColor?.setAttribute("content", resolved === "dark" ? "#101114" : "#f6f4f3");
+  themeColor?.setAttribute("content", resolved === "dark" ? "#000000" : "#f6f4f3");
   return resolved;
 }
 

@@ -58,6 +58,7 @@ async function mockAuthenticatedApi(page: Page, options: {
   summaryDelayMs?: number;
   spendingTotalCents?: number;
   activeShift?: boolean;
+  chartData?: boolean;
 } = {}) {
   let summaryRequests = 0;
   let categoryRequests = 0;
@@ -76,16 +77,33 @@ async function mockAuthenticatedApi(page: Page, options: {
     else if (pathname === "/api/shifts") {
       const now = new Date();
       const startedAt = new Date(now.getTime() - 75 * 60 * 1000);
-      const date = [now.getFullYear(), now.getMonth() + 1, now.getDate()]
+      const dateString = (value: Date) => [value.getFullYear(), value.getMonth() + 1, value.getDate()]
         .map((part, index) => String(part).padStart(index === 0 ? 4 : 2, "0"))
         .join("-");
+      const date = dateString(now);
       const signIn = [startedAt.getHours(), startedAt.getMinutes(), startedAt.getSeconds()]
         .map((part) => String(part).padStart(2, "0"))
         .join(":");
+      const completedShifts = options.chartData
+        ? [2, 8, 15, 22, 29, 36].map((daysAgo, index) => {
+          const shiftDate = new Date(now);
+          shiftDate.setDate(now.getDate() - daysAgo);
+          return {
+            id: `chart-shift-${index}`,
+            date: dateString(shiftDate),
+            location: index % 2 ? "Gosford" : "Newcastle City",
+            signIn: "09:00:00",
+            signOut: index % 2 ? "16:30:00" : "17:00:00",
+          };
+        })
+        : [];
       body = {
-        shifts: options.activeShift
-          ? [{ id: "active-shift", date, location: "Newcastle City", signIn, signOut: null }]
-          : [],
+        shifts: [
+          ...completedShifts,
+          ...(options.activeShift
+            ? [{ id: "active-shift", date, location: "Newcastle City", signIn, signOut: null }]
+            : []),
+        ],
       };
     }
     else if (pathname === "/api/day-expenses") body = { expenses: [] };
@@ -99,7 +117,8 @@ async function mockAuthenticatedApi(page: Page, options: {
     } else if (pathname === "/api/spending/summary") {
       summaryRequests += 1;
       if (options.summaryDelayMs) await new Promise((resolve) => setTimeout(resolve, options.summaryDelayMs));
-      const spendingTotalCents = options.spendingTotalCents ?? 0;
+      const spendingTotalCents = options.spendingTotalCents ?? (options.chartData ? 78_000 : 0);
+      const earningsCents = options.chartData ? 220_000 : 0;
       body = {
         period: {
           from: "2026-08-01",
@@ -108,21 +127,33 @@ async function mockAuthenticatedApi(page: Page, options: {
           previousTo: "2026-07-31",
           days: 31,
         },
-        earningsCents: 0,
-        earningsRecorded: false,
+        earningsCents,
+        earningsRecorded: options.chartData === true,
         totalSpendingCents: spendingTotalCents,
-        differenceCents: -spendingTotalCents,
-        spendingPercentage: null,
-        averageDailyCents: 0,
-        transactionCount: spendingTotalCents > 0 ? 1 : 0,
+        differenceCents: earningsCents - spendingTotalCents,
+        spendingPercentage: earningsCents ? (spendingTotalCents / earningsCents) * 100 : null,
+        averageDailyCents: options.chartData ? 2_516 : 0,
+        transactionCount: options.chartData ? 4 : spendingTotalCents > 0 ? 1 : 0,
         largestCategory: spendingTotalCents > 0
           ? { id: "rent", name: "Rent & housing", icon: "housing", colour: "#7C3AED", totalCents: spendingTotalCents, transactionCount: 1 }
           : null,
-        previous: { earningsCents: 0, totalSpendingCents: 0, spendingChangePercent: null },
-        categories: spendingTotalCents > 0
-          ? [{ id: "rent", name: "Rent & housing", icon: "housing", colour: "#7C3AED", totalCents: spendingTotalCents, transactionCount: 1 }]
+        previous: { earningsCents: 190_000, totalSpendingCents: 69_000, spendingChangePercent: 13.04 },
+        categories: options.chartData
+          ? [
+            { id: "rent", name: "Rent & housing", icon: "housing", colour: "#7C3AED", totalCents: 50_000, transactionCount: 1 },
+            { id: "food", name: "Food & dining", icon: "food", colour: "#1D4ED8", totalCents: 28_000, transactionCount: 3 },
+          ]
+          : spendingTotalCents > 0
+            ? [{ id: "rent", name: "Rent & housing", icon: "housing", colour: "#7C3AED", totalCents: spendingTotalCents, transactionCount: 1 }]
           : [],
-        trend: [],
+        trend: options.chartData
+          ? [
+            { date: "2026-08-03", totalCents: 12_000 },
+            { date: "2026-08-10", totalCents: 21_000 },
+            { date: "2026-08-17", totalCents: 18_000 },
+            { date: "2026-08-24", totalCents: 27_000 },
+          ]
+          : [],
         recentExpenses: [],
       };
     } else if (pathname === "/api/health") body = { ok: true };
@@ -135,6 +166,26 @@ async function mockAuthenticatedApi(page: Page, options: {
     summaryRequests: () => summaryRequests,
     categoryRequests: () => categoryRequests,
   };
+}
+
+async function captureChartAnimationStarts(page: Page) {
+  await page.addInitScript(() => {
+    const trackedWindow = window as Window & { __chartAnimationStarts: string[] };
+    trackedWindow.__chartAnimationStarts = [];
+    document.addEventListener("animationstart", (event) => {
+      if (!(event instanceof AnimationEvent)) return;
+      if (["draw-line", "donut-segment-reveal"].includes(event.animationName)) {
+        trackedWindow.__chartAnimationStarts.push(event.animationName);
+      }
+    }, true);
+  });
+}
+
+async function chartAnimationCount(page: Page, name: string): Promise<number> {
+  return page.evaluate((animationName) => {
+    const starts = (window as Window & { __chartAnimationStarts?: string[] }).__chartAnimationStarts ?? [];
+    return starts.filter((item) => item === animationName).length;
+  }, name);
 }
 
 test("desktop cold logged-out bundle mounts a visible login screen", async ({ page }) => {
@@ -207,12 +258,18 @@ test("appearance choices apply immediately, follow the device and survive reload
 
   await page.goto("/");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", "#101114");
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", "#000000");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(0, 0, 0)");
+  await expect(page.locator(".card").first()).toHaveCSS("background-color", "rgb(17, 17, 19)");
 
   const mainNav = page.getByRole("navigation", { name: "Main" });
   await mainNav.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: /Profile & preferences/ }).click();
   await expect(page.getByRole("radio", { name: /Dark\./ })).toBeChecked();
+  const nameInput = page.locator("#settings-name");
+  await expect(nameInput).toHaveCSS("background-color", "rgb(28, 28, 31)");
+  await nameInput.focus();
+  await expect(nameInput).toHaveCSS("border-top-color", "rgb(255, 101, 78)");
 
   await page.getByRole("radio", { name: /Light\./ }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
@@ -225,6 +282,150 @@ test("appearance choices apply immediately, follow the device and survive reload
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.emulateMedia({ colorScheme: "light" });
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  expect(errors).toEqual([]);
+});
+
+test("chart reveals replay smoothly whenever Report and Spending are revisited", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  const errors = await captureRuntimeErrors(page);
+  await captureChartAnimationStarts(page);
+  await page.addInitScript(() => localStorage.setItem("wagesTracker.theme.preference.v1", "dark"));
+  await mockAuthenticatedApi(page, { chartData: true });
+
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "This week" })).toBeVisible();
+  await expect(page.locator(".app-shell")).toHaveClass(/is-entered/);
+  await expect(page.locator(".app-shell")).toHaveCSS("opacity", "1");
+  const mainNav = page.getByRole("navigation", { name: "Main" });
+
+  await mainNav.getByRole("button", { name: "Report", exact: true }).click();
+  const firstTrendLine = page.locator(".chart-line-draw");
+  await expect(firstTrendLine).toBeVisible();
+  await expect.poll(() => chartAnimationCount(page, "draw-line")).toBeGreaterThan(0);
+  const lineTiming = await firstTrendLine.evaluate((element) => {
+    const animation = element.getAnimations()[0];
+    const timing = animation?.effect?.getTiming();
+    return {
+      duration: Number(timing?.duration),
+      delay: Number(timing?.delay),
+    };
+  });
+  expect(lineTiming.duration).toBeGreaterThanOrEqual(700);
+  expect(lineTiming.duration).toBeLessThanOrEqual(1_100);
+  expect(lineTiming.delay).toBeGreaterThanOrEqual(100);
+  expect(lineTiming.delay).toBeLessThanOrEqual(200);
+  expect(lineTiming.duration + lineTiming.delay).toBeLessThanOrEqual(1_200);
+  const firstReportCount = await chartAnimationCount(page, "draw-line");
+
+  await mainNav.getByRole("button", { name: "Home", exact: true }).click();
+  await mainNav.getByRole("button", { name: "Report", exact: true }).click();
+  await expect(page.locator(".chart-line-draw")).toBeVisible();
+  await expect.poll(() => chartAnimationCount(page, "draw-line")).toBeGreaterThan(firstReportCount);
+
+  await mainNav.getByRole("button", { name: "Spending", exact: true }).click();
+  const spendingDonut = page.locator(".spending-donut");
+  await spendingDonut.scrollIntoViewIfNeeded();
+  await expect(spendingDonut).toBeVisible();
+  await expect.poll(() => chartAnimationCount(page, "donut-segment-reveal")).toBeGreaterThan(0);
+  const firstSpendingCount = await chartAnimationCount(page, "donut-segment-reveal");
+
+  await mainNav.getByRole("button", { name: "Home", exact: true }).click();
+  await mainNav.getByRole("button", { name: "Spending", exact: true }).click();
+  await page.locator(".spending-donut").scrollIntoViewIfNeeded();
+  await expect.poll(() => chartAnimationCount(page, "donut-segment-reveal")).toBeGreaterThan(firstSpendingCount);
+  expect(errors).toEqual([]);
+});
+
+test("desktop Weekly Trend stays compact and supports precise pointer and keyboard inspection", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  const errors = await captureRuntimeErrors(page);
+  await mockAuthenticatedApi(page, { chartData: true });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Show earnings for 20 minutes" }).click();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Report", exact: true }).click();
+
+  const trendCard = page.locator(".report-trend-card");
+  const trendVisual = trendCard.locator(".report-trend-visual");
+  const trendPlot = trendCard.locator(".report-trend-plot");
+  const pointTargets = trendCard.locator("[data-chart-point]");
+  await expect(trendVisual).toBeVisible();
+  await expect(pointTargets).toHaveCount(8);
+
+  const visualBox = await trendVisual.boundingBox();
+  const plotBox = await trendPlot.boundingBox();
+  expect(visualBox).not.toBeNull();
+  expect(plotBox).not.toBeNull();
+  expect(visualBox!.width).toBeLessThanOrEqual(721);
+  expect(plotBox!.height).toBeLessThan(300);
+  expect(plotBox!.width / plotBox!.height).toBeCloseTo(320 / 124, 1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1440);
+  expect(await page.locator(".app-main").evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+
+  const targetSizes = await pointTargets.evaluateAll((targets) => targets.map((target) => {
+    const rect = target.getBoundingClientRect();
+    return { width: rect.width, height: rect.height };
+  }));
+  for (const size of targetSizes) {
+    expect(size.width).toBeGreaterThanOrEqual(44);
+    expect(size.height).toBeGreaterThanOrEqual(44);
+  }
+
+  const alignmentOffsets = await pointTargets.evaluateAll((targets) => targets.map((target) => {
+    const index = target.getAttribute("data-chart-point");
+    const dot = document.querySelector(`[data-chart-point-dot="${index}"]`);
+    if (!dot) return { x: Number.POSITIVE_INFINITY, y: Number.POSITIVE_INFINITY };
+    const targetRect = target.getBoundingClientRect();
+    const dotRect = dot.getBoundingClientRect();
+    return {
+      x: Math.abs(targetRect.left + targetRect.width / 2 - (dotRect.left + dotRect.width / 2)),
+      y: Math.abs(targetRect.top + targetRect.height / 2 - (dotRect.top + dotRect.height / 2)),
+    };
+  }));
+  for (const offset of alignmentOffsets) {
+    expect(offset.x).toBeLessThanOrEqual(1.5);
+    expect(offset.y).toBeLessThanOrEqual(1.5);
+  }
+
+  const inspectedPoint = pointTargets.nth(2);
+  await inspectedPoint.hover();
+  const tooltip = page.getByRole("tooltip");
+  await expect(tooltip).toBeVisible();
+  await expect(tooltip).toContainText("Selected week");
+  await expect(tooltip).toContainText("Vs prior week");
+  await expect(tooltip).toContainText("Weekly target");
+  await expect(tooltip).toContainText(/\$\d|\d+\.\d{2}h/);
+  await inspectedPoint.click();
+  await page.mouse.move(0, 0);
+  await expect(tooltip).toBeVisible();
+  await expect(inspectedPoint).toHaveAttribute("aria-pressed", "true");
+
+  await inspectedPoint.focus();
+  await inspectedPoint.press("Escape");
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+  await expect(trendCard.locator(".report-trend-inspector")).toHaveClass(/is-idle/);
+  expect(errors).toEqual([]);
+});
+
+test("reduced motion presents chart data immediately without a visible reveal", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const errors = await captureRuntimeErrors(page);
+  await mockAuthenticatedApi(page, { chartData: true });
+
+  await page.goto("/");
+  await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Report", exact: true }).click();
+  const trendLine = page.locator(".chart-line-draw");
+  await expect(trendLine).toBeVisible();
+  const accessibleTrendData = page.getByRole("table", { name: "Weekly earnings, oldest first" }).first();
+  await expect(accessibleTrendData).toContainText(/Hidden|\$/);
+  const durationsMs = await trendLine.evaluate((element) => getComputedStyle(element).animationDuration
+    .split(",")
+    .map((duration) => duration.trim().endsWith("ms")
+      ? Number.parseFloat(duration)
+      : Number.parseFloat(duration) * 1000));
+  expect(durationsMs.every((duration) => duration <= 1)).toBe(true);
   expect(errors).toEqual([]);
 });
 
@@ -242,6 +443,9 @@ test("active shift presents a compact live status without disturbing the Home la
   await expect(activeCard.locator(".elapsed-timer")).toHaveText(/\d{2}:\d{2}:\d{2}/);
   await expect(activeCard.getByRole("button", { name: "Sign out" })).toBeVisible();
   await expect(page.locator(".live-data-badge.is-active")).toHaveCount(1);
+  const activeBorder = await activeCard.evaluate((element) => getComputedStyle(element).borderTopColor);
+  const genericBorder = await page.locator(".card:not(.is-active)").first().evaluate((element) => getComputedStyle(element).borderTopColor);
+  expect(activeBorder).not.toBe(genericBorder);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   expect(errors).toEqual([]);
 });

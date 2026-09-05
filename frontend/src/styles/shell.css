@@ -171,13 +171,11 @@
   .screen-narrow { max-width: 640px; margin: 0 auto; }
 
   .home-top-grid { grid-template-columns: 1.3fr 1fr; }
-  /* No `.chart-svg { height: 220px }` here any more. app.css gives the
-     chart `aspect-ratio: 320/150; height: auto` precisely so it scales
-     uniformly at every width — this rule sat later in the cascade and
-     re-imposed a fixed height against a 100% width, re-introducing the
-     stretched line and elliptical dots that fix was written to remove.
-     The chart is already wider at this breakpoint because its container
-     is; it does not need a second, contradictory size. */
+  /* No `.chart-svg { height: 220px }` here. The responsive plot wrapper in
+     app.css owns the 320/124 aspect ratio while the SVG fills it exactly;
+     a later fixed height would distort the line and turn its dots into
+     ellipses. The plot also has a desktop max-width, so it gains useful
+     room without becoming an oversized laptop billboard. */
   .period-bars { height: 200px; }
 }
 .offline-banner-content {

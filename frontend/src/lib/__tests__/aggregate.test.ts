@@ -11,15 +11,15 @@ describe("buildChart", () => {
     { startISO: "current", endISO: "current", label: "This week", short: "Now", hours: 2.58, earnings: 90.42, inProgress: true },
   ];
 
-  it("keeps endpoint dots and value labels inside the chart", () => {
+  it("aligns endpoint dots with the centres of their x-axis labels", () => {
     const chart = buildChart(weeks, "earnings", CURRENCY);
-    expect(chart.points[0]).toMatchObject({ x: 8, labelAnchor: "start", valueLabel: "$2050.49" });
-    expect(chart.points.at(-1)).toMatchObject({ x: 312, labelAnchor: "end", valueLabel: "$90.42" });
+    expect(chart.points[0]).toMatchObject({ x: 80, valueLabel: "$2050.49" });
+    expect(chart.points.at(-1)).toMatchObject({ x: 240, valueLabel: "$90.42" });
   });
 
   it("centres a chart containing only one point", () => {
     const chart = buildChart(weeks.slice(0, 1), "hours", CURRENCY);
-    expect(chart.points[0]).toMatchObject({ x: 160, labelAnchor: "middle" });
+    expect(chart.points[0]).toMatchObject({ x: 160 });
   });
 });
 

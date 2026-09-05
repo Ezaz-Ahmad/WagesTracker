@@ -28,6 +28,8 @@ import { withLiveDay, withLiveSpendingEarnings } from "../lib/liveShiftVisuals";
 import type { DayExpense, Screen, Shift, SpendingSummary, WeekExtra, WeekStart } from "../lib/types";
 import { useLayoutPreferences, type HomeWidgetId } from "../context/LayoutPreferencesContext";
 import { useFlipAnimation } from "../lib/useFlipAnimation";
+import { supportsSmoothDonutSweep, useChartReveal } from "../lib/useChartReveal";
+import { spendingDisplayColour } from "../lib/spendingColour";
 import { HomeInsightSheet } from "../components/HomeInsightSheet";
 import { WorkLocationPicker, WorkLocationTrigger } from "../components/WorkLocationPicker";
 
@@ -56,7 +58,7 @@ function donutBackground(summary: SpendingSummary): string | undefined {
   const stops = homeSnapshotCategories(summary).map((category) => {
     const start = progress;
     progress += (category.totalCents / summary.totalSpendingCents) * 100;
-    return `${category.colour} ${start}% ${progress}%`;
+    return `${spendingDisplayColour(category.colour)} ${start}% ${progress}%`;
   });
   return `conic-gradient(${stops.join(",")})`;
 }
@@ -98,6 +100,7 @@ function LiveWeekSummaryCard(props: {
   weekExtras: WeekExtra[];
   earningsHidden: boolean;
 }) {
+  const reveal = useChartReveal<HTMLDivElement>();
   const ticking = props.active && props.activeShiftInThisWeek;
   const liveHours = useLiveElapsedHours(ticking, props.signIn);
   const totalHours = props.savedHours + liveHours;
@@ -144,7 +147,7 @@ function LiveWeekSummaryCard(props: {
         <span>Hours toward goal</span>
         <span className="count-value live-progress-slot">{displayProgress}%</span>
       </div>
-      <div className="progress-track" role="progressbar" aria-valuenow={progressPct} aria-valuemin={0} aria-valuemax={100} aria-labelledby="home-goal-progress-label">
+      <div ref={reveal.ref} className={`${reveal.revealClassName} progress-track`} role="progressbar" aria-valuenow={progressPct} aria-valuemin={0} aria-valuemax={100} aria-labelledby="home-goal-progress-label">
         <div className="progress-fill" style={{ width: `${progressPct}%` }} />
       </div>
     </div>
@@ -160,6 +163,7 @@ function WeekGlanceCard(props: {
   activeShiftDate: string | null;
   rate: number;
 }) {
+  const reveal = useChartReveal<HTMLDivElement>();
   const barRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const ticking = props.active && props.activeShiftInThisWeek;
   const liveHours = useLiveElapsedHours(ticking, props.signIn);
@@ -200,7 +204,7 @@ function WeekGlanceCard(props: {
           <span className="card-meta">Current week</span>
           <LiveDataBadge active={ticking} label="Updating live" />
         </div>
-        <div className="glance-bars" role="group" aria-label="Select a day to review this week's details">
+        <div ref={reveal.ref} className={`${reveal.revealClassName} glance-bars`} role="group" aria-label="Select a day to review this week's details">
           {glanceDays.map((day, index) => {
             const pct = Math.max(4, (day.displayHours / maxGlanceHours) * 100);
             const worked = day.displayHours > 0;
@@ -300,6 +304,7 @@ function HomeSpendingSnapshotCard(props: {
   activeShiftInMonth: boolean;
   rate: number;
 }) {
+  const reveal = useChartReveal<HTMLElement>();
   const ticking = props.active && props.activeShiftInMonth;
   const liveHours = useLiveElapsedHours(ticking, props.signIn);
   const summary = props.snapshot ? withLiveSpendingEarnings(props.snapshot, liveHours, props.rate) : null;
@@ -321,15 +326,21 @@ function HomeSpendingSnapshotCard(props: {
       {summary ? (
         <div className="home-spending-content">
           <p className="visually-hidden">Personal spending for {props.monthLabel}: {CURRENCY}{fmt2(summary.totalSpendingCents / 100)}. {categories.map((category) => `${category.name} ${((category.totalCents / Math.max(1, summary.totalSpendingCents)) * 100).toFixed(1)} percent`).join(", ")}.</p>
-          <div className="home-spending-chart-row">
-            <div className="home-spending-donut" aria-hidden="true" style={{ background: donutBackground(summary) }} title={donutAmount?.full}>
+          <div ref={reveal.ref} className={`${reveal.revealClassName} home-spending-chart-row`}>
+            <div
+              className={`home-spending-donut${supportsSmoothDonutSweep() ? " supports-donut-sweep" : ""}`}
+              key={`${summary.period.from}:${summary.period.to}`}
+              aria-hidden="true"
+              style={{ ["--donut-background" as string]: donutBackground(summary) ?? "var(--color-neutral-300)" }}
+              title={donutAmount?.full}
+            >
               <div className={`home-spending-donut-center is-${donutAmount?.fit}`}>
                 <strong>{donutAmount?.display}</strong><span>Spent this month</span>
               </div>
             </div>
             <ul className="home-spending-legend" aria-label={`${props.monthLabel} spending by category`}>
               {categories.length ? categories.map((category) => (
-                <li key={category.id}><span style={{ backgroundColor: category.colour }} aria-hidden="true" /><span>{category.name}</span><strong>{categoryPercentage(category.totalCents, summary.totalSpendingCents)}</strong></li>
+                <li key={category.id}><span style={{ backgroundColor: spendingDisplayColour(category.colour) }} aria-hidden="true" /><span>{category.name}</span><strong>{categoryPercentage(category.totalCents, summary.totalSpendingCents)}</strong></li>
               )) : <li className="home-spending-empty">No expenses recorded this month.</li>}
             </ul>
           </div>
