@@ -10,7 +10,10 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const output = path.join(root, "test-results/ios-live-activity");
 const app = path.join(output, "LiveActivityPreview.app");
 const bundleId = "com.ezazahmad.wagestracker.liveactivitypreview";
-const run = (command, args) => execFileSync(command, args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] }).trim();
+const run = (command, args, timeout = 180_000) => {
+  console.log(`Running ${command} ${args.join(" ")}`);
+  return execFileSync(command, args, { cwd: root, encoding: "utf8", timeout, stdio: ["ignore", "pipe", "inherit"] }).trim();
+};
 mkdirSync(app, { recursive: true });
 writeFileSync(path.join(app, "Info.plist"), `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -40,7 +43,7 @@ if (!device) throw new Error("No available iPhone simulator.");
 const bootedHere = device.state !== "Booted";
 try {
   if (bootedHere) run("xcrun", ["simctl", "boot", device.udid]);
-  run("xcrun", ["simctl", "bootstatus", device.udid, "-b"]);
+  run("xcrun", ["simctl", "bootstatus", device.udid, "-b"], 600_000);
   run("xcrun", ["simctl", "install", device.udid, app]);
   let launchError;
   try {

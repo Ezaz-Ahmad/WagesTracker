@@ -5,12 +5,19 @@ import UIKit
 @main
 final class LiveActivityPreviewApp: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
+    private var didStartRendering = false
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
+        window?.rootViewController = UIViewController()
         window?.makeKeyAndVisible()
-        Task { @MainActor in await renderCases() }
         return true
+    }
+
+    func applicationDidBecomeActive(_ application: UIApplication) {
+        guard !didStartRendering else { return }
+        didStartRendering = true
+        Task { @MainActor in await renderCases() }
     }
 
     @MainActor
