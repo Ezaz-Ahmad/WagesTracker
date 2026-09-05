@@ -279,7 +279,9 @@ struct ShiftLockScreenView: View {
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        // Leave a small buffer below ActivityKit's hard 160pt lock-screen
+        // height. Standard-size active layouts otherwise resolve to 162pt.
+        .padding(.vertical, 8)
         // ActivityKit truncates beyond 160pt. Let the chart yield space to
         // accessible text and confirmation controls; cap text to this surface.
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
