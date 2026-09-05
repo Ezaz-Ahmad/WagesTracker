@@ -24,6 +24,12 @@
   --color-accent-solid: #dd2b0f;
   --color-accent-solid-hover: #ae1800;
   --color-accent-solid-active: #7c1405;
+  --chart-category-strength: 100%;
+  --color-chart-canvas: #f8f5f4;
+  --color-chart-grid: color-mix(in srgb, var(--color-text) 10%, transparent);
+  --color-chart-grid-strong: color-mix(in srgb, var(--color-text) 18%, transparent);
+  --color-chart-area-start: color-mix(in srgb, var(--color-accent) 18%, transparent);
+  --color-chart-area-end: color-mix(in srgb, var(--color-accent) 2%, transparent);
 
   /* Tonal ramps — generated in OKLCH on one shared lightness scale, so the
      same step of any role matches the others in visual value. */
@@ -132,34 +138,47 @@
    surface in sync when the root theme changes. */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --color-bg: #101114;
-  --color-surface: #191a1f;
-  --color-surface-raised: #222329;
-  --color-text: #f4f0ef;
+  /* OLED foundation: the canvas and surrounding chrome are true black, so
+     black pixels can switch off on OLED displays. Cards deliberately sit
+     one restrained step above it; hierarchy comes from tone and a hairline
+     edge rather than turning the whole interface charcoal. */
+  --color-bg: #000000;
+  --color-surface: #111113;
+  --color-surface-raised: #1c1c1f;
+  --color-text: #f5f5f7;
   --color-accent: #ff654e;
   --color-accent-2: #f27b68;
-  --color-divider: color-mix(in srgb, #f4f0ef 16%, transparent);
-  --color-page-chrome: #090a0d;
-  --color-hero: #0d0f13;
-  --color-hero-surface: #181b21;
+  --color-divider: color-mix(in srgb, #f5f5f7 17%, transparent);
+  --color-page-chrome: #000000;
+  --color-hero: #000000;
+  --color-hero-surface: #141416;
   --color-on-hero: #f7f4f3;
   --color-on-hero-accent: #ff9a87;
-  --color-overlay: color-mix(in srgb, #030407 72%, transparent);
+  --color-overlay: color-mix(in srgb, #000000 78%, transparent);
   --color-on-accent: #ffffff;
   --color-on-success: #ffffff;
   --color-accent-solid: #d83d28;
   --color-accent-solid-hover: #c93422;
   --color-accent-solid-active: #b52d1e;
+  /* Persisted category colours keep their identity, but mixing in a little
+     light foreground prevents deep blues/purples disappearing into OLED
+     cards. The stored value itself is never changed. */
+  --chart-category-strength: 74%;
+  --color-chart-canvas: #0a0a0c;
+  --color-chart-grid: color-mix(in srgb, var(--color-text) 13%, transparent);
+  --color-chart-grid-strong: color-mix(in srgb, var(--color-text) 24%, transparent);
+  --color-chart-area-start: color-mix(in srgb, var(--color-accent) 22%, transparent);
+  --color-chart-area-end: color-mix(in srgb, var(--color-accent) 3%, transparent);
 
-  --color-neutral-100: #202126;
-  --color-neutral-200: #292b31;
-  --color-neutral-300: #36383f;
-  --color-neutral-400: #52555e;
-  --color-neutral-500: #777a84;
-  --color-neutral-600: #9da0a9;
-  --color-neutral-700: #c2c3c9;
-  --color-neutral-800: #e1e0e3;
-  --color-neutral-900: #f5f2f3;
+  --color-neutral-100: #171719;
+  --color-neutral-200: #222226;
+  --color-neutral-300: #303036;
+  --color-neutral-400: #4b4b52;
+  --color-neutral-500: #71717a;
+  --color-neutral-600: #a0a0aa;
+  --color-neutral-700: #c6c6cc;
+  --color-neutral-800: #e2e2e5;
+  --color-neutral-900: #f7f7f8;
 
   --color-accent-100: #301a17;
   --color-accent-200: #48211c;
@@ -195,9 +214,9 @@
   --color-info-100: #14263a;
   --color-accent-text: #ff9b89;
 
-  --shadow-sm: 0 1px 2px color-mix(in srgb, #000000 72%, transparent), inset 0 0 0 1px color-mix(in srgb, #ffffff 4%, transparent);
-  --shadow-md: 0 5px 16px color-mix(in srgb, #000000 58%, transparent), inset 0 0 0 1px color-mix(in srgb, #ffffff 4%, transparent);
-  --shadow-lg: 0 20px 46px color-mix(in srgb, #000000 62%, transparent), inset 0 0 0 1px color-mix(in srgb, #ffffff 4%, transparent);
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #000000 72%, transparent), inset 0 0 0 1px color-mix(in srgb, #ffffff 7%, transparent);
+  --shadow-md: 0 5px 16px color-mix(in srgb, #000000 58%, transparent), inset 0 0 0 1px color-mix(in srgb, #ffffff 7%, transparent);
+  --shadow-lg: 0 20px 46px color-mix(in srgb, #000000 62%, transparent), inset 0 0 0 1px color-mix(in srgb, #ffffff 8%, transparent);
 }
 
 body {
@@ -428,7 +447,13 @@ figcaption {
   border: 1px solid transparent; border-radius: 12px;
   box-shadow: inset 0 1px 2px color-mix(in srgb, #000 6%, transparent);
 }
+:where(:root[data-theme="dark"]) .input {
+  background: var(--color-surface-raised);
+  border-color: color-mix(in srgb, var(--color-text) 18%, transparent);
+  box-shadow: none;
+}
 .input:hover { background: color-mix(in srgb, var(--color-text) 6%, var(--color-bg)); }
+:where(:root[data-theme="dark"]) .input:hover { background: color-mix(in srgb, var(--color-text) 9%, var(--color-bg)); }
 .input:focus-visible {
   border-color: var(--color-accent); outline-offset: 0; background: var(--color-bg);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent);
@@ -441,6 +466,7 @@ figcaption {
   transition: color var(--dur-fast, 140ms) var(--ease-standard, ease);
 }
 .input:focus-visible::placeholder { color: color-mix(in srgb, var(--color-text) 48%, transparent); }
+:where(:root[data-theme="dark"]) .input::placeholder { color: color-mix(in srgb, var(--color-text) 52%, transparent); }
 textarea.input { min-height: 90px; resize: vertical; }
 
 /* iOS auto-zooms the page when a focused field's text is smaller than 16px,
@@ -540,6 +566,7 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   padding: var(--space-4); border-radius: var(--radius-md); background: var(--color-surface);
   border: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent);
 }
+:where(:root[data-theme="dark"]) .card { border-color: color-mix(in srgb, var(--color-text) 10%, transparent); }
 .card-kicker { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent-text); }
 .card-title {
   font-family: var(--font-heading); font-weight: var(--font-heading-weight);
@@ -605,7 +632,7 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 .dialog {
   width: min(440px, 100%); display: flex; flex-direction: column; gap: var(--space-3);
   padding: var(--space-4); border-radius: var(--radius-lg);
-  background: var(--color-surface); box-shadow: var(--shadow-lg);
+  background: var(--color-surface-raised); border: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent); box-shadow: var(--shadow-lg);
 }
 .dialog-title {
   font-family: var(--font-heading); font-weight: var(--font-heading-weight);
@@ -634,7 +661,8 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   display: flex; flex-direction: column; align-items: center; text-align: center;
   gap: var(--space-3);
   padding: var(--space-6) var(--space-5) var(--space-5);
-  background: var(--color-bg);
+  background: var(--color-surface-raised);
+  border: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
   border-radius: 22px;
   box-shadow:
     0 24px 60px -8px color-mix(in srgb, #000 40%, transparent),

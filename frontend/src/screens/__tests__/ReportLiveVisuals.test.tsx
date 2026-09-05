@@ -55,11 +55,17 @@ describe("Report active-shift visuals", () => {
     expect(document.querySelector(".period-bar-col.is-live")).toBeTruthy();
     expect(document.querySelectorAll(".goal-ring.is-live")).toHaveLength(2);
     expect(document.querySelectorAll(".live-data-badge.is-active")).toHaveLength(1);
+    const trendLineBefore = document.querySelector(".chart-line-draw");
+    const periodBarBefore = document.querySelector(".period-bar-fill");
+    const goalRingBefore = document.querySelector(".goal-ring-fill");
 
     await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
 
     expect(screen.getAllByText("$30.03").length).toBeGreaterThan(0);
     const trendTable = screen.getAllByRole("table", { name: /Weekly earnings, oldest first/ })[0];
     expect(trendTable.textContent).toContain("$30.03");
+    expect(document.querySelector(".chart-line-draw")).toBe(trendLineBefore);
+    expect(document.querySelector(".period-bar-fill")).toBe(periodBarBefore);
+    expect(document.querySelector(".goal-ring-fill")).toBe(goalRingBefore);
   });
 });

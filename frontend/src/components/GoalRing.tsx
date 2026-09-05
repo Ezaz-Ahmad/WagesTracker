@@ -1,3 +1,5 @@
+import { useChartReveal } from "../lib/useChartReveal";
+
 type GoalRingProps = {
   /** 0-100 target fill percentage. Drives the ring via a CSS custom property
    * so both the entrance sweep and later updates can be plain CSS animations
@@ -15,6 +17,7 @@ type GoalRingProps = {
  * "Days logged" / "Weeks on goal" stat tiles so a plain fraction reads as an
  * at-a-glance visual instead of just two numbers. */
 export function GoalRing({ pct, size = 60, strokeWidth = 7, value, live = false }: GoalRingProps) {
+  const reveal = useChartReveal<HTMLDivElement>();
   const r = (size - strokeWidth) / 2;
   const c = 2 * Math.PI * r;
   const clamped = Math.max(0, Math.min(100, Number.isFinite(pct) ? pct : 0));
@@ -22,7 +25,8 @@ export function GoalRing({ pct, size = 60, strokeWidth = 7, value, live = false 
 
   return (
     <div
-      className={`goal-ring${live ? " is-live" : ""}`}
+      ref={reveal.ref}
+      className={`${reveal.revealClassName} goal-ring${live ? " is-live" : ""}`}
       style={{
         width: size,
         height: size,

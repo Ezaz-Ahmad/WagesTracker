@@ -398,8 +398,6 @@ export function buildWeeklyHistory(
 export interface ChartPoint {
   x: number;
   y: number;
-  labelY: number;
-  labelAnchor: "start" | "middle" | "end";
   short: string;
   valueLabel: string;
   dotColor: string;
@@ -425,15 +423,15 @@ export function buildChart(chartSource: WeekSummary[], metric: "earnings" | "hou
   const maxVal = Math.max(...chartSource.map((w) => (metric === "earnings" ? w.earnings : w.hours)), 1);
   const chartW = 320;
   const chartH = 118;
-  // Keep endpoint dots inside the SVG, while anchoring their labels inward.
-  // Previously the first/last points sat at x=0/320 with centred text, so
-  // half of each value was outside the viewBox and visibly clipped.
-  const plotInset = 8;
-  const plotW = chartW - plotInset * 2;
+  // Place each point over the centre of its matching flexed x-axis label.
+  // This also leaves a proportional edge target on both sides, preventing
+  // the first/last point controls from being clipped on narrow screens.
   const n = chartSource.length;
+  const plotInset = n > 0 ? chartW / (2 * n) : 0;
+  const plotW = chartW - plotInset * 2;
   const points: ChartPoint[] = chartSource.map((w, i) => {
     const val = metric === "earnings" ? w.earnings : w.hours;
-    const x = n > 1 ? Math.round(plotInset + (i * plotW) / (n - 1)) : chartW / 2;
+    const x = n > 1 ? plotInset + (i * plotW) / (n - 1) : chartW / 2;
     // Keep the live point sub-pixel precise. Rounding this to a whole pixel
     // made an active shift sit still and then visibly jump one pixel at a
     // time; modern SVG renders fractional coordinates smoothly.
@@ -441,11 +439,9 @@ export function buildChart(chartSource: WeekSummary[], metric: "earnings" | "hou
     return {
       x,
       y,
-      labelY: Math.max(10, y - 10),
-      labelAnchor: n === 1 ? "middle" : i === 0 ? "start" : i === n - 1 ? "end" : "middle",
       short: w.short,
       valueLabel: metric === "earnings" ? currency + fmt2(val) : `${Math.round(val * 10) / 10}h`,
-      dotColor: w.inProgress ? "var(--color-bg)" : "var(--color-accent)",
+      dotColor: w.inProgress ? "var(--color-chart-canvas)" : "var(--color-accent)",
       dotStroke: "var(--color-accent)",
       inProgress: !!w.inProgress,
     };

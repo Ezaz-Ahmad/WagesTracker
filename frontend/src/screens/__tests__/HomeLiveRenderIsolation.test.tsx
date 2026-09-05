@@ -80,6 +80,8 @@ describe("Home active-shift rendering", () => {
     expect(screen.getByText("No expenses recorded this month.")).toBeTruthy();
     const aggregateCallsAfterLoad = buildHistory.mock.calls.length;
     expect(screen.getByText("01:00:00")).toBeTruthy();
+    const glanceBarBefore = document.querySelector(".glance-bar-fill");
+    const goalRingBefore = document.querySelector(".goal-ring-fill");
 
     await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
 
@@ -88,6 +90,8 @@ describe("Home active-shift rendering", () => {
     expect(screen.getByRole("table", { name: "Hours worked each day this week" }).textContent).toContain("1.00h");
     expect(document.querySelector(".glance-bar-col.is-live")).toBeTruthy();
     expect(document.querySelector(".goal-ring.is-live")).toBeTruthy();
+    expect(document.querySelector(".glance-bar-fill")).toBe(glanceBarBefore);
+    expect(document.querySelector(".goal-ring-fill")).toBe(goalRingBefore);
     expect(document.querySelectorAll(".live-data-badge.is-active")).toHaveLength(1);
     const todayBar = screen.getByRole("button", { name: /Thu.*1\.00 hours.*\$30\.03.*shift active/i });
     expect(todayBar.getAttribute("aria-pressed")).toBe("false");

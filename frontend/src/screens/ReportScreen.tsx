@@ -31,6 +31,8 @@ import { StableLabel } from "../components/StableLabel";
 import { EmptyState } from "../components/EmptyState";
 import { ReportIcon } from "../components/icons";
 import { LiveDataBadge } from "../components/LiveDataBadge";
+import { useChartReveal } from "../lib/useChartReveal";
+import { WeeklyTrendChart } from "../components/WeeklyTrendChart";
 
 type Metric = "earnings" | "hours";
 type Period = "week" | "month" | "year";
@@ -40,6 +42,7 @@ export function ReportScreen() {
   const { active, last } = useTodayShift();
   const [metric, setMetric] = useState<Metric>("earnings");
   const [period, setPeriod] = useState<Period>("week");
+  const periodReveal = useChartReveal<HTMLDivElement>();
   const {
     download: downloadPdf,
     downloading: pdfDownloading,
@@ -201,7 +204,7 @@ export function ReportScreen() {
         <EarningsHiddenHint />
       </div>
 
-      <div className="card elev-sm anim-rise" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 1 }}>
+      <div className="card elev-sm anim-rise report-trend-card" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 1 }}>
         <div className="row-baseline">
           <div className="chart-heading-kicker"><div className="card-kicker">Weekly trend</div><LiveDataBadge active={ticking} /></div>
           <fieldset className="fieldset-plain fieldset-inline">
@@ -217,79 +220,18 @@ export function ReportScreen() {
           </fieldset>
         </div>
 
-        {/* `width="100%"` with no fixed `height` and no `preserveAspectRatio`
-            override lets the default uniform ("meet") scaling do the work —
-            paired with the CSS `aspect-ratio` on .chart-svg matching this
-            viewBox exactly, the chart scales the same in x and y at every
-            container width. It used to force height to a flat 150px (190px
-            on tablet, 220px on desktop) while width flexed independently,
-            which stretched the dots into ellipses and the line out of
-            proportion on anything other than a ~320px-wide phone. */}
-        {/* The chart carried no accessible information whatsoever: an <svg>
-            with no name, no role, and values living only in <text> nodes
-            positioned by coordinate. To a screen reader it was a run of
-            unlabelled numbers in visual order with nothing saying what they
-            measured or which week each belonged to.
-            Two changes: the graphic names itself and is excluded from the
-            reading order (role="img" + aria-label), and the same data is
-            published once, properly, as a real table for anyone who can't
-            use the picture. The table is the source of truth for assistive
-            tech; the drawing is the enhancement. */}
         {hasTrendData ? <>
-        <svg viewBox="0 0 320 150" width="100%" className="chart-svg" role="img" aria-label={chartSummary}>
-          <defs>
-            <linearGradient id="reportAreaFade" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--color-accent-300)" stopOpacity="0.6" />
-              <stop offset="100%" stopColor="var(--color-accent-100)" stopOpacity="0" />
-            </linearGradient>
-          </defs>
-          {[30, 74, 118].map((y) => (
-            <line key={y} x1="0" y1={y} x2="320" y2={y} stroke="var(--color-divider)" strokeWidth="1" opacity={y === 118 ? 0.5 : 0.2} />
-          ))}
-          <path d={chart.areaPath} fill="url(#reportAreaFade)" stroke="none" className="chart-area-fade" />
-          <polyline
-            points={chart.linePoints}
-            fill="none"
-            stroke="var(--color-accent)"
-            strokeWidth="2.5"
-            pathLength={1}
-            className="chart-line-draw"
-          />
-          {chart.points.map((p, i) => (
-            <g key={i} className={`chart-point${p.inProgress && ticking ? " is-live" : ""}`} style={{ ["--i" as string]: i }}>
-              <circle cx={p.x} cy={p.y} r="4.5" fill={p.dotColor} stroke={p.dotStroke} strokeWidth="2" />
-              {/* SVG <text> can't hold the <Amount> span, so the same mask
-                  class is applied directly here for the dim/opacity styling
-                  — only relevant in earnings mode, since hours were never
-                  considered sensitive. The actual hiding, though, comes from
-                  swapping the text content itself rather than relying on the
-                  class's `filter: blur()`: WebKit on iOS doesn't reliably
-                  apply CSS blur filters to SVG <text> glyphs (a known
-                  cross-browser quirk, unlike every other Amount usage in
-                  this app, which are plain HTML elements where blur works
-                  fine) — that gap let the real figure show through on
-                  mobile despite the eye toggle being on. */}
-              <text
-                x={p.x}
-                y={p.labelY}
-                fontSize="10"
-                textAnchor={p.labelAnchor}
-                fill="var(--color-text)"
-                opacity="0.7"
-                className={metric === "earnings" ? `amount-mask${earningsHidden ? " is-hidden" : ""}` : undefined}
-              >
-                {metric === "earnings" && earningsHidden ? "••••" : p.valueLabel}
-              </text>
-            </g>
-          ))}
-        </svg>
-        <div className="chart-x-labels" aria-hidden="true">
-          {chart.points.map((p, i) => (
-            <div className="chart-x-label" key={i} style={{ ["--i" as string]: i }}>
-              {p.short}
-            </div>
-          ))}
-        </div>
+        <WeeklyTrendChart
+          chart={chart}
+          weeks={chartSource}
+          metric={metric}
+          currency={CURRENCY}
+          earningsHidden={earningsHidden}
+          goalHours={goalHours}
+          goalEarnings={goalEarnings}
+          ticking={ticking}
+          summary={chartSummary}
+        />
 
         <ChartDataTable
           caption={`Weekly ${metricLabel}, oldest first`}
@@ -359,7 +301,7 @@ export function ReportScreen() {
             whose only textual content was a value and a short period name
             with nothing tying them together. Hidden from assistive tech and
             replaced by the table. */}
-        <div className="period-bars" aria-hidden="true">
+        <div ref={periodReveal.ref} className={`${periodReveal.revealClassName} period-bars`} key={`${metric}:${period}`} aria-hidden="true">
           {periodBars.map((b, i) => (
             <div className={`period-bar-col${b.inProgress && (period === "week" ? ticking : periodLiveHours > 0) ? " is-live" : ""}`} key={i} style={{ ["--i" as string]: i }}>
               <div className="period-bar-label">{metric === "earnings" ? <Amount>{b.valueLabel}</Amount> : b.valueLabel}</div>

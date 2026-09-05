@@ -15,6 +15,8 @@ import { addDays, isoDate, parseIsoDate, shortLabel, startOfWeek } from "../lib/
 import { findOpenShift } from "../lib/aggregate";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { useLiveElapsedHours } from "../lib/useLiveElapsedHours";
+import { supportsSmoothDonutSweep, useChartReveal } from "../lib/useChartReveal";
+import { spendingDisplayColour } from "../lib/spendingColour";
 import { isDateInRange, withLiveSpendingEarnings } from "../lib/liveShiftVisuals";
 import { LiveDataBadge } from "../components/LiveDataBadge";
 import { AsyncButton } from "../components/AsyncButton";
@@ -574,11 +576,12 @@ function SpendingInsights({ summary, insight, comparison, previousLabel }: {
 }
 
 function CategoryBreakdown({ summary, periodText }: { summary: SpendingSummary; periodText: string }) {
+  const reveal = useChartReveal<HTMLElement>();
   let progress = 0;
   const stops = summary.categories.map((category) => {
     const start = progress;
     progress += summary.totalSpendingCents ? (category.totalCents / summary.totalSpendingCents) * 100 : 0;
-    return `${category.colour} ${start}% ${progress}%`;
+    return `${spendingDisplayColour(category.colour)} ${start}% ${progress}%`;
   });
   const description = summary.categories.length
     ? `Category breakdown. ${summary.categories.map((item) => `${item.name}: ${formatMoney(item.totalCents)}, ${((item.totalCents / summary.totalSpendingCents) * 100).toFixed(1)} percent`).join("; ")}.`
@@ -587,14 +590,19 @@ function CategoryBreakdown({ summary, periodText }: { summary: SpendingSummary; 
     <section className="card elev-sm spending-chart-card" aria-labelledby="category-breakdown-title">
       <div className="spending-card-heading"><div><span className="card-kicker">Spending breakdown</span><h2 id="category-breakdown-title" className="card-title">Where your money went</h2></div><span>{summary.categories.length} {summary.categories.length === 1 ? "category" : "categories"}</span></div>
       <p className="visually-hidden">{description}</p>
-      <div className="category-chart-layout">
-        <div className="spending-donut" aria-hidden="true" style={{ background: stops.length ? `conic-gradient(${stops.join(",")})` : undefined }}>
+      <div ref={reveal.ref} className={`${reveal.revealClassName} category-chart-layout`}>
+        <div
+          className={`spending-donut${supportsSmoothDonutSweep() ? " supports-donut-sweep" : ""}`}
+          key={`${summary.period.from}:${summary.period.to}`}
+          aria-hidden="true"
+          style={{ ["--donut-background" as string]: stops.length ? `conic-gradient(${stops.join(",")})` : "var(--color-neutral-300)" }}
+        >
           <span>{formatWholeMoney(summary.totalSpendingCents)}</span><small>Spent {periodText}</small>
         </div>
         <ul className="spending-legend" aria-label="Category totals">
           {summary.categories.length ? summary.categories.map((category) => (
             <li key={category.id}>
-              <span className="category-colour-dot" style={{ backgroundColor: category.colour }} aria-hidden="true" />
+              <span className="category-colour-dot" style={{ backgroundColor: spendingDisplayColour(category.colour) }} aria-hidden="true" />
               <CategoryGlyph icon={category.icon} size={16} />
               <span className="spending-legend-name">{category.name}</span>
               <strong>{formatMoney(category.totalCents)}</strong>
@@ -629,6 +637,7 @@ function buildTrendBuckets(summary: SpendingSummary) {
 }
 
 function SpendingTrend({ summary }: { summary: SpendingSummary }) {
+  const reveal = useChartReveal<HTMLElement>();
   const buckets = buildTrendBuckets(summary);
   const max = Math.max(1, ...buckets.map((item) => item.totalCents));
   const description = summary.trend.length
@@ -639,9 +648,9 @@ function SpendingTrend({ summary }: { summary: SpendingSummary }) {
       <div className="spending-card-heading"><div><span className="card-kicker">Trend</span><h2 id="spending-trend-title" className="card-title">Spending over time</h2></div><span>{summary.period.days <= 8 ? "Daily" : "Grouped for clarity"}</span></div>
       <p className="visually-hidden">{description}</p>
       {summary.trend.length ? (
-        <div className="spending-trend-bars" aria-hidden="true">
-          {buckets.map((item) => (
-            <div className="spending-trend-item" key={item.key} title={`${item.label}: ${formatMoney(item.totalCents)}`}>
+        <div ref={reveal.ref} className={`${reveal.revealClassName} spending-trend-bars`} key={`${summary.period.from}:${summary.period.to}`} aria-hidden="true">
+          {buckets.map((item, index) => (
+            <div className="spending-trend-item" key={item.key} style={{ ["--i" as string]: index }} title={`${item.label}: ${formatMoney(item.totalCents)}`}>
               <strong>{formatWholeMoney(item.totalCents)}</strong>
               <div className="spending-trend-track"><span style={{ height: `${Math.max(5, (item.totalCents / max) * 100)}%` }} /></div>
               <small>{item.label}</small>
@@ -657,6 +666,7 @@ function SpendingTrend({ summary }: { summary: SpendingSummary }) {
 }
 
 function EarningsComparison({ summary, live }: { summary: SpendingSummary; live: boolean }) {
+  const reveal = useChartReveal<HTMLElement>();
   const max = Math.max(summary.earningsCents, summary.totalSpendingCents, 1);
   const spendingPerDollar = summary.earningsCents > 0 ? summary.totalSpendingCents / summary.earningsCents : null;
   const takeaway = summary.earningsCents === 0
@@ -671,9 +681,9 @@ function EarningsComparison({ summary, live }: { summary: SpendingSummary; live:
         <span className={`spending-difference-pill${summary.differenceCents < 0 ? " is-negative" : ""}`}>{formatMoney(summary.differenceCents)} difference</span>
       </div>
       <p>{takeaway}{spendingPerDollar !== null ? ` ${formatMoney(Math.round(spendingPerDollar * 100))} of every ${formatMoney(100)} earned went to personal spending.` : ""}</p>
-      <div className="comparison-bars" aria-hidden="true">
-        <div className={live ? "is-live" : undefined}><span>Earnings</span><div><i style={{ width: `${(summary.earningsCents / max) * 100}%` }} /></div><strong className="live-metric-value">{formatMoney(summary.earningsCents)}</strong></div>
-        <div><span>Spending</span><div><i className="is-spending" style={{ width: `${(summary.totalSpendingCents / max) * 100}%` }} /></div><strong>{formatMoney(summary.totalSpendingCents)}</strong></div>
+      <div ref={reveal.ref} className={`${reveal.revealClassName} comparison-bars`} key={`${summary.period.from}:${summary.period.to}`} aria-hidden="true">
+        <div className={live ? "is-live" : undefined} style={{ ["--i" as string]: 0 }}><span>Earnings</span><div><i style={{ width: `${(summary.earningsCents / max) * 100}%` }} /></div><strong className="live-metric-value">{formatMoney(summary.earningsCents)}</strong></div>
+        <div style={{ ["--i" as string]: 1 }}><span>Spending</span><div><i className="is-spending" style={{ width: `${(summary.totalSpendingCents / max) * 100}%` }} /></div><strong>{formatMoney(summary.totalSpendingCents)}</strong></div>
       </div>
     </section>
   );
@@ -733,7 +743,7 @@ function ExpenseListSection({ title, expenses, onEdit, onDelete, deletingExpense
         <ul className="expense-list">
           {expenses.map((expense) => (
             <li key={expense.id}>
-              <span className="expense-category-icon" style={{ color: expense.category.colour }} aria-hidden="true"><CategoryGlyph icon={expense.category.icon} size={20} /></span>
+              <span className="expense-category-icon" style={{ color: spendingDisplayColour(expense.category.colour) }} aria-hidden="true"><CategoryGlyph icon={expense.category.icon} size={20} /></span>
               <div className="expense-main"><strong>{expense.merchant || expense.category.name}</strong><span>{expense.category.name}{expense.category.archived ? " · Archived" : ""} · {displayExpenseDate(expense)}{paymentLabel(expense.paymentMethod) ? ` · ${paymentLabel(expense.paymentMethod)}` : ""}</span>{expense.note && <small>{expense.note}</small>}</div>
               <strong className="expense-amount">{formatMoney(expense.amountCents)}</strong>
               <div className="expense-actions">
@@ -809,7 +819,7 @@ function ExpenseDialog({ categories, expense, onClose, onSaved }: {
             <div className="spending-dialog-body">
               {error && <StatusBanner tone="danger">{error}</StatusBanner>}
               <div className="field spending-amount-field"><label htmlFor="expense-amount">Amount</label><span>{CURRENCY}</span><input ref={amountRef} id="expense-amount" className="input" inputMode="decimal" autoComplete="off" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" aria-describedby="expense-amount-hint" required /><small id="expense-amount-hint">Enter the exact personal expense amount.</small></div>
-              <fieldset className="fieldset-plain spending-category-picker"><legend>Category</legend><div>{activeCategories.map((category) => <label className={categoryId === category.id ? "is-selected" : ""} key={category.id} style={{ ["--category-colour" as string]: category.colour }}><input type="radio" name="expense-category" value={category.id} checked={categoryId === category.id} onChange={() => setCategoryId(category.id)} /><CategoryGlyph icon={category.icon} size={18} /><span>{category.name}</span>{category.archived && <small>Archived</small>}</label>)}</div></fieldset>
+              <fieldset className="fieldset-plain spending-category-picker"><legend>Category</legend><div>{activeCategories.map((category) => <label className={categoryId === category.id ? "is-selected" : ""} key={category.id} style={{ ["--category-colour" as string]: spendingDisplayColour(category.colour) }}><input type="radio" name="expense-category" value={category.id} checked={categoryId === category.id} onChange={() => setCategoryId(category.id)} /><CategoryGlyph icon={category.icon} size={18} /><span>{category.name}</span>{category.archived && <small>Archived</small>}</label>)}</div></fieldset>
               <div className="spending-form-grid">
                 <div className="field"><label htmlFor="expense-date">Date and time</label><input id="expense-date" className="input" type="datetime-local" value={spentAt} max={localDateTimeValue()} onChange={(e) => setSpentAt(e.target.value)} required /></div>
                 <div className="field"><label htmlFor="expense-payment">Payment method <span>(optional)</span></label><select id="expense-payment" className="input" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod | "")}><option value="">Not specified</option><option value="card">Card</option><option value="cash">Cash</option><option value="bank_transfer">Bank transfer</option><option value="other">Other</option></select></div>
@@ -880,10 +890,10 @@ function CategoryManager({ categories, onChanged }: { categories: SpendingCatego
           {error && <StatusBanner tone="danger">{error}</StatusBanner>}
           <div className="field"><label htmlFor="category-name">Name</label><input id="category-name" className="input" maxLength={50} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Pet care" /></div>
           <fieldset className="fieldset-plain category-icon-options"><legend>Icon</legend><div>{SPENDING_ICONS.map((item) => <label className={icon === item ? "is-selected" : ""} key={item}><input type="radio" name="category-icon" checked={icon === item} onChange={() => setIcon(item)} /><CategoryGlyph icon={item} size={19} /><span className="visually-hidden">{item}</span></label>)}</div></fieldset>
-          <fieldset className="fieldset-plain category-colour-options"><legend>Colour</legend><div>{SPENDING_COLOURS.map((item) => <label className={colour === item ? "is-selected" : ""} key={item} style={{ backgroundColor: item }}><input type="radio" name="category-colour" checked={colour === item} onChange={() => setColour(item)} /><span className="visually-hidden">Colour {item}</span></label>)}</div></fieldset>
+          <fieldset className="fieldset-plain category-colour-options"><legend>Colour</legend><div>{SPENDING_COLOURS.map((item) => <label className={colour === item ? "is-selected" : ""} key={item} style={{ backgroundColor: spendingDisplayColour(item) }}><input type="radio" name="category-colour" checked={colour === item} onChange={() => setColour(item)} /><span className="visually-hidden">Colour {item}</span></label>)}</div></fieldset>
           <div className="category-editor-actions">{editing && <button className="btn btn-secondary" type="button" onClick={reset}>Cancel</button>}<AsyncButton className="btn btn-primary" type="submit" busy={busy} idleLabel={editing ? "Save changes" : "Create category"} busyLabel="Saving…" /></div>
         </form>
-        <div className="card elev-sm category-list-card"><div className="category-list-heading"><h3>Your categories</h3><p>Archived categories stay attached to past expenses.</p></div><ul className="category-management-list">{categories.map((category) => <li key={category.id} className={category.archived ? "is-archived" : ""}><span className="expense-category-icon" style={{ color: category.colour }}><CategoryGlyph icon={category.icon} size={19} /></span><div><strong>{category.name}</strong><span>{category.isDefault ? "Default" : "Custom"}{category.archived ? " · Archived" : " · Active"}</span></div><button type="button" className="btn btn-icon btn-ghost" onClick={() => beginEdit(category)} disabled={categoryActionId !== null} aria-label={`Edit ${category.name}`}><EditIcon size={16} /></button>{category.archived ? <AsyncButton type="button" className="btn btn-secondary category-state-btn" onClick={() => void setArchived(category, false)} disabled={categoryActionId !== null && categoryActionId !== category.id} busy={categoryActionId === category.id} idleLabel="Restore" busyLabel="Restoring…" /> : <AsyncButton type="button" className="btn btn-secondary category-state-btn" data-confirm={`Archive ${category.name}? It will remain on historical expenses.`} onClick={() => void setArchived(category, true)} disabled={categoryActionId !== null && categoryActionId !== category.id} busy={categoryActionId === category.id} idleLabel="Archive" busyLabel="Archiving…" />}</li>)}</ul></div>
+        <div className="card elev-sm category-list-card"><div className="category-list-heading"><h3>Your categories</h3><p>Archived categories stay attached to past expenses.</p></div><ul className="category-management-list">{categories.map((category) => <li key={category.id} className={category.archived ? "is-archived" : ""}><span className="expense-category-icon" style={{ color: spendingDisplayColour(category.colour) }}><CategoryGlyph icon={category.icon} size={19} /></span><div><strong>{category.name}</strong><span>{category.isDefault ? "Default" : "Custom"}{category.archived ? " · Archived" : " · Active"}</span></div><button type="button" className="btn btn-icon btn-ghost" onClick={() => beginEdit(category)} disabled={categoryActionId !== null} aria-label={`Edit ${category.name}`}><EditIcon size={16} /></button>{category.archived ? <AsyncButton type="button" className="btn btn-secondary category-state-btn" onClick={() => void setArchived(category, false)} disabled={categoryActionId !== null && categoryActionId !== category.id} busy={categoryActionId === category.id} idleLabel="Restore" busyLabel="Restoring…" /> : <AsyncButton type="button" className="btn btn-secondary category-state-btn" data-confirm={`Archive ${category.name}? It will remain on historical expenses.`} onClick={() => void setArchived(category, true)} disabled={categoryActionId !== null && categoryActionId !== category.id} busy={categoryActionId === category.id} idleLabel="Archive" busyLabel="Archiving…" />}</li>)}</ul></div>
       </div>
     </section>
   );

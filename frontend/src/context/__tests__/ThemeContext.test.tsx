@@ -77,7 +77,7 @@ describe("theme preference", () => {
 
     await screen.findByText("dark:dark");
     expect(document.documentElement.dataset.theme).toBe("dark");
-    expect(document.querySelector('meta[name="theme-color"]')?.getAttribute("content")).toBe("#101114");
+    expect(document.querySelector('meta[name="theme-color"]')?.getAttribute("content")).toBe("#000000");
 
     await userEvent.click(screen.getByRole("button", { name: "Light" }));
     await screen.findByText("light:light");

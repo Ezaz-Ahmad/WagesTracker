@@ -50,9 +50,22 @@ function ratio(fg: string, bg: string): number {
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }
 
+function mixHex(foreground: string, background: string, foregroundWeight: number): string {
+  const fg = parseInt(foreground.slice(1), 16);
+  const bg = parseInt(background.slice(1), 16);
+  const mixChannel = (shift: number) => Math.round(
+    (((fg >> shift) & 0xff) * foregroundWeight)
+      + (((bg >> shift) & 0xff) * (1 - foregroundWeight)),
+  );
+  const mixed = (mixChannel(16) << 16) | (mixChannel(8) << 8) | mixChannel(0);
+  return `#${mixed.toString(16).padStart(6, "0")}`;
+}
+
 /** WCAG 2.1 AA for normal-size text. Banner text is 12.5px, well under the
  * 18.66px/24px thresholds that would let 3:1 apply. */
 const AA_NORMAL = 4.5;
+/** WCAG 2.1 minimum for meaningful non-text graphics such as chart lines. */
+const AA_NON_TEXT = 3;
 
 describe("status banner contrast", () => {
   const pairs: [string, string, string][] = [
@@ -95,6 +108,30 @@ describe("body and accent text contrast", () => {
   });
 });
 
+describe("chart canvas contrast", () => {
+  const themes = [
+    ["light", token],
+    ["dark", darkToken],
+  ] as const;
+
+  for (const [name, readThemeToken] of themes) {
+    it(`${name} chart canvas stays visually recessed between the page and card`, () => {
+      const background = luminance(readThemeToken("color-bg"));
+      const surface = luminance(readThemeToken("color-surface"));
+      const canvas = luminance(readThemeToken("color-chart-canvas"));
+
+      expect(canvas).toBeGreaterThan(Math.min(background, surface));
+      expect(canvas).toBeLessThan(Math.max(background, surface));
+    });
+
+    it(`${name} chart canvas keeps labels and the data line readable`, () => {
+      const canvas = readThemeToken("color-chart-canvas");
+      expect(ratio(readThemeToken("color-text"), canvas)).toBeGreaterThanOrEqual(AA_NORMAL);
+      expect(ratio(readThemeToken("color-accent"), canvas)).toBeGreaterThanOrEqual(AA_NON_TEXT);
+    });
+  }
+});
+
 describe("tag contrast", () => {
   // Tags are 11px — the "This device" badge and History's met/under-goal
   // status, both of which carry real meaning rather than decoration.
@@ -112,9 +149,30 @@ describe("tag contrast", () => {
 });
 
 describe("dark theme contrast", () => {
-  it("keeps primary text readable on both dark surfaces", () => {
-    expect(ratio(darkToken("color-text"), darkToken("color-bg"))).toBeGreaterThanOrEqual(AA_NORMAL);
-    expect(ratio(darkToken("color-text"), darkToken("color-surface"))).toBeGreaterThanOrEqual(AA_NORMAL);
+  it("uses a true-black OLED canvas with visibly layered card surfaces", () => {
+    expect(darkToken("color-bg")).toBe("#000000");
+    expect(darkToken("color-page-chrome")).toBe("#000000");
+    expect(darkToken("color-hero")).toBe("#000000");
+    expect(luminance(darkToken("color-surface"))).toBeGreaterThan(luminance(darkToken("color-bg")));
+    expect(luminance(darkToken("color-surface-raised"))).toBeGreaterThan(luminance(darkToken("color-surface")));
+  });
+
+  it("keeps primary text at AAA contrast across every OLED surface", () => {
+    expect(ratio(darkToken("color-text"), darkToken("color-bg"))).toBeGreaterThanOrEqual(7);
+    expect(ratio(darkToken("color-text"), darkToken("color-surface"))).toBeGreaterThanOrEqual(7);
+    expect(ratio(darkToken("color-text"), darkToken("color-surface-raised"))).toBeGreaterThanOrEqual(7);
+  });
+
+  it("keeps every selectable category colour distinguishable on OLED cards", () => {
+    const strength = Number(DARK_TOKENS.match(/--chart-category-strength\s*:\s*(\d+)%/)?.[1]) / 100;
+    expect(strength).toBeGreaterThan(0);
+    for (const colour of [
+      "#B45309", "#047857", "#1D4ED8", "#7C3AED", "#0E7490", "#BE123C",
+      "#9F1239", "#6D28D9", "#0369A1", "#A16207", "#475569",
+    ]) {
+      const displayed = mixHex(colour, darkToken("color-text"), strength);
+      expect(ratio(displayed, darkToken("color-surface")), colour).toBeGreaterThanOrEqual(3);
+    }
   });
 
   for (const [name, foreground, background] of [

@@ -285,6 +285,8 @@ describe("design-token integrity", () => {
       "--nav-count", // components/BottomNav.tsx
       "--ring-circumference", // components/GoalRing.tsx
       "--ring-offset-target", // components/GoalRing.tsx
+      "--chart-point-x", // components/WeeklyTrendChart.tsx
+      "--chart-point-y", // components/WeeklyTrendChart.tsx
     ]);
 
     const missing = new Set<string>();
@@ -305,13 +307,12 @@ describe("design-token integrity", () => {
 });
 
 describe("chart sizing", () => {
-  // app.css gives the chart an aspect-ratio and height:auto specifically so
-  // it scales uniformly at every container width. A later rule that sets a
-  // fixed height against its 100% width re-introduces the stretched line and
-  // elliptical dots that fix removed — which is exactly what a desktop
-  // override in shell.css was doing.
+  // The plot wrapper owns the aspect ratio and the SVG fills it. A later
+  // pixel height on the SVG would re-introduce the stretched line and
+  // elliptical dots that the responsive wrapper removes.
   it("never re-imposes a fixed height on the aspect-ratio chart", () => {
-    expect(appCss).toMatch(/\.chart-svg\s*\{[^}]*aspect-ratio/);
+    expect(appCss).toMatch(/\.report-trend-plot\s*\{[^}]*aspect-ratio:\s*320\s*\/\s*124/);
+    expect(appCss).toMatch(/\.chart-svg\s*\{[^}]*width:\s*100%[^}]*height:\s*100%/);
     // Scanned against comment-stripped source: shell.css mentions the
     // removed `.chart-svg { height: 220px }` rule inside a comment
     // explaining why it is gone, and matching that would fail forever.
@@ -322,7 +323,7 @@ describe("chart sizing", () => {
     for (const m of stripComments(allCss).matchAll(/\.chart-svg[^{]*\{([^}]*)\}/g)) {
       for (const decl of m[1].matchAll(/(?:^|[;{\s])height\s*:([^;}]+)/g)) {
         const value = decl[1].trim();
-        if (value !== "auto") offenders.push(`height: ${value}`);
+        if (value !== "auto" && value !== "100%") offenders.push(`height: ${value}`);
       }
     }
     expect(offenders).toEqual([]);
