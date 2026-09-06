@@ -4,6 +4,7 @@ import {
   analyseSmartShiftPatterns,
   buildSmartReminderSchedule,
   formatReminderTime,
+  getSmartShiftLearningProgress,
 } from "../smartShiftReminders";
 
 const AS_OF = new Date(2026, 8, 6, 12); // Sunday, 6 Sep 2026
@@ -12,10 +13,9 @@ function shift(
   date: string,
   signIn = "08:00",
   signOut: string | null = "17:00",
-  reminderEligible = true,
   id = date
 ): Shift {
-  return { id, date, location: "Central", signIn, signOut, reminderEligible };
+  return { id, date, location: "Central", signIn, signOut };
 }
 
 describe("smart shift pattern learning", () => {
@@ -43,7 +43,7 @@ describe("smart shift pattern learning", () => {
     ], AS_OF)).toEqual([]);
   });
 
-  it("does not turn an alternating or occasional weekday into an every-week assumption", () => {
+  it("does not turn an alternating weekday into an every-week assumption", () => {
     expect(analyseSmartShiftPatterns([
       shift("2026-07-20"), shift("2026-08-03"), shift("2026-08-17"), shift("2026-08-31"),
     ], AS_OF)).toEqual([]);
@@ -71,16 +71,33 @@ describe("smart shift pattern learning", () => {
     ], AS_OF)).toEqual([]);
   });
 
-  it("excludes manually corrected and split-shift days", () => {
-    const rows = [
+  it("learns from completed historical entries even when their exact minutes were edited", () => {
+    expect(analyseSmartShiftPatterns([
       shift("2026-08-03"),
-      shift("2026-08-10"),
-      shift("2026-08-17"),
-      shift("2026-08-24", "08:00", "17:00", false),
-      shift("2026-08-31", "08:00", "12:00", true, "split-a"),
-      shift("2026-08-31", "13:00", "17:00", true, "split-b"),
+      shift("2026-08-10", "08:03", "17:02"),
+      shift("2026-08-17", "07:58", "16:59"),
+      shift("2026-08-24", "08:01", "17:04"),
+      shift("2026-08-31", "08:00", "17:00"),
+    ], AS_OF)).toHaveLength(1);
+  });
+
+  it("still excludes an ambiguous split-shift day", () => {
+    const rows = [
+      shift("2026-08-03"), shift("2026-08-10"), shift("2026-08-17"),
+      shift("2026-08-24", "08:00", "12:00", "split-a"),
+      shift("2026-08-24", "13:00", "17:00", "split-b"),
     ];
     expect(analyseSmartShiftPatterns(rows, AS_OF)).toEqual([]);
+  });
+
+  it("reports existing-history progress before a routine is ready", () => {
+    expect(getSmartShiftLearningProgress([
+      shift("2026-08-17"), shift("2026-08-24"), shift("2026-08-31"),
+    ], AS_OF)).toMatchObject({
+      completedShiftCount: 3,
+      bestWeekdayName: "Monday",
+      bestWeekdayCount: 3,
+    });
   });
 
   it("supports consistent overnight routines", () => {
@@ -127,7 +144,7 @@ describe("smart reminder scheduling", () => {
     const reminders = buildSmartReminderSchedule({
       accountId: "u1",
       firstName: "Ezaz",
-      shifts: [shift("2026-09-07", "08:02", null, true, "open")],
+      shifts: [shift("2026-09-07", "08:02", null, "open")],
       patterns: [mondayPattern],
       now,
     });
@@ -146,7 +163,7 @@ describe("smart reminder scheduling", () => {
     const reminders = buildSmartReminderSchedule({
       accountId: "u1",
       firstName: "Ezaz",
-      shifts: [shift("2026-09-07", "08:00", null, true, "open")],
+      shifts: [shift("2026-09-07", "08:00", null, "open")],
       patterns: [mondayPattern],
       now: new Date(2026, 8, 7, 23, 30),
     });
@@ -157,7 +174,7 @@ describe("smart reminder scheduling", () => {
     const reminders = buildSmartReminderSchedule({
       accountId: "u1",
       firstName: "Ezaz",
-      shifts: [shift("2026-09-07", "14:00", null, true, "cover-shift")],
+      shifts: [shift("2026-09-07", "14:00", null, "cover-shift")],
       patterns: [mondayPattern],
       now: new Date(2026, 8, 7, 15, 0),
     });

@@ -1,12 +1,12 @@
 import type { Shift } from "./types";
 
 export const SMART_REMINDER_MIN_SHIFTS = 4;
-export const SMART_REMINDER_LOOKBACK_WEEKS = 8;
 export const SMART_REMINDER_START_GRACE_MINUTES = 20;
 export const SMART_REMINDER_END_GRACE_MINUTES = 20;
 
 const MAX_SAMPLES = 12;
-const MIN_ATTENDANCE_RATIO = 0.7;
+const MAX_ROUTINE_IDLE_DAYS = 21;
+const MIN_WEEKLY_CADENCE_RATIO = 0.6;
 const MIN_INLIER_RATIO = 0.75;
 const START_TOLERANCE_MINUTES = 45;
 const END_TOLERANCE_MINUTES = 60;
@@ -44,9 +44,14 @@ export interface SmartReminderScheduleItem {
 }
 
 interface Sample {
-  date: string;
   start: number;
   endOffset: number;
+}
+
+export interface SmartShiftLearningProgress {
+  completedShiftCount: number;
+  bestWeekdayName: typeof WEEKDAY_NAMES[number] | null;
+  bestWeekdayCount: number;
 }
 
 function parseMinutes(value: string): number | null {
@@ -79,6 +84,10 @@ function addLocalDays(date: Date, count: number): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate() + count);
 }
 
+function calendarDaysBetween(from: Date, to: Date): number {
+  return Math.round((startOfLocalDay(to).getTime() - startOfLocalDay(from).getTime()) / 86_400_000);
+}
+
 function median(values: readonly number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
@@ -94,17 +103,16 @@ function weekdayForDate(date: string): number | null {
 }
 
 /**
- * Learns conservative weekday routines from live-captured, completed shifts.
+ * Learns conservative weekday routines from completed shift history.
  * A weekday is returned only when all of these are true:
  * - at least four usable single-shift days exist;
- * - the user worked that weekday on at least 70% of its observed recent
- *   occurrences (so alternating/occasional work is not treated as weekly);
+ * - the recent dates show a weekly cadence and the routine is still current;
  * - at least 75% of usable samples agree within the start/end tolerances;
  * - the remaining cluster is tight enough to be useful.
  *
- * Manual/corrected rows (`reminderEligible === false`), split-shift days,
- * implausibly short/long durations and robust statistical outliers never
- * influence the learned time.
+ * Completed shifts count whether their exact minutes were captured live,
+ * entered later or corrected. Split-shift days, implausibly short/long
+ * durations and robust statistical outliers never influence the learned time.
  */
 export function analyseSmartShiftPatterns(
   shifts: readonly Shift[],
@@ -128,21 +136,19 @@ export function analyseSmartShiftPatterns(
       .sort();
     if (workedDates.length < SMART_REMINDER_MIN_SHIFTS) continue;
 
-    const firstWorked = parseLocalDate(workedDates[0]);
-    if (!firstWorked) continue;
-    const observationFloor = addLocalDays(today, -SMART_REMINDER_LOOKBACK_WEEKS * 7);
-    const observationStart = firstWorked > observationFloor ? firstWorked : observationFloor;
-    let observedOccurrences = 0;
-    for (let cursor = addLocalDays(today, -1); cursor >= observationStart; cursor = addLocalDays(cursor, -1)) {
-      if (cursor.getDay() === weekday) observedOccurrences += 1;
-    }
-    if (observedOccurrences < SMART_REMINDER_MIN_SHIFTS) continue;
+    // Use the user's existing history, not only shifts recorded after the
+    // preference was enabled. Capping by completed occurrences instead of a
+    // hard eight-week window lets established users become ready immediately.
+    const recentWorkedDates = workedDates.slice(-MAX_SAMPLES);
+    const lastWorkedDate = parseLocalDate(recentWorkedDates.at(-1)!);
+    if (!lastWorkedDate || calendarDaysBetween(lastWorkedDate, today) > MAX_ROUTINE_IDLE_DAYS) continue;
 
-    const recentWorkedDates = workedDates.filter((date) => {
-      const parsed = parseLocalDate(date);
-      return !!parsed && parsed >= observationStart;
-    });
-    if (recentWorkedDates.length / observedOccurrences < MIN_ATTENDANCE_RATIO) continue;
+    // Do not turn a fortnightly/occasional weekday into an every-week alert.
+    // One missed week is fine, but most recent gaps must still be weekly.
+    const cadenceDates = recentWorkedDates.slice(-6).map(parseLocalDate).filter((date): date is Date => !!date);
+    const gaps = cadenceDates.slice(1).map((date, index) => calendarDaysBetween(cadenceDates[index], date));
+    const weeklyGaps = gaps.filter((gap) => gap === 7).length;
+    if (gaps.length < SMART_REMINDER_MIN_SHIFTS - 1 || weeklyGaps / gaps.length < MIN_WEEKLY_CADENCE_RATIO) continue;
 
     const samples: Sample[] = [];
     for (const date of recentWorkedDates.slice(-MAX_SAMPLES)) {
@@ -151,14 +157,13 @@ export function analyseSmartShiftPatterns(
       // which start/end represents the person's routine would be intrusive.
       if (rows.length !== 1) continue;
       const shift = rows[0];
-      if (shift.reminderEligible === false) continue;
       const start = parseMinutes(shift.signIn!);
       const rawEnd = parseMinutes(shift.signOut!);
       if (start === null || rawEnd === null) continue;
       const endOffset = rawEnd <= start ? rawEnd + 24 * 60 : rawEnd;
       const duration = endOffset - start;
       if (duration < MIN_SHIFT_MINUTES || duration > MAX_SHIFT_MINUTES) continue;
-      samples.push({ date, start, endOffset });
+      samples.push({ start, endOffset });
     }
     if (samples.length < SMART_REMINDER_MIN_SHIFTS) continue;
 
@@ -190,6 +195,35 @@ export function analyseSmartShiftPatterns(
     });
   }
   return patterns;
+}
+
+/** Small, non-predictive summary for Settings. It explains progress without
+ * claiming a routine is ready before the stricter cadence/time checks pass. */
+export function getSmartShiftLearningProgress(
+  shifts: readonly Shift[],
+  asOf: Date = new Date()
+): SmartShiftLearningProgress {
+  const todayKey = localDateKey(startOfLocalDay(asOf));
+  const completedDates = new Set<string>();
+  let completedShiftCount = 0;
+  for (const shift of shifts) {
+    if (!shift.signIn || !shift.signOut || shift.date >= todayKey) continue;
+    completedShiftCount += 1;
+    completedDates.add(shift.date);
+  }
+
+  const counts = Array.from({ length: 7 }, () => 0);
+  for (const date of completedDates) {
+    const weekday = weekdayForDate(date);
+    if (weekday !== null) counts[weekday] += 1;
+  }
+  const bestWeekdayCount = Math.max(0, ...counts);
+  const bestWeekday = counts.indexOf(bestWeekdayCount);
+  return {
+    completedShiftCount,
+    bestWeekdayName: bestWeekdayCount > 0 ? WEEKDAY_NAMES[bestWeekday] : null,
+    bestWeekdayCount,
+  };
 }
 
 export function formatReminderTime(minutes: number): string {

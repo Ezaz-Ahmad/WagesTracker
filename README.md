@@ -13,10 +13,10 @@ Backend is hosted on **Render**, frontend on **Vercel**, database on **Turso**. 
 
 ### Smart Shift Reminders
 
-- **Conservative weekday learning** — a start/finish routine is learned only after at least four recent, live-captured completed shifts on the same weekday. Alternating/occasional weekdays, split shifts, manual time entries/corrections, implausible durations and loose/outlier-heavy clusters stay silent.
+- **Existing-history weekday learning** — a start/finish routine is learned from at least four consistently timed completed shifts on the same weekday, including historical entries and shifts whose exact minutes were corrected. Recent cadence checks, split-shift protection, implausible-duration filtering and robust outlier rejection keep unreliable routines silent.
 - **Helpful one-shot notifications** — after a 20-minute grace period, iOS can send a personalised missed-sign-in or missed-sign-out alert in the device's current IANA timezone. The next seven days are recalculated from fresh data; reminders never repeat weekly forever from a stale assumption.
 - **Safe actions** — notifications offer **Sign In/Sign Out**, **Remind Me Later** (15 minutes) and **Dismiss**. Sign In and Sign Out foreground the app and require an explicit in-app confirmation; no notification action can automatically change a shift.
-- **Clear preference and status** — the account-level opt-in lives in Settings → Profile & preferences. Its card shows learned weekday routines and the safeguards in effect; it is off by default and denied iOS notification permission fails closed.
+- **Clear preference and status** — the account-level opt-in lives in Settings → Profile & preferences. Its card shows per-weekday learning progress, switches to **Ready — learning complete** when a routine is reliable, and previews learned times; it is off by default and denied iOS notification permission fails closed.
 
 Implementation and native QA details are in [`docs/smart-shift-reminders.md`](docs/smart-shift-reminders.md).
 

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { SmartBellIcon } from "../components/icons";
 import { useApp } from "../context/AppContext";
-import { formatReminderTime } from "../lib/smartShiftReminders";
+import { formatReminderTime, getSmartShiftLearningProgress } from "../lib/smartShiftReminders";
 import { isSmartShiftReminderNotificationsConfigured } from "../platform/smartShiftReminderNotifications";
 
 export function SmartShiftReminderSettings() {
@@ -11,6 +11,7 @@ export function SmartShiftReminderSettings() {
     smartReminderAuthorization,
     smartReminderScheduledCount,
     setSmartRemindersEnabled,
+    shifts,
   } = useApp();
   // Several isolated Settings tests provide only the fields relevant to the
   // panel they exercise. Runtime AppProvider always supplies these values;
@@ -18,6 +19,7 @@ export function SmartShiftReminderSettings() {
   const patterns = smartReminderPatterns ?? [];
   const authorization = smartReminderAuthorization ?? "unavailable";
   const scheduledCount = smartReminderScheduledCount ?? 0;
+  const progress = getSmartShiftLearningProgress(shifts ?? []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const enabled = !!user?.smartRemindersEnabled;
@@ -38,15 +40,21 @@ export function SmartShiftReminderSettings() {
     }
   }
 
+  const learningStatus = progress.bestWeekdayCount >= 4
+    ? `History found — ${progress.bestWeekdayCount} ${progress.bestWeekdayName} shifts, but the routine is not consistent enough for a safe reminder yet`
+    : progress.bestWeekdayCount > 0
+      ? `Learning from your history — ${progress.bestWeekdayCount} of 4 ${progress.bestWeekdayName} shifts recorded`
+      : "Learning quietly — complete shifts to build your first weekday routine";
+
   const status = !enabled
     ? "Off — your history is never used for reminders"
     : authorization === "denied"
       ? "On, but notifications are blocked in iOS Settings"
       : patterns.length === 0
-        ? "Learning quietly — no reliable weekday pattern yet"
+        ? learningStatus
         : native
-          ? `${patterns.length} reliable ${patterns.length === 1 ? "routine" : "routines"} learned · ${scheduledCount} upcoming ${scheduledCount === 1 ? "alert" : "alerts"}`
-          : `${patterns.length} reliable ${patterns.length === 1 ? "routine" : "routines"} learned · alerts will be delivered by the iPhone app`;
+          ? `Ready — learning complete for ${patterns.length} weekday ${patterns.length === 1 ? "routine" : "routines"} · ${scheduledCount} upcoming ${scheduledCount === 1 ? "alert" : "alerts"}`
+          : `Ready — learning complete for ${patterns.length} weekday ${patterns.length === 1 ? "routine" : "routines"} · alerts will be delivered by the iPhone app`;
 
   return (
     <section className={`card smart-reminder-settings${enabled ? " is-enabled" : ""}`} aria-labelledby="smart-reminder-title">
