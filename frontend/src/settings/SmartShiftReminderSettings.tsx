@@ -44,7 +44,9 @@ export function SmartShiftReminderSettings() {
     ? `History found — ${progress.bestWeekdayCount} ${progress.bestWeekdayName} shifts, but the routine is not consistent enough for a safe reminder yet`
     : progress.bestWeekdayCount > 0
       ? `Learning from your history — ${progress.bestWeekdayCount} of 4 ${progress.bestWeekdayName} shifts recorded`
-      : "Learning quietly — complete shifts to build your first weekday routine";
+      : progress.completedShiftCount > 0
+        ? "Previous routines retired — learning afresh from your next completed shifts"
+        : "Learning quietly — complete shifts to build your first weekday routine";
 
   const status = !enabled
     ? "Off — your history is never used for reminders"
@@ -108,6 +110,7 @@ export function SmartShiftReminderSettings() {
 
       <div className="smart-reminder-guardrails" aria-label="Smart reminder safeguards">
         <span>20-min grace</span>
+        <span>Adapts to roster changes</span>
         <span>Reliable patterns only</span>
         <span>No automatic clocking</span>
       </div>

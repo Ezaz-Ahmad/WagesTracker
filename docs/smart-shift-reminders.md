@@ -15,19 +15,21 @@ The feature may notify only when all reliability gates pass:
 - at least 75% of usable rows agree within 45 minutes at sign-in and 60 minutes at sign-out;
 - the accepted cluster spans no more than 60 minutes at the start or 90 minutes at the finish;
 - each row is a single-shift day and is between one and sixteen hours long;
-- the routine has a completed occurrence within the last 21 days, so an old job pattern cannot remain active indefinitely.
+- the routine has a completed occurrence within the last 14 days, so two missed weekly occurrences retire it instead of letting an old job pattern remain active indefinitely.
 
 The median accepted start and finish are rounded to five minutes for professional notification copy. Overnight finishes are represented relative to the shift's starting date, then displayed as the correct next-day wall-clock time.
 
 Learning uses existing completed history immediately, including shifts entered after the fact and shifts whose start or finish minutes were corrected. This matches normal wage-recording behaviour: editing an exact minute is not evidence that the shift is unreliable. Reliability comes from the weekday cadence and the agreement between the recorded times themselves. Up to the latest twelve completed occurrences per weekday are considered, rather than limiting established users to records created after opt-in or to a fixed eight-week window.
 
+Learning is continuous and change-aware. The most recent four mutually consistent shifts always take precedence over older history, so four weeks at genuinely new hours establishes the new start and finish immediately. One exceptional shift may be treated as an outlier; two consecutive disagreements pause reminders while the evidence is ambiguous. A gap of three weekly intervals starts a fresh routine era, preventing a roster from an old job or work period from reactivating after a long break. New weekdays learn independently, and weekdays without a completed occurrence for more than 14 days retire quietly.
+
 The Settings card distinguishes three states: a new account is **Learning quietly**, partial history reports progress such as **3 of 4 Monday shifts recorded**, and a reliable routine becomes **Ready — learning complete** with its learned start and finish preview. Four or more completed occurrences with inconsistent timing are reported as history found but not yet safe enough for a reminder.
 
 ## Scheduling and timezone behaviour
 
-The React client uses the device's current IANA timezone and creates a maximum seven-day schedule. Notifications are one-shot `UNTimeIntervalNotificationTrigger` requests, never repeating weekday rules. Every app start, resume, connectivity refresh and shift mutation rebuilds the schedule from current server data. Starting a shift removes that day's sign-in reminder; ending a shift removes the corresponding sign-out reminder.
+The React client uses the device's current IANA timezone and schedules only the next occurrence of each learned weekday. Notifications are one-shot `UNTimeIntervalNotificationTrigger` requests, never repeating weekday rules. Every app start, resume, connectivity refresh and shift mutation rebuilds the schedule from current server data. Starting a shift removes that day's sign-in reminder while preserving the following learned occurrence; completing the fourth qualifying shift can therefore show **Ready** immediately and schedule the next week without requiring another launch.
 
-Both reminder types use a 20-minute grace period. If an open shift is discovered shortly after its expected finish, the alert is scheduled one minute later; after four hours the state is considered ambiguous overtime/overnight work and no stale alert is created.
+Both reminder types use a 20-minute grace period. If the app discovers a missed start or an open shift within four hours of its expected time, the alert is scheduled one minute later. After four hours the state is considered ambiguous and no stale alert is created for that day.
 
 The short horizon is deliberate. iOS can still deliver the requests while the WebView is suspended or the app is closed, without an APNs provider, background polling job or server-held device token. If the phone changes timezone, the next app foreground refresh regenerates the horizon in the new zone.
 
@@ -43,7 +45,7 @@ The sign-out confirmation calls the same authenticated, atomic `/api/shifts/:id/
 
 ## Release verification
 
-Automated coverage exercises minimum-history, historical/manual entries, weekday cadence, outliers, split shifts, overnight patterns, learning progress, grace periods, stale reminders, preference persistence and explicit action confirmation. Before release, verify on a physical iPhone:
+Automated coverage exercises minimum-history, historical/manual entries, weekday cadence, abrupt and gradual roster changes, transition pauses, abandoned and newly added weekdays, long-gap era resets, outliers, split shifts, overnight patterns, learning progress, grace periods, stale reminders, preference persistence and explicit action confirmation. Before release, verify on a physical iPhone:
 
 1. Enable the setting and grant notification permission.
 2. Confirm a reliable weekday shows in Settings and its next sign-in alert is pending.
