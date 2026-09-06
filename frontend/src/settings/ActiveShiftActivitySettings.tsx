@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { SmartphoneIcon } from "../components/icons";
 import { useApp } from "../context/AppContext";
 import { isActiveShiftActivityConfigured } from "../platform/activeShiftActivity";
 
@@ -21,13 +22,14 @@ export function ActiveShiftActivitySettings() {
   }
 
   return (
-    <div className="settings-section-card card">
+    <section className="settings-section-card card active-shift-settings" aria-labelledby="active-shift-preference-title">
       <div className="active-shift-preference-row">
+        <span className="active-shift-preference-icon" aria-hidden="true"><SmartphoneIcon size={20} /></span>
         <div className="active-shift-preference-copy">
-          <h3 className="settings-subsection-title">Active shift notification</h3>
+          <span className="weekly-cycle-eyebrow">On your iPhone</span>
+          <h3 id="active-shift-preference-title" className="settings-subsection-title">Active shift notification</h3>
           <p id="active-shift-preference-hint" className="section-hint">
-            Show elapsed time, start time and a secure End Shift action on your iPhone at a glance.
-            This is off by default and affects only this account on this device.
+            Keep your current shift visible with elapsed time and a quick End Shift button.
           </p>
         </div>
         <button
@@ -48,6 +50,6 @@ export function ActiveShiftActivitySettings() {
           </span>
         </button>
       </div>
-    </div>
+    </section>
   );
 }
