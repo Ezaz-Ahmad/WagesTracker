@@ -31,7 +31,6 @@ describe("shifts", () => {
     expect(res.status).toBe(201);
     expect(res.body.shift.id).toBeTypeOf("string");
     expect(res.body.shift.location).toBe("Downtown");
-    expect(res.body.shift.reminderEligible).toBe(false);
     shiftIdA = res.body.shift.id;
   });
 
@@ -110,7 +109,6 @@ describe("shifts", () => {
     expect(patched.status).toBe(200);
     expect(patched.body.shift.signIn).toBe("09:00");
     expect(patched.body.shift.signOut).toBe("17:00");
-    expect(patched.body.shift.reminderEligible).toBe(false);
   });
 
   it("rejects a shift with identical sign-in and sign-out (zero-length, not a real shift)", async () => {

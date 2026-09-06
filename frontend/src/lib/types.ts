@@ -29,7 +29,6 @@ export interface Shift {
   signIn: string | null; // HH:MM
   signOut: string | null; // HH:MM
   /** False for historical/manual entries or shifts whose times were edited. */
-  reminderEligible?: boolean;
 }
 
 // One per calendar day (not per shift) — a day can have multiple shifts but

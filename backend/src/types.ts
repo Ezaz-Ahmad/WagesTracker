@@ -46,7 +46,6 @@ export interface ShiftRow {
   fuel_allowance_snapshot_cents: number | null;
   sign_in: string | null;
   sign_out: string | null;
-  manual_time_adjusted: number;
   created_at: string;
   updated_at: string;
 }
@@ -59,7 +58,6 @@ export interface PublicShift {
   fuelAllowanceSnapshot: number | null;
   signIn: string | null;
   signOut: string | null;
-  reminderEligible: boolean;
 }
 
 export function toPublicUser(row: UserRow): PublicUser {
@@ -92,7 +90,6 @@ export function toPublicShift(row: ShiftRow): PublicShift {
       : row.fuel_allowance_snapshot_cents / 100,
     signIn: row.sign_in,
     signOut: row.sign_out,
-    reminderEligible: !row.manual_time_adjusted,
   };
 }
 

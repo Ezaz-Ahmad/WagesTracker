@@ -11,14 +11,17 @@ Smart Shift Reminders are off by default under **Settings → Profile & preferen
 The feature may notify only when all reliability gates pass:
 
 - at least four usable completed shifts exist for the same weekday;
-- that weekday was worked on at least 70% of its observed recent occurrences, preventing alternating or occasional work from becoming an assumed weekly schedule;
+- recent occurrences mostly have a seven-day cadence, preventing a fortnightly or occasional shift from becoming an assumed weekly schedule while tolerating an occasional missed week;
 - at least 75% of usable rows agree within 45 minutes at sign-in and 60 minutes at sign-out;
 - the accepted cluster spans no more than 60 minutes at the start or 90 minutes at the finish;
-- each row is a single-shift day, was captured through live sign-in/atomic sign-out, and is between one and sixteen hours long.
+- each row is a single-shift day and is between one and sixteen hours long;
+- the routine has a completed occurrence within the last 21 days, so an old job pattern cannot remain active indefinitely.
 
 The median accepted start and finish are rounded to five minutes for professional notification copy. Overnight finishes are represented relative to the shift's starting date, then displayed as the correct next-day wall-clock time.
 
-Manual completed entries are marked ineligible at creation. A PATCH that changes either time permanently marks the row ineligible; location-only corrections do not. The migration conservatively excludes old rows entered or corrected several days away from their work date, while preserving likely genuine live shifts because an ordinary clock-out also changes `updated_at`.
+Learning uses existing completed history immediately, including shifts entered after the fact and shifts whose start or finish minutes were corrected. This matches normal wage-recording behaviour: editing an exact minute is not evidence that the shift is unreliable. Reliability comes from the weekday cadence and the agreement between the recorded times themselves. Up to the latest twelve completed occurrences per weekday are considered, rather than limiting established users to records created after opt-in or to a fixed eight-week window.
+
+The Settings card distinguishes three states: a new account is **Learning quietly**, partial history reports progress such as **3 of 4 Monday shifts recorded**, and a reliable routine becomes **Ready — learning complete** with its learned start and finish preview. Four or more completed occurrences with inconsistent timing are reported as history found but not yet safe enough for a reminder.
 
 ## Scheduling and timezone behaviour
 
@@ -40,7 +43,7 @@ The sign-out confirmation calls the same authenticated, atomic `/api/shifts/:id/
 
 ## Release verification
 
-Automated coverage exercises minimum-history, attendance density, outliers, manual corrections, split shifts, overnight patterns, grace periods, stale reminders, preference persistence, API eligibility markers and explicit action confirmation. Before release, verify on a physical iPhone:
+Automated coverage exercises minimum-history, historical/manual entries, weekday cadence, outliers, split shifts, overnight patterns, learning progress, grace periods, stale reminders, preference persistence and explicit action confirmation. Before release, verify on a physical iPhone:
 
 1. Enable the setting and grant notification permission.
 2. Confirm a reliable weekday shows in Settings and its next sign-in alert is pending.

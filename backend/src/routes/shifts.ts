@@ -399,9 +399,9 @@ shiftsRouter.post(
       await transaction.execute({
         sql: `INSERT INTO shifts
               (id, user_id, date, location, work_location_id, location_snapshot,
-               fuel_allowance_snapshot_cents, sign_in, sign_out, manual_time_adjusted, created_at, updated_at)
+               fuel_allowance_snapshot_cents, sign_in, sign_out, created_at, updated_at)
               VALUES (@id, @userId, @date, @location, @workLocationId, @locationSnapshot,
-                      @allowanceSnapshotCents, @signIn, @signOut, @manualTimeAdjusted, @now, @now)`,
+                      @allowanceSnapshotCents, @signIn, @signOut, @now, @now)`,
         args: {
           id,
           userId: req.userId!,
@@ -412,10 +412,6 @@ shiftsRouter.post(
           allowanceSnapshotCents,
           signIn,
           signOut,
-          // A completed shift supplied at creation time is a historical/manual
-          // entry. Live clock-ins are open first and finish through the
-          // dedicated atomic clock-out endpoint below.
-          manualTimeAdjusted: signOut ? 1 : 0,
           now,
         },
       });
@@ -565,9 +561,6 @@ shiftsRouter.patch(
     if ("signOut" in updates) {
       setClauses.push("sign_out = @signOut");
       params.signOut = updates.signOut as InValue;
-    }
-    if (timesChanged) {
-      setClauses.push("manual_time_adjusted = 1");
     }
     if (locationChanged) {
       const locationSnapshot = selectedLocation?.name
