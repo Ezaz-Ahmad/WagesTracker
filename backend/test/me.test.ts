@@ -27,9 +27,28 @@ describe("me (profile/settings)", () => {
     expect(res.body.user.name).toBe("Settings User");
     expect(res.body.user.email).toBe("settings@example.com");
     expect(res.body.user.rate).toBe(20);
+    expect(res.body.user.smartRemindersEnabled).toBe(false);
     // Never returns the password hash.
     expect(res.body.user.password).toBeUndefined();
     expect(res.body.user.password_hash).toBeUndefined();
+  });
+
+  it("persists the account-level smart reminder preference", async () => {
+    const enabled = await request(app)
+      .patch("/api/me")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ smartRemindersEnabled: true });
+    expect(enabled.status).toBe(200);
+    expect(enabled.body.user.smartRemindersEnabled).toBe(true);
+
+    const after = await request(app).get("/api/me").set("Authorization", `Bearer ${token}`);
+    expect(after.body.user.smartRemindersEnabled).toBe(true);
+
+    const invalid = await request(app)
+      .patch("/api/me")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ smartRemindersEnabled: "yes" });
+    expect(invalid.status).toBe(400);
   });
 
   it("saves valid settings changes and reflects them on a later GET", async () => {

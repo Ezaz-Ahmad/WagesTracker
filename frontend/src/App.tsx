@@ -35,6 +35,7 @@ import {
   restoreAppReturnFocus,
 } from "./lib/appNavigation";
 import { LayoutPreferencesProvider, useLayoutPreferences } from "./context/LayoutPreferencesContext";
+import { SmartReminderActionDialog } from "./components/SmartReminderActionDialog";
 
 // Build-time constant. Vite inlines `import.meta.env.VITE_VIEWPORT_DEBUG`, so
 // in every normal build this folds to `false`, the JSX branch below is dead
@@ -227,6 +228,7 @@ function AuthedAppShell() {
         </main>
 
         <BottomNav screen={screen} onNavigate={navigate} tabs={tabs} />
+        <SmartReminderActionDialog onNavigate={navigate} />
       </div>
     </div>
   );

@@ -14,6 +14,7 @@ export interface UserRow {
   rate: number;
   goal_hours: number;
   goal_earnings: number;
+  smart_reminders_enabled: number;
   token_version: number;
   created_at: string;
 }
@@ -31,6 +32,7 @@ export interface PublicUser {
   rate: number;
   goalHours: number;
   goalEarnings: number;
+  smartRemindersEnabled: boolean;
   createdAt: string;
 }
 
@@ -44,6 +46,7 @@ export interface ShiftRow {
   fuel_allowance_snapshot_cents: number | null;
   sign_in: string | null;
   sign_out: string | null;
+  manual_time_adjusted: number;
   created_at: string;
   updated_at: string;
 }
@@ -56,6 +59,7 @@ export interface PublicShift {
   fuelAllowanceSnapshot: number | null;
   signIn: string | null;
   signOut: string | null;
+  reminderEligible: boolean;
 }
 
 export function toPublicUser(row: UserRow): PublicUser {
@@ -72,6 +76,7 @@ export function toPublicUser(row: UserRow): PublicUser {
     rate: row.rate,
     goalHours: row.goal_hours,
     goalEarnings: row.goal_earnings,
+    smartRemindersEnabled: !!row.smart_reminders_enabled,
     createdAt: row.created_at,
   };
 }
@@ -87,6 +92,7 @@ export function toPublicShift(row: ShiftRow): PublicShift {
       : row.fuel_allowance_snapshot_cents / 100,
     signIn: row.sign_in,
     signOut: row.sign_out,
+    reminderEligible: !row.manual_time_adjusted,
   };
 }
 

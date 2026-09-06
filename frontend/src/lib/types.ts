@@ -15,6 +15,8 @@ export interface User {
   rate: number;
   goalHours: number;
   goalEarnings: number;
+  /** Account-level opt-in. Optional for a safe rolling backend deployment. */
+  smartRemindersEnabled?: boolean;
   createdAt: string;
 }
 
@@ -26,6 +28,8 @@ export interface Shift {
   fuelAllowanceSnapshot?: number | null;
   signIn: string | null; // HH:MM
   signOut: string | null; // HH:MM
+  /** False for historical/manual entries or shifts whose times were edited. */
+  reminderEligible?: boolean;
 }
 
 // One per calendar day (not per shift) — a day can have multiple shifts but

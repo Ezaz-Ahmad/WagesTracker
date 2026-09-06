@@ -1,7 +1,7 @@
 import { PublicPageShell } from "../components/PublicPageShell";
 import { InternalAppLink } from "../components/AppLink";
 
-const LAST_UPDATED = "28 August 2026";
+const LAST_UPDATED = "6 September 2026";
 
 export function PrivacyPolicyPage() {
   return (
@@ -37,7 +37,7 @@ export function PrivacyPolicyPage() {
       <section>
         <h2>How we use information</h2>
         <ul>
-          <li>Provide shift, wage, personal spending, goal, history, comparison, and report features.</li>
+          <li>Provide shift, wage, personal spending, goal, history, comparison, report, and optional smart-reminder features.</li>
           <li>Authenticate your account and manage active sessions.</li>
           <li>Prevent abuse, investigate security events, and enforce service limits.</li>
           <li>Maintain, troubleshoot, and improve performance and reliability.</li>
@@ -93,6 +93,11 @@ export function PrivacyPolicyPage() {
           You can review and update profile and work information in Settings, revoke active sessions, change your
           password, and delete your account in the app. Depending on where you live, you may also have rights to
           access, correct, restrict, or object to the processing of your personal information.
+        </p>
+        <p>
+          Smart Shift Reminders are optional and off by default. When enabled, the app analyses eligible shift times
+          to identify reliable weekday patterns and schedules short-horizon notifications on your device. Manually
+          corrected or unusual shifts are excluded, and you can disable the feature at any time in Profile &amp; preferences.
         </p>
         <p>To make a privacy request, use the contact options on the <InternalAppLink href="/support">Support page</InternalAppLink>.</p>
       </section>

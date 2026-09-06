@@ -31,6 +31,22 @@ import {
   subscribeActiveShiftEnded,
 } from "../platform/activeShiftActivity";
 import { readActiveShiftPreference, writeActiveShiftPreference } from "../platform/activeShiftPreference";
+import {
+  analyseSmartShiftPatterns,
+  buildSmartReminderSchedule,
+  type SmartShiftPattern,
+} from "../lib/smartShiftReminders";
+import {
+  cancelSmartShiftReminderNotifications,
+  consumePendingSmartReminderAction,
+  getSmartReminderAuthorization,
+  isSmartShiftReminderNotificationsConfigured,
+  requestSmartReminderAuthorization,
+  subscribeSmartReminderAction,
+  syncSmartShiftReminderNotifications,
+  type NotificationAuthorization,
+  type SmartReminderAction,
+} from "../platform/smartShiftReminderNotifications";
 import { useTheme } from "./ThemeContext";
 
 export const RETENTION_YEARS = 5;
@@ -120,6 +136,12 @@ interface AppContextValue {
   /** Per-account, per-installation opt-in. Missing storage is always off. */
   activeShiftActivityEnabled: boolean;
   setActiveShiftActivityEnabled: (enabled: boolean) => Promise<void>;
+  smartReminderPatterns: SmartShiftPattern[];
+  smartReminderAuthorization: NotificationAuthorization;
+  smartReminderScheduledCount: number;
+  pendingSmartReminderAction: SmartReminderAction | null;
+  dismissPendingSmartReminderAction: () => void;
+  setSmartRemindersEnabled: (enabled: boolean) => Promise<void>;
   connected: boolean;
   retryConnectivity: () => Promise<void>;
   clearActionError: () => void;
@@ -277,6 +299,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // not been hydrated yet. The native sync effect waits for that state so an
   // enabled activity is never briefly dismissed during account restoration.
   const [activeShiftActivityEnabledState, setActiveShiftActivityEnabledState] = useState<boolean | null>(null);
+  const [smartReminderAuthorization, setSmartReminderAuthorization] = useState<NotificationAuthorization>(
+    isSmartShiftReminderNotificationsConfigured() ? "notDetermined" : "unavailable"
+  );
+  const [smartReminderScheduledCount, setSmartReminderScheduledCount] = useState(0);
+  const [pendingSmartReminderAction, setPendingSmartReminderAction] = useState<SmartReminderAction | null>(null);
+  // `today` advances once a minute for live wage/timer UI. Reminder patterns
+  // care about calendar-day rollover, not every tick; keeping this key stable
+  // avoids replacing an 8:20 notification at the exact minute it should fire.
+  const smartReminderDayKey = isoDate(today);
+  const smartReminderPatterns = useMemo(
+    () => analyseSmartShiftPatterns(shifts, new Date(`${smartReminderDayKey}T12:00:00`)),
+    [shifts, smartReminderDayKey]
+  );
 
   useEffect(() => {
     if (status === "loggedIn" && user) {
@@ -285,6 +320,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setActiveShiftActivityEnabledState(null);
     }
   }, [status, user?.id]);
+
+  useEffect(() => {
+    if (!isSmartShiftReminderNotificationsConfigured()) return;
+    let disposed = false;
+    let unsubscribe: (() => void) | undefined;
+    void (async () => {
+      const remove = await subscribeSmartReminderAction((action) => {
+        if (!disposed) setPendingSmartReminderAction(action);
+      });
+      if (disposed) {
+        remove();
+        return;
+      }
+      unsubscribe = remove;
+      const pending = await consumePendingSmartReminderAction();
+      if (!disposed && pending) setPendingSmartReminderAction(pending);
+      const authorization = await getSmartReminderAuthorization();
+      if (!disposed) setSmartReminderAuthorization(authorization);
+    })();
+    return () => {
+      disposed = true;
+      unsubscribe?.();
+    };
+  }, []);
 
   const [biometricCapabilities, setBiometricCapabilities] = useState<BiometricCapabilities>({
     kind: "none",
@@ -724,6 +783,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // check still in flight). Safe and cheap to call unconditionally —
       // disable() is itself a no-op when nothing is stored.
       await clearBiometricCredential();
+      if (isSmartShiftReminderNotificationsConfigured()) {
+        void cancelSmartShiftReminderNotifications();
+      }
       void serverLogout;
     }
     api.clearLastActivity();
@@ -895,6 +957,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true; };
   }, [status, shiftsLoaded, shifts, connected, activeShiftActivityEnabledState, themePreference]);
 
+  // Keep only a short, one-shot native horizon. Re-running on every shift
+  // mutation immediately removes today's missed-sign-in alert after a
+  // successful clock-in and removes the matching sign-out alert after the
+  // shift ends. A calendar change, app resume or pull-to-refresh learns from
+  // the latest server state instead of assuming last week's plan repeats.
+  useEffect(() => {
+    if (!isSmartShiftReminderNotificationsConfigured()) return;
+    if (status !== "loggedIn" || !user || !shiftsLoaded) return;
+    let cancelled = false;
+
+    if (!user.smartRemindersEnabled) {
+      setSmartReminderScheduledCount(0);
+      void cancelSmartShiftReminderNotifications();
+      return;
+    }
+
+    const firstName = user.name.trim().split(/\s+/)[0] || "there";
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    const reminders = buildSmartReminderSchedule({
+      accountId: user.id,
+      firstName,
+      shifts,
+      patterns: smartReminderPatterns,
+      now: new Date(),
+    });
+    void syncSmartShiftReminderNotifications({ accountId: user.id, timeZone, reminders }).then((result) => {
+      if (cancelled) return;
+      setSmartReminderAuthorization(result.authorization);
+      setSmartReminderScheduledCount(result.scheduledCount);
+    });
+    return () => { cancelled = true; };
+  }, [status, user, shiftsLoaded, shifts, smartReminderPatterns, smartReminderDayKey]);
+
   const retryConnectivity = useCallback(async () => {
     try {
       const next = await getConnectivityStatus();
@@ -1036,6 +1131,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     [logout]
   );
+
+  const setSmartRemindersEnabled = useCallback(async (enabled: boolean): Promise<void> => {
+    if (enabled && isSmartShiftReminderNotificationsConfigured()) {
+      const authorization = await requestSmartReminderAuthorization();
+      setSmartReminderAuthorization(authorization);
+      if (authorization !== "authorized") {
+        throw new Error(authorization === "denied"
+          ? "Notifications are turned off for Wage Tracker in iOS Settings. Allow notifications there, then try again."
+          : "This device couldn't enable notifications. Please try again.");
+      }
+    }
+    await updateSettings({ smartRemindersEnabled: enabled });
+    if (!enabled && isSmartShiftReminderNotificationsConfigured()) {
+      setSmartReminderScheduledCount(0);
+      await cancelSmartShiftReminderNotifications();
+    }
+  }, [updateSettings]);
 
   // Left to throw on failure (wrong current password, weak new password, etc.)
   // so the Settings form can show the error inline, same pattern as deleteAccount.
@@ -1496,6 +1608,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       activeShiftNotice,
       activeShiftActivityEnabled: activeShiftActivityEnabledState === true,
       setActiveShiftActivityEnabled,
+      smartReminderPatterns,
+      smartReminderAuthorization,
+      smartReminderScheduledCount,
+      pendingSmartReminderAction,
+      dismissPendingSmartReminderAction: () => setPendingSmartReminderAction(null),
+      setSmartRemindersEnabled,
       connected,
       retryConnectivity,
       clearActionError: () => setActionError(null),
@@ -1560,6 +1678,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       activeShiftNotice,
       activeShiftActivityEnabledState,
       setActiveShiftActivityEnabled,
+      smartReminderPatterns,
+      smartReminderAuthorization,
+      smartReminderScheduledCount,
+      pendingSmartReminderAction,
+      setSmartRemindersEnabled,
       connected,
       retryConnectivity,
       sessionNotice,

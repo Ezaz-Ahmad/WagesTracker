@@ -149,6 +149,7 @@ const patchSchema = z.object({
     .optional(),
   goalHours: z.number().min(0).max(200).optional(),
   goalEarnings: z.number().min(0).max(100000).optional(),
+  smartRemindersEnabled: z.boolean().optional(),
 });
 
 const FIELD_TO_COLUMN: Record<string, string> = {
@@ -162,6 +163,7 @@ const FIELD_TO_COLUMN: Record<string, string> = {
   rate: "rate",
   goalHours: "goal_hours",
   goalEarnings: "goal_earnings",
+  smartRemindersEnabled: "smart_reminders_enabled",
 };
 
 meRouter.patch(
@@ -184,7 +186,7 @@ meRouter.patch(
     for (const key of keys) {
       const column = FIELD_TO_COLUMN[key];
       let value: InValue = updates[key] as InValue;
-      if (key === "multipleLocations") value = value ? 1 : 0;
+      if (key === "multipleLocations" || key === "smartRemindersEnabled") value = value ? 1 : 0;
       setClauses.push(`${column} = @${key}`);
       params[key] = value;
     }
