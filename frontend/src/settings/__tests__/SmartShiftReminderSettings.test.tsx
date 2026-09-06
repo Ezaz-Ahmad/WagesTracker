@@ -45,6 +45,7 @@ describe("SmartShiftReminderSettings", () => {
     render(<SmartShiftReminderSettings />);
     expect(screen.getByRole("switch", { name: "Smart shift reminders" }).getAttribute("aria-checked")).toBe("false");
     expect(screen.getByText("20-min grace")).toBeTruthy();
+    expect(screen.getByText("Adapts to roster changes")).toBeTruthy();
     expect(screen.getByText("Reliable patterns only")).toBeTruthy();
     expect(screen.getByText("No automatic clocking")).toBeTruthy();
     expect(screen.getByText(/always open Wage Tracker for confirmation/i)).toBeTruthy();

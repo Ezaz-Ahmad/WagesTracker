@@ -5,8 +5,10 @@ export const SMART_REMINDER_START_GRACE_MINUTES = 20;
 export const SMART_REMINDER_END_GRACE_MINUTES = 20;
 
 const MAX_SAMPLES = 12;
-const MAX_ROUTINE_IDLE_DAYS = 21;
+const MAX_ROUTINE_IDLE_DAYS = 14;
+const ROUTINE_RESET_GAP_DAYS = 21;
 const MIN_WEEKLY_CADENCE_RATIO = 0.6;
+const CHANGE_PAUSE_STREAK = 2;
 const MIN_INLIER_RATIO = 0.75;
 const START_TOLERANCE_MINUTES = 45;
 const END_TOLERANCE_MINUTES = 60;
@@ -44,6 +46,7 @@ export interface SmartReminderScheduleItem {
 }
 
 interface Sample {
+  day: Date;
   start: number;
   endOffset: number;
 }
@@ -102,6 +105,36 @@ function weekdayForDate(date: string): number | null {
   return parseLocalDate(date)?.getDay() ?? null;
 }
 
+function learnCluster(samples: readonly Sample[]): Sample[] | null {
+  if (samples.length < SMART_REMINDER_MIN_SHIFTS) return null;
+  const initialStart = median(samples.map((sample) => sample.start));
+  const initialEnd = median(samples.map((sample) => sample.endOffset));
+  const inliers = samples.filter((sample) =>
+    Math.abs(sample.start - initialStart) <= START_TOLERANCE_MINUTES
+    && Math.abs(sample.endOffset - initialEnd) <= END_TOLERANCE_MINUTES
+  );
+  if (
+    inliers.length < SMART_REMINDER_MIN_SHIFTS
+    || inliers.length / samples.length < MIN_INLIER_RATIO
+  ) return null;
+
+  const starts = inliers.map((sample) => sample.start);
+  const ends = inliers.map((sample) => sample.endOffset);
+  if (
+    Math.max(...starts) - Math.min(...starts) > MAX_START_SPREAD_MINUTES
+    || Math.max(...ends) - Math.min(...ends) > MAX_END_SPREAD_MINUTES
+  ) return null;
+  return inliers;
+}
+
+function hasWeeklyCadence(samples: readonly Sample[]): boolean {
+  const recent = samples.slice(-6);
+  const gaps = recent.slice(1).map((sample, index) => calendarDaysBetween(recent[index].day, sample.day));
+  if (gaps.length < SMART_REMINDER_MIN_SHIFTS - 1) return false;
+  const weeklyGaps = gaps.filter((gap) => gap === 7).length;
+  return weeklyGaps / gaps.length >= MIN_WEEKLY_CADENCE_RATIO;
+}
+
 /**
  * Learns conservative weekday routines from completed shift history.
  * A weekday is returned only when all of these are true:
@@ -123,7 +156,7 @@ export function analyseSmartShiftPatterns(
   const completeByDate = new Map<string, Shift[]>();
 
   for (const shift of shifts) {
-    if (!shift.signIn || !shift.signOut || shift.date >= todayKey) continue;
+    if (!shift.signIn || !shift.signOut || shift.date > todayKey) continue;
     const list = completeByDate.get(shift.date) ?? [];
     list.push(shift);
     completeByDate.set(shift.date, list);
@@ -136,22 +169,8 @@ export function analyseSmartShiftPatterns(
       .sort();
     if (workedDates.length < SMART_REMINDER_MIN_SHIFTS) continue;
 
-    // Use the user's existing history, not only shifts recorded after the
-    // preference was enabled. Capping by completed occurrences instead of a
-    // hard eight-week window lets established users become ready immediately.
-    const recentWorkedDates = workedDates.slice(-MAX_SAMPLES);
-    const lastWorkedDate = parseLocalDate(recentWorkedDates.at(-1)!);
-    if (!lastWorkedDate || calendarDaysBetween(lastWorkedDate, today) > MAX_ROUTINE_IDLE_DAYS) continue;
-
-    // Do not turn a fortnightly/occasional weekday into an every-week alert.
-    // One missed week is fine, but most recent gaps must still be weekly.
-    const cadenceDates = recentWorkedDates.slice(-6).map(parseLocalDate).filter((date): date is Date => !!date);
-    const gaps = cadenceDates.slice(1).map((date, index) => calendarDaysBetween(cadenceDates[index], date));
-    const weeklyGaps = gaps.filter((gap) => gap === 7).length;
-    if (gaps.length < SMART_REMINDER_MIN_SHIFTS - 1 || weeklyGaps / gaps.length < MIN_WEEKLY_CADENCE_RATIO) continue;
-
     const samples: Sample[] = [];
-    for (const date of recentWorkedDates.slice(-MAX_SAMPLES)) {
+    for (const date of workedDates) {
       const rows = completeByDate.get(date) ?? [];
       // A day with multiple shifts is a split/atypical workday; guessing
       // which start/end represents the person's routine would be intrusive.
@@ -159,30 +178,52 @@ export function analyseSmartShiftPatterns(
       const shift = rows[0];
       const start = parseMinutes(shift.signIn!);
       const rawEnd = parseMinutes(shift.signOut!);
-      if (start === null || rawEnd === null) continue;
+      const day = parseLocalDate(date);
+      if (start === null || rawEnd === null || !day) continue;
       const endOffset = rawEnd <= start ? rawEnd + 24 * 60 : rawEnd;
       const duration = endOffset - start;
       if (duration < MIN_SHIFT_MINUTES || duration > MAX_SHIFT_MINUTES) continue;
-      samples.push({ start, endOffset });
+      samples.push({ day, start, endOffset });
     }
     if (samples.length < SMART_REMINDER_MIN_SHIFTS) continue;
 
-    const initialStart = median(samples.map((sample) => sample.start));
-    const initialEnd = median(samples.map((sample) => sample.endOffset));
-    const inliers = samples.filter((sample) =>
-      Math.abs(sample.start - initialStart) <= START_TOLERANCE_MINUTES
-      && Math.abs(sample.endOffset - initialEnd) <= END_TOLERANCE_MINUTES
-    );
-    if (
-      inliers.length < SMART_REMINDER_MIN_SHIFTS
-      || inliers.length / samples.length < MIN_INLIER_RATIO
-    ) continue;
+    // A gap of three weekday intervals starts a new routine era. This stops a
+    // schedule from an old job/roster reactivating after a long break. The new
+    // era earns trust independently after four consistent occurrences.
+    let eraStart = 0;
+    for (let index = 1; index < samples.length; index += 1) {
+      if (calendarDaysBetween(samples[index - 1].day, samples[index].day) >= ROUTINE_RESET_GAP_DAYS) {
+        eraStart = index;
+      }
+    }
+    const era = samples.slice(eraStart).slice(-MAX_SAMPLES);
+    if (era.length < SMART_REMINDER_MIN_SHIFTS || !hasWeeklyCadence(era)) continue;
+    if (calendarDaysBetween(era.at(-1)!.day, today) > MAX_ROUTINE_IDLE_DAYS) continue;
+
+    // Four recent, mutually consistent shifts always win. This is the roster-
+    // change path: after four new hours, older hours cannot dominate merely
+    // because they still exist in history.
+    const latestFour = era.slice(-SMART_REMINDER_MIN_SHIFTS);
+    let inliers = learnCluster(latestFour);
+    if (!inliers) {
+      // Otherwise retain a longer stable routine through one exceptional day
+      // (overtime, cover shift, late arrival). Two consecutive disagreements
+      // pause reminders instead of nagging while a possible change develops.
+      const fallback = learnCluster(era);
+      if (!fallback) continue;
+      const accepted = new Set(fallback);
+      let disagreementStreak = 0;
+      for (let index = era.length - 1; index >= 0 && !accepted.has(era[index]); index -= 1) {
+        disagreementStreak += 1;
+      }
+      if (disagreementStreak >= CHANGE_PAUSE_STREAK) continue;
+      inliers = fallback;
+    }
 
     const starts = inliers.map((sample) => sample.start);
     const ends = inliers.map((sample) => sample.endOffset);
     const startSpread = Math.max(...starts) - Math.min(...starts);
     const endSpread = Math.max(...ends) - Math.min(...ends);
-    if (startSpread > MAX_START_SPREAD_MINUTES || endSpread > MAX_END_SPREAD_MINUTES) continue;
 
     patterns.push({
       weekday,
@@ -204,18 +245,29 @@ export function getSmartShiftLearningProgress(
   asOf: Date = new Date()
 ): SmartShiftLearningProgress {
   const todayKey = localDateKey(startOfLocalDay(asOf));
-  const completedDates = new Set<string>();
+  const datesByWeekday = Array.from({ length: 7 }, () => new Set<string>());
   let completedShiftCount = 0;
   for (const shift of shifts) {
-    if (!shift.signIn || !shift.signOut || shift.date >= todayKey) continue;
+    if (!shift.signIn || !shift.signOut || shift.date > todayKey) continue;
     completedShiftCount += 1;
-    completedDates.add(shift.date);
+    const weekday = weekdayForDate(shift.date);
+    if (weekday !== null) datesByWeekday[weekday].add(shift.date);
   }
 
   const counts = Array.from({ length: 7 }, () => 0);
-  for (const date of completedDates) {
-    const weekday = weekdayForDate(date);
-    if (weekday !== null) counts[weekday] += 1;
+  for (let weekday = 0; weekday < 7; weekday += 1) {
+    const dates = [...datesByWeekday[weekday]].sort()
+      .map(parseLocalDate).filter((date): date is Date => !!date);
+    if (dates.length === 0) continue;
+    let eraStart = 0;
+    for (let index = 1; index < dates.length; index += 1) {
+      if (calendarDaysBetween(dates[index - 1], dates[index]) >= ROUTINE_RESET_GAP_DAYS) eraStart = index;
+    }
+    const currentEra = dates.slice(eraStart);
+    const lastDate = currentEra.at(-1)!;
+    counts[weekday] = calendarDaysBetween(lastDate, asOf) > MAX_ROUTINE_IDLE_DAYS
+      ? 0
+      : currentEra.length;
   }
   const bestWeekdayCount = Math.max(0, ...counts);
   const bestWeekday = counts.indexOf(bestWeekdayCount);
@@ -239,9 +291,10 @@ function atMinutesOnDate(date: Date, minutes: number): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, minutes, 0, 0);
 }
 
-/** Produces one-shot native notifications. Nothing repeats weekly: the next
- * seven local calendar days are reconsidered whenever fresh data is loaded,
- * and today's item is removed as soon as a shift starts. */
+/** Produces one-shot native notifications. Nothing repeats weekly: only the
+ * next occurrence of each learned weekday is scheduled, and every fresh data
+ * load replaces that short horizon. Starting a shift removes today's alert
+ * while still preserving the next learned occurrence. */
 export function buildSmartReminderSchedule(options: {
   accountId: string;
   firstName: string;
@@ -254,28 +307,43 @@ export function buildSmartReminderSchedule(options: {
   const schedule: SmartReminderScheduleItem[] = [];
   const firstName = options.firstName.trim() || "there";
 
-  for (let offset = 0; offset < 7; offset += 1) {
-    const date = addLocalDays(today, offset);
-    const dateKey = localDateKey(date);
-    const pattern = options.patterns.find((item) => item.weekday === date.getDay());
-    if (!pattern) continue;
-    if (options.shifts.some((shift) => shift.date === dateKey && !!shift.signIn)) continue;
+  for (const pattern of options.patterns) {
+    // Include day 7 so completing/starting today's shift can immediately
+    // preserve next week's one-shot request without requiring another app
+    // launch in between. Only the first eligible occurrence is retained.
+    for (let offset = 0; offset <= 7; offset += 1) {
+      const date = addLocalDays(today, offset);
+      if (date.getDay() !== pattern.weekday) continue;
+      const dateKey = localDateKey(date);
+      if (options.shifts.some((shift) => shift.date === dateKey && !!shift.signIn)) continue;
 
-    const fireAt = atMinutesOnDate(
-      date,
-      pattern.usualStartMinutes + SMART_REMINDER_START_GRACE_MINUTES
-    );
-    if (fireAt.getTime() <= now.getTime() + 30_000) continue;
-    const usualTimeLabel = formatReminderTime(pattern.usualStartMinutes);
-    schedule.push({
-      id: `signin-${dateKey}`,
-      kind: "signIn",
-      fireAtEpochMs: fireAt.getTime(),
-      title: "Shift check-in",
-      body: `Hi ${firstName}, you usually start your ${pattern.weekdayName} shift around ${usualTimeLabel}, but no shift has been started today. Did you forget to sign in?`,
-      weekdayName: pattern.weekdayName,
-      usualTimeLabel,
-    });
+      let fireAt = atMinutesOnDate(
+        date,
+        pattern.usualStartMinutes + SMART_REMINDER_START_GRACE_MINUTES
+      );
+      const lateness = now.getTime() - fireAt.getTime();
+      if (lateness >= 0) {
+        // Opening the app shortly after a missed start should still help. A
+        // much later launch is ambiguous, so skip today and retain next week.
+        if (offset === 0 && lateness <= 4 * 60 * 60 * 1000) {
+          fireAt = new Date(now.getTime() + 60_000);
+        } else {
+          continue;
+        }
+      }
+      if (fireAt.getTime() <= now.getTime() + 30_000) continue;
+      const usualTimeLabel = formatReminderTime(pattern.usualStartMinutes);
+      schedule.push({
+        id: `signin-${dateKey}`,
+        kind: "signIn",
+        fireAtEpochMs: fireAt.getTime(),
+        title: "Shift check-in",
+        body: `Hi ${firstName}, you usually start your ${pattern.weekdayName} shift around ${usualTimeLabel}, but no shift has been started today. Did you forget to sign in?`,
+        weekdayName: pattern.weekdayName,
+        usualTimeLabel,
+      });
+      break;
+    }
   }
 
   const openShift = [...options.shifts].reverse().find((shift) => !!shift.signIn && !shift.signOut);
