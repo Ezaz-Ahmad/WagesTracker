@@ -354,6 +354,17 @@ export function SlidersIcon({ size = 18 }: IconProps) {
   );
 }
 
+/** Bell with a small intelligence sparkle — Smart Shift Reminders. */
+export function SmartBellIcon({ size = 20 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <path d="M6.5 10a5.5 5.5 0 0111 0c0 5 2 5.5 2 7H4.5c0-1.5 2-2 2-7z" />
+      <path d="M9.5 20h5" />
+      <path d="M19 3v3M17.5 4.5h3" />
+    </svg>
+  );
+}
+
 /** Six-dot grip used only where an item can be directly dragged. */
 export function GripIcon({ size = 18 }: IconProps) {
   return (

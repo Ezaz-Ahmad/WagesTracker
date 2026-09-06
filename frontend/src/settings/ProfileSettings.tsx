@@ -8,6 +8,7 @@ import { ActiveShiftActivitySettings } from "./ActiveShiftActivitySettings";
 import { LayoutCustomizer } from "../components/LayoutCustomizer";
 import { ChevronRightIcon, SlidersIcon } from "../components/icons";
 import { ThemeSettings } from "./ThemeSettings";
+import { SmartShiftReminderSettings } from "./SmartShiftReminderSettings";
 
 interface ProfileDraft {
   name: string;
@@ -98,6 +99,7 @@ export function ProfileSettings() {
         <SettingsSaveBar saving={saving} dirty={dirty} success={success} error={error} onSave={handleSave} />
       </div>
       <ThemeSettings />
+      <SmartShiftReminderSettings />
       <section className="card profile-layout-settings" aria-labelledby="profile-layout-title">
         <span className="profile-layout-settings-icon" aria-hidden="true"><SlidersIcon size={20} /></span>
         <div className="profile-layout-settings-copy">

@@ -9,10 +9,16 @@ public class ActiveShiftActivityPlugin: CAPPlugin, CAPBridgedPlugin {
         .init(#selector(startOrUpdate)),
         .init(#selector(dismiss)),
         .init(#selector(end)),
-        .init(#selector(retryPendingClockOut))
+        .init(#selector(retryPendingClockOut)),
+        .init(#selector(smartReminderAuthorizationStatus)),
+        .init(#selector(requestSmartReminderAuthorization)),
+        .init(#selector(scheduleSmartReminders)),
+        .init(#selector(cancelSmartReminders)),
+        .init(#selector(consumePendingSmartReminderAction))
     ]
 
     private var endedObserver: NSObjectProtocol?
+    private var smartReminderObserver: NSObjectProtocol?
 
     public override func load() {
         endedObserver = NotificationCenter.default.addObserver(
@@ -28,10 +34,20 @@ public class ActiveShiftActivityPlugin: CAPPlugin, CAPBridgedPlugin {
                 "finalDurationSeconds": duration
             ])
         }
+        smartReminderObserver = NotificationCenter.default.addObserver(
+            forName: .wagesTrackerSmartReminderAction,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self,
+                  let action = notification.userInfo?["action"] as? SmartReminderPendingAction else { return }
+            self.notifyListeners("smartReminderAction", data: self.smartActionData(action))
+        }
     }
 
     deinit {
         if let endedObserver { NotificationCenter.default.removeObserver(endedObserver) }
+        if let smartReminderObserver { NotificationCenter.default.removeObserver(smartReminderObserver) }
     }
 
     @objc func startOrUpdate(_ call: CAPPluginCall) {
@@ -117,5 +133,65 @@ public class ActiveShiftActivityPlugin: CAPPlugin, CAPBridgedPlugin {
             let queued = await ShiftActivityCoordinator.shared.retryPendingClockOut()
             call.resolve(["queued": queued])
         }
+    }
+
+    @objc func smartReminderAuthorizationStatus(_ call: CAPPluginCall) {
+        Task {
+            let status = await SmartShiftReminderCoordinator.shared.authorizationStatus()
+            call.resolve(["authorization": status])
+        }
+    }
+
+    @objc func requestSmartReminderAuthorization(_ call: CAPPluginCall) {
+        Task {
+            let status = await SmartShiftReminderCoordinator.shared.requestAuthorization()
+            call.resolve(["authorization": status])
+        }
+    }
+
+    @objc func scheduleSmartReminders(_ call: CAPPluginCall) {
+        guard let raw = call.getString("payload"),
+              let data = raw.data(using: .utf8) else {
+            call.reject("Missing smart-reminder schedule", "invalid_argument")
+            return
+        }
+        do {
+            let payload = try JSONDecoder().decode(SmartReminderSchedulePayload.self, from: data)
+            Task {
+                let outcome = await SmartShiftReminderCoordinator.shared.schedule(payload)
+                call.resolve([
+                    "authorization": outcome.authorization,
+                    "scheduledCount": outcome.scheduledCount
+                ])
+            }
+        } catch {
+            call.reject("Invalid smart-reminder schedule", "invalid_argument")
+        }
+    }
+
+    @objc func cancelSmartReminders(_ call: CAPPluginCall) {
+        SmartShiftReminderCoordinator.shared.cancelAll {
+            call.resolve()
+        }
+    }
+
+    @objc func consumePendingSmartReminderAction(_ call: CAPPluginCall) {
+        if let action = SmartShiftReminderCoordinator.shared.consumePendingAction() {
+            call.resolve(["action": smartActionData(action)])
+        } else {
+            call.resolve()
+        }
+    }
+
+    private func smartActionData(_ action: SmartReminderPendingAction) -> JSObject {
+        var data: JSObject = [
+            "accountId": action.accountId,
+            "kind": action.kind,
+            "reminderId": action.reminderId
+        ]
+        if let shiftId = action.shiftId { data["shiftId"] = shiftId }
+        if let weekdayName = action.weekdayName { data["weekdayName"] = weekdayName }
+        if let usualTimeLabel = action.usualTimeLabel { data["usualTimeLabel"] = usualTimeLabel }
+        return data
     }
 }

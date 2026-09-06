@@ -41,6 +41,7 @@ await db.executeMultiple(`
     rate REAL NOT NULL DEFAULT 0,
     goal_hours REAL NOT NULL DEFAULT 35,
     goal_earnings REAL NOT NULL DEFAULT 647.5,
+    smart_reminders_enabled INTEGER NOT NULL DEFAULT 0,
     token_version INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
   );
@@ -71,6 +72,7 @@ await db.executeMultiple(`
     fuel_allowance_snapshot_cents INTEGER,
     sign_in TEXT,
     sign_out TEXT,
+    manual_time_adjusted INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
@@ -204,6 +206,7 @@ for (const statement of [
   "ALTER TABLE shifts ADD COLUMN work_location_id TEXT REFERENCES work_locations(id) ON DELETE SET NULL",
   "ALTER TABLE shifts ADD COLUMN location_snapshot TEXT NOT NULL DEFAULT ''",
   "ALTER TABLE shifts ADD COLUMN fuel_allowance_snapshot_cents INTEGER",
+  "ALTER TABLE shifts ADD COLUMN manual_time_adjusted INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE day_expenses ADD COLUMN automatic_fuel_cents INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE day_expenses ADD COLUMN manual_override_cents INTEGER",
 ]) {
@@ -211,6 +214,43 @@ for (const statement of [
     await db.execute(statement);
   } catch {
     // already migrated
+  }
+}
+
+// Reminder patterns must be learned only from timestamps captured by the
+// live sign-in/sign-out flow. For historical rows created before the marker
+// existed, conservatively exclude completed shifts entered long after their
+// work date, plus corrections made more than two calendar days later. A live
+// clock-out necessarily changes `updated_at`, so timestamp inequality alone
+// cannot distinguish it from an edit; the date windows preserve genuine old
+// live shifts while future corrections are tracked exactly by the column.
+const reminderQualityMigration = await db.execute({
+  sql: "SELECT version FROM schema_migrations WHERE version = ?",
+  args: ["smart_shift_reminder_quality_v1"],
+});
+if (reminderQualityMigration.rows.length === 0) {
+  const transaction = await db.transaction("write");
+  try {
+    await transaction.execute(`
+      UPDATE shifts
+      SET manual_time_adjusted = 1
+      WHERE sign_in IS NOT NULL
+        AND sign_out IS NOT NULL
+        AND (
+          abs(julianday(substr(created_at, 1, 10)) - julianday(date)) > 1
+          OR abs(julianday(substr(updated_at, 1, 10)) - julianday(date)) > 2
+        )
+    `);
+    await transaction.execute({
+      sql: "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)",
+      args: ["smart_shift_reminder_quality_v1", new Date().toISOString()],
+    });
+    await transaction.commit();
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  } finally {
+    transaction.close();
   }
 }
 
@@ -370,6 +410,12 @@ try {
 // migrated.
 try {
   await db.execute("ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0");
+} catch {
+  // already migrated
+}
+
+try {
+  await db.execute("ALTER TABLE users ADD COLUMN smart_reminders_enabled INTEGER NOT NULL DEFAULT 0");
 } catch {
   // already migrated
 }

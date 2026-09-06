@@ -265,6 +265,7 @@ export interface MePatch {
   rate?: number;
   goalHours?: number;
   goalEarnings?: number;
+  smartRemindersEnabled?: boolean;
 }
 
 export function patchMe(patch: MePatch): Promise<{ user: User; extras?: WeekExtra[] }> {

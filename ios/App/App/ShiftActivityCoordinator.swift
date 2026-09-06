@@ -5,6 +5,307 @@ import UserNotifications
 
 extension Notification.Name {
     static let wagesTrackerShiftEnded = Notification.Name("WagesTrackerShiftEnded")
+    static let wagesTrackerSmartReminderAction = Notification.Name("WagesTrackerSmartReminderAction")
+}
+
+struct SmartReminderSchedulePayload: Codable {
+    let accountId: String
+    let timeZone: String
+    let reminders: [SmartScheduledReminder]
+}
+
+struct SmartScheduledReminder: Codable {
+    let id: String
+    let kind: String
+    let fireAtEpochMs: Double
+    let title: String
+    let body: String
+    let weekdayName: String
+    let usualTimeLabel: String
+    let shiftId: String?
+}
+
+struct SmartReminderPendingAction: Codable {
+    let accountId: String
+    let kind: String
+    let reminderId: String
+    let shiftId: String?
+    let weekdayName: String?
+    let usualTimeLabel: String?
+}
+
+struct SmartReminderScheduleOutcome {
+    let authorization: String
+    let scheduledCount: Int
+}
+
+/**
+ * Owns one-shot local notification requests for the conservative patterns
+ * learned in the WebView. These are intentionally not repeating calendar
+ * triggers: every foreground data refresh replaces the next seven days from
+ * authoritative shift history, so a stale routine can quietly disappear.
+ */
+final class SmartShiftReminderCoordinator {
+    static let shared = SmartShiftReminderCoordinator()
+
+    static let requestPrefix = "smart-shift-"
+    static let signInCategory = "SMART_SHIFT_SIGN_IN"
+    static let signOutCategory = "SMART_SHIFT_SIGN_OUT"
+    static let signInAction = "SMART_SHIFT_ACTION_SIGN_IN"
+    static let signOutAction = "SMART_SHIFT_ACTION_SIGN_OUT"
+    static let remindLaterAction = "SMART_SHIFT_ACTION_REMIND_LATER"
+    static let dismissAction = "SMART_SHIFT_ACTION_DISMISS"
+
+    private let pendingActionKey = "com.ezazahmad.wagestracker.smartReminder.pendingAction.v1"
+    private let center = UNUserNotificationCenter.current()
+    private let generationLock = NSLock()
+    private var syncGeneration = 0
+
+    private init() {}
+
+    static func registerCategories() {
+        let remindLater = UNNotificationAction(
+            identifier: remindLaterAction,
+            title: "Remind Me Later",
+            options: []
+        )
+        let dismiss = UNNotificationAction(
+            identifier: dismissAction,
+            title: "Dismiss",
+            options: []
+        )
+        let signIn = UNNotificationAction(
+            identifier: signInAction,
+            title: "Sign In",
+            options: [.foreground, .authenticationRequired]
+        )
+        let signOut = UNNotificationAction(
+            identifier: signOutAction,
+            title: "Sign Out",
+            // Foregrounding is deliberate: the app presents a second,
+            // explicit confirmation and never ends a shift from this tap.
+            options: [.foreground, .authenticationRequired]
+        )
+        let signInCategory = UNNotificationCategory(
+            identifier: signInCategory,
+            actions: [signIn, remindLater, dismiss],
+            intentIdentifiers: [],
+            options: [.customDismissAction]
+        )
+        let signOutCategory = UNNotificationCategory(
+            identifier: signOutCategory,
+            actions: [signOut, remindLater, dismiss],
+            intentIdentifiers: [],
+            options: [.customDismissAction]
+        )
+        UNUserNotificationCenter.current().setNotificationCategories([signInCategory, signOutCategory])
+    }
+
+    func authorizationStatus() async -> String {
+        let settings = await center.notificationSettings()
+        switch settings.authorizationStatus {
+        case .authorized, .provisional, .ephemeral: return "authorized"
+        case .denied: return "denied"
+        case .notDetermined: return "notDetermined"
+        @unknown default: return "unavailable"
+        }
+    }
+
+    func requestAuthorization() async -> String {
+        let current = await authorizationStatus()
+        guard current == "notDetermined" else { return current }
+        do {
+            _ = try await center.requestAuthorization(options: [.alert, .sound])
+        } catch {
+            return "unavailable"
+        }
+        return await authorizationStatus()
+    }
+
+    func schedule(_ payload: SmartReminderSchedulePayload) async -> SmartReminderScheduleOutcome {
+        let generation = beginSync()
+        let status = await authorizationStatus()
+        guard status == "authorized",
+              !payload.accountId.isEmpty,
+              payload.accountId.count <= 128,
+              TimeZone(identifier: payload.timeZone) != nil else {
+            cancelAll()
+            return .init(authorization: status, scheduledCount: 0)
+        }
+
+        await removeExistingRequests()
+        guard isCurrent(generation) else {
+            return .init(authorization: status, scheduledCount: 0)
+        }
+        let now = Date()
+        var scheduledCount = 0
+        for reminder in payload.reminders.prefix(8) {
+            guard isCurrent(generation) else { break }
+            let fireDate = Date(timeIntervalSince1970: reminder.fireAtEpochMs / 1000)
+            let delay = fireDate.timeIntervalSince(now)
+            guard delay >= 30, delay <= 8 * 24 * 60 * 60,
+                  ["signIn", "signOut"].contains(reminder.kind),
+                  reminder.id.count <= 180 else { continue }
+
+            let content = UNMutableNotificationContent()
+            content.title = reminder.title
+            content.body = reminder.body
+            content.sound = .default
+            content.categoryIdentifier = reminder.kind == "signOut"
+                ? Self.signOutCategory
+                : Self.signInCategory
+            content.threadIdentifier = "smart-shift-reminders"
+            content.userInfo = [
+                "accountId": payload.accountId,
+                "kind": reminder.kind,
+                "reminderId": reminder.id,
+                "shiftId": reminder.shiftId ?? "",
+                "weekdayName": reminder.weekdayName,
+                "usualTimeLabel": reminder.usualTimeLabel,
+                "timeZone": payload.timeZone,
+                "snoozeCount": 0
+            ]
+
+            let request = UNNotificationRequest(
+                identifier: "\(Self.requestPrefix)\(payload.accountId)-\(reminder.id)",
+                content: content,
+                trigger: UNTimeIntervalNotificationTrigger(timeInterval: delay, repeats: false)
+            )
+            do {
+                try await center.add(request)
+                if !isCurrent(generation) {
+                    center.removePendingNotificationRequests(withIdentifiers: [request.identifier])
+                    break
+                }
+                scheduledCount += 1
+            } catch {
+                // One malformed/OS-rejected date must not prevent other
+                // reliable weekdays from being scheduled.
+                continue
+            }
+        }
+        return .init(authorization: status, scheduledCount: scheduledCount)
+    }
+
+    func cancelAll(completion: (() -> Void)? = nil) {
+        _ = beginSync()
+        center.getPendingNotificationRequests { requests in
+            let identifiers = requests
+                .map(\.identifier)
+                .filter { $0.hasPrefix(Self.requestPrefix) }
+            self.center.removePendingNotificationRequests(withIdentifiers: identifiers)
+            self.center.getDeliveredNotifications { notifications in
+                let deliveredIdentifiers = notifications
+                    .map { $0.request.identifier }
+                    .filter { $0.hasPrefix(Self.requestPrefix) }
+                self.center.removeDeliveredNotifications(withIdentifiers: deliveredIdentifiers)
+                completion?()
+            }
+        }
+    }
+
+    func cancelForShift(_ shiftId: String) {
+        _ = beginSync()
+        center.getPendingNotificationRequests { requests in
+            let identifiers = requests.filter { request in
+                request.identifier.hasPrefix(Self.requestPrefix)
+                && (request.content.userInfo["shiftId"] as? String) == shiftId
+            }.map(\.identifier)
+            self.center.removePendingNotificationRequests(withIdentifiers: identifiers)
+            self.center.removeDeliveredNotifications(withIdentifiers: identifiers)
+        }
+    }
+
+    private func removeExistingRequests() async {
+        let requests = await center.pendingNotificationRequests()
+        let identifiers = requests.map(\.identifier).filter { $0.hasPrefix(Self.requestPrefix) }
+        center.removePendingNotificationRequests(withIdentifiers: identifiers)
+        let delivered = await center.deliveredNotifications()
+        let deliveredIdentifiers = delivered
+            .map { $0.request.identifier }
+            .filter { $0.hasPrefix(Self.requestPrefix) }
+        center.removeDeliveredNotifications(withIdentifiers: deliveredIdentifiers)
+    }
+
+    private func beginSync() -> Int {
+        generationLock.lock()
+        syncGeneration += 1
+        let value = syncGeneration
+        generationLock.unlock()
+        return value
+    }
+
+    private func isCurrent(_ generation: Int) -> Bool {
+        generationLock.lock()
+        let matches = generation == syncGeneration
+        generationLock.unlock()
+        return matches
+    }
+
+    func handle(response: UNNotificationResponse, completion: @escaping () -> Void) {
+        let actionId = response.actionIdentifier
+        if actionId == Self.remindLaterAction {
+            let content = response.notification.request.content.mutableCopy() as? UNMutableNotificationContent
+            if let content {
+                let count = (content.userInfo["snoozeCount"] as? Int ?? 0) + 1
+                var info = content.userInfo
+                info["snoozeCount"] = count
+                content.userInfo = info
+                let request = UNNotificationRequest(
+                    identifier: "\(response.notification.request.identifier)-snooze-\(count)",
+                    content: content,
+                    trigger: UNTimeIntervalNotificationTrigger(timeInterval: 15 * 60, repeats: false)
+                )
+                center.add(request) { _ in completion() }
+            } else {
+                completion()
+            }
+            return
+        }
+
+        if actionId == Self.dismissAction || actionId == UNNotificationDismissActionIdentifier {
+            completion()
+            return
+        }
+
+        let info = response.notification.request.content.userInfo
+        guard let kind = info["kind"] as? String,
+              ["signIn", "signOut"].contains(kind),
+              actionId == UNNotificationDefaultActionIdentifier
+                || actionId == Self.signInAction
+                || actionId == Self.signOutAction else {
+            completion()
+            return
+        }
+        let action = SmartReminderPendingAction(
+            accountId: info["accountId"] as? String ?? "",
+            kind: kind,
+            reminderId: info["reminderId"] as? String ?? response.notification.request.identifier,
+            shiftId: (info["shiftId"] as? String).flatMap { $0.isEmpty ? nil : $0 },
+            weekdayName: info["weekdayName"] as? String,
+            usualTimeLabel: info["usualTimeLabel"] as? String
+        )
+        if let data = try? JSONEncoder().encode(action) {
+            UserDefaults.standard.set(data, forKey: pendingActionKey)
+        }
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(
+                name: .wagesTrackerSmartReminderAction,
+                object: nil,
+                userInfo: ["action": action]
+            )
+        }
+        completion()
+    }
+
+    func consumePendingAction() -> SmartReminderPendingAction? {
+        guard let data = UserDefaults.standard.data(forKey: pendingActionKey),
+              let action = try? JSONDecoder().decode(SmartReminderPendingAction.self, from: data) else {
+            return nil
+        }
+        UserDefaults.standard.removeObject(forKey: pendingActionKey)
+        return action
+    }
 }
 
 enum ShiftClockOutQueueOutcome: Equatable {
@@ -318,6 +619,7 @@ actor ShiftActivityCoordinator {
     func finishFromApp(shiftId: String?, finalDurationSeconds: Int?) async {
         if let shiftId {
             await ShiftClockOutBackgroundSession.shared.cancelTasks(for: shiftId)
+            SmartShiftReminderCoordinator.shared.cancelForShift(shiftId)
         }
         let endedAt = Date()
         let appearance = readCredential()?.appearance
@@ -668,5 +970,17 @@ final class ActiveShiftNotificationDelegate: NSObject, UNUserNotificationCenterD
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         completionHandler([.banner, .list, .sound])
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        guard response.notification.request.identifier.hasPrefix(SmartShiftReminderCoordinator.requestPrefix) else {
+            completionHandler()
+            return
+        }
+        SmartShiftReminderCoordinator.shared.handle(response: response, completion: completionHandler)
     }
 }

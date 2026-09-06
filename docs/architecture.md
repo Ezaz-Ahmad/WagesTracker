@@ -14,6 +14,7 @@ flowchart LR
     WEB["Browser / installed PWA\nReact 18 + Vite"]
     IOS["WagesTracker iPhone app\nReact bundle in Capacitor/WebKit"]
     LIVE["ActivityKit + WidgetKit\nactive-shift Live Activity"]
+    REMIND["UserNotifications\none-shot smart reminders"]
     PDF["Client-side jsPDF\nweekly wage report"]
     KEYCHAIN["iOS Keychain\nremembered session / biometric credential / scoped shift action"]
   end
@@ -46,6 +47,7 @@ flowchart LR
   WEB --> PDF
   IOS --> PDF
   IOS <--> LIVE
+  IOS <--> REMIND
   IOS <--> KEYCHAIN
   VERCEL --> AASA
   AASA --> IOS
@@ -125,6 +127,12 @@ An open shift remains an ordinary `shifts` row and the API remains authoritative
 ActivityKit renders elapsed time from the shift's absolute start date, using the same overnight-start rule as `useLiveElapsedHours`; it performs no timer writes. Clock-out from the authenticated UI and from the scoped native action converge on one conditional `UPDATE ... WHERE sign_out IS NULL` transaction. Consequently, only the first accepted finish time wins, while repeated taps and background replays return the same completed row. The native action captures that time once, persists it, and submits it with an iOS-owned background upload that waits for connectivity. Failure leaves the activity in a retry state; success ends it, reports final duration and triggers a dashboard refresh when the WebView is alive.
 
 The embedded `ShiftActivityExtension` contains presentation code and intent metadata. The `LiveActivityIntent` executes in the application process, requires device authentication and confirmation, and reaches the coordinator through the app target. See [`active-shift-live-activity.md`](active-shift-live-activity.md) for the iOS-version matrix, ActivityKit's eight-hour limit, restart boundary, separate extension signing and the Android foreground-service design that is still required.
+
+### Smart-reminder lifecycle
+
+Smart reminders are an account-level, default-off preference and a device notification capability. The React layer learns weekday patterns from the retained shift snapshot, but accepts only live-captured completed rows marked reminder-eligible by the API. A historical/completed create is marked manual immediately; any later PATCH that touches a time permanently marks that row ineligible, while the atomic live clock-out path preserves eligibility. The robust learner also excludes split-shift dates, extreme durations, irregular attendance and loose time clusters.
+
+The iOS bridge receives at most eight one-shot notification requests covering the next seven local calendar days and the currently open shift. It replaces that short horizon whenever authenticated shifts refresh or mutate, so clocking in cancels the corresponding start reminder and clocking out cancels the finish reminder. Notification actions do not receive a session token and do not call the API: Sign In/Sign Out only foreground the app and produce a pending intent, which the React confirmation dialog rechecks against current shift state before an explicit confirm tap can write anything. See [`smart-shift-reminders.md`](smart-shift-reminders.md).
 
 ### Work locations and allowance invariants
 

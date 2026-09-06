@@ -11,6 +11,15 @@ Backend is hosted on **Render**, frontend on **Vercel**, database on **Turso**. 
 
 ## Features
 
+### Smart Shift Reminders
+
+- **Conservative weekday learning** — a start/finish routine is learned only after at least four recent, live-captured completed shifts on the same weekday. Alternating/occasional weekdays, split shifts, manual time entries/corrections, implausible durations and loose/outlier-heavy clusters stay silent.
+- **Helpful one-shot notifications** — after a 20-minute grace period, iOS can send a personalised missed-sign-in or missed-sign-out alert in the device's current IANA timezone. The next seven days are recalculated from fresh data; reminders never repeat weekly forever from a stale assumption.
+- **Safe actions** — notifications offer **Sign In/Sign Out**, **Remind Me Later** (15 minutes) and **Dismiss**. Sign In and Sign Out foreground the app and require an explicit in-app confirmation; no notification action can automatically change a shift.
+- **Clear preference and status** — the account-level opt-in lives in Settings → Profile & preferences. Its card shows learned weekday routines and the safeguards in effect; it is off by default and denied iOS notification permission fails closed.
+
+Implementation and native QA details are in [`docs/smart-shift-reminders.md`](docs/smart-shift-reminders.md).
+
 ### Personal Spending Tracker
 
 - **Fast personal expense entry** — amount, category and local date/time are the only required values; merchant/title, note and payment method are optional. The mobile experience is a safe-area-aware bottom sheet and desktop uses the same accessible focused dialog. The submit control is in-flight guarded, and every new draft carries a stable client request UUID so retrying after an uncertain network response returns the original row rather than creating a duplicate.

@@ -9,6 +9,7 @@ import { configureConnectivityAdapter } from "./platform/connectivity";
 import { configureAppLifecycleAdapter } from "./platform/appLifecycle";
 import { configureBiometricAuth } from "./platform/biometricAuth";
 import { configureActiveShiftActivity } from "./platform/activeShiftActivity";
+import { configureSmartShiftReminderNotifications } from "./platform/smartShiftReminderNotifications";
 import { ThemeProvider } from "./context/ThemeContext";
 import "./styles/tokens.css";
 import "./styles/app.css";
@@ -41,13 +42,14 @@ const path = window.location.pathname.replace(/\/+$/, "") || "/";
 // before any API request or authentication state is evaluated. The web
 // adapter is a no-op and preserves the existing synchronous startup path.
 if (__NATIVE_CONSUMER_BUILD__ && Capacitor.isNativePlatform()) {
-  const [storage, pdf, connectivity, lifecycle, biometrics, activeShift] = await Promise.all([
+  const [storage, pdf, connectivity, lifecycle, biometrics, activeShift, smartReminders] = await Promise.all([
     import("./platform/nativeSecureTokenStorage"),
     import("./platform/nativePdfDelivery"),
     import("./platform/nativeConnectivity"),
     import("./platform/nativeAppLifecycle"),
     import("./platform/nativeBiometricAuth"),
     import("./platform/nativeActiveShiftActivity"),
+    import("./platform/nativeSmartShiftReminderNotifications"),
   ]);
   const { NativeSecureTokenStorageAdapter } = storage;
   configureTokenStorage(new NativeSecureTokenStorageAdapter());
@@ -56,6 +58,7 @@ if (__NATIVE_CONSUMER_BUILD__ && Capacitor.isNativePlatform()) {
   configureAppLifecycleAdapter(new lifecycle.NativeAppLifecycleAdapter());
   configureBiometricAuth(new biometrics.NativeBiometricAuthAdapter());
   configureActiveShiftActivity(new activeShift.NativeActiveShiftActivityAdapter());
+  configureSmartShiftReminderNotifications(new smartReminders.NativeSmartShiftReminderNotificationAdapter());
   const { startDeepLinkListener } = await import("./platform/deepLinks");
   void startDeepLinkListener();
 }

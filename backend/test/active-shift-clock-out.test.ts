@@ -47,6 +47,7 @@ describe("active-shift clock-out contract", () => {
       .set("Authorization", `Bearer ${tokenA}`)
       .send({ signOut: "17:00:00" });
     expect(complete.status).toBe(200);
+    expect(complete.body.shift.reminderEligible).toBe(true);
 
     const historical = await request(app)
       .post("/api/shifts")
@@ -54,6 +55,7 @@ describe("active-shift clock-out contract", () => {
       .send({ date: "2026-08-19", location: "Operations", signIn: "09:00", signOut: "17:00" });
     expect(historical.status).toBe(201);
     expect(historical.body.clockOutToken).toBeUndefined();
+    expect(historical.body.shift.reminderEligible).toBe(false);
   });
 
   it("clocks out from the native action without a full user session token", async () => {
