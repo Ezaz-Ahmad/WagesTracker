@@ -41,14 +41,14 @@ afterEach(() => {
 });
 
 describe("SmartShiftReminderSettings", () => {
-  it("explains the reliability and no-automatic-action safeguards", () => {
+  it("keeps the preference helpful without exposing internal scheduling rules", () => {
     render(<SmartShiftReminderSettings />);
     expect(screen.getByRole("switch", { name: "Smart shift reminders" }).getAttribute("aria-checked")).toBe("false");
-    expect(screen.getByText("20-min grace")).toBeTruthy();
-    expect(screen.getByText("Adapts to roster changes")).toBeTruthy();
-    expect(screen.getByText("Reliable patterns only")).toBeTruthy();
-    expect(screen.getByText("No automatic clocking")).toBeTruthy();
-    expect(screen.getByText(/always open Wage Tracker for confirmation/i)).toBeTruthy();
+    expect(screen.getByText(/helpful reminders around your usual shifts/i)).toBeTruthy();
+    expect(screen.getByText(/stay quiet when your routine isn't clear/i)).toBeTruthy();
+    expect(screen.queryByText(/20-min grace/i)).toBeNull();
+    expect(screen.queryByText(/no automatic clocking/i)).toBeNull();
+    expect(screen.queryByText(/at least four/i)).toBeNull();
   });
 
   it("persists an explicit opt-in", async () => {
@@ -66,7 +66,9 @@ describe("SmartShiftReminderSettings", () => {
       { id: "3", date: "2026-08-31", location: "Central", signIn: "07:59", signOut: "17:03" },
     ];
     const first = render(<SmartShiftReminderSettings />);
-    expect(screen.getByText(/3 of 4 Monday shifts recorded/)).toBeTruthy();
+    expect(screen.getByText("Learning your routine")).toBeTruthy();
+    expect(screen.getByText(/completed Monday shifts/i)).toBeTruthy();
+    expect(screen.queryByText(/3 of 4/i)).toBeNull();
 
     first.unmount();
     patterns = [{
@@ -79,6 +81,11 @@ describe("SmartShiftReminderSettings", () => {
       endSpreadMinutes: 3,
     }];
     render(<SmartShiftReminderSettings />);
-    expect(screen.getByText(/Ready — learning complete for 1 weekday routine/)).toBeTruthy();
+    expect(screen.getByText(/ready for your Monday routine/i)).toBeTruthy();
+    expect(screen.getByText("Your usual shifts")).toBeTruthy();
+    expect(screen.getByText((_, element) => (
+      !!element?.classList.contains("smart-reminder-routine-time")
+      && element.textContent === "8:00 AM – 5:00 PM"
+    ))).toBeTruthy();
   });
 });

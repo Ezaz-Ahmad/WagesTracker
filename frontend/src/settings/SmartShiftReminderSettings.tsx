@@ -2,14 +2,12 @@ import { useState } from "react";
 import { SmartBellIcon } from "../components/icons";
 import { useApp } from "../context/AppContext";
 import { formatReminderTime, getSmartShiftLearningProgress } from "../lib/smartShiftReminders";
-import { isSmartShiftReminderNotificationsConfigured } from "../platform/smartShiftReminderNotifications";
 
 export function SmartShiftReminderSettings() {
   const {
     user,
     smartReminderPatterns,
     smartReminderAuthorization,
-    smartReminderScheduledCount,
     setSmartRemindersEnabled,
     shifts,
   } = useApp();
@@ -18,12 +16,10 @@ export function SmartShiftReminderSettings() {
   // the fallbacks keep this leaf component equally harmless in isolation.
   const patterns = smartReminderPatterns ?? [];
   const authorization = smartReminderAuthorization ?? "unavailable";
-  const scheduledCount = smartReminderScheduledCount ?? 0;
   const progress = getSmartShiftLearningProgress(shifts ?? []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const enabled = !!user?.smartRemindersEnabled;
-  const native = isSmartShiftReminderNotificationsConfigured();
 
   if (!user) return null;
 
@@ -41,22 +37,51 @@ export function SmartShiftReminderSettings() {
   }
 
   const learningStatus = progress.bestWeekdayCount >= 4
-    ? `History found — ${progress.bestWeekdayCount} ${progress.bestWeekdayName} shifts, but the routine is not consistent enough for a safe reminder yet`
+    ? {
+        label: "Still learning",
+        detail: `Your recent ${progress.bestWeekdayName} shifts vary, so we'll wait for a clearer routine.`,
+      }
     : progress.bestWeekdayCount > 0
-      ? `Learning from your history — ${progress.bestWeekdayCount} of 4 ${progress.bestWeekdayName} shifts recorded`
+      ? {
+          label: "Learning your routine",
+          detail: `We're learning from your completed ${progress.bestWeekdayName} shifts.`,
+        }
       : progress.completedShiftCount > 0
-        ? "Previous routines retired — learning afresh from your next completed shifts"
-        : "Learning quietly — complete shifts to build your first weekday routine";
+        ? {
+            label: "Learning your new routine",
+            detail: "Your schedule has changed, so reminders are quietly adapting.",
+          }
+        : {
+            label: "Learning your routine",
+            detail: "Complete shifts as usual. We'll let you know when reminders are ready.",
+          };
 
   const status = !enabled
-    ? "Off — your history is never used for reminders"
+    ? {
+        label: "Off",
+        detail: "Turn this on for helpful reminders around your usual shifts.",
+      }
     : authorization === "denied"
-      ? "On, but notifications are blocked in iOS Settings"
+      ? {
+          label: "Notifications are off",
+          detail: "Allow notifications in iPhone Settings to receive smart shift reminders.",
+        }
       : patterns.length === 0
         ? learningStatus
-        : native
-          ? `Ready — learning complete for ${patterns.length} weekday ${patterns.length === 1 ? "routine" : "routines"} · ${scheduledCount} upcoming ${scheduledCount === 1 ? "alert" : "alerts"}`
-          : `Ready — learning complete for ${patterns.length} weekday ${patterns.length === 1 ? "routine" : "routines"} · alerts will be delivered by the iPhone app`;
+        : {
+            label: "Ready",
+            detail: patterns.length === 1
+              ? `Smart reminders are ready for your ${patterns[0].weekdayName} routine.`
+              : `Smart reminders are ready for ${patterns.length} days in your routine.`,
+          };
+
+  const statusTone = !enabled
+    ? "is-off"
+    : authorization === "denied"
+      ? "is-blocked"
+      : patterns.length > 0
+        ? "is-ready"
+        : "is-learning";
 
   return (
     <section className={`card smart-reminder-settings${enabled ? " is-enabled" : ""}`} aria-labelledby="smart-reminder-title">
@@ -64,10 +89,10 @@ export function SmartShiftReminderSettings() {
       <div className="smart-reminder-head">
         <span className="smart-reminder-icon" aria-hidden="true"><SmartBellIcon size={22} /></span>
         <div className="smart-reminder-heading-copy">
-          <span className="weekly-cycle-eyebrow">Personalised assistance</span>
+          <span className="weekly-cycle-eyebrow">A helpful nudge</span>
           <h3 id="smart-reminder-title">Smart shift reminders</h3>
           <p>
-            Learns only from consistent, completed shifts and gently checks in when a usual start or finish appears to be missed.
+            Get a gentle reminder when it looks like you forgot to start or finish a usual shift.
           </p>
         </div>
         <button
@@ -86,37 +111,36 @@ export function SmartShiftReminderSettings() {
       </div>
 
       <p id="smart-reminder-description" className="visually-hidden">
-        Requires at least four consistent completed shifts for a weekday. Manually corrected, unusual and split shifts are ignored.
+        Uses completed shifts to learn your usual weekday routine and may remind you when a usual start or finish is missed.
       </p>
 
-      <div className="smart-reminder-status-row" id="smart-reminder-status" role="status">
-        <span className={`smart-reminder-status-dot${enabled ? " is-live" : ""}`} aria-hidden="true" />
-        <span>{status}</span>
+      <div className={`smart-reminder-status-row ${statusTone}`} id="smart-reminder-status" role="status">
+        <span className="smart-reminder-status-dot" aria-hidden="true" />
+        <span className="smart-reminder-status-copy">
+          <strong>{status.label}</strong>
+          <small>{status.detail}</small>
+        </span>
       </div>
 
       {enabled && patterns.length > 0 && (
-        <div className="smart-reminder-routines" aria-label="Reliable shift routines">
-          {patterns.map((pattern) => (
-            <div className="smart-reminder-routine" key={pattern.weekday}>
-              <span>{pattern.weekdayName.slice(0, 3)}</span>
-              <strong>{formatReminderTime(pattern.usualStartMinutes)}</strong>
-              <i aria-hidden="true">→</i>
-              <strong>{formatReminderTime(pattern.usualEndOffsetMinutes)}</strong>
-              <small>{pattern.sampleSize} shifts</small>
-            </div>
-          ))}
+        <div className="smart-reminder-routines-wrap">
+          <p className="smart-reminder-routines-title">Your usual shifts</p>
+          <div className="smart-reminder-routines" aria-label="Usual shift times">
+            {patterns.map((pattern) => (
+              <div className="smart-reminder-routine" key={pattern.weekday}>
+                <strong className="smart-reminder-routine-day">{pattern.weekdayName}</strong>
+                <span className="smart-reminder-routine-time">
+                  {formatReminderTime(pattern.usualStartMinutes)} <i aria-hidden="true">–</i> {formatReminderTime(pattern.usualEndOffsetMinutes)}
+                </span>
+                <small>Ready</small>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      <div className="smart-reminder-guardrails" aria-label="Smart reminder safeguards">
-        <span>20-min grace</span>
-        <span>Adapts to roster changes</span>
-        <span>Reliable patterns only</span>
-        <span>No automatic clocking</span>
-      </div>
-
-      <p className="smart-reminder-footnote">
-        Missed alerts are sent once, include Sign In or Sign Out, Remind Me Later and Dismiss, and always open Wage Tracker for confirmation before changing a shift.
+      <p className="smart-reminder-reassurance">
+        We'll stay quiet when your routine isn't clear.
       </p>
       {error && <p className="settings-error smart-reminder-error" role="alert">{error}</p>}
     </section>

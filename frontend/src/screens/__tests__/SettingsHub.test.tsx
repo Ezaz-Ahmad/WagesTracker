@@ -135,10 +135,10 @@ describe("Settings hub — category navigation", () => {
     expect(Array.from(select.options).map((option) => option.value)).toEqual([
       "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
     ]);
-    expect(screen.getByText(/weekly cycle across earnings, goals, history, reports and spending/i)).toBeTruthy();
+    expect(screen.getByText(/earnings, goals and reports will run Monday to Sunday/i)).toBeTruthy();
 
     await user.selectOptions(select, "Tuesday");
-    expect(screen.getByText("Your week runs Tuesday to Monday.")).toBeTruthy();
+    expect(screen.getByText(/earnings, goals and reports will run Tuesday to Monday/i)).toBeTruthy();
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     await waitFor(() => expect(updateSettingsImpl).toHaveBeenCalledWith(expect.objectContaining({ weekStartsOn: "Tuesday" })));
   });
