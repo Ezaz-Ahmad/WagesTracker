@@ -117,3 +117,84 @@ export function passwordChangedEmail(input: { to: string; name: string; supportU
     ].join("\n"),
   };
 }
+
+export function emailVerificationEmail(input: {
+  to: string;
+  name: string;
+  verificationUrl: string;
+  expiresInHours: number;
+  purpose: "signup" | "change";
+}): EmailMessage {
+  const changing = input.purpose === "change";
+  const heading = changing ? "Confirm your new email" : "Verify your Wage Tracker email";
+  return {
+    to: input.to,
+    subject: heading,
+    tag: changing ? "email-change-verification" : "signup-verification",
+    html: layout({
+      heading,
+      intro: changing ? "Confirm this address before it replaces your current login email." : "Confirm your address to activate your account.",
+      paragraphs: [
+        escapeHtml(greeting(input.name)),
+        changing
+          ? "A request was made to use this email address for your Wage Tracker account. Your current login email remains active until you confirm this one."
+          : "Confirm that this email address belongs to you before signing in to your new Wage Tracker account.",
+      ],
+      buttonLabel: changing ? "Confirm new email" : "Verify email",
+      buttonUrl: input.verificationUrl,
+      footnote: `This link works once and expires in ${input.expiresInHours} hours. If you didn't request it, you can safely ignore this email; no email address or password will be changed.`,
+    }),
+    text: [
+      greeting(input.name),
+      "",
+      changing
+        ? "Confirm this address before it replaces your current Wage Tracker login email."
+        : "Confirm that this email address belongs to you before signing in to your new Wage Tracker account.",
+      "",
+      input.verificationUrl,
+      "",
+      `This link works once and expires in ${input.expiresInHours} hours.`,
+      "If you didn't request it, ignore this email; no email address or password will be changed.",
+      "",
+      "— Wage Tracker",
+    ].join("\n"),
+  };
+}
+
+export function emailChangedEmail(input: {
+  to: string;
+  name: string;
+  oldEmail: string;
+  newEmail: string;
+  supportUrl: string;
+  sentToOldAddress: boolean;
+}): EmailMessage {
+  const heading = "Your Wage Tracker email was changed";
+  return {
+    to: input.to,
+    subject: heading,
+    tag: "email-changed",
+    html: layout({
+      heading,
+      intro: `Your login email is now ${input.newEmail}. Your password was not changed.`,
+      paragraphs: [
+        escapeHtml(greeting(input.name)),
+        `The login email for your Wage Tracker account changed from <strong>${escapeHtml(input.oldEmail)}</strong> to <strong>${escapeHtml(input.newEmail)}</strong>.`,
+        "Your password, shifts, reports, settings, and active sessions were not changed.",
+      ],
+      footnote: input.sentToOldAddress
+        ? `If you didn't authorise this, contact support immediately: <a href="${escapeHtml(input.supportUrl)}" style="color:${BRAND.accentDark};">${escapeHtml(input.supportUrl)}</a>`
+        : "This message confirms that this address is now used to log in to your Wage Tracker account.",
+    }),
+    text: [
+      greeting(input.name),
+      "",
+      `Your Wage Tracker login email changed from ${input.oldEmail} to ${input.newEmail}.`,
+      "Your password, shifts, reports, settings, and active sessions were not changed.",
+      "",
+      input.sentToOldAddress ? `If you didn't authorise this, contact support immediately: ${input.supportUrl}` : "This address is now used to log in.",
+      "",
+      "— Wage Tracker",
+    ].join("\n"),
+  };
+}

@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Shift, User } from "../lib/types";
-import { AdminApiError, deleteUser, fetchAllUsers, fetchUserDetail, type AdminUserSummary } from "./adminApi";
+import { AdminApiError, deleteUser, fetchAllUsers, fetchUserDetail, updateUserEmail, type AdminUserSummary } from "./adminApi";
 import { Logo } from "../components/Logo";
 import { Overlay } from "../components/Overlay";
 import { useDismissTransition } from "../lib/useDismissTransition";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { AsyncButton } from "../components/AsyncButton";
+import { StatusBanner } from "../components/StatusBanner";
+import { validateEmailAddress } from "../lib/emailPolicy";
+import { showErrorPopup } from "../lib/errorFeedback";
 
 const CURRENCY = "$";
 
@@ -31,6 +34,11 @@ export function AdminDashboard({
   const [detail, setDetail] = useState<{ user: User; shifts: Shift[] } | null>(null);
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [adminEmail, setAdminEmail] = useState("");
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailMessage, setEmailMessage] = useState<string | null>(null);
+  const [acceptedEmailAsEntered, setAcceptedEmailAsEntered] = useState<string | null>(null);
 
   const [deleteTarget, setDeleteTarget] = useState<AdminUserSummary | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -75,11 +83,48 @@ export function AdminDashboard({
     try {
       const d = await fetchUserDetail(u.id);
       setDetail(d);
+      setAdminEmail(d.user.email);
+      setEmailError(null);
+      setEmailMessage(null);
+      setAcceptedEmailAsEntered(null);
     } catch (e) {
       if (onAuthError(e)) return;
       setDetailError(e instanceof AdminApiError ? e.message : "Couldn't load user");
     } finally {
       setDetailLoadingId(null);
+    }
+  }
+
+  async function handleEmailUpdate(event: React.FormEvent) {
+    event.preventDefault();
+    if (!detail || emailSaving) return;
+    const check = validateEmailAddress(adminEmail);
+    setEmailError(null);
+    setEmailMessage(null);
+    if (!check.valid) {
+      const message = check.error ?? "Enter a valid email address.";
+      setEmailError(message);
+      showErrorPopup({ title: "Check the email", message, hint: "Correct the highlighted field; no account data has changed.", field: "email" });
+      return;
+    }
+    if (check.suggestion && acceptedEmailAsEntered !== check.normalized) {
+      const message = `That domain may be misspelled. Did you mean ${check.suggestion}?`;
+      setEmailError(message);
+      showErrorPopup({ title: "Check the email", message, hint: "Use the suggestion or choose Keep mine before saving.", field: "email", suggestion: check.suggestion });
+      return;
+    }
+    setEmailSaving(true);
+    try {
+      const result = await updateUserEmail(detail.user.id, adminEmail, acceptedEmailAsEntered === check.normalized);
+      setDetail((current) => current ? { ...current, user: result.user } : current);
+      setUsers((current) => current?.map((item) => item.id === result.user.id ? { ...item, email: result.user.email } : item) ?? current);
+      setAdminEmail(result.user.email);
+      setEmailMessage(result.message);
+    } catch (error) {
+      if (onAuthError(error)) return;
+      setEmailError(error instanceof Error ? error.message : "Couldn't update the email.");
+    } finally {
+      setEmailSaving(false);
     }
   }
 
@@ -247,6 +292,37 @@ export function AdminDashboard({
               {fmt2(detail.user.goalEarnings)}/week · week starts {detail.user.weekStartsOn}
             </p>
             {detailError && <div className="form-error">{detailError}</div>}
+            <form className="admin-email-editor" onSubmit={handleEmailUpdate} noValidate>
+              <h3>Edit login email</h3>
+              <p className="section-hint">This changes only the login email. The user's existing password, sessions, shifts, reports, and settings remain unchanged.</p>
+              {emailError && <div className="form-error" role="alert">{emailError}</div>}
+              {emailMessage && <StatusBanner tone="success">{emailMessage}</StatusBanner>}
+              <div className="field">
+                <label htmlFor="admin-edit-email">Email</label>
+                <input
+                  id="admin-edit-email"
+                  className="input"
+                  type="email"
+                  inputMode="email"
+                  value={adminEmail}
+                  onChange={(event) => { setAdminEmail(event.target.value); setAcceptedEmailAsEntered(null); setEmailMessage(null); }}
+                  data-error-field="email"
+                  aria-invalid={emailError ? true : undefined}
+                />
+              </div>
+              {(() => {
+                const check = adminEmail ? validateEmailAddress(adminEmail) : null;
+                if (!check?.valid || !check.suggestion || acceptedEmailAsEntered === check.normalized) return null;
+                return <div className="email-suggestion" role="status">
+                  <span>Did you mean <strong>{check.suggestion}</strong>?</span>
+                  <span className="email-suggestion-actions">
+                    <button type="button" className="auth-text-link" onClick={() => { setAdminEmail(check.suggestion!); setAcceptedEmailAsEntered(null); }}>Use suggestion</button>
+                    <button type="button" className="auth-text-link" onClick={() => setAcceptedEmailAsEntered(check.normalized)}>Keep mine</button>
+                  </span>
+                </div>;
+              })()}
+              <AsyncButton className="btn btn-secondary" type="submit" busy={emailSaving} idleLabel="Update email" busyLabel="Updating…" disabled={adminEmail.trim().toLowerCase() === detail.user.email.toLowerCase()} />
+            </form>
             <div className="admin-detail-shifts">
               {detail.shifts.length === 0 ? (
                 <p className="card-body">No shifts logged.</p>

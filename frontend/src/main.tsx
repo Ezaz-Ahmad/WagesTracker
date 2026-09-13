@@ -21,6 +21,7 @@ import "./styles/public-pages.css";
 import "./styles/spending.css";
 import "./styles/customization.css";
 import "./styles/home-insights.css";
+import { ErrorPopup } from "./components/ErrorPopup";
 
 // Last-resort net for a stray rejected promise nothing else catches (every
 // data-changing action already goes through AppContext's try/catch, and
@@ -73,6 +74,10 @@ async function route() {
     const { ResetPasswordPage } = await import("./screens/ResetPasswordPage");
     return <ResetPasswordPage />;
   }
+  if (path === "/verify-email") {
+    const { VerifyEmailPage } = await import("./screens/VerifyEmailPage");
+    return <VerifyEmailPage />;
+  }
   return <App />;
 }
 
@@ -80,6 +85,7 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ThemeProvider>
       <ErrorBoundary>{await route()}</ErrorBoundary>
+      <ErrorPopup />
     </ThemeProvider>
   </StrictMode>
 );

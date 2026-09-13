@@ -42,6 +42,8 @@ vi.mock("../../lib/api", async (importOriginal) => {
 });
 
 beforeEach(() => {
+  login.mockReset();
+  signup.mockReset();
   apiMocks.requestPasswordReset.mockReset();
   apiMocks.requestPasswordReset.mockResolvedValue({ message: NEUTRAL });
 });
@@ -107,14 +109,46 @@ describe("forgot-password auth flow", () => {
     const createButton = screen.getByRole("button", { name: "Create account" }) as HTMLButtonElement;
     const rateInput = screen.getByLabelText(/Hourly rate/);
     expect((rateInput as HTMLInputElement).required).toBe(true);
-    expect(createButton.disabled).toBe(true);
+    expect(createButton.disabled).toBe(false);
 
     await user.type(rateInput, "18.501");
     expect(screen.getByText("Use no more than two decimal places.")).toBeTruthy();
-    expect(createButton.disabled).toBe(true);
+    expect(createButton.disabled).toBe(false);
 
     await user.clear(rateInput);
     await user.type(rateInput, "18.50");
     expect(createButton.disabled).toBe(false);
+  });
+
+  it("offers an email typo correction without silently changing the address", async () => {
+    const user = userEvent.setup();
+    render(<AuthScreen />);
+    await user.click(screen.getByLabelText("Create account"));
+    const emailInput = screen.getByLabelText("Email") as HTMLInputElement;
+    await user.type(emailInput, "sam@gmial.com");
+    expect(emailInput.value).toBe("sam@gmial.com");
+    expect(screen.getByText(/did you mean/i)).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Use suggestion" }));
+    expect(emailInput.value).toBe("sam@gmail.com");
+  });
+
+  it("shows the verification step after signup instead of logging in immediately", async () => {
+    signup.mockResolvedValue({
+      verificationRequired: true,
+      email: "sam@example.com",
+      message: "Check your inbox and verify your email before logging in.",
+    });
+    const user = userEvent.setup();
+    render(<AuthScreen />);
+    await user.click(screen.getByLabelText("Create account"));
+    await user.type(screen.getByLabelText("Full name"), "Sam Lee");
+    await user.type(screen.getByLabelText("Email"), "sam@example.com");
+    await user.type(screen.getByLabelText("Password"), "Shanto552527");
+    await user.type(screen.getByLabelText(/Hourly rate/), "28.50");
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Check your email" })).toBeTruthy());
+    expect(screen.getByText("sam@example.com")).toBeTruthy();
+    expect(signup).toHaveBeenCalledWith(expect.objectContaining({ email: "sam@example.com", password: "Shanto552527" }));
   });
 });

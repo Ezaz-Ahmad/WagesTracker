@@ -362,6 +362,59 @@ figcaption {
 .banner-dismiss:focus-visible { outline: 2px solid currentColor; outline-offset: -6px; }
 .field-hint-danger { color: var(--color-danger-700); }
 
+.app-error-backdrop { z-index: 1000; }
+.app-error-dialog {
+  width: min(430px, calc(100% - 24px));
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3);
+  max-height: min(88vh, calc(var(--app-viewport-height, 100dvh) - 24px));
+  overflow-y: auto;
+}
+.app-error-dialog .dialog-actions { grid-column: 1 / -1; }
+.app-error-mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--color-danger-100);
+  color: var(--color-danger-700);
+  font-weight: 900;
+  font-size: 18px;
+}
+.app-error-dialog .dialog-body { margin: 4px 0 0; }
+.app-error-hint, .app-error-suggestion { margin: var(--space-2) 0 0; font-size: 13px; line-height: 1.5; }
+.app-error-hint { color: color-mix(in srgb, var(--color-text) 72%, transparent); }
+.app-error-suggestion { color: var(--color-accent-700); overflow-wrap: anywhere; }
+.field-error-pulse { animation: field-error-pulse 800ms var(--ease-out); }
+.email-suggestion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--color-warning-700) 28%, transparent);
+  border-radius: 10px;
+  background: var(--color-warning-100);
+  color: var(--color-warning-700);
+  font-size: 12.5px;
+}
+.email-suggestion-actions { display: inline-flex; flex-wrap: wrap; gap: var(--space-2); }
+.email-suggestion .auth-text-link { color: inherit; }
+@keyframes field-error-pulse {
+  0%, 100% { box-shadow: var(--shadow-focus, 0 0 0 0 transparent); }
+  35% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-danger-700) 24%, transparent); border-color: var(--color-danger-700); }
+}
+@media (max-width: 480px) {
+  .app-error-dialog { padding: var(--space-4); }
+  .app-error-dialog .dialog-actions, .app-error-dialog .dialog-actions .btn { width: 100%; }
+  .email-suggestion { align-items: flex-start; flex-direction: column; }
+}
+@media (prefers-reduced-motion: reduce) { .field-error-pulse { animation: none; } }
+
 /* — rules — */
 .hr {
   height: 1px; border: 0; margin: var(--space-4) 0;

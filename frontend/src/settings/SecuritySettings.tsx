@@ -6,9 +6,18 @@ import { AsyncButton } from "../components/AsyncButton";
 import { StatusBanner } from "../components/StatusBanner";
 import { SessionList } from "./SessionList";
 import { BiometricLoginSettings } from "./BiometricLoginSettings";
+import { requestEmailChange } from "../lib/api";
+import { validateEmailAddress } from "../lib/emailPolicy";
+import { showErrorPopup } from "../lib/errorFeedback";
 
 export function SecuritySettings() {
-  const { changePassword, loadSessions } = useApp();
+  const { user, changePassword, loadSessions } = useApp();
+  const [newEmail, setNewEmail] = useState("");
+  const [emailPassword, setEmailPassword] = useState("");
+  const [changingEmail, setChangingEmail] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailMessage, setEmailMessage] = useState<string | null>(null);
+  const [acceptedEmailAsEntered, setAcceptedEmailAsEntered] = useState<string | null>(null);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
@@ -19,10 +28,63 @@ export function SecuritySettings() {
   // field — not on first render, so the form doesn't open with a wall of red.
   const newPasswordCheck = newPassword ? validatePassword(newPassword) : null;
   const confirmMismatch = confirmNewPassword.length > 0 && confirmNewPassword !== newPassword;
+  const emailCheck = newEmail ? validateEmailAddress(newEmail) : null;
+
+  async function handleChangeEmail(e: FormEvent) {
+    e.preventDefault();
+    setEmailError(null);
+    setEmailMessage(null);
+    if (!emailCheck?.valid) {
+      const message = emailCheck?.error ?? "Enter your new email address.";
+      setEmailError(message);
+      showErrorPopup({ title: "Check the new email", message, hint: "Correct the highlighted field; your current login email is still active.", field: "newEmail" });
+      return;
+    }
+    if (emailCheck.suggestion && acceptedEmailAsEntered !== emailCheck.normalized) {
+      const message = `That domain may be misspelled. Did you mean ${emailCheck.suggestion}?`;
+      setEmailError(message);
+      showErrorPopup({ title: "Check the new email", message, hint: "Use the suggestion or choose Keep mine before continuing.", field: "newEmail", suggestion: emailCheck.suggestion });
+      return;
+    }
+    if (!emailPassword) {
+      const message = "Enter your current password to authorise this change.";
+      setEmailError(message);
+      showErrorPopup({ title: "Current password required", message, hint: "Your password will be checked, not changed.", field: "currentPassword" });
+      return;
+    }
+    setChangingEmail(true);
+    try {
+      const result = await requestEmailChange(emailPassword, newEmail, acceptedEmailAsEntered === emailCheck.normalized);
+      setNewEmail(result.pendingEmail);
+      setEmailPassword("");
+      setEmailMessage(result.message);
+    } catch (error) {
+      setEmailError(error instanceof Error ? error.message : "Couldn't start the email change.");
+    } finally {
+      setChangingEmail(false);
+    }
+  }
 
   async function handleChangePassword(e: FormEvent) {
     e.preventDefault();
-    if (!currentPassword || !newPassword || confirmMismatch || newPasswordCheck?.valid === false) return;
+    if (!currentPassword) {
+      const message = "Enter your current password.";
+      setPasswordError(message);
+      showErrorPopup({ title: "Current password required", message, hint: "Your entries are still here.", field: "passwordCurrentPassword" });
+      return;
+    }
+    if (!newPassword || newPasswordCheck?.valid === false) {
+      const message = newPasswordCheck?.error ?? "Enter a new password.";
+      setPasswordError(message);
+      showErrorPopup({ title: "Check the new password", message, hint: "Use 10–128 characters and avoid common passwords.", field: "newPassword" });
+      return;
+    }
+    if (confirmMismatch || !confirmNewPassword) {
+      const message = "Enter the new password again so both entries match.";
+      setPasswordError(message);
+      showErrorPopup({ title: "Passwords don't match", message, hint: "Your other entries are still here.", field: "confirmNewPassword" });
+      return;
+    }
     setChangingPassword(true);
     setPasswordError(null);
     try {
@@ -54,12 +116,52 @@ export function SecuritySettings() {
   return (
     <>
     <div className="settings-section-card card">
+      <h3 className="settings-subsection-title">Change email</h3>
+      <div className="section-hint">
+        Current email: <strong>{user?.email}</strong>. We'll verify the new address before activating it. Your password and account data stay unchanged.
+      </div>
+      <form onSubmit={handleChangeEmail} noValidate>
+        {emailError && <StatusBanner tone="danger">{emailError}</StatusBanner>}
+        {emailMessage && <StatusBanner tone="success">{emailMessage}</StatusBanner>}
+        <div className="field field-spaced">
+          <label htmlFor="settings-new-email">New email</label>
+          <input
+            id="settings-new-email"
+            className="input"
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            value={newEmail}
+            onChange={(event) => { setNewEmail(event.target.value); setAcceptedEmailAsEntered(null); setEmailMessage(null); }}
+            data-error-field="newEmail"
+            aria-invalid={emailCheck && (!emailCheck.valid || Boolean(emailCheck.suggestion && acceptedEmailAsEntered !== emailCheck.normalized)) ? true : undefined}
+            aria-describedby="settings-new-email-hint"
+          />
+          {emailCheck && !emailCheck.valid && <div id="settings-new-email-hint" className="field-hint field-hint-danger">{emailCheck.error}</div>}
+          {emailCheck?.valid && emailCheck.suggestion && acceptedEmailAsEntered !== emailCheck.normalized && (
+            <div id="settings-new-email-hint" className="email-suggestion" role="status">
+              <span>Did you mean <strong>{emailCheck.suggestion}</strong>?</span>
+              <span className="email-suggestion-actions">
+                <button type="button" className="auth-text-link" onClick={() => { setNewEmail(emailCheck.suggestion!); setAcceptedEmailAsEntered(null); }}>Use suggestion</button>
+                <button type="button" className="auth-text-link" onClick={() => setAcceptedEmailAsEntered(emailCheck.normalized)}>Keep mine</button>
+              </span>
+            </div>
+          )}
+          {(!emailCheck || (emailCheck.valid && (!emailCheck.suggestion || acceptedEmailAsEntered === emailCheck.normalized))) && <div id="settings-new-email-hint" className="field-hint">We'll send the confirmation link here. The old email remains active until you use it.</div>}
+        </div>
+        <div className="field field-spaced">
+          <label htmlFor="settings-email-current-password">Confirm with current password</label>
+          <PasswordInput id="settings-email-current-password" autoComplete="current-password" value={emailPassword} onChange={(event) => setEmailPassword(event.target.value)} data-error-field="currentPassword" />
+        </div>
+        <AsyncButton className="btn btn-secondary btn-block" type="submit" busy={changingEmail} idleLabel="Send verification link" busyLabel="Sending verification…" />
+      </form>
+
+      <div className="hr" />
       <h3 className="settings-subsection-title">Change password</h3>
       <div className="section-hint">
-        Use at least 15 characters — a short memorable phrase works better than a short complicated one. No need for
-        symbols or numbers, but common or app-related passwords are rejected.
+        Use 10–128 characters. Symbols, uppercase letters, and numbers are optional; very common and app-related passwords are rejected.
       </div>
-      <form onSubmit={handleChangePassword} autoComplete="on">
+      <form onSubmit={handleChangePassword} autoComplete="on" noValidate>
         {/* Was the one .banner in the app rendered without its icon, so this
             single message conveyed "error" by colour alone. */}
         {passwordError && <StatusBanner tone="danger">{passwordError}</StatusBanner>}
@@ -70,6 +172,7 @@ export function SecuritySettings() {
             autoComplete="current-password"
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
+            data-error-field="passwordCurrentPassword"
           />
         </div>
         <div className="field field-spaced">
@@ -79,6 +182,7 @@ export function SecuritySettings() {
             autoComplete="new-password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
+            data-error-field="newPassword"
             aria-invalid={newPasswordCheck && !newPasswordCheck.valid ? true : undefined}
             aria-describedby={newPasswordCheck && !newPasswordCheck.valid ? "settings-new-password-hint" : undefined}
           />
@@ -95,6 +199,7 @@ export function SecuritySettings() {
             autoComplete="new-password"
             value={confirmNewPassword}
             onChange={(e) => setConfirmNewPassword(e.target.value)}
+            data-error-field="confirmNewPassword"
             aria-invalid={confirmMismatch || undefined}
             aria-describedby={confirmMismatch ? "settings-confirm-new-password-hint" : undefined}
           />
@@ -113,12 +218,6 @@ export function SecuritySettings() {
           busy={changingPassword}
           idleLabel="Change password"
           busyLabel="Changing password…"
-          disabled={
-            !currentPassword ||
-            !newPassword ||
-            confirmMismatch ||
-            (newPasswordCheck ? !newPasswordCheck.valid : false)
-          }
         />
       </form>
 

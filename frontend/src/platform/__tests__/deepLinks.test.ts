@@ -20,6 +20,14 @@ describe("password recovery deep links", () => {
     });
   });
 
+  it("parses email-verification Universal Links without exposing the token as a query", () => {
+    expect(parseDeepLink(`https://wages-tracker-frontend.vercel.app/verify-email#token=${token}`)).toEqual({
+      screen: "verify-email",
+      token,
+    });
+    expect(parseDeepLink(`https://wages-tracker-frontend.vercel.app/verify-email?token=${token}`)).toBeNull();
+  });
+
   it("rejects query-string credentials and links from any unassociated host", () => {
     expect(parseDeepLink(`https://wages-tracker-frontend.vercel.app/reset-password?token=${token}`)).toBeNull();
     expect(parseDeepLink(`https://example.com/reset-password#token=${token}`)).toBeNull();

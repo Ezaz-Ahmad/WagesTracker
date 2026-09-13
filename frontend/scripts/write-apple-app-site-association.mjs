@@ -25,6 +25,6 @@ if (configured) {
   console.log(`[universal-links] Apple association file written for Team ID ${teamId}.`);
 } else {
   console.warn(
-    "[universal-links] APPLE_TEAM_ID is unset. Reset links still work in the responsive web page, but will not open the installed iPhone app directly."
+    "[universal-links] APPLE_TEAM_ID is unset. Password-reset and email-verification links still work in the responsive web page, but will not open the installed iPhone app directly."
   );
 }

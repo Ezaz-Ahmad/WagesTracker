@@ -15,6 +15,7 @@ export interface UserRow {
   goal_hours: number;
   goal_earnings: number;
   smart_reminders_enabled: number;
+  email_verified: number;
   token_version: number;
   created_at: string;
 }

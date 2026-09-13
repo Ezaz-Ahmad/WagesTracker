@@ -147,7 +147,7 @@ interface AppContextValue {
   clearActionError: () => void;
   dismissActiveShiftNotice: () => void;
   login: (email: string, password: string, remember?: boolean) => Promise<void>;
-  signup: (input: api.SignupInput) => Promise<void>;
+  signup: (input: api.SignupInput) => Promise<api.SignupResult | void>;
   logout: () => Promise<void>;
   clearAuthError: () => void;
   /** A server-side explanation the user needs to see once after a *successful*
@@ -734,13 +734,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Same ordering as login above, and for the same reason.
     const viewportReady = settleViewportBeforeAuth();
     try {
-      const { token, user } = await api.signup(input);
+      const result = await api.signup(input);
+      if (result.verificationRequired) {
+        await viewportReady;
+        return result;
+      }
+      const { token, user } = result;
       await api.setToken(token, true);
       api.recordActivity();
       setUser(user);
       hideEarningsNow();
       await viewportReady;
       setStatus("loggedIn");
+      return result;
     } catch (e) {
       await viewportReady;
       setAuthError(e instanceof Error ? e.message : "Could not create account");

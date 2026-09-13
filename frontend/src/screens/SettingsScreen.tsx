@@ -13,7 +13,7 @@ const SETTINGS_CATEGORIES: readonly SettingsCategory[] = [
   { id: "profile", label: "Profile & preferences", hint: "Profile, appearance, smart reminders", icon: UserIcon },
   { id: "workpay", label: "Work & pay", hint: "Location, address, hourly rate", icon: BriefcaseIcon },
   { id: "goals", label: "Weekly goals", hint: "Hours and earnings targets", icon: TargetIcon },
-  { id: "security", label: "Security", hint: "Password and active sessions", icon: LockIcon },
+  { id: "security", label: "Security", hint: "Email, password and active sessions", icon: LockIcon },
   { id: "data", label: "Data & account", hint: "Retention, version, delete account", icon: DatabaseIcon },
 ];
 

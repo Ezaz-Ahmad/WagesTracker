@@ -6,6 +6,7 @@ import { Logo } from "./components/Logo";
 import { EyeIcon, EyeOffIcon, LogoutIcon, RefreshIcon } from "./components/icons";
 import { AuthScreen } from "./screens/AuthScreen";
 import { ResetPasswordPage } from "./screens/ResetPasswordPage";
+import { VerifyEmailPage } from "./screens/VerifyEmailPage";
 import { getDeepLink, subscribeDeepLink, type DeepLinkRoute } from "./platform/deepLinks";
 import { WelcomeScreen } from "./screens/WelcomeScreen";
 import { WakingUpScreen } from "./components/WakingUpScreen";
@@ -305,6 +306,9 @@ function Root() {
     // still mounted. Key by the credential so React discards the first
     // screen's validation/form state and verifies the new link instead.
     return <ResetPasswordPage key={deepLink.token} token={deepLink.token} />;
+  }
+  if (deepLink?.screen === "verify-email") {
+    return <VerifyEmailPage key={deepLink.token} token={deepLink.token} />;
   }
   if (showWakingScreen) return <WakingUpScreen />;
   // Still within the 500ms grace window of the initial session check —

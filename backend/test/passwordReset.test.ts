@@ -154,7 +154,7 @@ describe("password recovery", () => {
 
     const weak = await request(app).post("/api/auth/reset-password").send({ token, password: "short" });
     expect(weak.status).toBe(400);
-    expect(weak.body.error).toMatch(/at least 15 characters/i);
+    expect(weak.body.error).toMatch(/at least 10 characters/i);
 
     const unchanged = await request(app).post("/api/auth/reset-password").send({ token, password: account.password });
     expect(unchanged.status).toBe(400);

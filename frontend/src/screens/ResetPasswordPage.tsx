@@ -6,6 +6,7 @@ import { PublicPageShell } from "../components/PublicPageShell";
 import { StatusBanner } from "../components/StatusBanner";
 import { ApiError, checkPasswordResetToken, resetPassword } from "../lib/api";
 import { MIN_PASSWORD_LENGTH, validatePassword } from "../lib/passwordPolicy";
+import { showErrorPopup } from "../lib/errorFeedback";
 import { clearDeepLink } from "../platform/deepLinks";
 
 type Stage = "checking" | "form" | "invalid" | "done";
@@ -64,7 +65,19 @@ export function ResetPasswordPage({ token: providedToken }: { token?: string } =
 
   const handleSubmit = useCallback(async (event: FormEvent) => {
     event.preventDefault();
-    if (submitting || !password || mismatch || passwordCheck?.valid === false) return;
+    if (submitting) return;
+    if (!password || passwordCheck?.valid === false) {
+      const nextMessage = passwordCheck?.error ?? "Enter a new password.";
+      setMessage(nextMessage);
+      showErrorPopup({ title: "Check the new password", message: nextMessage, hint: "Use 10–128 characters and avoid common passwords.", field: "resetPassword" });
+      return;
+    }
+    if (!confirmation || mismatch) {
+      const nextMessage = "Enter the new password again so both entries match.";
+      setMessage(nextMessage);
+      showErrorPopup({ title: "Passwords don't match", message: nextMessage, hint: "Your new password is still here.", field: "resetPasswordConfirmation" });
+      return;
+    }
     setSubmitting(true);
     setMessage(null);
     try {
@@ -80,7 +93,7 @@ export function ResetPasswordPage({ token: providedToken }: { token?: string } =
     } finally {
       setSubmitting(false);
     }
-  }, [mismatch, password, passwordCheck?.valid, submitting, token]);
+  }, [confirmation, mismatch, password, passwordCheck, submitting, token]);
 
   const handleReturnToApp = useCallback(() => {
     // Do not prevent the anchor's default full navigation. Reloading the
@@ -131,6 +144,7 @@ export function ResetPasswordPage({ token: providedToken }: { token?: string } =
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               minLength={MIN_PASSWORD_LENGTH}
+              data-error-field="resetPassword"
               aria-invalid={passwordCheck && !passwordCheck.valid ? true : undefined}
               aria-describedby="reset-password-hint"
               required
@@ -152,6 +166,7 @@ export function ResetPasswordPage({ token: providedToken }: { token?: string } =
               autoComplete="new-password"
               value={confirmation}
               onChange={(event) => setConfirmation(event.target.value)}
+              data-error-field="resetPasswordConfirmation"
               aria-invalid={mismatch || undefined}
               aria-describedby={mismatch ? "reset-confirmation-hint" : undefined}
               required
@@ -166,7 +181,6 @@ export function ResetPasswordPage({ token: providedToken }: { token?: string } =
             busy={submitting}
             idleLabel="Set new password"
             busyLabel="Saving new password…"
-            disabled={!password || mismatch || (passwordCheck ? !passwordCheck.valid : false)}
           />
           <p className="public-page-note">For your security, resetting the password signs out every active device.</p>
         </form>
