@@ -19,6 +19,13 @@ import {
 import { toPublicSession, toPublicUser, toPublicWeekExtra, type UserRow, type WeekExtraRow } from "../types.js";
 import { WEEK_DAYS, addIsoDays, startOfWeekISO, type WeekStart } from "../weekBoundary.js";
 import { hasAtMostTwoDecimals } from "../fuelAllowances.js";
+import { validateEmailAddress } from "../security/emailPolicy.js";
+import { issueEmailVerificationCredential } from "../security/emailVerificationTokens.js";
+import {
+  EMAIL_VERIFICATION_TTL_MS,
+  isPasswordRecoveryConfigured,
+  sendEmailVerificationEmail,
+} from "../email/emailService.js";
 
 export const meRouter = Router();
 meRouter.use(requireAuth);
@@ -279,6 +286,98 @@ meRouter.patch(
   })
 );
 
+const requestEmailChangeSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required"),
+  newEmail: z.string(),
+  acceptEmailAsEntered: z.boolean().optional().default(false),
+});
+
+/**
+ * Starts—but does not immediately apply—a self-service email change. The
+ * current password proves control of the signed-in account; the single-use
+ * link sent to the new address proves ownership of the destination. The
+ * password hash, user id, sessions and all account data are untouched.
+ */
+meRouter.post(
+  "/email-change",
+  asyncHandler<AuthedRequest>(async (req, res) => {
+    const parsed = requestEmailChangeSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]?.message || "Invalid input" });
+      return;
+    }
+    const emailCheck = validateEmailAddress(parsed.data.newEmail);
+    if (!emailCheck.valid) {
+      res.status(400).json({ error: emailCheck.error, code: "INVALID_EMAIL", field: "newEmail" });
+      return;
+    }
+    if (emailCheck.suggestion && !parsed.data.acceptEmailAsEntered) {
+      res.status(400).json({
+        error: `That email domain may be misspelled. Did you mean ${emailCheck.suggestion}?`,
+        code: "EMAIL_DOMAIN_TYPO",
+        field: "newEmail",
+        suggestion: emailCheck.suggestion,
+      });
+      return;
+    }
+    if (!isPasswordRecoveryConfigured()) {
+      res.status(503).json({ error: "Email verification is temporarily unavailable. Please try again later." });
+      return;
+    }
+
+    const result = await db.execute({ sql: "SELECT * FROM users WHERE id = ?", args: [req.userId!] });
+    const user = result.rows[0] as unknown as UserRow | undefined;
+    if (!user || !(await verifyPassword(parsed.data.currentPassword, user.password_hash))) {
+      res.status(401).json({ error: "Current password is incorrect", code: "INCORRECT_PASSWORD", field: "currentPassword" });
+      return;
+    }
+    if (emailCheck.normalized === user.email) {
+      res.status(400).json({ error: "Enter a different email from your current one", code: "EMAIL_UNCHANGED", field: "newEmail" });
+      return;
+    }
+    const existing = await db.execute({
+      sql: "SELECT id FROM users WHERE email = ? AND id != ?",
+      args: [emailCheck.normalized, user.id],
+    });
+    if (existing.rows.length > 0) {
+      res.status(409).json({ error: "That email is already used by another account", code: "EMAIL_ALREADY_EXISTS", field: "newEmail" });
+      return;
+    }
+
+    const rawToken = await issueEmailVerificationCredential({
+      userId: user.id,
+      purpose: "change",
+      targetEmail: emailCheck.normalized,
+      previousEmail: user.email,
+      ttlMs: EMAIL_VERIFICATION_TTL_MS,
+    });
+    try {
+      await sendEmailVerificationEmail({
+        to: emailCheck.normalized,
+        name: user.name,
+        rawToken,
+        purpose: "change",
+      });
+    } catch {
+      await db.execute({
+        sql: "UPDATE email_verification_tokens SET invalidated_at = ? WHERE token_hash IS NOT NULL AND user_id = ? AND purpose = 'change' AND used_at IS NULL AND invalidated_at IS NULL",
+        args: [new Date().toISOString(), user.id],
+      });
+      res.status(503).json({
+        error: "We couldn't send the verification email. Your login email has not changed; please try again.",
+        code: "EMAIL_DELIVERY_FAILED",
+        field: "newEmail",
+      });
+      return;
+    }
+
+    res.status(202).json({
+      pendingEmail: emailCheck.normalized,
+      message: "Verification sent. Your current email stays active until you confirm the new address.",
+    });
+  })
+);
+
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, "Current password is required"),
   // Not .trim()'d, same reasoning as signup — see security/passwordPolicy.ts.
@@ -434,6 +533,7 @@ meRouter.delete(
         { sql: "DELETE FROM work_locations WHERE user_id = ?", args: [req.userId!] },
         { sql: "DELETE FROM week_extras WHERE user_id = ?", args: [req.userId!] },
         { sql: "DELETE FROM password_reset_tokens WHERE user_id = ?", args: [req.userId!] },
+        { sql: "DELETE FROM email_verification_tokens WHERE user_id = ?", args: [req.userId!] },
         { sql: "DELETE FROM user_sessions WHERE user_id = ?", args: [req.userId!] },
         { sql: "DELETE FROM users WHERE id = ?", args: [req.userId!] },
       ],

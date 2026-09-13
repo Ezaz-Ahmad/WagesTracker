@@ -26,6 +26,7 @@ import { useConfirm } from "../components/ConfirmProvider";
 import { FUTURE_DATE_WARNING, isFutureDate, isUnusuallyLongShift, LONG_SHIFT_WARNING } from "../lib/shiftRules";
 import type { WorkLocation } from "../lib/types";
 import * as api from "../lib/api";
+import { showErrorPopup } from "../lib/errorFeedback";
 
 type Row = ShiftComputed & { tempId?: string };
 type TimeDraft = { signIn: string | null; signOut: string | null };
@@ -332,9 +333,11 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
       return !!updated;
     }
     if (!row.workLocationId) {
-      setClockLocationError(activeLocations.length === 0
+      const message = activeLocations.length === 0
         ? "Add a work location in Settings before saving a shift."
-        : "Choose a work location before saving this shift.");
+        : "Choose a work location before saving this shift.";
+      setClockLocationError(message);
+      showErrorPopup({ title: "Work location required", message, hint: "Your shift times are still here. Choose a location and save again." });
       return false;
     }
     setClockLocationError(null);
@@ -430,9 +433,11 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
 
   async function handleShiftPress() {
     if (!active && !clockLocationId) {
-      setClockLocationError(activeLocations.length === 0
+      const message = activeLocations.length === 0
         ? "Add a work location in Settings before starting a shift."
-        : "Choose today's work location before starting your shift.");
+        : "Choose today's work location before starting your shift.";
+      setClockLocationError(message);
+      showErrorPopup({ title: "Work location required", message, hint: "Choose a location, then start the shift again." });
       setOpenDays((current) => ({ ...current, [isoDate(today)]: true }));
       return;
     }

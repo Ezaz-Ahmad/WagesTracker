@@ -68,8 +68,10 @@ describe("reset-password page", () => {
     await waitFor(() => expect(screen.getByLabelText("New password")).toBeTruthy());
 
     await user.type(screen.getByLabelText("New password"), "short");
-    expect(screen.getByText(/at least 15 characters/i)).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Set new password" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(/at least 10 characters/i)).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Set new password" }) as HTMLButtonElement).disabled).toBe(false);
+    await user.click(screen.getByRole("button", { name: "Set new password" }));
+    expect(apiMocks.resetPassword).not.toHaveBeenCalled();
 
     await user.clear(screen.getByLabelText("New password"));
     await user.type(screen.getByLabelText("New password"), "a-perfectly-good-passphrase-2026");

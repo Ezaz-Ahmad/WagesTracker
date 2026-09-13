@@ -7,7 +7,7 @@ import { hashPassword } from "../src/security/passwordHashing.js";
 import { cleanupTestDb, createTestApp } from "./testApp.js";
 
 // Covers the signup-time password policy (backend/src/security/passwordPolicy.ts):
-// 15-128 chars, no composition rules, a common/app-specific-password blocklist,
+// 10-128 chars, no composition rules, a common/app-specific-password blocklist,
 // and — critically — that the policy applies only going forward, never locking
 // existing accounts out of a password they set before this policy existed.
 describe("password policy (signup)", () => {
@@ -20,14 +20,14 @@ describe("password policy (signup)", () => {
   });
   afterAll(() => cleanupTestDb(dbPath));
 
-  it("rejects a password shorter than 15 characters (14 exactly)", async () => {
+  it("rejects a password shorter than 10 characters (9 exactly)", async () => {
     const res = await request(app)
       .post("/api/auth/signup")
-      .send({ name: "Too Short", email: "too-short@example.com", password: "a".repeat(14), rate: 20 });
+      .send({ name: "Too Short", email: "too-short@example.com", password: "a".repeat(9), rate: 20 });
     expect(res.status).toBe(400);
   });
 
-  it("accepts a valid 15+ character passphrase", async () => {
+  it("accepts a valid 10+ character password without requiring symbols", async () => {
     const res = await request(app)
       .post("/api/auth/signup")
       .send({ name: "Valid Passphrase", email: "valid-passphrase@example.com", password: "quiet-mountain-river-2026", rate: 20 });
@@ -84,8 +84,8 @@ describe("password policy (signup)", () => {
     expect(res.status).toBe(201);
   });
 
-  it("rejects a common/blocklisted password even when it's 15+ characters", async () => {
-    // "iloveyouforever" is exactly 15 characters — long enough to pass the
+  it("rejects a common/blocklisted password even when it clears the length minimum", async () => {
+    // "iloveyouforever" is long enough to pass the
     // length check alone, so this specifically exercises the blocklist.
     const res = await request(app)
       .post("/api/auth/signup")
@@ -108,7 +108,7 @@ describe("password policy (signup)", () => {
   });
 
   it("lets an existing account with an older, shorter password still log in", async () => {
-    // Simulates an account created before the 15-character minimum existed —
+    // Simulates an account created before the current minimum existed —
     // signup itself can no longer produce one, so this inserts directly,
     // the same way a genuinely pre-existing row would already be sitting in
     // production. Login must not retroactively enforce the new policy.

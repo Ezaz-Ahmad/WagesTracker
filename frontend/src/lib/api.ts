@@ -19,6 +19,7 @@ import {
   removeStoredToken,
   storeToken,
 } from "../platform/tokenStorage";
+import { errorHintForStatus, showErrorPopup } from "./errorFeedback";
 
 // In local dev this is left unset and Vite's dev-server proxy forwards "/api" to the backend
 // (see vite.config.ts). In production, set VITE_API_URL to the deployed backend's origin
@@ -125,11 +126,25 @@ export async function pingHealth(timeoutMs: number = 10000, externalSignal?: Abo
 export class ApiError extends Error {
   status: number;
   code?: string;
-  constructor(message: string, status: number, code?: string) {
+  field?: string;
+  suggestion?: string;
+  constructor(message: string, status: number, code?: string, field?: string, suggestion?: string) {
     super(message);
     this.status = status;
     this.code = code;
+    this.field = field;
+    this.suggestion = suggestion;
   }
+}
+
+function reportApiError(error: ApiError): ApiError {
+  showErrorPopup({
+    message: error.message,
+    hint: errorHintForStatus(error.status),
+    field: error.field,
+    suggestion: error.suggestion,
+  });
+  return error;
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -144,17 +159,17 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       headers: { ...headers, ...(options.headers as Record<string, string> | undefined) },
     });
   } catch {
-    throw new ApiError("Couldn't reach the server. Check your connection and try again.", 0);
+    throw reportApiError(new ApiError("Couldn't reach the server. Check your connection and try again.", 0));
   }
   if (res.status === 204) return undefined as T;
 
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const errorBody = body as { error?: string; code?: string };
+    const errorBody = body as { error?: string; code?: string; field?: string; suggestion?: string };
     const message = errorBody.code === "INVALID_CLIENT_TIME_ZONE"
       ? TIME_ZONE_FALLBACK_MESSAGE
       : errorBody.error || `Request failed (${res.status})`;
-    throw new ApiError(message, res.status, errorBody.code);
+    throw reportApiError(new ApiError(message, res.status, errorBody.code, errorBody.field, errorBody.suggestion));
   }
   return body as T;
 }
@@ -169,7 +184,12 @@ export interface SignupInput {
   multipleLocations: boolean;
   otherLocations: string;
   rate: number;
+  acceptEmailAsEntered?: boolean;
 }
+
+export type SignupResult =
+  | { token: string; user: User; verificationRequired?: false }
+  | { verificationRequired: true; email: string; message: string };
 
 /**
  * `deviceInstallationId` identifies this installation of the app so the
@@ -179,12 +199,27 @@ export interface SignupInput {
  * since the server treats a missing id as "an older client" and logs in
  * normally. See lib/deviceInstallation.ts.
  */
-export function signup(input: SignupInput): Promise<{ token: string; user: User }> {
+export function signup(input: SignupInput): Promise<SignupResult> {
   const deviceInstallationId = getDeviceInstallationId();
   return request("/auth/signup", {
     method: "POST",
     body: JSON.stringify({ ...input, ...(deviceInstallationId ? { deviceInstallationId } : {}) }),
   });
+}
+
+export function resendEmailVerification(email: string): Promise<{ message: string }> {
+  return request("/auth/resend-verification", { method: "POST", body: JSON.stringify({ email }) });
+}
+
+export interface VerifyEmailResult {
+  verified: true;
+  purpose: "signup" | "change";
+  email: string;
+  message: string;
+}
+
+export function verifyEmail(token: string): Promise<VerifyEmailResult> {
+  return request("/auth/verify-email", { method: "POST", body: JSON.stringify({ token }) });
 }
 
 /** Requests a reset without revealing whether the address has an account.
@@ -272,6 +307,17 @@ export function patchMe(patch: MePatch): Promise<{ user: User; extras?: WeekExtr
   return request("/me", { method: "PATCH", body: JSON.stringify(patch) });
 }
 
+export function requestEmailChange(
+  currentPassword: string,
+  newEmail: string,
+  acceptEmailAsEntered = false
+): Promise<{ pendingEmail: string; message: string }> {
+  return request("/me/email-change", {
+    method: "POST",
+    body: JSON.stringify({ currentPassword, newEmail, acceptEmailAsEntered }),
+  });
+}
+
 export function deleteAccount(password: string): Promise<void> {
   return request("/me", { method: "DELETE", body: JSON.stringify({ password }) });
 }
@@ -299,12 +345,13 @@ export async function changePassword(currentPassword: string, newPassword: strin
       body: JSON.stringify({ currentPassword, newPassword }),
     });
   } catch {
-    throw new ApiError("Couldn't reach the server. Check your connection and try again.", 0);
+    throw reportApiError(new ApiError("Couldn't reach the server. Check your connection and try again.", 0));
   }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new ApiError((body as { error?: string }).error || `Request failed (${res.status})`, res.status);
+    const payload = body as { error?: string; code?: string; field?: string; suggestion?: string };
+    throw reportApiError(new ApiError(payload.error || `Request failed (${res.status})`, res.status, payload.code, payload.field, payload.suggestion));
   }
 
   const newToken = res.headers.get("X-New-Token");
@@ -312,7 +359,7 @@ export async function changePassword(currentPassword: string, newPassword: strin
     // Shouldn't happen against this app's own backend — surfaced as an error
     // rather than silently leaving the old (about-to-be-invalidated) token
     // in place, which would just fail on the very next request instead.
-    throw new ApiError("Password was changed, but no replacement session token was returned.", 500);
+    throw reportApiError(new ApiError("Password was changed, but no replacement session token was returned.", 500));
   }
   return { token: newToken };
 }
@@ -390,17 +437,17 @@ export async function setSessionBiometricProtection(enabled: boolean): Promise<{
       body: JSON.stringify({ biometricProtected: enabled }),
     });
   } catch {
-    throw new ApiError("Couldn't reach the server. Check your connection and try again.", 0);
+    throw reportApiError(new ApiError("Couldn't reach the server. Check your connection and try again.", 0));
   }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new ApiError((body as { error?: string }).error || `Request failed (${res.status})`, res.status);
+    throw reportApiError(new ApiError((body as { error?: string }).error || `Request failed (${res.status})`, res.status));
   }
 
   const newToken = res.headers.get("X-New-Token");
   if (!newToken) {
-    throw new ApiError("Session was updated, but no replacement session token was returned.", 500);
+    throw reportApiError(new ApiError("Session was updated, but no replacement session token was returned.", 500));
   }
   return { token: newToken };
 }

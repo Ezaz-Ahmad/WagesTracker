@@ -8,12 +8,12 @@ import { APP_SPECIFIC_BLOCKLIST, COMMON_PASSWORD_BLOCKLIST } from "./commonPassw
  * exists only to give the user faster feedback and must never be trusted on
  * its own.
  *
- * Follows current NIST SP 800-63B guidance: a long minimum length instead of
- * forced character-composition rules, a generous maximum so passphrases and
+ * Uses a practical minimum length instead of forced character-composition
+ * rules, a generous maximum so passphrases and
  * password-manager output both fit, and a check against known-common/
  * compromised-style passwords rather than "must contain a symbol."
  */
-export const MIN_PASSWORD_LENGTH = 15;
+export const MIN_PASSWORD_LENGTH = 10;
 export const MAX_PASSWORD_LENGTH = 128;
 
 export interface PasswordValidationResult {

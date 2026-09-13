@@ -1,4 +1,5 @@
 import type { Shift, User, WeekStart } from "../lib/types";
+import { errorHintForStatus, showErrorPopup } from "../lib/errorFeedback";
 
 // Deliberately separate from lib/api.ts: a different token, a different storage key, and a
 // different base path (/api/admin), so an admin session and a regular user session on the
@@ -18,10 +19,21 @@ export function clearAdminToken(): void {
 
 export class AdminApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  code?: string;
+  field?: string;
+  suggestion?: string;
+  constructor(message: string, status: number, code?: string, field?: string, suggestion?: string) {
     super(message);
     this.status = status;
+    this.code = code;
+    this.field = field;
+    this.suggestion = suggestion;
   }
+}
+
+function reportAdminError(error: AdminApiError): AdminApiError {
+  showErrorPopup({ message: error.message, hint: errorHintForStatus(error.status), field: error.field, suggestion: error.suggestion });
+  return error;
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -36,13 +48,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       headers: { ...headers, ...(options.headers as Record<string, string> | undefined) },
     });
   } catch {
-    throw new AdminApiError("Couldn't reach the server. Check your connection and try again.", 0);
+    throw reportAdminError(new AdminApiError("Couldn't reach the server. Check your connection and try again.", 0));
   }
   if (res.status === 204) return undefined as T;
 
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new AdminApiError((body as { error?: string }).error || `Request failed (${res.status})`, res.status);
+    const payload = body as { error?: string; code?: string; field?: string; suggestion?: string };
+    throw reportAdminError(new AdminApiError(payload.error || `Request failed (${res.status})`, res.status, payload.code, payload.field, payload.suggestion));
   }
   return body as T;
 }
@@ -77,4 +90,15 @@ export function fetchUserDetail(id: string): Promise<{ user: User; shifts: Shift
 
 export function deleteUser(id: string): Promise<void> {
   return request(`/users/${id}`, { method: "DELETE" });
+}
+
+export function updateUserEmail(
+  id: string,
+  email: string,
+  acceptEmailAsEntered = false
+): Promise<{ user: User; message: string }> {
+  return request(`/users/${id}/email`, {
+    method: "PATCH",
+    body: JSON.stringify({ email, acceptEmailAsEntered }),
+  });
 }

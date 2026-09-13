@@ -79,7 +79,7 @@ export function createApp(): express.Express {
   });
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    limit: 20,
+    limit: Number(process.env.RATE_LIMIT_AUTH || 20),
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: "Too many attempts. Please try again later." },
@@ -103,6 +103,8 @@ export function createApp(): express.Express {
   // its local token (see sessions.test.ts for the exact scenario).
   app.use("/api/auth/signup", authLimiter);
   app.use("/api/auth/login", authLimiter);
+  app.use("/api/auth/resend-verification", authLimiter);
+  app.use("/api/auth/verify-email", authLimiter);
   app.use(
     "/api/auth/forgot-password",
     recoveryIpLimiter("forgotPasswordPerIp"),

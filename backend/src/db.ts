@@ -42,6 +42,7 @@ await db.executeMultiple(`
     goal_hours REAL NOT NULL DEFAULT 35,
     goal_earnings REAL NOT NULL DEFAULT 647.5,
     smart_reminders_enabled INTEGER NOT NULL DEFAULT 0,
+    email_verified INTEGER NOT NULL DEFAULT 1,
     token_version INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
   );
@@ -192,6 +193,25 @@ await db.executeMultiple(`
 
   CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user
     ON password_reset_tokens(user_id, used_at, invalidated_at, expires_at);
+
+  -- Signup confirmation and self-service email changes share the same
+  -- short-lived, single-use credential store. Only an HMAC digest is stored;
+  -- the bearer credential exists in the verification email only.
+  CREATE TABLE IF NOT EXISTS email_verification_tokens (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    purpose TEXT NOT NULL CHECK(purpose IN ('signup', 'change')),
+    target_email TEXT NOT NULL,
+    previous_email TEXT,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used_at TEXT,
+    invalidated_at TEXT
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_user
+    ON email_verification_tokens(user_id, purpose, used_at, invalidated_at, expires_at);
 
   CREATE TABLE IF NOT EXISTS schema_migrations (
     version TEXT PRIMARY KEY,
@@ -377,6 +397,14 @@ try {
 
 try {
   await db.execute("ALTER TABLE users ADD COLUMN smart_reminders_enabled INTEGER NOT NULL DEFAULT 0");
+} catch {
+  // already migrated
+}
+
+// Existing accounts pre-date ownership verification and must remain usable.
+// New signup inserts explicitly set this to 0 until the emailed link is used.
+try {
+  await db.execute("ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 1");
 } catch {
   // already migrated
 }

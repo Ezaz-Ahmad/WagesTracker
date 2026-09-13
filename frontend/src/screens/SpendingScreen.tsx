@@ -18,6 +18,7 @@ import { useLiveElapsedHours } from "../lib/useLiveElapsedHours";
 import { supportsSmoothDonutSweep, useChartReveal } from "../lib/useChartReveal";
 import { spendingDisplayColour } from "../lib/spendingColour";
 import { isDateInRange, withLiveSpendingEarnings } from "../lib/liveShiftVisuals";
+import { showErrorPopup } from "../lib/errorFeedback";
 import { LiveDataBadge } from "../components/LiveDataBadge";
 import { AsyncButton } from "../components/AsyncButton";
 import {
@@ -782,18 +783,24 @@ function ExpenseDialog({ categories, expense, onClose, onSaved }: {
     if (busy) return;
     const trimmed = amount.trim();
     if (!/^\d{1,7}(\.\d{1,2})?$/.test(trimmed)) {
-      setError("Enter a valid amount with up to two decimal places.");
+      const message = "Enter a valid amount with up to two decimal places.";
+      setError(message);
+      showErrorPopup({ title: "Check the amount", message, hint: "Your expense details are still here.", field: "expenseAmount" });
       amountRef.current?.focus();
       return;
     }
     const amountCents = Math.round(Number(trimmed) * 100);
     if (amountCents <= 0) {
-      setError("Amount must be greater than zero.");
+      const message = "Amount must be greater than zero.";
+      setError(message);
+      showErrorPopup({ title: "Check the amount", message, hint: "Your expense details are still here.", field: "expenseAmount" });
       amountRef.current?.focus();
       return;
     }
     if (!categoryId) {
-      setError("Choose a category.");
+      const message = "Choose a category.";
+      setError(message);
+      showErrorPopup({ title: "Category required", message, hint: "Choose a category, then submit the expense again." });
       return;
     }
     setBusy(true);
@@ -818,7 +825,7 @@ function ExpenseDialog({ categories, expense, onClose, onSaved }: {
           <form className="spending-dialog-form" onSubmit={submit} noValidate>
             <div className="spending-dialog-body">
               {error && <StatusBanner tone="danger">{error}</StatusBanner>}
-              <div className="field spending-amount-field"><label htmlFor="expense-amount">Amount</label><span>{CURRENCY}</span><input ref={amountRef} id="expense-amount" className="input" inputMode="decimal" autoComplete="off" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" aria-describedby="expense-amount-hint" required /><small id="expense-amount-hint">Enter the exact personal expense amount.</small></div>
+              <div className="field spending-amount-field"><label htmlFor="expense-amount">Amount</label><span>{CURRENCY}</span><input ref={amountRef} id="expense-amount" className="input" inputMode="decimal" autoComplete="off" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" aria-describedby="expense-amount-hint" data-error-field="expenseAmount" required /><small id="expense-amount-hint">Enter the exact personal expense amount.</small></div>
               <fieldset className="fieldset-plain spending-category-picker"><legend>Category</legend><div>{activeCategories.map((category) => <label className={categoryId === category.id ? "is-selected" : ""} key={category.id} style={{ ["--category-colour" as string]: spendingDisplayColour(category.colour) }}><input type="radio" name="expense-category" value={category.id} checked={categoryId === category.id} onChange={() => setCategoryId(category.id)} /><CategoryGlyph icon={category.icon} size={18} /><span>{category.name}</span>{category.archived && <small>Archived</small>}</label>)}</div></fieldset>
               <div className="spending-form-grid">
                 <div className="field"><label htmlFor="expense-date">Date and time</label><input id="expense-date" className="input" type="datetime-local" value={spentAt} max={localDateTimeValue()} onChange={(e) => setSpentAt(e.target.value)} required /></div>
@@ -853,7 +860,12 @@ function CategoryManager({ categories, onChanged }: { categories: SpendingCatego
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (busy) return;
-    if (!name.trim()) { setError("Enter a category name."); return; }
+    if (!name.trim()) {
+      const message = "Enter a category name.";
+      setError(message);
+      showErrorPopup({ title: "Category name required", message, hint: "Your category choices are still here.", field: "categoryName" });
+      return;
+    }
     setBusy(true); setError(null);
     try {
       if (editing) await api.patchSpendingCategory(editing.id, { name, icon, colour });
@@ -888,7 +900,7 @@ function CategoryManager({ categories, onChanged }: { categories: SpendingCatego
         <form className="card elev-sm category-editor" onSubmit={submit}>
           <h3>{editing ? "Edit category" : "Create a custom category"}</h3>
           {error && <StatusBanner tone="danger">{error}</StatusBanner>}
-          <div className="field"><label htmlFor="category-name">Name</label><input id="category-name" className="input" maxLength={50} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Pet care" /></div>
+          <div className="field"><label htmlFor="category-name">Name</label><input id="category-name" className="input" maxLength={50} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Pet care" data-error-field="categoryName" /></div>
           <fieldset className="fieldset-plain category-icon-options"><legend>Icon</legend><div>{SPENDING_ICONS.map((item) => <label className={icon === item ? "is-selected" : ""} key={item}><input type="radio" name="category-icon" checked={icon === item} onChange={() => setIcon(item)} /><CategoryGlyph icon={item} size={19} /><span className="visually-hidden">{item}</span></label>)}</div></fieldset>
           <fieldset className="fieldset-plain category-colour-options"><legend>Colour</legend><div>{SPENDING_COLOURS.map((item) => <label className={colour === item ? "is-selected" : ""} key={item} style={{ backgroundColor: spendingDisplayColour(item) }}><input type="radio" name="category-colour" checked={colour === item} onChange={() => setColour(item)} /><span className="visually-hidden">Colour {item}</span></label>)}</div></fieldset>
           <div className="category-editor-actions">{editing && <button className="btn btn-secondary" type="button" onClick={reset}>Cancel</button>}<AsyncButton className="btn btn-primary" type="submit" busy={busy} idleLabel={editing ? "Save changes" : "Create category"} busyLabel="Saving…" /></div>

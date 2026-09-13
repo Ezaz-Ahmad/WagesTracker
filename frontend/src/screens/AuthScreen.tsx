@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { CURRENCY, useApp } from "../context/AppContext";
-import { getRememberedEmail, requestPasswordReset } from "../lib/api";
+import { getRememberedEmail, requestPasswordReset, resendEmailVerification } from "../lib/api";
 import { FaceIdIcon, LockIcon, TouchIdIcon } from "../components/icons";
 import { LandingHeroContent } from "../components/LandingHero";
 import { PasswordInput } from "../components/PasswordInput";
@@ -9,6 +9,8 @@ import { AsyncButton } from "../components/AsyncButton";
 import { Logo } from "../components/Logo";
 import { StatusBanner } from "../components/StatusBanner";
 import { MIN_PASSWORD_LENGTH, validatePassword } from "../lib/passwordPolicy";
+import { validateEmailAddress } from "../lib/emailPolicy";
+import { showErrorPopup } from "../lib/errorFeedback";
 
 type Mode = "login" | "signup" | "forgot";
 
@@ -46,6 +48,11 @@ export function AuthScreen() {
   const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
+  const [verificationMessage, setVerificationMessage] = useState<string | null>(null);
+  const [acceptedEmailAsEntered, setAcceptedEmailAsEntered] = useState<string | null>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
   const signupRateRef = useRef<HTMLInputElement>(null);
 
   // `biometricStatus.enabled` is a device-level fact, not an account-level
@@ -71,6 +78,7 @@ export function AuthScreen() {
   // enforces it (see lib/passwordPolicy.ts). Not shown until something's been
   // typed, so the form doesn't open already covered in red.
   const signupPasswordCheck = password ? validatePassword(password) : null;
+  const emailCheck = email ? validateEmailAddress(email) : null;
   const parsedSignupRate = Number(rate);
   const signupRateError = !rate.trim()
     ? "Hourly rate is required."
@@ -88,12 +96,29 @@ export function AuthScreen() {
     clearAuthError();
     setRecoveryError(null);
     setRecoveryMessage(null);
+    setVerificationMessage(null);
     setMode(next);
+  }
+
+  function focusInvalid(field: "name" | "email" | "password" | "rate", message: string) {
+    showErrorPopup({
+      title: "Check your details",
+      message,
+      hint: "Your other entries are still here. Correct the highlighted field and submit again.",
+      field,
+      suggestion: field === "email" ? emailCheck?.suggestion : undefined,
+    });
+    ({ name: nameRef, email: emailRef, password: passwordRef, rate: signupRateRef }[field]).current?.focus();
   }
 
   async function handleForgotPassword(e: React.FormEvent) {
     e.preventDefault();
-    if (recoveryBusy || !email.trim()) return;
+    if (recoveryBusy) return;
+    const check = validateEmailAddress(email);
+    if (!check.valid) {
+      focusInvalid("email", check.error ?? "Enter a valid email address.");
+      return;
+    }
     setRecoveryBusy(true);
     setRecoveryError(null);
     try {
@@ -110,17 +135,42 @@ export function AuthScreen() {
 
   function handleLogin(e: React.FormEvent) {
     e.preventDefault();
+    const check = validateEmailAddress(email);
+    if (!check.valid) {
+      focusInvalid("email", check.error ?? "Enter a valid email address.");
+      return;
+    }
+    if (!password) {
+      focusInvalid("password", "Enter your password to log in.");
+      return;
+    }
     void login(email, password, remember);
   }
 
-  function handleSignup(e: React.FormEvent) {
+  async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
-    if (signupRateError) {
-      signupRateRef.current?.focus();
-      signupRateRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    if (!name.trim()) {
+      focusInvalid("name", "Enter your full name.");
       return;
     }
-    void signup({
+    const check = validateEmailAddress(email);
+    if (!check.valid) {
+      focusInvalid("email", check.error ?? "Enter a valid email address.");
+      return;
+    }
+    if (check.suggestion && acceptedEmailAsEntered !== check.normalized) {
+      focusInvalid("email", `That domain may be misspelled. Did you mean ${check.suggestion}?`);
+      return;
+    }
+    if (!password || signupPasswordCheck?.valid === false) {
+      focusInvalid("password", signupPasswordCheck?.error ?? `Use at least ${MIN_PASSWORD_LENGTH} characters.`);
+      return;
+    }
+    if (signupRateError) {
+      focusInvalid("rate", signupRateError);
+      return;
+    }
+    const result = await signup({
       name,
       email,
       password,
@@ -130,7 +180,27 @@ export function AuthScreen() {
       multipleLocations,
       otherLocations,
       rate: parsedSignupRate,
+      acceptEmailAsEntered: acceptedEmailAsEntered === check.normalized,
     });
+    if (result?.verificationRequired) {
+      setEmail(result.email);
+      setPassword("");
+      setVerificationMessage(result.message);
+    }
+  }
+
+  async function handleResendVerification() {
+    if (recoveryBusy) return;
+    setRecoveryBusy(true);
+    setRecoveryError(null);
+    try {
+      const result = await resendEmailVerification(email);
+      setVerificationMessage(result.message);
+    } catch (error) {
+      setRecoveryError(error instanceof Error ? error.message : "We couldn't send another verification email.");
+    } finally {
+      setRecoveryBusy(false);
+    }
   }
 
   return (
@@ -264,7 +334,7 @@ export function AuthScreen() {
                   </button>
                 </div>
               ) : (
-                <form key="forgot" className="anim-rise" onSubmit={handleForgotPassword}>
+                <form key="forgot" className="anim-rise" onSubmit={handleForgotPassword} noValidate>
                   <div className="auth-form-heading">
                     <span className="auth-form-eyebrow">Account recovery</span>
                     <h2 className="auth-form-title">Forgot your password?</h2>
@@ -278,8 +348,10 @@ export function AuthScreen() {
                       type="email"
                       placeholder="you@example.com"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => { setEmail(e.target.value); setAcceptedEmailAsEntered(null); }}
                       autoComplete="email"
+                      data-error-field="email"
+                      aria-invalid={emailCheck && !emailCheck.valid ? true : undefined}
                       required
                       autoFocus
                     />
@@ -303,7 +375,7 @@ export function AuthScreen() {
                 </form>
               )
             ) : mode === "login" ? (
-              <form key="login" className="anim-rise" onSubmit={handleLogin}>
+              <form key="login" className="anim-rise" onSubmit={handleLogin} noValidate>
                 <div className="auth-form-heading">
                   <span className="auth-form-eyebrow">Welcome back</span>
                   <h2 className="auth-form-title">Log in to your account</h2>
@@ -317,7 +389,10 @@ export function AuthScreen() {
                     type="email"
                     placeholder="you@example.com"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    ref={emailRef}
+                    onChange={(e) => { setEmail(e.target.value); setAcceptedEmailAsEntered(null); }}
+                    data-error-field="email"
+                    aria-invalid={emailCheck && !emailCheck.valid ? true : undefined}
                     required
                   />
                 </div>
@@ -330,11 +405,13 @@ export function AuthScreen() {
                   </div>
                   <PasswordInput
                     id="login-password"
+                    ref={passwordRef}
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     autoComplete="current-password"
                     required
+                    data-error-field="password"
                   />
                 </div>
                 <label className="checkbox" style={{ marginBottom: "var(--space-3)" }}>
@@ -345,7 +422,20 @@ export function AuthScreen() {
                 <AsyncButton className="btn btn-primary btn-block" type="submit" busy={authBusy} idleLabel="Log in" busyLabel="Signing in…" style={{ justifyContent: "center" }} />
               </form>
             ) : (
-              <form key="signup" className="anim-rise" onSubmit={handleSignup}>
+              verificationMessage ? (
+                <div key="verification-sent" className="anim-rise auth-verification-sent">
+                  <div className="auth-form-heading">
+                    <span className="auth-form-eyebrow">One last step</span>
+                    <h2 className="auth-form-title">Check your email</h2>
+                    <p role="status">{verificationMessage}</p>
+                  </div>
+                  <p className="auth-sent-address">Sent to <strong>{email}</strong></p>
+                  <p className="field-hint auth-recovery-guidance">Open the verification link before logging in. Your password stays exactly as you chose it and is never included in the email.</p>
+                  <AsyncButton className="btn btn-secondary btn-block" type="button" busy={recoveryBusy} idleLabel="Send another link" busyLabel="Sending…" onClick={() => void handleResendVerification()} />
+                  <button type="button" className="auth-text-link auth-text-link-block" onClick={() => switchMode("login")}>Back to log in</button>
+                </div>
+              ) : (
+              <form key="signup" className="anim-rise" onSubmit={handleSignup} noValidate>
                 <div className="auth-form-heading">
                   <span className="auth-form-eyebrow">Get started</span>
                   <h2 className="auth-form-title">Create your account</h2>
@@ -353,16 +443,28 @@ export function AuthScreen() {
                 </div>
                 <div className="field field-spaced">
                   <label htmlFor="signup-name">Full name</label>
-                  <input id="signup-name" className="input" type="text" placeholder="Alex Rivera" value={name} onChange={(e) => setName(e.target.value)} required />
+                  <input id="signup-name" ref={nameRef} className="input" type="text" placeholder="Alex Rivera" value={name} onChange={(e) => setName(e.target.value)} data-error-field="name" required />
                 </div>
                 <div className="field field-spaced">
                   <label htmlFor="signup-email">Email</label>
-                  <input id="signup-email" className="input" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                  <input id="signup-email" ref={emailRef} className="input" type="email" inputMode="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={(e) => { setEmail(e.target.value); setAcceptedEmailAsEntered(null); }} data-error-field="email" aria-invalid={emailCheck && (!emailCheck.valid || Boolean(emailCheck.suggestion && acceptedEmailAsEntered !== emailCheck.normalized)) ? true : undefined} aria-describedby="signup-email-hint" required />
+                  {emailCheck && !emailCheck.valid && <div id="signup-email-hint" className="field-hint field-hint-danger">{emailCheck.error}</div>}
+                  {emailCheck?.valid && emailCheck.suggestion && acceptedEmailAsEntered !== emailCheck.normalized && (
+                    <div id="signup-email-hint" className="email-suggestion" role="status">
+                      <span>Did you mean <strong>{emailCheck.suggestion}</strong>?</span>
+                      <span className="email-suggestion-actions">
+                        <button type="button" className="auth-text-link" onClick={() => { setEmail(emailCheck.suggestion!); setAcceptedEmailAsEntered(null); }}>Use suggestion</button>
+                        <button type="button" className="auth-text-link" onClick={() => setAcceptedEmailAsEntered(emailCheck.normalized)}>Keep mine</button>
+                      </span>
+                    </div>
+                  )}
+                  {(!emailCheck || (emailCheck.valid && (!emailCheck.suggestion || acceptedEmailAsEntered === emailCheck.normalized))) && <div id="signup-email-hint" className="field-hint">We'll send a link to confirm you own this address before you can log in.</div>}
                 </div>
                 <div className="field field-spaced">
                   <label htmlFor="signup-password">Password</label>
                   <PasswordInput
                     id="signup-password"
+                    ref={passwordRef}
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -371,6 +473,7 @@ export function AuthScreen() {
                     aria-invalid={signupPasswordCheck && !signupPasswordCheck.valid ? true : undefined}
                     aria-describedby="signup-password-hint"
                     required
+                    data-error-field="password"
                   />
                   {/* The failure used to render in the same muted grey as the
                       neutral guidance it replaced, so "your password is not
@@ -385,8 +488,7 @@ export function AuthScreen() {
                     </div>
                   ) : (
                     <div id="signup-password-hint" className="field-hint">
-                      At least {MIN_PASSWORD_LENGTH} characters — a short phrase works better than a short
-                      complicated password. No symbols or numbers required.
+                      {MIN_PASSWORD_LENGTH}–128 characters. No symbols, uppercase letters, or numbers are required; very common and app-related passwords are blocked.
                     </div>
                   )}
                 </div>
@@ -402,6 +504,7 @@ export function AuthScreen() {
                     value={rate}
                     onChange={(e) => setRate(e.target.value)}
                     required
+                    data-error-field="rate"
                     onInvalid={() => {
                       signupRateRef.current?.focus();
                       signupRateRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
@@ -477,10 +580,10 @@ export function AuthScreen() {
                   busy={authBusy}
                   idleLabel="Create account"
                   busyLabel="Creating account…"
-                  disabled={!!signupRateError || (signupPasswordCheck ? !signupPasswordCheck.valid : false)}
                   style={{ justifyContent: "center" }}
                 />
               </form>
+              )
             )}
 
             <div className="auth-trust-note">

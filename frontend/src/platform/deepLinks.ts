@@ -1,6 +1,6 @@
-/** Native Universal Link routing for password recovery. Tokens remain only
+/** Native Universal Link routing for account recovery and email verification. Tokens remain only
  * in memory and are never logged or written to device storage. */
-export type DeepLinkRoute = { screen: "reset-password"; token: string };
+export type DeepLinkRoute = { screen: "reset-password" | "verify-email"; token: string };
 
 let current: DeepLinkRoute | null = null;
 const listeners = new Set<(route: DeepLinkRoute | null) => void>();
@@ -17,11 +17,11 @@ export function parseDeepLink(rawUrl: string): DeepLinkRoute | null {
     const url = new URL(rawUrl);
     if (url.protocol !== "https:" || url.hostname.toLowerCase() !== RESET_LINK_HOST) return null;
     const path = url.pathname.replace(/\/+$/, "") || "/";
-    if (path !== "/reset-password") return null;
+    if (path !== "/reset-password" && path !== "/verify-email") return null;
     const fragment = new URLSearchParams(url.hash.replace(/^#/, ""));
     const token = fragment.get("token");
     if (!token || !RESET_TOKEN_PATTERN.test(token)) return null;
-    return { screen: "reset-password", token };
+    return { screen: path === "/reset-password" ? "reset-password" : "verify-email", token };
   } catch {
     return null;
   }
@@ -58,7 +58,7 @@ export async function startDeepLinkListener(): Promise<void> {
   } catch {
     // Deep-link registration must never prevent an ordinary app launch. No
     // error object is logged because native errors can contain the URL.
-    console.error("Could not start the password-recovery deep-link listener.");
+    console.error("Could not start the account-link listener.");
   }
 }
 

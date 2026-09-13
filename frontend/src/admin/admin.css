@@ -54,3 +54,23 @@
   max-height: 280px;
   overflow-y: auto;
 }
+.admin-email-editor {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-text) 3%, var(--color-surface));
+}
+.admin-email-editor h3 { margin: 0; font-size: 15px; }
+.admin-email-editor .section-hint { margin: 0; }
+.admin-email-editor .btn { justify-self: start; }
+
+@media (max-width: 560px) {
+  .admin-frame { padding-inline: var(--space-3); }
+  .admin-toolbar { align-items: stretch; }
+  .admin-search { max-width: none; width: 100%; }
+  .admin-detail-dialog { max-height: calc(var(--app-viewport-height, 100dvh) - 24px); }
+  .admin-email-editor .btn { width: 100%; justify-content: center; }
+}

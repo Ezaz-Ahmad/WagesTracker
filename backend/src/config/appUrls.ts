@@ -38,6 +38,12 @@ export function passwordResetUrl(token: string): string {
   return `${baseUrl}/reset-password#token=${encodeURIComponent(token)}`;
 }
 
+export function emailVerificationUrl(token: string): string {
+  const baseUrl = appBaseUrl();
+  if (!baseUrl) throw new Error("APP_BASE_URL is not configured as a valid production HTTPS URL.");
+  return `${baseUrl}/verify-email#token=${encodeURIComponent(token)}`;
+}
+
 export function supportUrl(): string {
   const baseUrl = appBaseUrl();
   if (!baseUrl) throw new Error("APP_BASE_URL is not configured as a valid production HTTPS URL.");

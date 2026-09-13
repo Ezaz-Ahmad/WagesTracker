@@ -7,6 +7,10 @@
           {
             "/": "/reset-password",
             "comment": "Password reset links open the installed app directly on its reset screen."
+          },
+          {
+            "/": "/verify-email",
+            "comment": "Email verification links open the installed app directly on its verification screen."
           }
         ]
       }

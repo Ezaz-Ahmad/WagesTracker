@@ -7,7 +7,7 @@ import { APP_SPECIFIC_BLOCKLIST, COMMON_PASSWORD_BLOCKLIST } from "./commonPassw
  * and is the only thing that actually enforces it. Never rely on this
  * module alone to decide whether a password is acceptable.
  */
-export const MIN_PASSWORD_LENGTH = 15;
+export const MIN_PASSWORD_LENGTH = 10;
 export const MAX_PASSWORD_LENGTH = 128;
 
 export interface PasswordValidationResult {

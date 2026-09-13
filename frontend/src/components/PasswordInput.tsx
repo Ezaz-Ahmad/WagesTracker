@@ -1,4 +1,4 @@
-import { useState, type InputHTMLAttributes } from "react";
+import { forwardRef, useState, type InputHTMLAttributes } from "react";
 import { EyeIcon, EyeOffIcon } from "./icons";
 
 /**
@@ -6,12 +6,15 @@ import { EyeIcon, EyeOffIcon } from "./icons";
  * `<input className="input" type="password" .../>` — accepts the same props
  * (value, onChange, onKeyDown, required, minLength, autoFocus, etc.).
  */
-export function PasswordInput({ className = "input", ...props }: InputHTMLAttributes<HTMLInputElement>) {
+export const PasswordInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function PasswordInput(
+  { className = "input", ...props },
+  ref
+) {
   const [visible, setVisible] = useState(false);
 
   return (
     <div className="password-field">
-      <input {...props} type={visible ? "text" : "password"} className={`${className} input-password`} />
+      <input ref={ref} {...props} type={visible ? "text" : "password"} className={`${className} input-password`} />
       <button
         type="button"
         className="password-toggle-btn"
@@ -23,4 +26,4 @@ export function PasswordInput({ className = "input", ...props }: InputHTMLAttrib
       </button>
     </div>
   );
-}
+});

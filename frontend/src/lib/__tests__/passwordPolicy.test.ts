@@ -6,12 +6,12 @@ import { validatePassword } from "../passwordPolicy";
 // backend re-validates independently and is the real authority. These tests
 // exist to keep the two copies behaviorally in sync.
 describe("validatePassword (frontend)", () => {
-  it("rejects a password of exactly 14 characters", () => {
-    expect(validatePassword("a".repeat(14)).valid).toBe(false);
+  it("rejects a password of exactly 9 characters", () => {
+    expect(validatePassword("a".repeat(9)).valid).toBe(false);
   });
 
-  it("accepts a password of exactly 15 characters", () => {
-    expect(validatePassword("a".repeat(15)).valid).toBe(true);
+  it("accepts a password of exactly 10 characters", () => {
+    expect(validatePassword("River55252").valid).toBe(true);
   });
 
   it("accepts spaces and Unicode characters", () => {
@@ -19,7 +19,7 @@ describe("validatePassword (frontend)", () => {
     expect(result.valid).toBe(true);
   });
 
-  it("rejects a common blocklisted password even when 15+ characters", () => {
+  it("rejects a common blocklisted password even when it clears the minimum", () => {
     expect(validatePassword("iloveyouforever").valid).toBe(false);
   });
 
@@ -48,7 +48,7 @@ describe("validatePassword (frontend)", () => {
     // check only if length still clears the bar either way. Here we just
     // assert it doesn't throw and returns a verdict based on the raw length.
     expect(typeof result.valid).toBe("boolean");
-    expect(Array.from(withSpaces).length).toBeGreaterThanOrEqual(15);
+    expect(Array.from(withSpaces).length).toBeGreaterThanOrEqual(10);
     expect(result.valid).toBe(true);
   });
 });
