@@ -6,7 +6,7 @@
 // generating the *wrong* week's data, and generating from state captured
 // before an edit. Both produce a perfectly normal-looking download. So these
 // tests assert on the data handed to the generator, not on the click.
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DayExpense, Shift, User, WeekExtra } from "../../lib/types";
@@ -92,6 +92,12 @@ function renderHistory() {
   );
 }
 
+async function showAllHistory() {
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: /Choose report date range/i }));
+  await user.click(screen.getByRole("button", { name: "All history" }));
+}
+
 function cardFor(rangeText: RegExp): HTMLElement {
   return screen.getByRole("heading", { name: rangeText }).closest("li")!;
 }
@@ -118,8 +124,41 @@ afterEach(() => {
 });
 
 describe("the per-week download action", () => {
+  it("shows only the current month by default and can reveal all completed reports", async () => {
+    const user = userEvent.setup();
+    renderHistory();
+
+    await screen.findByRole("heading", { name: /Jan 26/ });
+    expect(screen.queryByRole("heading", { name: /Jan 19/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Choose report date range. Showing February 2026" })).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: /Choose report date range/i }));
+    expect(screen.getByRole("dialog", { name: "Choose a date range" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "All history" }));
+
+    expect(await screen.findByRole("heading", { name: /Jan 19/ })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /Jan 12/ })).toBeTruthy();
+  });
+
+  it("filters weekly PDFs with an exact custom date range", async () => {
+    const user = userEvent.setup();
+    renderHistory();
+
+    await screen.findByRole("heading", { name: /Jan 26/ });
+    await user.click(screen.getByRole("button", { name: /Choose report date range/i }));
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-01-12" } });
+    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-01-25" } });
+    await user.click(screen.getByRole("button", { name: "Apply range" }));
+
+    expect(await screen.findByRole("heading", { name: /Jan 19/ })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /Jan 12/ })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: /Jan 26/ })).toBeNull();
+    expect(screen.getAllByText("Jan 12–25, 2026")).toHaveLength(2);
+  });
+
   it("gives every completed week its own download", async () => {
     renderHistory();
+    await showAllHistory();
     await screen.findByRole("heading", { name: /Jan 26/ });
     const downloads = screen.getAllByRole("button", { name: /^Download PDF for / });
     // One per week card, and each names its own week so twenty of them are
@@ -133,6 +172,7 @@ describe("the per-week download action", () => {
     // a PDF downloads, it just contains the wrong week.
     const user = userEvent.setup();
     renderHistory();
+    await showAllHistory();
     await screen.findByRole("heading", { name: /Jan 26/ });
 
     await user.click(within(cardFor(/Jan 12/)).getByRole("button", { name: /^Download PDF for / }));
@@ -146,6 +186,7 @@ describe("the per-week download action", () => {
   it("uses each week's own date range across several downloads", async () => {
     const user = userEvent.setup();
     renderHistory();
+    await showAllHistory();
     await screen.findByRole("heading", { name: /Jan 26/ });
 
     await user.click(within(cardFor(/Jan 26/)).getByRole("button", { name: /^Download PDF for / }));
@@ -160,6 +201,7 @@ describe("the per-week download action", () => {
   it("stamps the generated date as today even for an old week", async () => {
     const user = userEvent.setup();
     renderHistory();
+    await showAllHistory();
     await screen.findByRole("heading", { name: /Jan 26/ });
     await user.click(within(cardFor(/Jan 12/)).getByRole("button", { name: /^Download PDF for / }));
     await waitFor(() => expect(generated).toHaveLength(1));
@@ -169,6 +211,7 @@ describe("the per-week download action", () => {
   it("carries the authenticated display name, whichever week is downloaded", async () => {
     const user = userEvent.setup();
     renderHistory();
+    await showAllHistory();
     await screen.findByRole("heading", { name: /Jan 26/ });
     await user.click(within(cardFor(/Jan 19/)).getByRole("button", { name: /^Download PDF for / }));
     await waitFor(() => expect(generated).toHaveLength(1));
@@ -180,6 +223,7 @@ describe("downloading after an edit", () => {
   it("refetches the selected week's latest shifts, fuel, and extras before generation", async () => {
     const user = userEvent.setup();
     renderHistory();
+    await showAllHistory();
     await screen.findByRole("heading", { name: /Jan 26/ });
 
     // The rendered card still shows the original 4-hour server response.
@@ -212,6 +256,7 @@ describe("downloading after an edit", () => {
     // at render time rather than at click time.
     const user = userEvent.setup();
     renderHistory();
+    await showAllHistory();
     // The first shifts fetch has to resolve before any week card exists.
     await screen.findByRole("heading", { name: /Jan 26/ });
     const card = cardFor(/Jan 26/);
@@ -246,6 +291,7 @@ describe("download states", () => {
 
     const user = userEvent.setup();
     renderHistory();
+    await showAllHistory();
     await screen.findByRole("heading", { name: /Jan 26/ });
     const button = within(cardFor(/Jan 26/)).getByRole("button", { name: /^Download PDF for / });
 
@@ -266,6 +312,7 @@ describe("download states", () => {
     generateImpl = () => new Promise<void>(() => {});
     const user = userEvent.setup();
     renderHistory();
+    await showAllHistory();
     await screen.findByRole("heading", { name: /Jan 26/ });
 
     await user.click(within(cardFor(/Jan 26/)).getByRole("button", { name: /^Download PDF for / }));
@@ -287,6 +334,7 @@ describe("download states", () => {
 
     const user = userEvent.setup();
     renderHistory();
+    await showAllHistory();
     await screen.findByRole("heading", { name: /Jan 26/ });
     const card = cardFor(/Jan 26/);
     await user.click(within(card).getByRole("button", { name: /^Download PDF for / }));
@@ -311,6 +359,7 @@ describe("download states", () => {
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const user = userEvent.setup();
     renderHistory();
+    await showAllHistory();
     await screen.findByRole("heading", { name: /Jan 26/ });
 
     const listShifts = api.listShifts as unknown as ReturnType<typeof vi.fn>;
@@ -336,6 +385,7 @@ describe("download states", () => {
     };
     const user = userEvent.setup();
     renderHistory();
+    await showAllHistory();
     await screen.findByRole("heading", { name: /Jan 26/ });
 
     await user.click(within(cardFor(/Jan 26/)).getByRole("button", { name: /^Download PDF for / }));
