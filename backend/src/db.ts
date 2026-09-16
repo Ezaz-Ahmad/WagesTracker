@@ -194,9 +194,9 @@ await db.executeMultiple(`
   CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user
     ON password_reset_tokens(user_id, used_at, invalidated_at, expires_at);
 
-  -- Signup confirmation and self-service email changes share the same
-  -- short-lived, single-use credential store. Only an HMAC digest is stored;
-  -- the bearer credential exists in the verification email only.
+  -- Self-service email changes and any still-valid legacy signup confirmation
+  -- links use this short-lived, single-use credential store. New signups no
+  -- longer issue ownership-verification links. Only an HMAC digest is stored.
   CREATE TABLE IF NOT EXISTS email_verification_tokens (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -401,8 +401,8 @@ try {
   // already migrated
 }
 
-// Existing accounts pre-date ownership verification and must remain usable.
-// New signup inserts explicitly set this to 0 until the emailed link is used.
+// Retained for backwards compatibility with accounts and links created while
+// signup ownership verification was enabled. New signups are login-ready.
 try {
   await db.execute("ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 1");
 } catch {

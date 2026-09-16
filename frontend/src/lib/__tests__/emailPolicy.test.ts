@@ -28,4 +28,12 @@ describe("validateEmailAddress", () => {
       suggestion: "alex@gmail.com",
     });
   });
+
+  it("catches hmail.com as a likely gmail.com typo", () => {
+    expect(validateEmailAddress("alex@hmail.com")).toEqual({
+      valid: true,
+      normalized: "alex@hmail.com",
+      suggestion: "alex@gmail.com",
+    });
+  });
 });

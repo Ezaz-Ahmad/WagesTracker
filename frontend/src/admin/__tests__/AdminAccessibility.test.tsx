@@ -67,18 +67,20 @@ describe("admin accessibility", () => {
     const user = userEvent.setup();
     render(<AdminDashboard onLogout={() => {}} onAuthError={() => false} />);
 
-    expect(await screen.findByRole("heading", { name: "All users", level: 1 })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Admin dashboard", level: 1 })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "User directory", level: 2 })).toBeTruthy();
     expect(screen.getByLabelText("Search users")).toBeTruthy();
     expect(screen.getByRole("columnheader", { name: "Actions" })).toBeTruthy();
+    expect(screen.getByText("test@example.com").getAttribute("data-label")).toBe("Email");
 
-    await user.click(screen.getByRole("button", { name: "View" }));
+    await user.click(screen.getByRole("button", { name: "View Long Test User" }));
     const detail = await screen.findByRole("dialog", { name: "Long Test User" });
     expect(document.activeElement && detail.contains(document.activeElement)).toBe(true);
     expect(await axe(document.body, { rules: { "color-contrast": { enabled: false } } })).toHaveNoViolations();
 
     await user.click(within(detail).getByRole("button", { name: "Close" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Long Test User" })).toBeNull());
-    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: "Delete Long Test User" }));
     const warning = await screen.findByRole("alertdialog", { name: "Delete Long Test User?" });
     expect(within(warning).getByLabelText("Confirm email")).toBeTruthy();
     expect(warning.textContent).toMatch(/sessions, shifts, expenses, and spending categories/);
@@ -89,7 +91,7 @@ describe("admin accessibility", () => {
     const user = userEvent.setup();
     render(<AdminDashboard onLogout={() => {}} onAuthError={() => false} />);
     await screen.findByText("Long Test User");
-    await user.click(screen.getByRole("button", { name: "View" }));
+    await user.click(screen.getByRole("button", { name: "View Long Test User" }));
     expect((await screen.findByRole("alert")).textContent).toContain("Couldn't load user");
   });
 });

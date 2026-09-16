@@ -1,4 +1,4 @@
-/** Native Universal Link routing for account recovery and email verification. Tokens remain only
+/** Native Universal Link routing for account recovery and email-change verification. Tokens remain only
  * in memory and are never logged or written to device storage. */
 export type DeepLinkRoute = { screen: "reset-password" | "verify-email"; token: string };
 

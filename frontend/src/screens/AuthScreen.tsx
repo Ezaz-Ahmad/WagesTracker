@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { CURRENCY, useApp } from "../context/AppContext";
-import { getRememberedEmail, requestPasswordReset, resendEmailVerification } from "../lib/api";
+import { getRememberedEmail, requestPasswordReset } from "../lib/api";
 import { FaceIdIcon, LockIcon, TouchIdIcon } from "../components/icons";
 import { LandingHeroContent } from "../components/LandingHero";
 import { PasswordInput } from "../components/PasswordInput";
@@ -48,7 +48,6 @@ export function AuthScreen() {
   const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
-  const [verificationMessage, setVerificationMessage] = useState<string | null>(null);
   const [acceptedEmailAsEntered, setAcceptedEmailAsEntered] = useState<string | null>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -96,7 +95,6 @@ export function AuthScreen() {
     clearAuthError();
     setRecoveryError(null);
     setRecoveryMessage(null);
-    setVerificationMessage(null);
     setMode(next);
   }
 
@@ -170,7 +168,7 @@ export function AuthScreen() {
       focusInvalid("rate", signupRateError);
       return;
     }
-    const result = await signup({
+    await signup({
       name,
       email,
       password,
@@ -182,25 +180,6 @@ export function AuthScreen() {
       rate: parsedSignupRate,
       acceptEmailAsEntered: acceptedEmailAsEntered === check.normalized,
     });
-    if (result?.verificationRequired) {
-      setEmail(result.email);
-      setPassword("");
-      setVerificationMessage(result.message);
-    }
-  }
-
-  async function handleResendVerification() {
-    if (recoveryBusy) return;
-    setRecoveryBusy(true);
-    setRecoveryError(null);
-    try {
-      const result = await resendEmailVerification(email);
-      setVerificationMessage(result.message);
-    } catch (error) {
-      setRecoveryError(error instanceof Error ? error.message : "We couldn't send another verification email.");
-    } finally {
-      setRecoveryBusy(false);
-    }
   }
 
   return (
@@ -422,19 +401,6 @@ export function AuthScreen() {
                 <AsyncButton className="btn btn-primary btn-block" type="submit" busy={authBusy} idleLabel="Log in" busyLabel="Signing in…" style={{ justifyContent: "center" }} />
               </form>
             ) : (
-              verificationMessage ? (
-                <div key="verification-sent" className="anim-rise auth-verification-sent">
-                  <div className="auth-form-heading">
-                    <span className="auth-form-eyebrow">One last step</span>
-                    <h2 className="auth-form-title">Check your email</h2>
-                    <p role="status">{verificationMessage}</p>
-                  </div>
-                  <p className="auth-sent-address">Sent to <strong>{email}</strong></p>
-                  <p className="field-hint auth-recovery-guidance">Open the verification link before logging in. Your password stays exactly as you chose it and is never included in the email.</p>
-                  <AsyncButton className="btn btn-secondary btn-block" type="button" busy={recoveryBusy} idleLabel="Send another link" busyLabel="Sending…" onClick={() => void handleResendVerification()} />
-                  <button type="button" className="auth-text-link auth-text-link-block" onClick={() => switchMode("login")}>Back to log in</button>
-                </div>
-              ) : (
               <form key="signup" className="anim-rise" onSubmit={handleSignup} noValidate>
                 <div className="auth-form-heading">
                   <span className="auth-form-eyebrow">Get started</span>
@@ -458,7 +424,7 @@ export function AuthScreen() {
                       </span>
                     </div>
                   )}
-                  {(!emailCheck || (emailCheck.valid && (!emailCheck.suggestion || acceptedEmailAsEntered === emailCheck.normalized))) && <div id="signup-email-hint" className="field-hint">We'll send a link to confirm you own this address before you can log in.</div>}
+                  {(!emailCheck || (emailCheck.valid && (!emailCheck.suggestion || acceptedEmailAsEntered === emailCheck.normalized))) && <div id="signup-email-hint" className="field-hint">We'll check the format and flag common domain typos. We won't send a confirmation email.</div>}
                 </div>
                 <div className="field field-spaced">
                   <label htmlFor="signup-password">Password</label>
@@ -583,7 +549,6 @@ export function AuthScreen() {
                   style={{ justifyContent: "center" }}
                 />
               </form>
-              )
             )}
 
             <div className="auth-trust-note">

@@ -125,19 +125,15 @@ describe("forgot-password auth flow", () => {
     render(<AuthScreen />);
     await user.click(screen.getByLabelText("Create account"));
     const emailInput = screen.getByLabelText("Email") as HTMLInputElement;
-    await user.type(emailInput, "sam@gmial.com");
-    expect(emailInput.value).toBe("sam@gmial.com");
+    await user.type(emailInput, "sam@hmail.com");
+    expect(emailInput.value).toBe("sam@hmail.com");
     expect(screen.getByText(/did you mean/i)).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Use suggestion" }));
     expect(emailInput.value).toBe("sam@gmail.com");
   });
 
-  it("shows the verification step after signup instead of logging in immediately", async () => {
-    signup.mockResolvedValue({
-      verificationRequired: true,
-      email: "sam@example.com",
-      message: "Check your inbox and verify your email before logging in.",
-    });
+  it("creates the account directly without showing an email-confirmation step", async () => {
+    signup.mockResolvedValue({ token: "signup-token", user: { id: "user-1", email: "sam@example.com" } });
     const user = userEvent.setup();
     render(<AuthScreen />);
     await user.click(screen.getByLabelText("Create account"));
@@ -147,8 +143,9 @@ describe("forgot-password auth flow", () => {
     await user.type(screen.getByLabelText(/Hourly rate/), "28.50");
     await user.click(screen.getByRole("button", { name: "Create account" }));
 
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Check your email" })).toBeTruthy());
-    expect(screen.getByText("sam@example.com")).toBeTruthy();
+    await waitFor(() => expect(signup).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("heading", { name: "Check your email" })).toBeNull();
+    expect(screen.getByText(/won't send a confirmation email/i)).toBeTruthy();
     expect(signup).toHaveBeenCalledWith(expect.objectContaining({ email: "sam@example.com", password: "Shanto552527" }));
   });
 });
