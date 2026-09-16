@@ -24,7 +24,7 @@ import express from "express";
  * fresh per file — two test files calling this never share a database.
  */
 export async function createTestApp(
-  options: boolean | { defaultShiftTimeZone?: boolean; emailVerificationRequired?: boolean; authRateLimit?: number } = true
+  options: boolean | { defaultShiftTimeZone?: boolean; authRateLimit?: number } = true
 ): Promise<{ app: Express; db: Client; dbPath: string }> {
   const defaultShiftTimeZone = typeof options === "boolean" ? options : options.defaultShiftTimeZone ?? true;
   const dbPath = path.join(os.tmpdir(), `wagetracker-test-${randomUUID()}.sqlite`);
@@ -36,11 +36,7 @@ export async function createTestApp(
   process.env.ADMIN_PASSWORD = "test-admin-password";
   process.env.ALLOWED_ORIGINS = "";
   process.env.APP_BASE_URL = "http://localhost:5173";
-  if (typeof options === "object" && options.emailVerificationRequired) {
-    process.env.EMAIL_VERIFICATION_REQUIRED = "true";
-  } else {
-    delete process.env.EMAIL_VERIFICATION_REQUIRED;
-  }
+  delete process.env.EMAIL_VERIFICATION_REQUIRED;
   if (typeof options === "object" && options.authRateLimit) process.env.RATE_LIMIT_AUTH = String(options.authRateLimit);
   else delete process.env.RATE_LIMIT_AUTH;
 

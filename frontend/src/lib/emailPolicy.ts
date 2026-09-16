@@ -4,6 +4,7 @@ const COMMON_DOMAIN_CORRECTIONS: Readonly<Record<string, string>> = {
   "gmal.com": "gmail.com",
   "gmial.com": "gmail.com",
   "gmaill.com": "gmail.com",
+  "hmail.com": "gmail.com",
   "googlemail.co": "googlemail.com",
   "hotmail.co": "hotmail.com",
   "hotmail.con": "hotmail.com",
@@ -24,8 +25,8 @@ export interface EmailValidationResult {
   error?: string;
   suggestion?: string;
 }
-/** Fast UI mirror of the authoritative backend policy. A valid shape is not
- * treated as proof of ownership; the emailed link provides that proof. */
+/** Fast UI mirror of the authoritative backend policy. It checks the address
+ * shape and flags likely typing errors without changing the user's input. */
 export function validateEmailAddress(raw: string): EmailValidationResult {
   const normalized = raw.trim().toLowerCase();
   if (!normalized) return { valid: false, normalized, error: "Email is required" };

@@ -187,9 +187,7 @@ export interface SignupInput {
   acceptEmailAsEntered?: boolean;
 }
 
-export type SignupResult =
-  | { token: string; user: User; verificationRequired?: false }
-  | { verificationRequired: true; email: string; message: string };
+export type SignupResult = { token: string; user: User };
 
 /**
  * `deviceInstallationId` identifies this installation of the app so the

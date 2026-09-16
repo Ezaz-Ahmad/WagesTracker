@@ -168,9 +168,12 @@ export function AdminDashboard({
   return (
     <div className="admin-shell">
       <header className="nav admin-nav">
-        <span className="nav-brand">
+        <span className="nav-brand admin-brand">
           <Logo size={20} />
-          Wage Tracker — Admin
+          <span className="admin-brand-copy">
+            <strong>Wage Tracker</strong>
+            <small>Admin console</small>
+          </span>
         </span>
         <button className="btn btn-secondary" onClick={onLogout}>
           Log out
@@ -178,6 +181,14 @@ export function AdminDashboard({
       </header>
 
       <main className="admin-frame screen-transition">
+        <section className="admin-page-heading" aria-labelledby="admin-dashboard-title">
+          <div>
+            <p className="admin-eyebrow">Account management</p>
+            <h1 id="admin-dashboard-title">Admin dashboard</h1>
+            <p>Review user accounts, update login emails, inspect shift activity, and manage access.</p>
+          </div>
+        </section>
+
         {loadError && (
           <div className="form-error" style={{ marginBottom: "var(--space-3)" }}>
             {loadError}
@@ -198,74 +209,86 @@ export function AdminDashboard({
             <div className="card-kicker">Total shifts logged</div>
             <div className="card-title stat-tile-value-lg count-value">{users ? totalShifts : "—"}</div>
           </div>
-        </div>
-
-        <div className="row-baseline admin-toolbar">
-          <h1 className="section-title" style={{ margin: 0 }}>
-            All users
-          </h1>
-          <label className="sr-only" htmlFor="admin-user-search">Search users</label>
-          <input
-            id="admin-user-search"
-            className="input admin-search"
-            type="text"
-            placeholder="Search by name or email…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
-
-        {users === null && !loadError ? (
-          <div className="section-hint">Loading…</div>
-        ) : filtered.length === 0 ? (
-          <div className="card anim-rise">
-            <p className="card-body" style={{ margin: 0 }}>
-              {users && users.length > 0 ? "No users match your search." : "No users yet."}
-            </p>
+          <div className="card stat-tile anim-rise" style={{ ["--i" as string]: 2 }}>
+            <div className="card-kicker">Matching search</div>
+            <div className="card-title stat-tile-value-lg count-value">{users ? filtered.length : "—"}</div>
           </div>
-        ) : (
-          <div className="admin-table-wrap">
-            <table className="table admin-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Work location</th>
-                  <th>Rate</th>
-                  <th>Goals</th>
-                  <th>Shifts</th>
-                  <th>Joined</th>
-                  <th><span className="sr-only">Actions</span></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((u, i) => (
-                  <tr key={u.id} style={{ ["--i" as string]: i }}>
-                    <td>{u.name}</td>
-                    <td>{u.email}</td>
-                    <td>{u.workLocationName || "—"}</td>
-                    <td>
-                      {CURRENCY}
-                      {fmt2(u.rate)}/hr
-                    </td>
-                    <td>
-                      {u.goalHours}h · {CURRENCY}
-                      {fmt2(u.goalEarnings)}
-                    </td>
-                    <td>{u.shiftCount}</td>
-                    <td>{fmtDate(u.createdAt)}</td>
-                    <td className="admin-row-actions">
-                      <AsyncButton className="btn btn-ghost" onClick={() => handleView(u)} busy={detailLoadingId === u.id} idleLabel="View" busyLabel="Loading…" />
-                      <button className="btn btn-danger" onClick={() => openDeleteDialog(u)}>
-                        Delete
-                      </button>
-                    </td>
+        </div>
+
+        <section className="admin-directory" aria-labelledby="admin-users-title">
+          <div className="admin-toolbar">
+            <div>
+              <h2 className="section-title" id="admin-users-title">User directory</h2>
+              <p className="section-hint" aria-live="polite">
+                {users ? `${filtered.length} of ${users.length} ${users.length === 1 ? "account" : "accounts"}` : "Loading accounts…"}
+              </p>
+            </div>
+            <div className="admin-search-field">
+              <label htmlFor="admin-user-search">Search users</label>
+              <input
+                id="admin-user-search"
+                className="input admin-search"
+                type="search"
+                placeholder="Name or email…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {users === null && !loadError ? (
+            <div className="admin-empty-state section-hint">Loading accounts…</div>
+          ) : filtered.length === 0 ? (
+            <div className="admin-empty-state anim-rise">
+              <strong>{users && users.length > 0 ? "No matching users" : "No users yet"}</strong>
+              <p>{users && users.length > 0 ? "Try a different name or email address." : "New accounts will appear here after signup."}</p>
+            </div>
+          ) : (
+            <div className="admin-table-wrap">
+              <table className="table admin-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Work location</th>
+                    <th>Rate</th>
+                    <th>Goals</th>
+                    <th>Shifts</th>
+                    <th>Joined</th>
+                    <th><span className="sr-only">Actions</span></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody>
+                  {filtered.map((u, i) => (
+                    <tr key={u.id} style={{ ["--i" as string]: i }}>
+                      <td data-label="Name" className="admin-user-name">{u.name}</td>
+                      <td data-label="Email" className="admin-user-email">{u.email}</td>
+                      <td data-label="Work location">{u.workLocationName || "—"}</td>
+                      <td data-label="Rate">
+                        {CURRENCY}
+                        {fmt2(u.rate)}/hr
+                      </td>
+                      <td data-label="Goals">
+                        {u.goalHours}h · {CURRENCY}
+                        {fmt2(u.goalEarnings)}
+                      </td>
+                      <td data-label="Shifts">{u.shiftCount}</td>
+                      <td data-label="Joined">{fmtDate(u.createdAt)}</td>
+                      <td className="admin-row-actions">
+                        <div className="admin-action-group">
+                          <AsyncButton aria-label={`View ${u.name}`} className="btn btn-ghost" onClick={() => handleView(u)} busy={detailLoadingId === u.id} idleLabel="View" busyLabel="Loading…" />
+                          <button aria-label={`Delete ${u.name}`} className="btn btn-danger" onClick={() => openDeleteDialog(u)}>
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       </main>
 
       {detail && (
@@ -283,14 +306,21 @@ export function AdminDashboard({
             aria-labelledby="admin-user-detail-title"
             tabIndex={-1}
           >
-            <h2 className="dialog-title" id="admin-user-detail-title">{detail.user.name}</h2>
-            <p className="dialog-body" style={{ margin: 0 }}>
-              {detail.user.email} · {detail.user.workLocationName || "No work location set"}
-              <br />
-              {CURRENCY}
-              {fmt2(detail.user.rate)}/hr · goal {detail.user.goalHours}h · {CURRENCY}
-              {fmt2(detail.user.goalEarnings)}/week · week starts {detail.user.weekStartsOn}
-            </p>
+            <div className="admin-detail-header">
+              <div>
+                <p className="admin-eyebrow">User account</p>
+                <h2 className="dialog-title" id="admin-user-detail-title">{detail.user.name}</h2>
+              </div>
+              <button type="button" className="admin-dialog-close" onClick={closeDetail} aria-label="Close user details">×</button>
+            </div>
+            <dl className="admin-detail-summary">
+              <div><dt>Email</dt><dd>{detail.user.email}</dd></div>
+              <div><dt>Work location</dt><dd>{detail.user.workLocationName || "Not set"}</dd></div>
+              <div><dt>Hourly rate</dt><dd>{CURRENCY}{fmt2(detail.user.rate)}/hr</dd></div>
+              <div><dt>Weekly goal</dt><dd>{detail.user.goalHours}h · {CURRENCY}{fmt2(detail.user.goalEarnings)}</dd></div>
+              <div><dt>Week starts</dt><dd>{detail.user.weekStartsOn}</dd></div>
+              <div><dt>Shifts logged</dt><dd>{detail.shifts.length}</dd></div>
+            </dl>
             {detailError && <div className="form-error">{detailError}</div>}
             <form className="admin-email-editor" onSubmit={handleEmailUpdate} noValidate>
               <h3>Edit login email</h3>
@@ -304,10 +334,12 @@ export function AdminDashboard({
                   className="input"
                   type="email"
                   inputMode="email"
+                  autoComplete="email"
                   value={adminEmail}
-                  onChange={(event) => { setAdminEmail(event.target.value); setAcceptedEmailAsEntered(null); setEmailMessage(null); }}
+                  onChange={(event) => { setAdminEmail(event.target.value); setAcceptedEmailAsEntered(null); setEmailError(null); setEmailMessage(null); }}
                   data-error-field="email"
                   aria-invalid={emailError ? true : undefined}
+                  required
                 />
               </div>
               {(() => {
@@ -324,10 +356,15 @@ export function AdminDashboard({
               <AsyncButton className="btn btn-secondary" type="submit" busy={emailSaving} idleLabel="Update email" busyLabel="Updating…" disabled={adminEmail.trim().toLowerCase() === detail.user.email.toLowerCase()} />
             </form>
             <div className="admin-detail-shifts">
+              <div className="admin-section-heading">
+                <h3>Shift history</h3>
+                <span>{detail.shifts.length} {detail.shifts.length === 1 ? "shift" : "shifts"}</span>
+              </div>
               {detail.shifts.length === 0 ? (
-                <p className="card-body">No shifts logged.</p>
+                <p className="admin-empty-state">No shifts logged.</p>
               ) : (
-                <table className="table">
+                <div className="admin-shifts-table-wrap">
+                <table className="table admin-shifts-table">
                   <thead>
                     <tr>
                       <th>Date</th>
@@ -339,14 +376,15 @@ export function AdminDashboard({
                   <tbody>
                     {detail.shifts.map((s) => (
                       <tr key={s.id}>
-                        <td>{s.date}</td>
-                        <td>{s.location || "—"}</td>
-                        <td>{s.signIn ?? "—"}</td>
-                        <td>{s.signOut ?? "—"}</td>
+                        <td data-label="Date">{s.date}</td>
+                        <td data-label="Location">{s.location || "—"}</td>
+                        <td data-label="Sign in">{s.signIn ?? "—"}</td>
+                        <td data-label="Sign out">{s.signOut ?? "—"}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
             <div className="dialog-actions">

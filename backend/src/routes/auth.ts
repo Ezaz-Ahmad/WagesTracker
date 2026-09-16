@@ -99,7 +99,7 @@ authRouter.post(
     const existing = await db.execute({ sql: "SELECT id FROM users WHERE email = ?", args: [email] });
     if (existing.rows.length > 0) {
       res.status(409).json({
-        error: "An account with that email already exists. Log in or request a verification link if signup is unfinished.",
+        error: "An account with that email already exists. Log in or reset the password if needed.",
         code: "EMAIL_ALREADY_EXISTS",
         field: "email",
       });
@@ -124,7 +124,6 @@ authRouter.post(
     const createdAt = new Date().toISOString();
     const transaction = await db.transaction("write");
     try {
-      const verificationRequired = process.env.NODE_ENV !== "test" || process.env.EMAIL_VERIFICATION_REQUIRED === "true";
       await transaction.execute({
         sql: `INSERT INTO users (id, name, email, password_hash, address, work_location_name, work_address, multiple_locations, other_locations, week_starts_on, rate, goal_hours, goal_earnings, email_verified, created_at)
               VALUES (@id, @name, @email, @passwordHash, @address, @workLocationName, @workAddress, @multipleLocations, @otherLocations, 'Monday', @rate, @goalHours, @goalEarnings, @emailVerified, @createdAt)`,
@@ -141,7 +140,10 @@ authRouter.post(
           rate,
           goalHours,
           goalEarnings,
-          emailVerified: verificationRequired ? 0 : 1,
+          // Signup uses syntax validation and an explicit typo-confirmation
+          // step, but does not require mailbox ownership verification. Keep
+          // the account login-ready as soon as it is created.
+          emailVerified: 1,
           createdAt,
         },
       });
@@ -167,48 +169,6 @@ authRouter.post(
 
     const result = await db.execute({ sql: "SELECT * FROM users WHERE id = ?", args: [id] });
     const row = result.rows[0] as unknown as UserRow;
-
-    const verificationRequired = process.env.NODE_ENV !== "test" || process.env.EMAIL_VERIFICATION_REQUIRED === "true";
-    if (verificationRequired) {
-      if (!isPasswordRecoveryConfigured()) {
-        await db.batch([
-          { sql: "DELETE FROM work_locations WHERE user_id = ?", args: [id] },
-          { sql: "DELETE FROM users WHERE id = ? AND email_verified = 0", args: [id] },
-        ], "write");
-        res.status(503).json({
-          error: "Email verification is temporarily unavailable. Your account was not created; please try again later.",
-          code: "EMAIL_DELIVERY_UNAVAILABLE",
-        });
-        return;
-      }
-      try {
-        const rawToken = await issueEmailVerificationCredential({
-          userId: id,
-          purpose: "signup",
-          targetEmail: email,
-          ttlMs: EMAIL_VERIFICATION_TTL_MS,
-        });
-        await sendEmailVerificationEmail({ to: email, name, rawToken, purpose: "signup" });
-      } catch {
-        await db.batch([
-          { sql: "DELETE FROM email_verification_tokens WHERE user_id = ?", args: [id] },
-          { sql: "DELETE FROM work_locations WHERE user_id = ?", args: [id] },
-          { sql: "DELETE FROM users WHERE id = ? AND email_verified = 0", args: [id] },
-        ], "write");
-        res.status(503).json({
-          error: "We couldn't send the verification email, so no account was created. Check the address and try again.",
-          code: "EMAIL_DELIVERY_FAILED",
-          field: "email",
-        });
-        return;
-      }
-      res.status(202).json({
-        verificationRequired: true,
-        email,
-        message: "Check your inbox and verify your email before logging in. The link expires in 24 hours.",
-      });
-      return;
-    }
 
     const { userAgent, ipAddress } = extractClientInfo(req);
     const { sessionId } = await createSession({ userId: id, userAgent, ipAddress, deviceInstallationId });

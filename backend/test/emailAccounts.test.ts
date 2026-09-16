@@ -10,26 +10,22 @@ function verificationToken(text: string): string {
   return match[1];
 }
 
-describe("email verification and account email changes", () => {
+describe("signup email validation and account email changes", () => {
   let app: Express;
   let db: Client;
   let dbPath: string;
   let outbox: Array<{ to: string; text: string; tag?: string }>;
 
   beforeAll(async () => {
-    ({ app, db, dbPath } = await createTestApp({ emailVerificationRequired: true, authRateLimit: 100 }));
+    ({ app, db, dbPath } = await createTestApp({ authRateLimit: 100 }));
     ({ outbox } = (await import("../src/email/transport.js")).testOutbox);
   });
   afterAll(() => cleanupTestDb(dbPath));
 
-  async function signupAndVerify(email: string, password: string) {
+  async function signupAndLogin(email: string, password: string) {
     const signup = await request(app).post("/api/auth/signup").send({ name: "Email Test", email, password, rate: 27.5 });
-    expect(signup.status).toBe(202);
-    expect(signup.body.token).toBeUndefined();
-    const message = outbox.findLast((item) => item.to === email && item.tag === "signup-verification");
-    expect(message).toBeTruthy();
-    const verified = await request(app).post("/api/auth/verify-email").send({ token: verificationToken(message!.text) });
-    expect(verified.status).toBe(200);
+    expect(signup.status).toBe(201);
+    expect(signup.body.token).toBeTypeOf("string");
     const login = await request(app).post("/api/auth/login").send({ email, password });
     expect(login.status).toBe(200);
     return login.body as { token: string; user: { id: string; email: string } };
@@ -47,7 +43,7 @@ describe("email verification and account email changes", () => {
 
     const typo = await request(app).post("/api/auth/signup").send({
       name: "Typo",
-      email: "person@gmial.com",
+      email: "person@hmail.com",
       password: "Shanto552527",
       rate: 20,
     });
@@ -56,41 +52,36 @@ describe("email verification and account email changes", () => {
 
     const kept = await request(app).post("/api/auth/signup").send({
       name: "Typo",
-      email: "person@gmial.com",
+      email: "person@hmail.com",
       acceptEmailAsEntered: true,
       password: "Shanto552527",
       rate: 20,
     });
-    expect(kept.status).toBe(202);
+    expect(kept.status).toBe(201);
   });
 
-  it("requires ownership verification before login and keeps the chosen password", async () => {
-    const email = "signup-owner@example.com";
+  it("creates a login-ready account without sending an ownership confirmation email", async () => {
+    const email = "signup-no-confirmation@example.com";
     const password = "Shanto552527";
-    const signup = await request(app).post("/api/auth/signup").send({ name: "Signup Owner", email, password, rate: 22 });
-    expect(signup.status).toBe(202);
-    expect(signup.body.verificationRequired).toBe(true);
+    const signupMailCount = outbox.filter((item) => item.tag === "signup-verification").length;
+    const signup = await request(app).post("/api/auth/signup").send({ name: "Signup User", email, password, rate: 22 });
+    expect(signup.status).toBe(201);
+    expect(signup.body.token).toBeTypeOf("string");
+    expect(signup.body.verificationRequired).toBeUndefined();
+    expect(outbox.filter((item) => item.tag === "signup-verification")).toHaveLength(signupMailCount);
 
-    const before = await request(app).post("/api/auth/login").send({ email, password });
-    expect(before.status).toBe(403);
-    expect(before.body.code).toBe("EMAIL_NOT_VERIFIED");
-
-    const mail = outbox.findLast((item) => item.to === email && item.tag === "signup-verification")!;
-    const token = verificationToken(mail.text);
-    expect((await request(app).post("/api/auth/verify-email").send({ token })).status).toBe(200);
-    const reused = await request(app).post("/api/auth/verify-email").send({ token });
-    expect(reused.status).toBe(400);
-    expect(reused.body.code).toBe("INVALID_EMAIL_VERIFICATION_TOKEN");
-    const after = await request(app).post("/api/auth/login").send({ email, password });
-    expect(after.status).toBe(200);
-    expect(after.body.token).toBeTypeOf("string");
+    const stored = await db.execute({ sql: "SELECT email_verified FROM users WHERE email = ?", args: [email] });
+    expect(Number(stored.rows[0].email_verified)).toBe(1);
+    const login = await request(app).post("/api/auth/login").send({ email, password });
+    expect(login.status).toBe(200);
+    expect(login.body.token).toBeTypeOf("string");
   });
 
   it("activates a self-service email change only after new-address verification", async () => {
     const password = "SamePassword552527";
     const oldEmail = "self-old@example.com";
     const newEmail = "self-new@example.com";
-    const account = await signupAndVerify(oldEmail, password);
+    const account = await signupAndLogin(oldEmail, password);
     await request(app)
       .post("/api/shifts")
       .set("Authorization", `Bearer ${account.token}`)
@@ -123,8 +114,8 @@ describe("email verification and account email changes", () => {
     const password = "AdminUnchanged552527";
     const oldEmail = "admin-old@example.com";
     const newEmail = "admin-new@example.com";
-    const account = await signupAndVerify(oldEmail, password);
-    const other = await signupAndVerify("duplicate@example.com", "Duplicate552527");
+    const account = await signupAndLogin(oldEmail, password);
+    const other = await signupAndLogin("duplicate@example.com", "Duplicate552527");
     const adminLogin = await request(app).post("/api/admin/login").send({ password: process.env.ADMIN_PASSWORD });
     const auth = { Authorization: `Bearer ${adminLogin.body.token}` };
     const before = await db.execute({ sql: "SELECT id, password_hash, rate, goal_hours FROM users WHERE id = ?", args: [account.user.id] });

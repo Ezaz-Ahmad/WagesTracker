@@ -13,6 +13,16 @@ let patterns: SmartShiftPattern[] = [];
 let shifts: Shift[] = [];
 const setEnabled = vi.fn(async (value: boolean) => { enabled = value; });
 
+function recentMonday(weeksAgo: number): string {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() - ((date.getDay() + 6) % 7) - weeksAgo * 7);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 vi.mock("../../context/AppContext", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../context/AppContext")>();
   return {
@@ -61,9 +71,9 @@ describe("SmartShiftReminderSettings", () => {
   it("shows useful existing-history progress and a clear ready state", () => {
     enabled = true;
     shifts = [
-      { id: "1", date: "2026-08-17", location: "Central", signIn: "08:00", signOut: "17:00" },
-      { id: "2", date: "2026-08-24", location: "Central", signIn: "08:02", signOut: "17:01" },
-      { id: "3", date: "2026-08-31", location: "Central", signIn: "07:59", signOut: "17:03" },
+      { id: "1", date: recentMonday(2), location: "Central", signIn: "08:00", signOut: "17:00" },
+      { id: "2", date: recentMonday(1), location: "Central", signIn: "08:02", signOut: "17:01" },
+      { id: "3", date: recentMonday(0), location: "Central", signIn: "07:59", signOut: "17:03" },
     ];
     const first = render(<SmartShiftReminderSettings />);
     expect(screen.getByText("Learning your routine")).toBeTruthy();

@@ -4,6 +4,7 @@ const COMMON_DOMAIN_CORRECTIONS: Readonly<Record<string, string>> = {
   "gmal.com": "gmail.com",
   "gmial.com": "gmail.com",
   "gmaill.com": "gmail.com",
+  "hmail.com": "gmail.com",
   "googlemail.co": "googlemail.com",
   "hotmail.co": "hotmail.com",
   "hotmail.con": "hotmail.com",
@@ -28,8 +29,8 @@ export interface EmailValidationResult {
  * Product-level validation for account identifiers. It intentionally covers
  * the addresses people can actually receive mail at without pretending to be
  * a full SMTP server: one @, a practical local part, valid DNS labels and a
- * real-looking TLD. Ownership is established separately by the verification
- * link, which is the only authoritative deliverability check.
+ * real-looking TLD. This deliberately checks shape and likely typing errors;
+ * it does not claim to prove mailbox ownership or silently rewrite input.
  */
 export function validateEmailAddress(raw: unknown): EmailValidationResult {
   if (typeof raw !== "string") return { valid: false, normalized: "", error: "Email is required" };

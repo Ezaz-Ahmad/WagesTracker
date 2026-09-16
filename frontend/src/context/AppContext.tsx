@@ -735,10 +735,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const viewportReady = settleViewportBeforeAuth();
     try {
       const result = await api.signup(input);
-      if (result.verificationRequired) {
-        await viewportReady;
-        return result;
-      }
       const { token, user } = result;
       await api.setToken(token, true);
       api.recordActivity();
