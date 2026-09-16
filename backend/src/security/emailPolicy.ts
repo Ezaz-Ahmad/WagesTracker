@@ -19,6 +19,62 @@ const COMMON_DOMAIN_CORRECTIONS: Readonly<Record<string, string>> = {
   "yaho.com": "yahoo.com",
 };
 
+const COMMON_PROVIDER_DOMAINS = [
+  "gmail.com",
+  "googlemail.com",
+  "hotmail.com",
+  "outlook.com",
+  "icloud.com",
+  "yahoo.com",
+] as const;
+
+// These are real public email providers that happen to be one character away
+// from gmail.com. Do not turn a useful typo warning into a false alarm.
+const KNOWN_VALID_NEARBY_DOMAINS = new Set(["email.com", "mail.com", "ymail.com"]);
+
+function isSingleEditAway(value: string, candidate: string): boolean {
+  const lengthDifference = Math.abs(value.length - candidate.length);
+  if (lengthDifference > 1 || value === candidate) return false;
+
+  if (value.length === candidate.length) {
+    const mismatches: number[] = [];
+    for (let index = 0; index < value.length; index += 1) {
+      if (value[index] !== candidate[index]) mismatches.push(index);
+      if (mismatches.length > 2) return false;
+    }
+    if (mismatches.length === 1) return true;
+    if (mismatches.length !== 2) return false;
+    const [first, second] = mismatches;
+    return second === first + 1 && value[first] === candidate[second] && value[second] === candidate[first];
+  }
+
+  const shorter = value.length < candidate.length ? value : candidate;
+  const longer = value.length < candidate.length ? candidate : value;
+  let shortIndex = 0;
+  let longIndex = 0;
+  let skipped = false;
+  while (shortIndex < shorter.length && longIndex < longer.length) {
+    if (shorter[shortIndex] === longer[longIndex]) {
+      shortIndex += 1;
+      longIndex += 1;
+      continue;
+    }
+    if (skipped) return false;
+    skipped = true;
+    longIndex += 1;
+  }
+  return true;
+}
+
+function suggestDomainCorrection(domain: string): string | undefined {
+  const explicitCorrection = COMMON_DOMAIN_CORRECTIONS[domain];
+  if (explicitCorrection) return explicitCorrection;
+  if (KNOWN_VALID_NEARBY_DOMAINS.has(domain)) return undefined;
+
+  const likelyProviders = COMMON_PROVIDER_DOMAINS.filter((provider) => isSingleEditAway(domain, provider));
+  return likelyProviders.length === 1 ? likelyProviders[0] : undefined;
+}
+
 export interface EmailValidationResult {
   valid: boolean;
   normalized: string;
@@ -69,7 +125,7 @@ export function validateEmailAddress(raw: unknown): EmailValidationResult {
     return { valid: false, normalized, error: "Check the email domain after @ (for example, example.com)" };
   }
 
-  const correctedDomain = COMMON_DOMAIN_CORRECTIONS[domain];
+  const correctedDomain = suggestDomainCorrection(domain);
   return {
     valid: true,
     normalized,

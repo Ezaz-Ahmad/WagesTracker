@@ -31,7 +31,7 @@ describe("signup email validation and account email changes", () => {
     return login.body as { token: string; user: { id: string; email: string } };
   }
 
-  it("validates format, reports likely domain typos, and accepts the user's explicit choice", async () => {
+  it("validates format and blocks likely provider typos until they are corrected", async () => {
     const invalid = await request(app).post("/api/auth/signup").send({
       name: "Invalid",
       email: "not an address",
@@ -50,14 +50,39 @@ describe("signup email validation and account email changes", () => {
     expect(typo.status).toBe(400);
     expect(typo.body).toMatchObject({ code: "EMAIL_DOMAIN_TYPO", suggestion: "person@gmail.com" });
 
-    const kept = await request(app).post("/api/auth/signup").send({
+    const repeatedLetterTypo = await request(app).post("/api/auth/signup").send({
+      name: "Repeated letter typo",
+      email: "akibali@gmmail.com",
+      password: "Shanto552527",
+      rate: 20,
+    });
+    expect(repeatedLetterTypo.status).toBe(400);
+    expect(repeatedLetterTypo.body).toMatchObject({
+      code: "EMAIL_DOMAIN_TYPO",
+      field: "email",
+      suggestion: "akibali@gmail.com",
+    });
+
+    const overrideAttempt = await request(app).post("/api/auth/signup").send({
       name: "Typo",
-      email: "person@hmail.com",
+      email: "akibali@gmmail.com",
       acceptEmailAsEntered: true,
       password: "Shanto552527",
       rate: 20,
     });
-    expect(kept.status).toBe(201);
+    expect(overrideAttempt.status).toBe(400);
+    expect(overrideAttempt.body).toMatchObject({
+      code: "EMAIL_DOMAIN_TYPO",
+      suggestion: "akibali@gmail.com",
+    });
+
+    const corrected = await request(app).post("/api/auth/signup").send({
+      name: "Corrected",
+      email: "akibali@gmail.com",
+      password: "Shanto552527",
+      rate: 20,
+    });
+    expect(corrected.status).toBe(201);
   });
 
   it("creates a login-ready account without sending an ownership confirmation email", async () => {

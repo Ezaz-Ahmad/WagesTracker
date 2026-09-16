@@ -48,7 +48,6 @@ export function AuthScreen() {
   const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
-  const [acceptedEmailAsEntered, setAcceptedEmailAsEntered] = useState<string | null>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
@@ -156,7 +155,7 @@ export function AuthScreen() {
       focusInvalid("email", check.error ?? "Enter a valid email address.");
       return;
     }
-    if (check.suggestion && acceptedEmailAsEntered !== check.normalized) {
+    if (check.suggestion) {
       focusInvalid("email", `That domain may be misspelled. Did you mean ${check.suggestion}?`);
       return;
     }
@@ -178,7 +177,6 @@ export function AuthScreen() {
       multipleLocations,
       otherLocations,
       rate: parsedSignupRate,
-      acceptEmailAsEntered: acceptedEmailAsEntered === check.normalized,
     });
   }
 
@@ -327,7 +325,7 @@ export function AuthScreen() {
                       type="email"
                       placeholder="you@example.com"
                       value={email}
-                      onChange={(e) => { setEmail(e.target.value); setAcceptedEmailAsEntered(null); }}
+                      onChange={(e) => setEmail(e.target.value)}
                       autoComplete="email"
                       data-error-field="email"
                       aria-invalid={emailCheck && !emailCheck.valid ? true : undefined}
@@ -369,7 +367,7 @@ export function AuthScreen() {
                     placeholder="you@example.com"
                     value={email}
                     ref={emailRef}
-                    onChange={(e) => { setEmail(e.target.value); setAcceptedEmailAsEntered(null); }}
+                    onChange={(e) => setEmail(e.target.value)}
                     data-error-field="email"
                     aria-invalid={emailCheck && !emailCheck.valid ? true : undefined}
                     required
@@ -413,18 +411,17 @@ export function AuthScreen() {
                 </div>
                 <div className="field field-spaced">
                   <label htmlFor="signup-email">Email</label>
-                  <input id="signup-email" ref={emailRef} className="input" type="email" inputMode="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={(e) => { setEmail(e.target.value); setAcceptedEmailAsEntered(null); }} data-error-field="email" aria-invalid={emailCheck && (!emailCheck.valid || Boolean(emailCheck.suggestion && acceptedEmailAsEntered !== emailCheck.normalized)) ? true : undefined} aria-describedby="signup-email-hint" required />
+                  <input id="signup-email" ref={emailRef} className="input" type="email" inputMode="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} data-error-field="email" aria-invalid={emailCheck && (!emailCheck.valid || Boolean(emailCheck.suggestion)) ? true : undefined} aria-describedby="signup-email-hint" required />
                   {emailCheck && !emailCheck.valid && <div id="signup-email-hint" className="field-hint field-hint-danger">{emailCheck.error}</div>}
-                  {emailCheck?.valid && emailCheck.suggestion && acceptedEmailAsEntered !== emailCheck.normalized && (
+                  {emailCheck?.valid && emailCheck.suggestion && (
                     <div id="signup-email-hint" className="email-suggestion" role="status">
                       <span>Did you mean <strong>{emailCheck.suggestion}</strong>?</span>
                       <span className="email-suggestion-actions">
-                        <button type="button" className="auth-text-link" onClick={() => { setEmail(emailCheck.suggestion!); setAcceptedEmailAsEntered(null); }}>Use suggestion</button>
-                        <button type="button" className="auth-text-link" onClick={() => setAcceptedEmailAsEntered(emailCheck.normalized)}>Keep mine</button>
+                        <button type="button" className="auth-text-link" onClick={() => setEmail(emailCheck.suggestion!)}>Use suggestion</button>
                       </span>
                     </div>
                   )}
-                  {(!emailCheck || (emailCheck.valid && (!emailCheck.suggestion || acceptedEmailAsEntered === emailCheck.normalized))) && <div id="signup-email-hint" className="field-hint">We'll check the format and flag common domain typos. We won't send a confirmation email.</div>}
+                  {(!emailCheck || (emailCheck.valid && !emailCheck.suggestion)) && <div id="signup-email-hint" className="field-hint">We'll check the format and flag common domain typos. We won't send a confirmation email.</div>}
                 </div>
                 <div className="field field-spaced">
                   <label htmlFor="signup-password">Password</label>

@@ -36,4 +36,27 @@ describe("validateEmailAddress", () => {
       suggestion: "alex@gmail.com",
     });
   });
+
+  it.each([
+    "gmmail.com",
+    "gmali.com",
+    "gmail.cmo",
+    "gmail.comm",
+  ])("catches a one-edit Gmail typo: %s", (domain) => {
+    expect(validateEmailAddress(`akibali@${domain}`)).toEqual({
+      valid: true,
+      normalized: `akibali@${domain}`,
+      suggestion: "akibali@gmail.com",
+    });
+  });
+
+  it.each(["mail.com", "email.com", "ymail.com", "company.example"])(
+    "does not flag a legitimate non-Gmail domain: %s",
+    (domain) => {
+      expect(validateEmailAddress(`alex@${domain}`)).toEqual({
+        valid: true,
+        normalized: `alex@${domain}`,
+      });
+    },
+  );
 });

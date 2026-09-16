@@ -121,15 +121,24 @@ describe("forgot-password auth flow", () => {
   });
 
   it("offers an email typo correction without silently changing the address", async () => {
+    signup.mockResolvedValue({ token: "signup-token", user: { id: "user-1", email: "akibali@gmail.com" } });
     const user = userEvent.setup();
     render(<AuthScreen />);
     await user.click(screen.getByLabelText("Create account"));
+    await user.type(screen.getByLabelText("Full name"), "Akib Ali");
     const emailInput = screen.getByLabelText("Email") as HTMLInputElement;
-    await user.type(emailInput, "sam@hmail.com");
-    expect(emailInput.value).toBe("sam@hmail.com");
+    await user.type(emailInput, "akibali@gmmail.com");
+    await user.type(screen.getByLabelText("Password"), "Shanto552527");
+    await user.type(screen.getByLabelText(/Hourly rate/), "28.50");
+    expect(emailInput.value).toBe("akibali@gmmail.com");
     expect(screen.getByText(/did you mean/i)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Keep mine" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+    expect(signup).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Use suggestion" }));
-    expect(emailInput.value).toBe("sam@gmail.com");
+    expect(emailInput.value).toBe("akibali@gmail.com");
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+    await waitFor(() => expect(signup).toHaveBeenCalledWith(expect.objectContaining({ email: "akibali@gmail.com" })));
   });
 
   it("creates the account directly without showing an email-confirmation step", async () => {

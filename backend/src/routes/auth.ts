@@ -46,7 +46,6 @@ const deviceInstallationIdSchema = z
 const signupSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),
   email: z.string(),
-  acceptEmailAsEntered: z.boolean().optional().default(false),
   // Deliberately not .trim()'d — see security/passwordPolicy.ts. The length/
   // blocklist rules themselves live in validatePassword, applied below via
   // superRefine, so the policy can never drift between signup and
@@ -85,7 +84,7 @@ authRouter.post(
       res.status(400).json({ error: emailCheck.error, code: "INVALID_EMAIL", field: "email" });
       return;
     }
-    if (emailCheck.suggestion && !parsed.data.acceptEmailAsEntered) {
+    if (emailCheck.suggestion) {
       res.status(400).json({
         error: `That email domain may be misspelled. Did you mean ${emailCheck.suggestion}?`,
         code: "EMAIL_DOMAIN_TYPO",

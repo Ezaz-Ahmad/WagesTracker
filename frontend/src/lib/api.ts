@@ -184,7 +184,6 @@ export interface SignupInput {
   multipleLocations: boolean;
   otherLocations: string;
   rate: number;
-  acceptEmailAsEntered?: boolean;
 }
 
 export type SignupResult = { token: string; user: User };
