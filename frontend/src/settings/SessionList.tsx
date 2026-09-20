@@ -168,14 +168,14 @@ export function SessionList() {
         // Skeleton rather than a line of text: the real list is about to
         // occupy roughly this much space, so the panel doesn't jump when it
         // arrives.
-        <div className="session-list-skeleton" role="status" aria-label="Loading your active sessions">
+        <div className="session-list-skeleton" role="status" aria-label="Loading your signed-in devices">
           <Skeleton className="session-card-skeleton" />
           <Skeleton className="session-card-skeleton" />
         </div>
       ) : sessionsError ? (
         <div className="session-list-state">
           <StatusBanner tone="danger">{sessionsError}</StatusBanner>
-          <AsyncButton type="button" className="btn btn-secondary" onClick={handleRefresh} busy={sessionsLoading} idleLabel="Try again" busyLabel="Retrying…" />
+          <AsyncButton type="button" className="btn btn-secondary" onClick={handleRefresh} busy={sessionsLoading} idleLabel="Try again" busyLabel="Trying again…" />
         </div>
       ) : ordered.length === 0 ? (
         // Reaching this means the request succeeded and came back empty,
@@ -211,7 +211,7 @@ export function SessionList() {
               aria-haspopup="dialog"
               aria-expanded={drawerOpen}
             >
-              View all sessions ({ordered.length})
+              View all devices ({ordered.length})
             </button>
           )}
         </>

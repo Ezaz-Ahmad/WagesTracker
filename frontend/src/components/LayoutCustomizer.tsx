@@ -175,7 +175,7 @@ export function LayoutCustomizer({ onClose }: { onClose: () => void }) {
   const visibleWidgets = homeWidgetOrder.filter((id) => !hidden.has(id));
   const hiddenWidgets = homeWidgetOrder.filter((id) => hidden.has(id));
   const widgetItems = visibleWidgets.map((id) => ({ id, ...HOME_WIDGET_DETAILS[id] }));
-  const tabItems = tabOrder.map((id) => ({ id, label: TAB_LABELS[id], description: id === "home" ? "Your personalised dashboard" : undefined }));
+  const tabItems = tabOrder.map((id) => ({ id, label: TAB_LABELS[id], description: id === "home" ? "Your personalised Home screen" : undefined }));
 
   const hideWidget = (id: string) => {
     const widgetId = id as HomeWidgetId;
@@ -223,7 +223,7 @@ export function LayoutCustomizer({ onClose }: { onClose: () => void }) {
               <section id="layout-dashboard-panel" role="tabpanel" aria-labelledby="layout-dashboard-tab">
                 <div className="layout-panel-intro">
                   <div><strong>Home widgets</strong><span>Hide anything you don't need. You can add it back at any time.</span></div>
-                  <button type="button" onClick={() => { resetHome(); setAnnouncement("Dashboard restored to its default layout."); }}>Reset</button>
+                  <button type="button" onClick={() => { resetHome(); setAnnouncement("Home restored to its default layout."); }}>Reset</button>
                 </div>
                 {widgetItems.length > 0 ? (
                   <SortableList
@@ -254,7 +254,7 @@ export function LayoutCustomizer({ onClose }: { onClose: () => void }) {
             ) : (
               <section id="layout-tabs-panel" role="tabpanel" aria-labelledby="layout-tabs-tab">
                 <div className="layout-panel-intro">
-                  <div><strong>Tab order</strong><span>Your bottom bar, desktop sidebar and swipe order all stay in sync.</span></div>
+                  <div><strong>Tab order</strong><span>Your bottom bar, desktop menu, and swipe navigation use the same order.</span></div>
                   <button type="button" onClick={() => { resetTabs(); setAnnouncement("Tab bar restored to its default order."); }}>Reset</button>
                 </div>
                 <SortableList

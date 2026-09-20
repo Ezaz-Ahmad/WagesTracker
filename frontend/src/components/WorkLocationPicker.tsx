@@ -63,10 +63,10 @@ export function WorkLocationTrigger({
             {location.address && <span>{location.address}</span>}
             <span className={location.fuelAllowance == null ? "is-empty" : ""}>
               {location.fuelAllowance == null
-                ? "No automatic fuel allowance"
+                ? "No saved fuel allowance"
                 : `${CURRENCY}${fmt2(location.fuelAllowance)} fuel allowance/day`}
             </span>
-            {location.archived && <span>Archived</span>}
+            {location.archived && <span>Hidden</span>}
           </span>
         )}
       </span>
@@ -77,7 +77,7 @@ export function WorkLocationTrigger({
 
 function allowanceLabel(amount: number | null): string {
   return amount == null
-    ? "No automatic fuel allowance"
+    ? "No saved fuel allowance"
     : `${CURRENCY}${fmt2(amount)} fuel allowance per worked day`;
 }
 
@@ -147,7 +147,7 @@ export function WorkLocationPicker({
               <span className="location-picker-heading-icon" aria-hidden="true"><LocationPinIcon size={20} /></span>
               <div>
                 <h2 id={titleId}>{title}</h2>
-                <p id={descriptionId}>Choose the branch for this shift. Its saved fuel allowance is applied once the sign-in is saved.</p>
+                <p id={descriptionId}>Choose where you worked. The saved fuel allowance is added when you save the shift.</p>
               </div>
             </div>
             <button ref={closeButtonRef} type="button" className="btn btn-icon btn-ghost location-picker-close" onClick={dismiss} aria-label="Close work location picker">
@@ -162,11 +162,11 @@ export function WorkLocationPicker({
                 <span className="location-picker-option-content">
                   <span className="location-picker-option-title-row">
                     <strong>{historicalSelection.name}</strong>
-                    <span className="location-picker-status">Archived</span>
+                    <span className="location-picker-status">Hidden</span>
                   </span>
                   {historicalSelection.address && <span className="location-picker-address">{historicalSelection.address}</span>}
                   <span className="location-picker-fuel"><FuelIcon size={13} /> {allowanceLabel(historicalSelection.fuelAllowance)}</span>
-                  <span className="location-picker-history-note">Kept on this saved shift for accurate history.</span>
+                  <span className="location-picker-history-note">Kept on this past shift so its totals stay correct.</span>
                 </span>
                 <span className="location-picker-check" aria-hidden="true"><CheckIcon size={17} /></span>
               </li>

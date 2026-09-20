@@ -30,7 +30,7 @@ describe("web (default) biometric adapter", () => {
     const capabilities = await checkBiometricCapabilities();
     expect(capabilities.kind).toBe("none");
     expect(capabilities.enrolled).toBe(false);
-    expect(capabilities.reason).toMatch(/iOS app/i);
+    expect(capabilities.reason).toMatch(/iPhone app/i);
   });
 
   it("reports biometric login as never enabled", async () => {

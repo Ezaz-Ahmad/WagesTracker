@@ -182,7 +182,7 @@ export function ResetPasswordPage({ token: providedToken }: { token?: string } =
             idleLabel="Set new password"
             busyLabel="Saving new password…"
           />
-          <p className="public-page-note">For your security, resetting the password signs out every active device.</p>
+          <p className="public-page-note">For your security, resetting the password signs out every signed-in device.</p>
         </form>
       )}
     </PublicPageShell>

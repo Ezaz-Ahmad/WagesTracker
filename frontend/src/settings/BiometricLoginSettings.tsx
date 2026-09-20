@@ -93,7 +93,7 @@ export function BiometricLoginSettings() {
   if (!biometricCapabilities.enrolled) {
     return (
       <div className="settings-section-card card">
-        <h3 className="settings-subsection-title">Biometric login</h3>
+        <h3 className="settings-subsection-title">Face ID or Touch ID</h3>
         <div className="biometric-row is-disabled" aria-disabled="true">
           <span className="biometric-row-icon" aria-hidden="true">
             <Icon size={20} />
@@ -111,11 +111,11 @@ export function BiometricLoginSettings() {
 
   return (
     <div className="settings-section-card card">
-      <h3 className="settings-subsection-title">Biometric login</h3>
+      <h3 className="settings-subsection-title">Face ID or Touch ID</h3>
       <div className="section-hint">
         {enabledForMe
-          ? `Confirm with ${name} instead of retyping your password each time you open the app. This also keeps you signed in on this device for up to 5 years, instead of the usual 30 days, since ${name} re-entry takes over as the periodic check.`
-          : `Turn on ${name} to skip retyping your password on this device, and to stay signed in far longer here (up to 5 years, instead of the usual 30 days). Your password still works everywhere, and every sign-in is still checked against your account.`}
+          ? `Use ${name} instead of retyping your password on this device. It keeps you signed in until you log out or turn this off.`
+          : `Turn on ${name} to open Wage Tracker without retyping your password on this device. Your password will still work everywhere.`}
       </div>
       {anotherAccountHasItOn && (
         <div className="section-hint" style={{ marginBottom: 0 }}>

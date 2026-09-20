@@ -110,7 +110,7 @@ function cards() {
 }
 
 async function openDrawer(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole("button", { name: /view all sessions/i }));
+  await user.click(await screen.findByRole("button", { name: /view all devices/i }));
   return screen.findByRole("dialog");
 }
 
@@ -139,14 +139,14 @@ describe("sessions summary", () => {
 
   it("names the total on the view-all control", async () => {
     renderList();
-    expect(await screen.findByRole("button", { name: `View all sessions (${MANY.length})` })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: `View all devices (${MANY.length})` })).toBeTruthy();
   });
 
   it("hides the view-all control when everything already fits", async () => {
     fetchSessionsImpl = async () => MANY.slice(-2);
     renderList();
     await waitFor(() => expect(cards().length).toBe(2));
-    expect(screen.queryByRole("button", { name: /view all sessions/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /view all devices/i })).toBeNull();
   });
 });
 
@@ -156,7 +156,7 @@ describe("the drawer", () => {
     renderList();
     const dialog = await openDrawer(user);
 
-    expect(within(dialog).getByText("All active sessions")).toBeTruthy();
+    expect(within(dialog).getByText("All signed-in devices")).toBeTruthy();
     expect(within(dialog).getByText(/12 devices are signed in/)).toBeTruthy();
     expect(within(dialog).getAllByTestId("session-card")).toHaveLength(MANY.length);
   });
@@ -192,7 +192,7 @@ describe("the drawer", () => {
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await waitFor(() =>
-      expect((document.activeElement as HTMLElement)?.textContent).toMatch(/view all sessions/i)
+      expect((document.activeElement as HTMLElement)?.textContent).toMatch(/view all devices/i)
     );
   });
 
@@ -200,7 +200,7 @@ describe("the drawer", () => {
     const user = userEvent.setup();
     renderList();
     const dialog = await openDrawer(user);
-    await user.click(within(dialog).getByRole("button", { name: /close all active sessions/i }));
+    await user.click(within(dialog).getByRole("button", { name: /close signed-in devices/i }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
@@ -268,7 +268,7 @@ describe("states", () => {
     let release: (value: SessionInfo[]) => void = () => {};
     fetchSessionsImpl = () => new Promise<SessionInfo[]>((resolve) => (release = resolve));
     renderList();
-    expect(await screen.findByRole("status", { name: "Loading your active sessions" })).toBeTruthy();
+    expect(await screen.findByRole("status", { name: "Loading your signed-in devices" })).toBeTruthy();
     release(MANY);
     await waitFor(() => expect(cards().length).toBe(SUMMARY_SESSION_LIMIT));
   });
@@ -282,7 +282,7 @@ describe("states", () => {
     fetchSessionsImpl = async () => [];
     renderList();
     expect(await screen.findByText("No devices to show")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /View all sessions/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /View all devices/ })).toBeNull();
   });
 
   it("renders an error with a working retry", async () => {
@@ -368,7 +368,7 @@ describe("session card content", () => {
     // rather than sharing the sign-in line at the same weight.
     expect(within(card).getByText(/^Last active /)).toBeTruthy();
     expect(within(card).getByText(/^First signed in /)).toBeTruthy();
-    const ip = within(card).getByText("IP 203.0.113.9");
+    const ip = within(card).getByText("Internet address 203.0.113.9");
     expect(ip.className).toContain("session-card-tertiary");
   });
 

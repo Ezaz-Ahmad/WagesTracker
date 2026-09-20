@@ -35,7 +35,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <div className="app-frame" style={{ padding: "var(--space-4)" }}>
             <h1 className="section-title">Something went wrong</h1>
             <p className="card-body">
-              The app hit an unexpected error. Try reloading — if it keeps happening, your data is safe on the server.
+              The app ran into a problem. Reload it and try again. Your saved data is safe.
             </p>
             <button className="btn btn-primary" onClick={() => window.location.reload()}>
               Reload

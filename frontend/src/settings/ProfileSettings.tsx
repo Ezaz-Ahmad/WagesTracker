@@ -101,7 +101,7 @@ export function ProfileSettings() {
           </div>
 
           <div className="field field-spaced weekly-cycle-field">
-            <span className="weekly-cycle-eyebrow" aria-hidden="true">Weekly cycle</span>
+            <span className="weekly-cycle-eyebrow" aria-hidden="true">Work week</span>
             <label htmlFor="settings-week-start">Week starts on</label>
             <select
               id="settings-week-start"

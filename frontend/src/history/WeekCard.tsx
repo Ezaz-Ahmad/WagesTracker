@@ -133,9 +133,9 @@ export function WeekCard({ week, metGoal, onEditDay }: WeekCardProps) {
                       {(() => {
                         const expense = dayExpenses.find((item) => item.date === day.dateISO);
                         const source = expense?.manualOverride != null || expense?.source === "manual"
-                          ? "manual"
+                          ? "changed"
                           : expense?.automaticFuelAllowance != null || expense?.source === "automatic"
-                            ? "automatic"
+                            ? "saved rate"
                             : "recorded";
                         return <span className="fuel-source-badge history-fuel-source">{source}</span>;
                       })()}

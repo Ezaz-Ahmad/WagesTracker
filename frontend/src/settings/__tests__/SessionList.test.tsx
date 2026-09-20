@@ -74,7 +74,7 @@ describe("SessionList", () => {
     // The first-load placeholder is now a skeleton sized like the real
     // cards (so the panel doesn't jump when they arrive) rather than a line
     // of text; the accessible name is what carries the state.
-    expect(screen.getByRole("status", { name: "Loading your active sessions" })).toBeTruthy();
+    expect(screen.getByRole("status", { name: "Loading your signed-in devices" })).toBeTruthy();
 
     await waitFor(() => expect(screen.getByText("Chrome on macOS")).toBeTruthy());
     const cards = screen.getAllByRole("listitem");

@@ -110,7 +110,7 @@ class WebBiometricAuthAdapter implements BiometricAuthAdapter {
     return {
       kind: "none",
       enrolled: false,
-      reason: "Biometric login is only available in the WagesTracker iOS app.",
+      reason: "Face ID or Touch ID is only available in the WagesTracker iPhone app.",
     };
   }
 
@@ -122,7 +122,7 @@ class WebBiometricAuthAdapter implements BiometricAuthAdapter {
     return {
       outcome: "failed",
       reason: "unavailable",
-      error: "Biometric login is only available in the WagesTracker iOS app.",
+      error: "Face ID or Touch ID is only available in the WagesTracker iPhone app.",
     };
   }
 

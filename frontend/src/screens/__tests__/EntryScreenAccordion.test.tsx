@@ -317,8 +317,8 @@ describe("Entry screen — day accordion structure and keyboard behavior", () =>
     const card = getShiftDayCard();
     await user.click(card.querySelector(".day-row-toggle") as HTMLButtonElement);
 
-    expect(within(card).getByText("Automatic")).toBeTruthy();
-    expect(within(card).getByText(/Calculated once per worked location.*\$12\.50/i)).toBeTruthy();
+    expect(within(card).getByText("Saved location")).toBeTruthy();
+    expect(within(card).getByText(/Added once for each work location.*\$12\.50/i)).toBeTruthy();
     const editAmount = within(card).getByRole("button", { name: /current value \$12\.50/i });
     await user.click(editAmount);
     expect(await screen.findByRole("dialog", { name: /Fuel allowance — Wed Jan 7/i })).toBeTruthy();

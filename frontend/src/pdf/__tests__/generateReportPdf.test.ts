@@ -60,6 +60,25 @@ function countOccurrences(haystack: string, needle: string): number {
 }
 
 describe("generateReportPdf", () => {
+  it("counts travel variants as one workplace while keeping their full shift labels", async () => {
+    const user = makeUser({ multipleLocations: true });
+    const today = new Date(2026, 7, 3);
+    const shifts: Shift[] = [
+      { id: "train", date: "2026-08-03", location: "Gosford by train", signIn: "09:00", signOut: "17:00" },
+      { id: "car", date: "2026-08-04", location: "Gosford by car", signIn: "09:00", signOut: "17:00" },
+      { id: "other", date: "2026-08-05", location: "Newcastle by car", signIn: "09:00", signOut: "13:00" },
+    ];
+    const data = buildWeekReportData(user, shifts, today, CURRENCY, [], []);
+
+    expect(data.locationsCountLabel).toBe("2 locations");
+    expect(data.locationBreakdown.map((item) => item.location)).toEqual(["Gosford", "Newcastle by car"]);
+
+    const pdf = await renderToBytes(data);
+    expect(pdf).toContain("Worked at 2 locations");
+    expect(pdf).toContain("Gosford by train");
+    expect(pdf).toContain("Gosford by car");
+  });
+
   it("shows the combined shift-earnings-plus-fuel amount on a day that has both", async () => {
     const user = makeUser({ rate: 90 });
     const today = new Date(2026, 7, 9); // Sunday
@@ -149,8 +168,8 @@ describe("generateReportPdf", () => {
       { date: "2026-08-04", fuelCost: 30, automaticFuelAllowance: 12.5, manualOverride: 30, source: "manual" },
     ];
     const pdf = await renderToBytes(buildWeekReportData(user, shifts, today, CURRENCY, dayExpenses, []));
-    expect(pdf).toContain("AUTO");
-    expect(pdf).toContain("MIXED");
+    expect(pdf).toContain("SAVED");
+    expect(pdf).toContain("BOTH");
   });
 
   it("shows 'Developed by Ezaz Ahmad' in the footer (not the old 'Built by' wording)", async () => {

@@ -547,7 +547,7 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
                 onClick={() => setLocationPickerTarget({ kind: "clock" })}
               />
               {activeLocations.length === 0 && (
-                <div className="field-hint">No locations configured — use Manage work locations to add one.</div>
+                <div className="field-hint">No work locations yet — use Manage work locations to add one.</div>
               )}
             </div>
           )}
@@ -719,18 +719,18 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
                     <span>Fuel allowance</span>
                     {(automaticFuel > 0 || hasManualFuel) && (
                       <span className={`fuel-source-badge${hasManualFuel ? " is-manual" : ""}`}>
-                        {hasManualFuel ? "Manual override" : "Automatic"}
+                        {hasManualFuel ? "Changed" : "Saved location"}
                       </span>
                     )}
                   </div>
                   <div className="fuel-row-detail">
                     {hasManualFuel
-                      ? `Your editable value is used for this date. The calculated branch total is ${CURRENCY}${fmt2(automaticFuel)}.`
+                      ? `The amount you entered is used for this date. The saved location allowance is ${CURRENCY}${fmt2(automaticFuel)}.`
                       : automaticFuel > 0
-                        ? `Calculated once per worked location from saved sign-ins (${CURRENCY}${fmt2(automaticFuel)}).`
+                        ? `Added once for each work location saved on this date (${CURRENCY}${fmt2(automaticFuel)}).`
                         : pendingAutomaticFuel > 0
                           ? `${CURRENCY}${fmt2(pendingAutomaticFuel)} is ready from the selected location and will be added after a sign-in is saved.`
-                          : "Choose a location with a saved allowance, or set a value manually."}
+                          : "Choose a location with a saved allowance, or enter an amount for this date."}
                   </div>
                 </div>
                 <div className="fuel-row-actions">
@@ -753,7 +753,7 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
                         }
                       }}
                     >
-                      Restore automatic{automaticFuel > 0 ? ` (${CURRENCY}${fmt2(automaticFuel)})` : ""}
+                      Use saved allowance{automaticFuel > 0 ? ` (${CURRENCY}${fmt2(automaticFuel)})` : ""}
                     </button>
                   )}
                 </div>

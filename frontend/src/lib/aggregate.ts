@@ -276,16 +276,41 @@ export function buildShiftRows(days: DayComputed[], currency: string, rate: numb
 }
 
 export function buildLocationBreakdown(rows: ShiftRow[]): LocationBreakdown[] {
-  const map = new Map<string, { hours: number; earnings: number }>();
+  // A configured work location may include a travel qualifier so the app can
+  // attach the right fuel allowance (for example, "Gosford by car" versus
+  // "Gosford by train"). Those remain distinct shift labels, but the PDF
+  // should count the workplace once. The first word is the user-facing
+  // workplace family requested for report grouping; lower-casing only the map
+  // key prevents accidental duplicates caused by capitalisation.
+  const map = new Map<string, {
+    familyLabel: string;
+    firstFullLabel: string;
+    fullLabels: Set<string>;
+    hours: number;
+    earnings: number;
+  }>();
   for (const r of rows) {
     if (r.hours <= 0) continue;
-    const cur = map.get(r.location) ?? { hours: 0, earnings: 0 };
+    const fullLabel = r.location.trim() || "Unspecified";
+    const familyLabel = fullLabel.split(/\s+/)[0];
+    const familyKey = familyLabel.toLocaleLowerCase("en-AU");
+    const cur = map.get(familyKey) ?? {
+      familyLabel,
+      firstFullLabel: fullLabel,
+      fullLabels: new Set<string>(),
+      hours: 0,
+      earnings: 0,
+    };
+    cur.fullLabels.add(fullLabel.toLocaleLowerCase("en-AU"));
     cur.hours += r.hours;
     cur.earnings += Number(r.moneyLabel.replace(/[^0-9.]/g, "")) || 0;
-    map.set(r.location, cur);
+    map.set(familyKey, cur);
   }
-  return Array.from(map.entries()).map(([location, v]) => ({
-    location,
+  return Array.from(map.values()).map((v) => ({
+    // Preserve a normal location's complete name. Only collapse the label to
+    // the shared first word when two genuinely different travel variants were
+    // combined, so existing PDFs do not lose useful location detail.
+    location: v.fullLabels.size > 1 ? v.familyLabel : v.firstFullLabel,
     hours: Math.round(v.hours * 1_000_000) / 1_000_000,
     hoursLabel: `${fmt2(v.hours)}h`,
     moneyLabel: `$${v.earnings.toFixed(2)}`,

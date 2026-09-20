@@ -110,7 +110,7 @@ describe("Settings hub — category navigation", () => {
     expect(screen.getByLabelText("Current password")).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: /data & account/i }));
-    expect(screen.getByText(/Permanently delete your profile, settings, sessions, shifts, expenses/)).toBeTruthy();
+    expect(screen.getByText(/Permanently delete your profile, settings, signed-in devices, shifts, expenses/)).toBeTruthy();
   });
 
   it("keeps an unsaved draft edit when navigating away from and back to a category", async () => {

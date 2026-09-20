@@ -20,6 +20,7 @@ import {
   storeToken,
 } from "../platform/tokenStorage";
 import { errorHintForStatus, showErrorPopup } from "./errorFeedback";
+import { toUserFacingError } from "./userFacingError";
 
 // In local dev this is left unset and Vite's dev-server proxy forwards "/api" to the backend
 // (see vite.config.ts). In production, set VITE_API_URL to the deployed backend's origin
@@ -159,7 +160,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       headers: { ...headers, ...(options.headers as Record<string, string> | undefined) },
     });
   } catch {
-    throw reportApiError(new ApiError("Couldn't reach the server. Check your connection and try again.", 0));
+    throw reportApiError(new ApiError("Couldn't connect to Wage Tracker. Check your internet connection and try again.", 0));
   }
   if (res.status === 204) return undefined as T;
 
@@ -168,7 +169,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const errorBody = body as { error?: string; code?: string; field?: string; suggestion?: string };
     const message = errorBody.code === "INVALID_CLIENT_TIME_ZONE"
       ? TIME_ZONE_FALLBACK_MESSAGE
-      : errorBody.error || `Request failed (${res.status})`;
+      : toUserFacingError(errorBody.error || `Request failed (${res.status})`, res.status);
     throw reportApiError(new ApiError(message, res.status, errorBody.code, errorBody.field, errorBody.suggestion));
   }
   return body as T;
@@ -276,12 +277,12 @@ export async function fetchMeWithToken(token: string): Promise<{ user: User }> {
   try {
     res = await fetch(`${API_ORIGIN}/api/me`, { headers: { Authorization: `Bearer ${token}` } });
   } catch {
-    throw new ApiError("Couldn't reach the server. Check your connection and try again.", 0);
+    throw new ApiError("Couldn't connect to Wage Tracker. Check your internet connection and try again.", 0);
   }
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const errorBody = body as { error?: string };
-    throw new ApiError(errorBody.error || `Request failed (${res.status})`, res.status);
+    throw new ApiError(toUserFacingError(errorBody.error || `Request failed (${res.status})`, res.status), res.status);
   }
   return body as { user: User };
 }
@@ -342,13 +343,13 @@ export async function changePassword(currentPassword: string, newPassword: strin
       body: JSON.stringify({ currentPassword, newPassword }),
     });
   } catch {
-    throw reportApiError(new ApiError("Couldn't reach the server. Check your connection and try again.", 0));
+    throw reportApiError(new ApiError("Couldn't connect to Wage Tracker. Check your internet connection and try again.", 0));
   }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     const payload = body as { error?: string; code?: string; field?: string; suggestion?: string };
-    throw reportApiError(new ApiError(payload.error || `Request failed (${res.status})`, res.status, payload.code, payload.field, payload.suggestion));
+    throw reportApiError(new ApiError(toUserFacingError(payload.error || `Request failed (${res.status})`, res.status), res.status, payload.code, payload.field, payload.suggestion));
   }
 
   const newToken = res.headers.get("X-New-Token");
@@ -356,7 +357,7 @@ export async function changePassword(currentPassword: string, newPassword: strin
     // Shouldn't happen against this app's own backend — surfaced as an error
     // rather than silently leaving the old (about-to-be-invalidated) token
     // in place, which would just fail on the very next request instead.
-    throw reportApiError(new ApiError("Password was changed, but no replacement session token was returned.", 500));
+    throw reportApiError(new ApiError("Your password changed, but Wage Tracker couldn't finish signing you back in. Log in again with your new password.", 500));
   }
   return { token: newToken };
 }
@@ -434,17 +435,17 @@ export async function setSessionBiometricProtection(enabled: boolean): Promise<{
       body: JSON.stringify({ biometricProtected: enabled }),
     });
   } catch {
-    throw reportApiError(new ApiError("Couldn't reach the server. Check your connection and try again.", 0));
+    throw reportApiError(new ApiError("Couldn't connect to Wage Tracker. Check your internet connection and try again.", 0));
   }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw reportApiError(new ApiError((body as { error?: string }).error || `Request failed (${res.status})`, res.status));
+    throw reportApiError(new ApiError(toUserFacingError((body as { error?: string }).error || `Request failed (${res.status})`, res.status), res.status));
   }
 
   const newToken = res.headers.get("X-New-Token");
   if (!newToken) {
-    throw reportApiError(new ApiError("Session was updated, but no replacement session token was returned.", 500));
+    throw reportApiError(new ApiError("Face ID or Touch ID was updated, but Wage Tracker couldn't finish the sign-in setup. Log in again and try once more.", 500));
   }
   return { token: newToken };
 }

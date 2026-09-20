@@ -79,7 +79,7 @@ export function SessionCard({
           // exemption on the backend).
           <span
             className="tag session-card-badge"
-            title="Exempt from the 10-minute idle sign-out, and lasts up to 5 years instead of 30 days, while Face ID/Touch ID is on"
+            title="Face ID or Touch ID keeps this device signed in until you log it out"
           >
             Face ID/Touch ID
           </span>
@@ -87,7 +87,7 @@ export function SessionCard({
       </div>
       <div className="session-card-primary">Last active {formatSessionTime(session.lastActiveAt)}</div>
       <div className="session-card-secondary">First signed in {formatSessionTime(session.createdAt)}</div>
-      {session.ipAddress && <div className="session-card-tertiary">IP {session.ipAddress}</div>}
+      {session.ipAddress && <div className="session-card-tertiary">Internet address {session.ipAddress}</div>}
       {!session.isCurrent && (
         <AsyncButton
           type="button"

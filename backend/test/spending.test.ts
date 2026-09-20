@@ -181,7 +181,7 @@ describe("personal spending", () => {
 
     const rejected = await expense({ amountCents: 1000, categoryId: groceriesId, spentAt: "2026-08-04T10:00" });
     expect(rejected.status).toBe(400);
-    expect(rejected.body.error).toMatch(/archived/i);
+    expect(rejected.body.error).toMatch(/hidden/i);
 
     const restored = await request(app).patch(`/api/spending/categories/${groceriesId}`).set(auth()).send({ archived: false });
     expect(restored.status).toBe(200);

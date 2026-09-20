@@ -116,11 +116,11 @@ function describeBiometricFailure(reason: BiometricFailureReason): string {
     case "lockout":
       return "Face ID or Touch ID is temporarily locked. Use your device passcode, or sign in with your password.";
     case "credential_invalidated":
-      return "Your device's biometric enrollment changed. Sign in with your password, then re-enable biometric login in Settings.";
+      return "Face ID or Touch ID was changed on this device. Log in with your password, then turn it on again in Settings.";
     case "keychain_error":
-      return "Couldn't read the stored biometric credential.";
+      return "Couldn't use your saved Face ID or Touch ID sign-in. Log in with your password instead.";
     default:
-      return "Biometric sign-in failed.";
+      return "Face ID or Touch ID sign-in didn't work.";
   }
 }
 
@@ -824,7 +824,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         await logout();
-        setAuthError("Your session expired. Please log in again.");
+        setAuthError("Your sign-in expired. Please log in again.");
       }
     }
   }, [user, today, reloadShifts, logout]);
@@ -1095,7 +1095,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     async (e: unknown, fallback: string) => {
       if (e instanceof ApiError && e.status === 401) {
         await logout();
-        setAuthError("Your session expired. Please log in again.");
+        setAuthError("Your sign-in expired. Please log in again.");
         return;
       }
       setActionError(e instanceof Error ? e.message : fallback);
@@ -1126,7 +1126,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) {
           await logout();
-          setAuthError("Your session expired. Please log in again.");
+        setAuthError("Your sign-in expired. Please log in again.");
         }
         throw e;
       }
@@ -1179,10 +1179,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         await logout();
-        setAuthError("Your session expired. Please log in again.");
+        setAuthError("Your sign-in expired. Please log in again.");
         return;
       }
-      setSessionsError(e instanceof Error ? e.message : "Couldn't load sessions");
+      setSessionsError(e instanceof Error ? e.message : "Couldn't load your signed-in devices");
     } finally {
       setSessionsLoading(false);
     }
@@ -1232,7 +1232,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) {
           await logout();
-          setAuthError("Your session expired. Please log in again.");
+        setAuthError("Your sign-in expired. Please log in again.");
         }
         throw e;
       }
@@ -1460,7 +1460,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return {
         outcome: "failed",
         reason: "unavailable",
-        error: "You must be logged in to enable biometric login.",
+        error: "Log in before turning on Face ID or Touch ID.",
       };
     }
     if (biometricOperationInFlightRef.current) {
@@ -1472,7 +1472,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return {
         outcome: "failed",
         reason: "unavailable",
-        error: "A biometric prompt is already in progress. Please wait and try again.",
+        error: "A Face ID or Touch ID check is already open. Wait a moment and try again.",
       };
     }
     biometricOperationInFlightRef.current = true;
@@ -1562,7 +1562,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           return {
             outcome: "failed",
             reason: "keychain_error",
-            error: "Couldn't finish turning on biometric sign-in. Please try again.",
+            error: "Couldn't finish turning on Face ID or Touch ID. Please try again.",
           };
         }
         setBiometricStatus(await getBiometricStatus());

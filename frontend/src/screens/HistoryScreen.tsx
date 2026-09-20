@@ -137,7 +137,7 @@ export function HistoryScreen() {
           <EmptyState
             icon={<HistoryIcon size={25} />}
             title="No completed weeks yet"
-            description="Your first weekly summary will appear here when your current weekly cycle ends."
+            description="Your first weekly summary will appear here when your current work week ends."
           />
         </div>
       ) : filteredWeeks.length === 0 ? (

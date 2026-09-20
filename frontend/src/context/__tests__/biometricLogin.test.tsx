@@ -180,7 +180,7 @@ describe("cold-launch automatic biometric prompt", () => {
     // backend re-validation of the recovered token) is still pending —
     // exactly the gap the bug lived in. WakingUpScreen must appear once the
     // 500ms grace window passes, not stay blank.
-    await screen.findByText(/Connecting securely/, {}, { timeout: 2000 });
+    await screen.findByText(/Connecting to Wage Tracker/, {}, { timeout: 2000 });
 
     resolveFetchMe({ user: USER });
     await screen.findByRole("navigation", { name: "Main" });
@@ -499,7 +499,7 @@ describe("Remember Me and biometric login", () => {
         JSON.stringify({
           outcome: "failed",
           reason: "keychain_error",
-          error: "Couldn't finish turning on biometric sign-in. Please try again.",
+          error: "Couldn't finish turning on Face ID or Touch ID. Please try again.",
         })
       )
     );

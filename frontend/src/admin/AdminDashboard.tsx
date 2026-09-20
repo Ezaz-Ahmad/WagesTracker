@@ -108,7 +108,7 @@ export function AdminDashboard({
       return;
     }
     if (check.suggestion && acceptedEmailAsEntered !== check.normalized) {
-      const message = `That domain may be misspelled. Did you mean ${check.suggestion}?`;
+      const message = `The part after @ may be misspelled. Did you mean ${check.suggestion}?`;
       setEmailError(message);
       showErrorPopup({ title: "Check the email", message, hint: "Use the suggestion or choose Keep mine before saving.", field: "email", suggestion: check.suggestion });
       return;
@@ -172,7 +172,7 @@ export function AdminDashboard({
           <Logo size={20} />
           <span className="admin-brand-copy">
             <strong>Wage Tracker</strong>
-            <small>Admin console</small>
+            <small>Admin panel</small>
           </span>
         </span>
         <button className="btn btn-secondary" onClick={onLogout}>
@@ -185,7 +185,7 @@ export function AdminDashboard({
           <div>
             <p className="admin-eyebrow">Account management</p>
             <h1 id="admin-dashboard-title">Admin dashboard</h1>
-            <p>Review user accounts, update login emails, inspect shift activity, and manage access.</p>
+            <p>Review accounts, update login emails, check shift history, and manage users.</p>
           </div>
         </section>
 
@@ -324,7 +324,7 @@ export function AdminDashboard({
             {detailError && <div className="form-error">{detailError}</div>}
             <form className="admin-email-editor" onSubmit={handleEmailUpdate} noValidate>
               <h3>Edit login email</h3>
-              <p className="section-hint">This changes only the login email. The user's existing password, sessions, shifts, reports, and settings remain unchanged.</p>
+              <p className="section-hint">This changes only the login email. The user's password, signed-in devices, shifts, reports, and settings stay the same.</p>
               {emailError && <div className="form-error" role="alert">{emailError}</div>}
               {emailMessage && <StatusBanner tone="success">{emailMessage}</StatusBanner>}
               <div className="field">
@@ -412,7 +412,7 @@ export function AdminDashboard({
           >
             <h2 className="dialog-title" id="admin-delete-title">Delete {deleteTarget.name}?</h2>
             <p className="dialog-body" id="admin-delete-description">
-              This permanently deletes this user's profile, settings, sessions, shifts, expenses, and spending
+              This permanently deletes this user's profile, settings, signed-in devices, shifts, expenses, and spending
               categories. There's no way to undo this. Type{" "}
               <strong>{deleteTarget.email}</strong> to confirm.
             </p>

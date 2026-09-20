@@ -105,7 +105,7 @@ export function validateEmailAddress(raw: string): EmailValidationResult {
     label.length > 0 && label.length <= 63 && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/iu.test(label)
   ) && /^(?:[a-z]{2,63}|xn--[a-z0-9-]{2,59})$/iu.test(labels.at(-1) ?? "");
   if (!domainValid) {
-    return { valid: false, normalized, error: "Check the email domain after @ (for example, example.com)" };
+    return { valid: false, normalized, error: "Check the part after @ (for example, example.com)" };
   }
   const correctedDomain = suggestDomainCorrection(domain);
   return { valid: true, normalized, ...(correctedDomain ? { suggestion: `${local}@${correctedDomain}` } : {}) };

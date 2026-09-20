@@ -173,7 +173,7 @@ export function ReportScreen() {
           </span>
         </button>
       </div>
-      <div className="section-hint">Last 7 weeks plus this week in progress.</div>
+      <div className="section-hint">The last 7 weeks, plus this week so far.</div>
       {/* Dismissal used to be an onClick on the <div> itself — no button, no
           label, no keyboard route, and nothing on screen suggesting the
           message could be cleared at all. */}
@@ -208,7 +208,7 @@ export function ReportScreen() {
         <div className="row-baseline">
           <div className="chart-heading-kicker"><div className="card-kicker">Weekly trend</div><LiveDataBadge active={ticking} /></div>
           <fieldset className="fieldset-plain fieldset-inline">
-            <legend className="visually-hidden">Weekly trend metric</legend>
+            <legend className="visually-hidden">Choose what to show in the weekly trend</legend>
             <div className="seg">
               <label className="seg-opt">
                 <input type="radio" name="metric" checked={metric === "earnings"} onChange={() => setMetric("earnings")} /> Earnings
@@ -247,7 +247,7 @@ export function ReportScreen() {
               compact
               icon={<ReportIcon size={25} />}
               title="Your trend starts here"
-              description="Complete your first weekly cycle to compare this week with earlier weeks."
+              description="Complete your first work week to compare it with earlier weeks."
             />
           </div>
         )}
@@ -279,12 +279,12 @@ export function ReportScreen() {
       </div>
 
       <div className="card elev-sm anim-rise" style={{ ["--i" as string]: 3 }}>
-        <h2 className="section-title" style={{ margin: 0 }}>Compare periods</h2>
+        <h2 className="section-title" style={{ margin: 0 }}>Compare your progress</h2>
         <div className="section-hint" style={{ marginBottom: "var(--space-3)" }}>
-          Week over week, month over month, or year over year — showing {metricLabel} (change the view above to switch).
+          See how your {metricLabel} changed across weeks, months, or years.
         </div>
         <fieldset className="fieldset-plain">
-          <legend className="visually-hidden">Compare by period</legend>
+          <legend className="visually-hidden">Choose a time range to compare</legend>
           <div className="seg" style={{ marginBottom: "var(--space-4)" }}>
             <label className="seg-opt">
               <input type="radio" name="period" checked={period === "week"} onChange={() => setPeriod("week")} /> Weeks

@@ -47,7 +47,7 @@ export function AdminLogin({ onLoggedIn }: { onLoggedIn: (token: string) => void
             </div>
             <AsyncButton className="btn btn-primary btn-block" type="submit" busy={busy} idleLabel="Log in" busyLabel="Checking…" style={{ justifyContent: "center" }} />
           </form>
-          <div className="auth-demo-note">Not a regular account — a separate admin-only password.</div>
+          <div className="auth-demo-note">Use the separate password for the admin panel.</div>
         </div>
       </div>
     </div>
