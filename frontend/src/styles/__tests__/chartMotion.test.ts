@@ -76,7 +76,7 @@ describe("premium chart motion", () => {
     expect(report).toContain("useChartReveal");
     expect(weeklyTrend).toContain("useChartReveal");
     expect(spending).toContain("useChartReveal");
-    expect(report).toContain('key={`${metric}:${period}`}');
+    expect(report).toContain('key={`${compareMetric}:${comparePeriod}`}');
     expect(spending).toContain('key={`${summary.period.from}:${summary.period.to}`}');
   });
 

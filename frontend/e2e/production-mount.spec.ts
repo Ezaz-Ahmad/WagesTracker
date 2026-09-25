@@ -508,6 +508,61 @@ test("mobile Weekly Trend uses compact private-safe point labels without horizon
   expect(errors).toEqual([]);
 });
 
+test("mobile Report keeps trend and comparison ranges inside their cards", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 780 });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  const errors = await captureRuntimeErrors(page);
+  await page.addInitScript(() => localStorage.setItem("wagesTracker.theme.preference.v1", "dark"));
+  await mockAuthenticatedApi(page, { chartData: true });
+
+  await page.goto("/");
+  await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Report", exact: true }).click();
+
+  const trendCard = page.locator(".report-trend-card");
+  await expect(trendCard.getByRole("group", { name: "Weekly earnings trend" })).toBeVisible();
+  await expect(trendCard.locator("[data-chart-point]")).toHaveCount(8);
+
+  await trendCard.locator("label.seg-opt").filter({ hasText: "Months" }).click();
+  await expect(trendCard.getByRole("group", { name: "Monthly earnings trend" })).toBeVisible();
+  await expect(trendCard.locator("[data-chart-point]")).toHaveCount(6);
+
+  await trendCard.locator("label.seg-opt").filter({ hasText: "Years" }).click();
+  await expect(trendCard.getByRole("group", { name: "Yearly earnings trend" })).toBeVisible();
+  await expect(trendCard.locator("[data-chart-point]")).toHaveCount(1);
+
+  await trendCard.locator("label.seg-opt").filter({ hasText: "Weeks" }).click();
+  await trendCard.locator("label.seg-opt").filter({ hasText: "Hours" }).click();
+  await expect(trendCard.getByRole("group", { name: "Weekly hours trend" })).toBeVisible();
+
+  const compareCard = page.locator(".report-compare-card");
+  await compareCard.scrollIntoViewIfNeeded();
+  const bars = compareCard.locator(".period-bars");
+  await expect(bars.locator(".period-bar-col")).toHaveCount(8);
+  expect(await bars.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+
+  const chartBox = await bars.boundingBox();
+  expect(chartBox).not.toBeNull();
+  const barBoxes = await bars.locator(".period-bar-col").evaluateAll((elements) => elements.map((element) => {
+    const box = element.getBoundingClientRect();
+    return { left: box.left, right: box.right };
+  }));
+  for (const box of barBoxes) {
+    expect(box.left).toBeGreaterThanOrEqual(chartBox!.x - 0.5);
+    expect(box.right).toBeLessThanOrEqual(chartBox!.x + chartBox!.width + 0.5);
+  }
+
+  await compareCard.locator("label.seg-opt").filter({ hasText: "Months" }).click();
+  await expect(bars.locator(".period-bar-col")).toHaveCount(6);
+  await compareCard.locator("label.seg-opt").filter({ hasText: "Years" }).click();
+  await expect(bars.locator(".period-bar-col")).toHaveCount(1);
+  await compareCard.locator("label.seg-opt").filter({ hasText: "Hours" }).click();
+  await expect(compareCard.getByText(/Compare your hours year by year/i)).toBeVisible();
+
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  expect(await page.locator(".app-main").evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  expect(errors).toEqual([]);
+});
+
 test("reduced motion presents chart data immediately without a visible reveal", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   const errors = await captureRuntimeErrors(page);

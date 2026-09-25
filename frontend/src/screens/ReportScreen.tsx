@@ -37,11 +37,19 @@ import { WeeklyTrendChart } from "../components/WeeklyTrendChart";
 type Metric = "earnings" | "hours";
 type Period = "week" | "month" | "year";
 
+const PERIOD_COPY: Record<Period, { singular: string; plural: string; adjective: string }> = {
+  week: { singular: "week", plural: "weeks", adjective: "Weekly" },
+  month: { singular: "month", plural: "months", adjective: "Monthly" },
+  year: { singular: "year", plural: "years", adjective: "Yearly" },
+};
+
 export function ReportScreen() {
   const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras, earningsHidden } = useApp();
   const { active, last } = useTodayShift();
-  const [metric, setMetric] = useState<Metric>("earnings");
-  const [period, setPeriod] = useState<Period>("week");
+  const [trendMetric, setTrendMetric] = useState<Metric>("earnings");
+  const [trendPeriod, setTrendPeriod] = useState<Period>("week");
+  const [compareMetric, setCompareMetric] = useState<Metric>("earnings");
+  const [comparePeriod, setComparePeriod] = useState<Period>("week");
   const periodReveal = useChartReveal<HTMLDivElement>();
   const {
     download: downloadPdf,
@@ -74,8 +82,36 @@ export function ReportScreen() {
   const totalEarnings = savedEarnings + liveHours * rate;
 
   const history = buildWeeklyHistory(shifts, today, weekStartsOn, rate, 7, new Date(createdAt), dayExpenses, weekExtras);
-  const chartSource = buildChartSource(history, totalHours, totalEarnings);
-  const chart = buildChart(chartSource, metric, CURRENCY);
+  const weeklyItems = buildChartSource(history, totalHours, totalEarnings);
+  const monthlySettledItems = buildMonthlyItems(shifts, today, rate, 6, dayExpenses, weekExtras);
+  const signupYear = new Date(createdAt).getFullYear();
+  const yearlyCount = Math.min(4, Math.max(1, today.getFullYear() - (Number.isFinite(signupYear) ? signupYear : today.getFullYear()) + 1));
+  const yearlySettledItems = buildYearlyItems(shifts, today, rate, yearlyCount, dayExpenses, weekExtras);
+
+  const livePeriod = (items: typeof monthlySettledItems) => {
+    const current = items.find((item) => item.inProgress);
+    const live = current && isDateInRange(last?.date ?? null, current.startISO, current.endISO)
+      ? openLiveHours
+      : 0;
+    return {
+      items: withLiveInProgressPeriod(items, live, rate),
+      liveHours: live,
+    };
+  };
+  const monthly = livePeriod(monthlySettledItems);
+  const yearly = livePeriod(yearlySettledItems);
+  const periodCollections = {
+    week: weeklyItems,
+    month: monthly.items,
+    year: yearly.items,
+  } satisfies Record<Period, typeof weeklyItems>;
+  const periodLiveHours = {
+    week: liveHours,
+    month: monthly.liveHours,
+    year: yearly.liveHours,
+  } satisfies Record<Period, number>;
+  const trendItems = periodCollections[trendPeriod];
+  const chart = buildChart(trendItems, trendMetric, CURRENCY);
 
   const progressPct = goalHours > 0 ? Math.min(100, (totalHours / goalHours) * 100) : 0;
   const earningsProgressPct = goalEarnings > 0 ? Math.min(100, (totalEarnings / goalEarnings) * 100) : 0;
@@ -88,22 +124,8 @@ export function ReportScreen() {
   const progressPctAnim = Math.round(ticking ? progressPct : progressPctTween);
   const earningsProgressPctAnim = Math.round(ticking ? earningsProgressPct : earningsProgressPctTween);
 
-  const settledPeriodItems =
-    period === "month"
-      ? buildMonthlyItems(shifts, today, rate, 6, dayExpenses, weekExtras)
-      : period === "year"
-        ? buildYearlyItems(shifts, today, rate, 2, dayExpenses, weekExtras)
-        : chartSource;
-  const activePeriod = settledPeriodItems.find((item) => item.inProgress);
-  const periodLiveHours = period === "week"
-    ? 0
-    : activePeriod && isDateInRange(last?.date ?? null, activePeriod.startISO, activePeriod.endISO)
-      ? openLiveHours
-      : 0;
-  const periodItems = period === "week"
-    ? settledPeriodItems
-    : withLiveInProgressPeriod(settledPeriodItems, periodLiveHours, rate);
-  const periodBars = buildBars(periodItems, metric, CURRENCY);
+  const compareItems = periodCollections[comparePeriod];
+  const periodBars = buildBars(compareItems, compareMetric, CURRENCY);
 
   if (!user) return null;
   if (!shiftsLoaded) {
@@ -121,17 +143,22 @@ export function ReportScreen() {
     void downloadPdf({ user: user!, today, currency: CURRENCY });
   }
 
-  const metricLabel = metric === "earnings" ? "earnings" : "hours";
-  const hasTrendData = history.some((week) => (metric === "earnings" ? week.earnings : week.hours) > 0)
-    || (ticking && (metric === "earnings" ? totalEarnings : totalHours) > 0);
+  const trendMetricLabel = trendMetric === "earnings" ? "earnings" : "hours";
+  const compareMetricLabel = compareMetric === "earnings" ? "earnings" : "hours";
+  const trendPeriodCopy = PERIOD_COPY[trendPeriod];
+  const comparePeriodCopy = PERIOD_COPY[comparePeriod];
+  const hasTrendData = trendPeriod === "week"
+    ? history.some((item) => (trendMetric === "earnings" ? item.earnings : item.hours) > 0)
+      || (ticking && (trendMetric === "earnings" ? totalEarnings : totalHours) > 0)
+    : trendItems.some((item) => (trendMetric === "earnings" ? item.earnings : item.hours) > 0);
   // The one-line name for the line chart. Deliberately describes the shape
   // and range rather than reciting every value — the full figures are in
   // the table beneath it, and an aria-label that reads out eight numbers is
   // unusable as a graphic's name.
   const chartSummary =
     chart.points.length === 0
-      ? `Weekly ${metricLabel} trend — no data yet`
-      : `Line chart of weekly ${metricLabel} over the last ${chart.points.length} weeks, ` +
+      ? `${trendPeriodCopy.adjective} ${trendMetricLabel} trend — no data yet`
+      : `Line chart of ${trendPeriodCopy.adjective.toLowerCase()} ${trendMetricLabel} over ${chart.points.length} ${trendPeriodCopy.plural}, ` +
         `from ${chart.points[0].short} to ${chart.points[chart.points.length - 1].short}. ` +
         `Figures follow in the table below.`;
 
@@ -173,7 +200,7 @@ export function ReportScreen() {
           </span>
         </button>
       </div>
-      <div className="section-hint">The last 7 weeks, plus this week so far.</div>
+      <div className="section-hint">See your current totals and progress over time.</div>
       {/* Dismissal used to be an onClick on the <div> itself — no button, no
           label, no keyboard route, and nothing on screen suggesting the
           message could be cleared at all. */}
@@ -205,16 +232,38 @@ export function ReportScreen() {
       </div>
 
       <div className="card elev-sm anim-rise report-trend-card" style={{ marginBottom: "var(--space-4)", ["--i" as string]: 1 }}>
-        <div className="row-baseline">
-          <div className="chart-heading-kicker"><div className="card-kicker">Weekly trend</div><LiveDataBadge active={ticking} /></div>
-          <fieldset className="fieldset-plain fieldset-inline">
-            <legend className="visually-hidden">Choose what to show in the weekly trend</legend>
-            <div className="seg">
+        <div className="report-card-heading">
+          <div>
+            <div className="chart-heading-kicker">
+              <div className="card-kicker">Your trend</div>
+              <LiveDataBadge active={active && periodLiveHours[trendPeriod] > 0} />
+            </div>
+            <p className="report-card-description">Follow your progress by week, month, or year.</p>
+          </div>
+        </div>
+        <div className="report-chart-toolbar">
+          <fieldset className="fieldset-plain report-chart-control">
+            <legend>Time range</legend>
+            <div className="seg report-seg">
               <label className="seg-opt">
-                <input type="radio" name="metric" checked={metric === "earnings"} onChange={() => setMetric("earnings")} /> Earnings
+                <input type="radio" name="trend-period" checked={trendPeriod === "week"} onChange={() => setTrendPeriod("week")} /> Weeks
               </label>
               <label className="seg-opt">
-                <input type="radio" name="metric" checked={metric === "hours"} onChange={() => setMetric("hours")} /> Hours
+                <input type="radio" name="trend-period" checked={trendPeriod === "month"} onChange={() => setTrendPeriod("month")} /> Months
+              </label>
+              <label className="seg-opt">
+                <input type="radio" name="trend-period" checked={trendPeriod === "year"} onChange={() => setTrendPeriod("year")} /> Years
+              </label>
+            </div>
+          </fieldset>
+          <fieldset className="fieldset-plain report-chart-control">
+            <legend>Measure</legend>
+            <div className="seg report-seg">
+              <label className="seg-opt">
+                <input type="radio" name="trend-metric" checked={trendMetric === "earnings"} onChange={() => setTrendMetric("earnings")} /> Earnings
+              </label>
+              <label className="seg-opt">
+                <input type="radio" name="trend-metric" checked={trendMetric === "hours"} onChange={() => setTrendMetric("hours")} /> Hours
               </label>
             </div>
           </fieldset>
@@ -222,23 +271,26 @@ export function ReportScreen() {
 
         {hasTrendData ? <>
         <WeeklyTrendChart
+          key={trendPeriod}
           chart={chart}
-          weeks={chartSource}
-          metric={metric}
+          weeks={trendItems}
+          metric={trendMetric}
+          period={trendPeriod}
           currency={CURRENCY}
           earningsHidden={earningsHidden}
           goalHours={goalHours}
           goalEarnings={goalEarnings}
-          ticking={ticking}
+          ticking={active && periodLiveHours[trendPeriod] > 0}
           summary={chartSummary}
         />
 
         <ChartDataTable
-          caption={`Weekly ${metricLabel}, oldest first`}
-          valueHeading={metric === "earnings" ? "Earnings" : "Hours"}
+          caption={`${trendPeriodCopy.adjective} ${trendMetricLabel}, oldest first`}
+          labelHeading={trendPeriodCopy.singular[0].toUpperCase() + trendPeriodCopy.singular.slice(1)}
+          valueHeading={trendMetric === "earnings" ? "Earnings" : "Hours"}
           rows={chart.points.map((p) => ({
             label: p.short,
-            value: metric === "earnings" && earningsHidden ? "Hidden" : p.valueLabel,
+            value: trendMetric === "earnings" && earningsHidden ? "Hidden" : p.valueLabel,
           }))}
         />
         </> : (
@@ -247,7 +299,9 @@ export function ReportScreen() {
               compact
               icon={<ReportIcon size={25} />}
               title="Your trend starts here"
-              description="Complete your first work week to compare it with earlier weeks."
+              description={trendPeriod === "week"
+                ? "Complete your first work week to compare it with earlier weeks."
+                : `Keep logging shifts to build your ${trendPeriodCopy.adjective.toLowerCase()} trend.`}
             />
           </div>
         )}
@@ -278,45 +332,69 @@ export function ReportScreen() {
         </p>
       </div>
 
-      <div className="card elev-sm anim-rise" style={{ ["--i" as string]: 3 }}>
+      <div className="card elev-sm anim-rise report-compare-card" style={{ ["--i" as string]: 3 }}>
         <h2 className="section-title" style={{ margin: 0 }}>Compare your progress</h2>
-        <div className="section-hint" style={{ marginBottom: "var(--space-3)" }}>
-          See how your {metricLabel} changed across weeks, months, or years.
+        <div className="section-hint">
+          Compare your {compareMetricLabel} {comparePeriodCopy.singular} by {comparePeriodCopy.singular}.
         </div>
-        <fieldset className="fieldset-plain">
-          <legend className="visually-hidden">Choose a time range to compare</legend>
-          <div className="seg" style={{ marginBottom: "var(--space-4)" }}>
-            <label className="seg-opt">
-              <input type="radio" name="period" checked={period === "week"} onChange={() => setPeriod("week")} /> Weeks
-            </label>
-            <label className="seg-opt">
-              <input type="radio" name="period" checked={period === "month"} onChange={() => setPeriod("month")} /> Months
-            </label>
-            <label className="seg-opt">
-              <input type="radio" name="period" checked={period === "year"} onChange={() => setPeriod("year")} /> Years
-            </label>
-          </div>
-        </fieldset>
+        <div className="report-chart-toolbar">
+          <fieldset className="fieldset-plain report-chart-control">
+            <legend>Time range</legend>
+            <div className="seg report-seg">
+              <label className="seg-opt">
+                <input type="radio" name="compare-period" checked={comparePeriod === "week"} onChange={() => setComparePeriod("week")} /> Weeks
+              </label>
+              <label className="seg-opt">
+                <input type="radio" name="compare-period" checked={comparePeriod === "month"} onChange={() => setComparePeriod("month")} /> Months
+              </label>
+              <label className="seg-opt">
+                <input type="radio" name="compare-period" checked={comparePeriod === "year"} onChange={() => setComparePeriod("year")} /> Years
+              </label>
+            </div>
+          </fieldset>
+          <fieldset className="fieldset-plain report-chart-control">
+            <legend>Measure</legend>
+            <div className="seg report-seg">
+              <label className="seg-opt">
+                <input type="radio" name="compare-metric" checked={compareMetric === "earnings"} onChange={() => setCompareMetric("earnings")} /> Earnings
+              </label>
+              <label className="seg-opt">
+                <input type="radio" name="compare-metric" checked={compareMetric === "hours"} onChange={() => setCompareMetric("hours")} /> Hours
+              </label>
+            </div>
+          </fieldset>
+        </div>
         {/* Same problem as the line chart above: a row of unlabelled divs
             whose only textual content was a value and a short period name
             with nothing tying them together. Hidden from assistive tech and
             replaced by the table. */}
-        <div ref={periodReveal.ref} className={`${periodReveal.revealClassName} period-bars`} key={`${metric}:${period}`} aria-hidden="true">
+        <div
+          ref={periodReveal.ref}
+          className={`${periodReveal.revealClassName} period-bars`}
+          key={`${compareMetric}:${comparePeriod}`}
+          data-period={comparePeriod}
+          style={{ ["--period-count" as string]: periodBars.length }}
+          aria-hidden="true"
+        >
           {periodBars.map((b, i) => (
-            <div className={`period-bar-col${b.inProgress && (period === "week" ? ticking : periodLiveHours > 0) ? " is-live" : ""}`} key={i} style={{ ["--i" as string]: i }}>
-              <div className="period-bar-label">{metric === "earnings" ? <Amount>{b.valueLabel}</Amount> : b.valueLabel}</div>
-              <div className="period-bar-fill" style={{ height: b.barStyle, background: b.barColor }} />
-              <div className="period-bar-label">{b.short}</div>
+            <div className={`period-bar-col${b.inProgress && active && periodLiveHours[comparePeriod] > 0 ? " is-live" : ""}`} key={i} style={{ ["--i" as string]: i }}>
+              <div className={`period-bar-value${compareMetric === "earnings" && earningsHidden ? " is-private" : ""}`}>
+                {compareMetric === "earnings" && earningsHidden ? "***" : b.compactValueLabel}
+              </div>
+              <div className="period-bar-track">
+                <div className="period-bar-fill" style={{ height: b.barStyle, background: b.barColor }} />
+              </div>
+              <div className="period-bar-period">{b.short}</div>
             </div>
           ))}
         </div>
         <ChartDataTable
-          caption={`${period === "week" ? "Weekly" : period === "month" ? "Monthly" : "Yearly"} ${metricLabel}, oldest first`}
-          labelHeading={period === "week" ? "Week" : period === "month" ? "Month" : "Year"}
-          valueHeading={metric === "earnings" ? "Earnings" : "Hours"}
+          caption={`${comparePeriodCopy.adjective} ${compareMetricLabel}, oldest first`}
+          labelHeading={comparePeriodCopy.singular[0].toUpperCase() + comparePeriodCopy.singular.slice(1)}
+          valueHeading={compareMetric === "earnings" ? "Earnings" : "Hours"}
           rows={periodBars.map((b) => ({
             label: b.short,
-            value: metric === "earnings" && earningsHidden ? "Hidden" : b.valueLabel,
+            value: compareMetric === "earnings" && earningsHidden ? "Hidden" : b.valueLabel,
           }))}
         />
       </div>
