@@ -441,7 +441,7 @@ test("desktop Weekly Trend stays compact and supports precise pointer and keyboa
   const tooltip = page.getByRole("tooltip");
   await expect(tooltip).toBeVisible();
   await expect(tooltip).toContainText("Selected week");
-  await expect(tooltip).toContainText("Vs prior week");
+  await expect(tooltip).toContainText("Compared with last week");
   await expect(tooltip).toContainText("Weekly target");
   await expect(tooltip).toContainText(/\$\d|\d+\.\d{2}h/);
   await inspectedPoint.click();
@@ -656,7 +656,7 @@ test("mobile Home opens polished detail sheets for days and summary cards", asyn
 
   await page.getByRole("button", { name: "View Weeks on goal details" }).click();
   const weeksDialog = page.getByRole("dialog");
-  await expect(weeksDialog.getByText("Completed weeks")).toBeVisible();
+  await expect(weeksDialog.getByRole("heading", { name: "Completed weeks" })).toBeVisible();
   await weeksDialog.getByRole("button", { name: "Done" }).click();
   await expect(weeksDialog).toBeHidden();
 
