@@ -133,6 +133,31 @@ describe("WeeklyTrendChart", () => {
     expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
+  it("uses period-specific labels when the same chart shows monthly data", () => {
+    render(
+      <WeeklyTrendChart
+        chart={buildChart(WEEKS, "earnings", CURRENCY)}
+        weeks={WEEKS}
+        metric="earnings"
+        period="month"
+        currency={CURRENCY}
+        earningsHidden={false}
+        goalHours={38}
+        goalEarnings={950}
+        ticking={false}
+        summary="Line chart of monthly earnings."
+      />
+    );
+
+    const points = within(screen.getByRole("group", { name: "Monthly earnings trend" })).getAllByRole("button");
+    fireEvent.focus(points[1]);
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip.textContent).toContain("Selected month");
+    expect(tooltip.textContent).toContain("Compared with last month");
+    expect(tooltip.textContent).toContain("Select another month");
+    expect(tooltip.textContent).not.toContain("Weekly target");
+  });
+
   it("pins a point on click, toggles it off, and dismisses a pin outside", () => {
     renderChart();
     const points = pointControls();

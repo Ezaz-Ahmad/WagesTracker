@@ -481,9 +481,26 @@ export function buildChart(chartSource: WeekSummary[], metric: "earnings" | "hou
 export interface Bar {
   short: string;
   valueLabel: string;
+  compactValueLabel: string;
   barStyle: string;
   barColor: string;
   inProgress: boolean;
+}
+
+function compactChartNumber(value: number): string {
+  const absolute = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  if (absolute >= 1_000_000) {
+    const scaled = absolute / 1_000_000;
+    const formatted = scaled < 10 ? scaled.toFixed(1).replace(/\.0$/, "") : `${Math.round(scaled)}`;
+    return `${sign}${formatted}m`;
+  }
+  if (absolute >= 1_000) {
+    const scaled = absolute / 1_000;
+    const formatted = scaled < 10 ? scaled.toFixed(1).replace(/\.0$/, "") : `${Math.round(scaled)}`;
+    return `${sign}${formatted}k`;
+  }
+  return `${Math.round(value)}`;
 }
 
 export function buildBars(items: WeekSummary[], metric: "earnings" | "hours", currency: string): Bar[] {
@@ -496,6 +513,9 @@ export function buildBars(items: WeekSummary[], metric: "earnings" | "hours", cu
     return {
       short: w.short,
       valueLabel: metric === "earnings" ? currency + fmt2(val) : `${Math.round(val * 10) / 10}h`,
+      compactValueLabel: metric === "earnings"
+        ? currency + compactChartNumber(val)
+        : `${Math.round(val * 10) / 10}h`,
       barStyle: `${pct.toFixed(4)}%`,
       barColor: w.inProgress ? "var(--color-accent-300)" : "var(--color-accent)",
       inProgress: !!w.inProgress,

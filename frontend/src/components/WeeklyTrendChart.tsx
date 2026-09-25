@@ -12,11 +12,13 @@ import { fmt2 } from "../lib/date";
 import { useChartReveal } from "../lib/useChartReveal";
 
 type Metric = "earnings" | "hours";
+type TrendPeriod = "week" | "month" | "year";
 
 type WeeklyTrendChartProps = {
   chart: { points: ChartPoint[]; linePoints: string; areaPath: string };
   weeks: WeekSummary[];
   metric: Metric;
+  period?: TrendPeriod;
   currency: string;
   earningsHidden: boolean;
   goalHours: number;
@@ -79,9 +81,9 @@ function visualValueLabels(
   };
 }
 
-function comparisonLabel(current: number, previous: number | null, hidden: boolean) {
+function comparisonLabel(current: number, previous: number | null, hidden: boolean, periodNoun: string) {
   if (hidden) return { label: "Change hidden", tone: "neutral" } as const;
-  if (previous === null) return { label: "First week shown", tone: "neutral" } as const;
+  if (previous === null) return { label: `First ${periodNoun} shown`, tone: "neutral" } as const;
   if (previous === 0) {
     return current === 0
       ? ({ label: "No change", tone: "neutral" } as const)
@@ -114,6 +116,7 @@ export function WeeklyTrendChart({
   chart,
   weeks,
   metric,
+  period = "week",
   currency,
   earningsHidden,
   goalHours,
@@ -144,7 +147,7 @@ export function WeeklyTrendChart({
     setHoveredIndex(null);
     setFocusedIndex(null);
     setSelectedIndex(null);
-  }, [metric]);
+  }, [metric, period]);
 
   useEffect(() => {
     if (selectedIndex === null) return;
@@ -182,7 +185,9 @@ export function WeeklyTrendChart({
   const selectedValue = selectedWeek ? metricValue(selectedWeek, metric) : 0;
   const previousValue = activeIndex !== null && activeIndex > 0 ? metricValue(weeks[activeIndex - 1], metric) : null;
   const hidesSelectedMetric = metric === "earnings" && earningsHidden;
-  const comparison = comparisonLabel(selectedValue, previousValue, hidesSelectedMetric);
+  const periodNoun = period === "week" ? "week" : period === "month" ? "month" : "year";
+  const periodAdjective = period === "week" ? "Weekly" : period === "month" ? "Monthly" : "Yearly";
+  const comparison = comparisonLabel(selectedValue, previousValue, hidesSelectedMetric, periodNoun);
   const selectedGoal = metric === "earnings" ? goalEarnings : goalHours;
   const otherMetricLabel = metric === "earnings" ? "Hours worked" : "Earnings";
   const hidesOtherMetric = metric === "hours" && earningsHidden;
@@ -256,7 +261,7 @@ export function WeeklyTrendChart({
             ))}
           </svg>
 
-          <div className="report-trend-hit-layer" role="group" aria-label={`Weekly ${metric} trend`}>
+          <div className="report-trend-hit-layer" role="group" aria-label={`${periodAdjective} ${metric} trend`}>
             {chart.points.slice(0, pointCount).map((point, index) => {
               const week = weeks[index];
               const mainLabel = valueLabel(week, metric, currency, earningsHidden);
@@ -334,7 +339,7 @@ export function WeeklyTrendChart({
         {selectedWeek && selectedPoint ? (
           <div className="report-trend-inspector-content" key={`${metric}:${selectedWeek.startISO}`}>
             <div className="report-trend-inspector-head">
-              <span className="card-kicker">Selected week</span>
+              <span className="card-kicker">Selected {periodNoun}</span>
               <span className={`report-trend-status${selectedWeek.inProgress ? " is-live" : ""}`}>
                 {selectedWeek.inProgress ? "In progress" : "Completed"}
               </span>
@@ -345,7 +350,7 @@ export function WeeklyTrendChart({
                 <><span aria-hidden="true">***</span><span className="visually-hidden">Earnings hidden</span></>
               ) : valueLabel(selectedWeek, metric, currency, earningsHidden)}
             </strong>
-            <span className="report-trend-inspector-metric">Weekly {metric}</span>
+            <span className="report-trend-inspector-metric">{periodAdjective} {metric}</span>
             <dl>
               <div>
                 <dt>{otherMetricLabel}</dt>
@@ -353,16 +358,16 @@ export function WeeklyTrendChart({
                   <><span aria-hidden="true">***</span><span className="visually-hidden">Earnings hidden</span></>
                 ) : otherMetricValue}</dd>
               </div>
-              <div><dt>Compared with last week</dt><dd className={`is-${comparison.tone}`}>{comparison.label}</dd></div>
-              <div><dt>Weekly target</dt><dd>{goalLabel(selectedValue, selectedGoal, hidesSelectedMetric)}</dd></div>
+              <div><dt>Compared with last {periodNoun}</dt><dd className={`is-${comparison.tone}`}>{comparison.label}</dd></div>
+              {period === "week" && <div><dt>Weekly target</dt><dd>{goalLabel(selectedValue, selectedGoal, hidesSelectedMetric)}</dd></div>}
             </dl>
-            <p>Select another point to compare.</p>
+            <p>Select another {periodNoun} to compare.</p>
           </div>
         ) : (
           <div className="report-trend-inspector-empty">
             <span className="report-trend-inspector-icon" aria-hidden="true" />
             <strong>Explore your trend</strong>
-            <span>Select any week to see its details.</span>
+            <span>Select any {periodNoun} to see its details.</span>
           </div>
         )}
       </div>

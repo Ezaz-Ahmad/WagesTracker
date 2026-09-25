@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildChart, buildDayComputed, buildWeekDaysComputed, buildWeeklyHistory, findOpenShift, isDateInWeek, weekExtraFor, weekTotals } from "../aggregate";
+import { buildBars, buildChart, buildDayComputed, buildWeekDaysComputed, buildWeeklyHistory, findOpenShift, isDateInWeek, weekExtraFor, weekTotals } from "../aggregate";
 import { buildWeekDays, isoDate, startOfWeek } from "../date";
 import type { Shift, WeekExtra } from "../types";
 
@@ -20,6 +20,21 @@ describe("buildChart", () => {
   it("centres a chart containing only one point", () => {
     const chart = buildChart(weeks.slice(0, 1), "hours", CURRENCY);
     expect(chart.points[0]).toMatchObject({ x: 160 });
+  });
+});
+
+describe("buildBars", () => {
+  it("keeps exact values for the data table and compact values for narrow charts", () => {
+    const items = [
+      { startISO: "2026-08-03", endISO: "2026-08-09", label: "Aug 3 – 9", short: "Aug 3", hours: 46.25, earnings: 2050.49 },
+      { startISO: "current", endISO: "current", label: "This week", short: "Now", hours: 2.58, earnings: 90.42, inProgress: true },
+    ];
+
+    expect(buildBars(items, "earnings", CURRENCY)).toEqual([
+      expect.objectContaining({ valueLabel: "$2050.49", compactValueLabel: "$2.1k" }),
+      expect.objectContaining({ valueLabel: "$90.42", compactValueLabel: "$90" }),
+    ]);
+    expect(buildBars(items, "hours", CURRENCY).map((bar) => bar.compactValueLabel)).toEqual(["46.3h", "2.6h"]);
   });
 });
 
