@@ -41,13 +41,13 @@ export function SecuritySettings() {
       return;
     }
     if (emailCheck.suggestion && acceptedEmailAsEntered !== emailCheck.normalized) {
-      const message = `That domain may be misspelled. Did you mean ${emailCheck.suggestion}?`;
+      const message = `The part after @ may be misspelled. Did you mean ${emailCheck.suggestion}?`;
       setEmailError(message);
       showErrorPopup({ title: "Check the new email", message, hint: "Use the suggestion or choose Keep mine before continuing.", field: "newEmail", suggestion: emailCheck.suggestion });
       return;
     }
     if (!emailPassword) {
-      const message = "Enter your current password to authorise this change.";
+      const message = "Enter your current password to confirm this change.";
       setEmailError(message);
       showErrorPopup({ title: "Current password required", message, hint: "Your password will be checked, not changed.", field: "currentPassword" });
       return;
@@ -159,7 +159,7 @@ export function SecuritySettings() {
       <div className="hr" />
       <h3 className="settings-subsection-title">Change password</h3>
       <div className="section-hint">
-        Use 10–128 characters. Symbols, uppercase letters, and numbers are optional; very common and app-related passwords are rejected.
+        Use 10–128 characters. Symbols, capital letters, and numbers are optional. Easy-to-guess passwords are blocked.
       </div>
       <form onSubmit={handleChangePassword} autoComplete="on" noValidate>
         {/* Was the one .banner in the app rendered without its icon, so this
@@ -222,7 +222,7 @@ export function SecuritySettings() {
       </form>
 
       <div className="hr" />
-      <h3 className="settings-subsection-title">Active sessions</h3>
+      <h3 className="settings-subsection-title">Signed-in devices</h3>
       <SessionList />
     </div>
     <BiometricLoginSettings />

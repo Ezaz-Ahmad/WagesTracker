@@ -99,7 +99,7 @@ export function SessionsDrawer({
           <div className="sessions-drawer-head">
             <div className="sessions-drawer-heading">
               <h2 id="sessions-drawer-title" className="sessions-drawer-title">
-                All active sessions
+                All signed-in devices
               </h2>
               <p id="sessions-drawer-count" className="section-hint">
                 {sessions.length === 1 ? "1 device is" : `${sessions.length} devices are`} signed in to your account.
@@ -110,7 +110,7 @@ export function SessionsDrawer({
               className="btn btn-ghost sessions-drawer-icon-btn"
               onClick={onRefresh}
               disabled={loading}
-              aria-label={refreshing ? "Refreshing the session list" : "Refresh the session list"}
+              aria-label={refreshing ? "Refreshing the device list" : "Refresh the device list"}
               aria-busy={refreshing || undefined}
               title="Refresh"
             >
@@ -123,7 +123,7 @@ export function SessionsDrawer({
               type="button"
               className="btn btn-ghost sessions-drawer-icon-btn"
               onClick={dismiss}
-              aria-label="Close all active sessions"
+              aria-label="Close signed-in devices"
             >
               <CloseIcon size={16} />
             </button>
@@ -136,16 +136,16 @@ export function SessionsDrawer({
             {error ? (
               <div className="sessions-drawer-state">
                 <StatusBanner tone="danger">{error}</StatusBanner>
-                <AsyncButton type="button" className="btn btn-secondary" onClick={onRefresh} busy={loading} idleLabel="Try again" busyLabel="Retrying…" />
+                <AsyncButton type="button" className="btn btn-secondary" onClick={onRefresh} busy={loading} idleLabel="Try again" busyLabel="Trying again…" />
               </div>
             ) : loading && sessions.length === 0 ? (
-              <div className="session-list-skeleton" role="status" aria-label="Loading your active sessions">
+              <div className="session-list-skeleton" role="status" aria-label="Loading your signed-in devices">
                 <Skeleton className="session-card-skeleton" />
                 <Skeleton className="session-card-skeleton" />
                 <Skeleton className="session-card-skeleton" />
               </div>
             ) : sessions.length === 0 ? (
-              <div className="sessions-drawer-state section-hint">No active sessions found.</div>
+              <div className="sessions-drawer-state section-hint">No signed-in devices found.</div>
             ) : (
               <ul className="session-list session-list-compact">
                 {sessions.map((session) => (

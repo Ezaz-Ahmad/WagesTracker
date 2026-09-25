@@ -97,11 +97,11 @@ export function buildWeekReportData(
     return total + (expense.manualOverride ?? (expense.source === "manual" ? expense.fuelCost : 0));
   }, 0) * 100) / 100;
   const fuelSourceSummary = automaticFuelAllowance > 0 && manualFuelOverride > 0
-    ? "Automatic allowances and manual overrides"
+    ? "Saved allowances and changed amounts"
     : manualFuelOverride > 0
-      ? "Manual overrides"
+      ? "Changed amounts"
       : automaticFuelAllowance > 0
-        ? "Automatic allowances"
+        ? "Saved location allowances"
         : "";
 
   const weekExtra = weekExtraFor(isoDate(weekDays[0]), weekExtras);

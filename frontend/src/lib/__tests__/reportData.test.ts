@@ -51,6 +51,29 @@ describe("buildWeekReportData", () => {
     expect(report.daysLogged).toBe(expected.daysLogged);
   });
 
+  it("counts travel variants with the same first word as one PDF location", () => {
+    const user = makeUser({ multipleLocations: true });
+    const today = new Date(2026, 0, 5);
+    const shifts: Shift[] = [
+      { id: "train", date: "2026-01-05", location: "Gosford by train", signIn: "09:00", signOut: "17:00" },
+      { id: "car", date: "2026-01-06", location: "Gosford by car", signIn: "09:00", signOut: "13:00" },
+      { id: "other", date: "2026-01-07", location: "Newcastle by car", signIn: "09:00", signOut: "11:00" },
+    ];
+
+    const report = buildWeekReportData(user, shifts, today, CURRENCY, [], []);
+
+    expect(report.locationsCountLabel).toBe("2 locations");
+    expect(report.locationBreakdown).toEqual([
+      { location: "Gosford", hours: 12, hoursLabel: "12.00h", moneyLabel: "$240.00" },
+      { location: "Newcastle by car", hours: 2, hoursLabel: "2.00h", moneyLabel: "$40.00" },
+    ]);
+    expect(report.shiftRows.map((row) => row.location)).toEqual([
+      "Gosford by train",
+      "Gosford by car",
+      "Newcastle by car",
+    ]);
+  });
+
   it("includes fuel cost and 'other earnings' in the report's total, on top of hourly wages", () => {
     const user = makeUser();
     const today = new Date(2026, 0, 5);
@@ -76,7 +99,7 @@ describe("buildWeekReportData", () => {
 
     expect(report.automaticFuelAllowance).toBe(25);
     expect(report.manualFuelOverride).toBe(30);
-    expect(report.fuelSourceSummary).toBe("Automatic allowances and manual overrides");
+    expect(report.fuelSourceSummary).toBe("Saved allowances and changed amounts");
     expect(report.days.find((day) => day.dateISO === "2026-01-05")?.fuelSource).toBe("automatic");
     expect(report.days.find((day) => day.dateISO === "2026-01-06")?.fuelSource).toBe("mixed");
   });

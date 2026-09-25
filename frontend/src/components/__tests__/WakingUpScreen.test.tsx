@@ -51,9 +51,9 @@ describe("WakingUpScreen — connecting", () => {
     pingHealthMock.mockImplementation(() => new Promise(() => {}));
     render(<WakingUpScreen />);
 
-    expect(screen.getByRole("heading", { name: "Connecting securely" })).toBeTruthy();
-    expect(screen.getByText("Checking your Wage Tracker service…")).toBeTruthy();
-    expect(screen.getByText("Attempt 1 · 0:00 elapsed")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Connecting to Wage Tracker" })).toBeTruthy();
+    expect(screen.getByText("Checking that everything is ready…")).toBeTruthy();
+    expect(screen.getByText("0:00 waiting")).toBeTruthy();
 
     const status = screen.getByRole("status");
     expect(status.getAttribute("aria-live")).toBe("polite");
@@ -101,7 +101,7 @@ describe("WakingUpScreen — slow server", () => {
 
     expect(screen.getByRole("heading", { name: "Taking longer than usual" })).toBeTruthy();
     expect(screen.getByText(/keep trying/i)).toBeTruthy();
-    expect(screen.getByRole("button", { name: /^retry$/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^try again$/i })).toBeTruthy();
   });
 });
 
@@ -120,7 +120,7 @@ describe("WakingUpScreen — connected", () => {
     });
 
     expect(screen.getByText("Loading your latest shifts and account information…")).toBeTruthy();
-    expect(screen.getByText("Service ready")).toBeTruthy();
+    expect(screen.getByText("Ready")).toBeTruthy();
     expect(screen.queryByText(/%/)).toBeNull();
     expect(container.querySelector(".connection-ring-check")).toBeTruthy();
   });
@@ -136,7 +136,7 @@ describe("WakingUpScreen — offline", () => {
     expect(caption.textContent).not.toMatch(/server/i);
     expect(pingHealthMock).not.toHaveBeenCalled();
 
-    const retryBtn = screen.getByRole("button", { name: /retry/i });
+    const retryBtn = screen.getByRole("button", { name: /try again/i });
     expect(document.activeElement).toBe(retryBtn);
   });
 });
@@ -152,9 +152,9 @@ describe("WakingUpScreen — max-wait failure", () => {
       });
     }
 
-    expect(screen.getByRole("heading", { name: "We couldn’t start your workspace" })).toBeTruthy();
-    expect(screen.getByText(/service didn’t respond/i)).toBeTruthy();
-    expect(screen.getByRole("button", { name: /^retry$/i })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "We couldn’t open Wage Tracker" })).toBeTruthy();
+    expect(screen.getByText(/app didn’t respond/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^try again$/i })).toBeTruthy();
   });
 });
 
@@ -166,6 +166,6 @@ describe("WakingUpScreen — reduced motion", () => {
     expect(container.querySelector(".connection-ring.is-static")).toBeTruthy();
     // Text updates still work under reduced motion — the caption is present
     // and readable, just without the spin.
-    expect(screen.getByText("Checking your Wage Tracker service…")).toBeTruthy();
+    expect(screen.getByText("Checking that everything is ready…")).toBeTruthy();
   });
 });

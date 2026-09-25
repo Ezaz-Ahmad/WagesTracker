@@ -83,7 +83,7 @@ describe("admin accessibility", () => {
     await user.click(screen.getByRole("button", { name: "Delete Long Test User" }));
     const warning = await screen.findByRole("alertdialog", { name: "Delete Long Test User?" });
     expect(within(warning).getByLabelText("Confirm email")).toBeTruthy();
-    expect(warning.textContent).toMatch(/sessions, shifts, expenses, and spending categories/);
+    expect(warning.textContent).toMatch(/signed-in devices, shifts, expenses, and spending categories/);
   });
 
   it("shows a user-detail request failure instead of silently discarding it", async () => {

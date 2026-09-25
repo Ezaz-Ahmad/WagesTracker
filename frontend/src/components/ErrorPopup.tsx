@@ -21,7 +21,7 @@ export function ErrorPopup() {
       setError({
         title: "Check this field",
         message: field.validationMessage,
-        hint: "Your entries are still here. Correct the highlighted field and submit again.",
+        hint: "Your entries are still here. Correct the highlighted field and try again.",
         field: field.dataset.errorField,
       });
       window.setTimeout(() => { handlingInvalidRef.current = false; }, 100);
@@ -72,7 +72,7 @@ export function ErrorPopup() {
           <div>
             <h2 className="dialog-title" id="app-error-title">{error.title ?? "We couldn't complete that"}</h2>
             <p className="dialog-body" id="app-error-message">{error.message}</p>
-            {error.suggestion && <p className="app-error-suggestion">Suggested address: <strong>{error.suggestion}</strong></p>}
+            {error.suggestion && <p className="app-error-suggestion">Suggested email: <strong>{error.suggestion}</strong></p>}
             {error.hint && <p className="app-error-hint" id="app-error-hint">{error.hint}</p>}
           </div>
           <div className="dialog-actions">

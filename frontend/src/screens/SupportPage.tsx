@@ -11,7 +11,7 @@ export function SupportPage() {
     <PublicPageShell
       eyebrow="Help centre"
       title="Wage Tracker Support"
-      summary="Get help with your account, shifts, wage calculations, reports, installation, or a technical problem."
+      summary="Get help with your account, shifts, wage totals, reports, app setup, or any other problem."
     >
       <section className="support-callout" aria-labelledby="support-contact-title">
         <h2 id="support-contact-title">Contact support</h2>
@@ -30,7 +30,7 @@ export function SupportPage() {
         </div>
         <p className="public-page-fine-print">
           GitHub issues are public. Never include personal information, account details, wage or shift records,
-          authentication information, privacy requests, security vulnerabilities, passwords, or tokens in a GitHub
+          sign-in details, privacy requests, security problems, passwords, reset links, or other secrets in a GitHub
           issue. Support is provided in English.
         </p>
       </section>
@@ -39,10 +39,10 @@ export function SupportPage() {
         <h2>Common questions</h2>
         <h3>I cannot log in</h3>
         <p>
-          Check that your email address is correct and that your internet connection is working. If the service is
-          waking after a period of inactivity, leave the app open and use Retry when prompted. If you have forgotten
-          your password, choose <strong>Forgot password?</strong> on the login screen. For privacy, the confirmation is
-          the same whether or not an account exists; check the inbox and spam folder for the address you entered.
+          Check that your email address is correct and that your internet connection is working. If the app is getting
+          ready after a period of inactivity, leave it open and choose Try again when prompted. If you have forgotten
+          your password, choose <strong>Forgot password?</strong> on the login screen. For privacy, you'll see the same
+          message even if no account uses that email. Check the inbox and spam folder for the address you entered.
         </p>
 
         <h3>My active shift is still counting</h3>
@@ -53,9 +53,9 @@ export function SupportPage() {
 
         <h3>A wage total looks incorrect</h3>
         <p>
-          Review your hourly rate, shift times, expenses, and additional earnings. Wage Tracker provides estimates
-          based on the details you enter and does not calculate tax, superannuation, penalty rates, or payroll
-          entitlements unless they are explicitly represented in your entries.
+          Review your hourly rate, shift times, expenses, and other earnings. Wage Tracker estimates totals from the
+          details you enter. It does not calculate tax, superannuation, penalty rates, or payroll entitlements unless
+          you add them to your entries.
         </p>
 
         <h3>How do I export a report?</h3>
@@ -72,8 +72,8 @@ export function SupportPage() {
         <h2>Security and privacy reports</h2>
         <p>
           Do not report security vulnerabilities or privacy matters through GitHub issues. Use the private developer
-          contact options above before publishing any details. Include safe reproduction steps, but do not access
-          another person's data or include credentials, tokens, or other secrets.
+          contact options above before publishing any details. Explain the steps that showed the problem, but do not access
+          another person's data or include passwords, sign-in links, codes, or other secrets.
         </p>
         <p>For information about data handling, read the <InternalAppLink href="/privacy">Privacy Policy</InternalAppLink>.</p>
       </section>
@@ -81,8 +81,8 @@ export function SupportPage() {
       <section>
         <h2>Service status and updates</h2>
         <p>
-          Release notes, known issues, and source-code updates are available in the public{" "}
-          <ExternalAppLink href={REPOSITORY_URL} description="Wage Tracker repository">Wage Tracker repository</ExternalAppLink>.
+          Release notes, known issues, and development updates are available on the public{" "}
+          <ExternalAppLink href={REPOSITORY_URL} description="Wage Tracker project page">Wage Tracker project page</ExternalAppLink>.
         </p>
       </section>
     </PublicPageShell>

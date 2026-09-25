@@ -353,16 +353,16 @@ export function WeeklyTrendChart({
                   <><span aria-hidden="true">***</span><span className="visually-hidden">Earnings hidden</span></>
                 ) : otherMetricValue}</dd>
               </div>
-              <div><dt>Vs prior week</dt><dd className={`is-${comparison.tone}`}>{comparison.label}</dd></div>
+              <div><dt>Compared with last week</dt><dd className={`is-${comparison.tone}`}>{comparison.label}</dd></div>
               <div><dt>Weekly target</dt><dd>{goalLabel(selectedValue, selectedGoal, hidesSelectedMetric)}</dd></div>
             </dl>
-            <p>Hover, focus or tap another point to compare.</p>
+            <p>Select another point to compare.</p>
           </div>
         ) : (
           <div className="report-trend-inspector-empty">
             <span className="report-trend-inspector-icon" aria-hidden="true" />
             <strong>Explore your trend</strong>
-            <span>Hover, tap or use the keyboard to inspect any week.</span>
+            <span>Select any week to see its details.</span>
           </div>
         )}
       </div>

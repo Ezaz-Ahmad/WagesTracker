@@ -101,16 +101,16 @@ export function WorkPaySettings() {
   }
 
   async function confirmArchive(location: WorkLocation) {
-    if (!window.confirm(`Archive ${location.name}? Existing shifts and reports will keep their historical name and allowance.`)) return;
+    if (!window.confirm(`Hide ${location.name} from new shifts? Past shifts and reports will not change.`)) return;
     setLocationBusy(true);
     setLocationBusyTarget(`archive:${location.id}`);
     setLocationError(null);
     try {
       await archiveWorkLocation(location.id);
       if (draft?.id === location.id) setDraft(null);
-      setLocationMessage(`${location.name} archived.`);
+      setLocationMessage(`${location.name} hidden from new shifts.`);
     } catch (error) {
-      setLocationError(error instanceof Error ? error.message : "Couldn't archive the work location.");
+      setLocationError(error instanceof Error ? error.message : "Couldn't hide the work location.");
     } finally {
       setLocationBusy(false);
       setLocationBusyTarget(null);
@@ -123,9 +123,9 @@ export function WorkPaySettings() {
     setLocationError(null);
     try {
       await updateWorkLocation(location.id, { archived: false });
-      setLocationMessage(`${location.name} restored.`);
+      setLocationMessage(`${location.name} is available again.`);
     } catch (error) {
-      setLocationError(error instanceof Error ? error.message : "Couldn't restore the work location.");
+      setLocationError(error instanceof Error ? error.message : "Couldn't make the work location available again.");
     } finally {
       setLocationBusy(false);
       setLocationBusyTarget(null);
@@ -154,7 +154,7 @@ export function WorkPaySettings() {
         <div className="settings-subsection-head">
           <div>
             <h3 id="work-locations-heading">Which branches or work locations do you work at?</h3>
-            <p className="field-hint">Choose a branch on each shift. Allowances are snapshotted so later edits never alter history.</p>
+            <p className="field-hint">Choose a location for each shift. Its saved allowance stays with that shift, even if you edit the location later.</p>
           </div>
           <button type="button" className="btn btn-secondary" onClick={() => { setDraft({ ...EMPTY_LOCATION }); setLocationError(null); setLocationMessage(null); }} disabled={locationBusy}>
             Add location
@@ -164,7 +164,7 @@ export function WorkPaySettings() {
         {workLocationsLoading ? (
           <p className="settings-empty-state">Loading work locations…</p>
         ) : activeLocations.length === 0 ? (
-          <div className="settings-empty-state" role="status">No active work locations yet. Add your first branch to enable branch selection and automatic fuel allowance.</div>
+          <div className="settings-empty-state" role="status">No work locations yet. Add one to choose it on shifts and apply its fuel allowance.</div>
         ) : (
           <div className="work-location-list">
             {activeLocations.map((location) => (
@@ -172,11 +172,11 @@ export function WorkPaySettings() {
                 <div>
                   <strong>{location.name}</strong>
                   {location.address && <div className="field-hint">{location.address}</div>}
-                  <div className="field-hint">{location.fuelAllowance == null ? "No automatic fuel allowance" : `${CURRENCY}${location.fuelAllowance.toFixed(2)} per worked day`}</div>
+                  <div className="field-hint">{location.fuelAllowance == null ? "No saved fuel allowance" : `${CURRENCY}${location.fuelAllowance.toFixed(2)} per worked day`}</div>
                 </div>
                 <div className="work-location-actions">
                   <button type="button" className="btn btn-secondary" onClick={() => startEditing(location)} disabled={locationBusy}>Edit</button>
-                  <AsyncButton type="button" className="btn btn-danger" onClick={() => void confirmArchive(location)} disabled={locationBusy && locationBusyTarget !== `archive:${location.id}`} busy={locationBusyTarget === `archive:${location.id}`} idleLabel="Archive" busyLabel="Archiving…" />
+                  <AsyncButton type="button" className="btn btn-danger" onClick={() => void confirmArchive(location)} disabled={locationBusy && locationBusyTarget !== `archive:${location.id}`} busy={locationBusyTarget === `archive:${location.id}`} idleLabel="Hide" busyLabel="Hiding…" />
                 </div>
               </article>
             ))}
@@ -211,7 +211,7 @@ export function WorkPaySettings() {
               {draft.fuelEnabled ? <>
                 <label htmlFor="work-location-fuel">Fuel allowance per worked day ({CURRENCY})</label>
                 <input id="work-location-fuel" className="input" type="text" inputMode="decimal" placeholder="e.g. 15.00" value={draft.fuelAllowanceRaw} aria-invalid={fuelError ? true : undefined} aria-describedby={fuelError ? "work-location-fuel-error" : "work-location-fuel-hint"} onChange={(event) => setDraft({ ...draft, fuelAllowanceRaw: event.target.value })} />
-                {fuelError ? <div id="work-location-fuel-error" className="field-hint field-hint-danger">{fuelError}</div> : <div id="work-location-fuel-hint" className="field-hint">Added to earnings once per branch on each date that has a saved worked shift.</div>}
+                {fuelError ? <div id="work-location-fuel-error" className="field-hint field-hint-danger">{fuelError}</div> : <div id="work-location-fuel-hint" className="field-hint">Added once for each day you work at this location.</div>}
               </> : <div className="field-hint">No fuel allowance will be added for this branch. You can enable it later.</div>}
             </div>
             <div className="work-location-actions">
@@ -223,12 +223,12 @@ export function WorkPaySettings() {
 
         {archivedLocations.length > 0 && (
           <details className="archived-locations">
-            <summary>Archived locations ({archivedLocations.length})</summary>
+            <summary>Hidden locations ({archivedLocations.length})</summary>
             <div className="work-location-list">
               {archivedLocations.map((location) => (
                 <article className="work-location-card is-archived" key={location.id}>
-                  <div><strong>{location.name}</strong><div className="field-hint">Hidden from new shifts; historical records are unchanged.</div></div>
-                  <AsyncButton type="button" className="btn btn-secondary" onClick={() => void restoreLocation(location)} disabled={locationBusy && locationBusyTarget !== `restore:${location.id}`} busy={locationBusyTarget === `restore:${location.id}`} idleLabel="Restore" busyLabel="Restoring…" />
+                  <div><strong>{location.name}</strong><div className="field-hint">Not shown for new shifts. Past shifts are unchanged.</div></div>
+                  <AsyncButton type="button" className="btn btn-secondary" onClick={() => void restoreLocation(location)} disabled={locationBusy && locationBusyTarget !== `restore:${location.id}`} busy={locationBusyTarget === `restore:${location.id}`} idleLabel="Use again" busyLabel="Making available…" />
                 </article>
               ))}
             </div>

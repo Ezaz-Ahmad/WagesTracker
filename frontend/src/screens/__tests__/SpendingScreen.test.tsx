@@ -135,7 +135,7 @@ describe("SpendingScreen", () => {
     let resolveSummary!: (value: SpendingSummary) => void;
     mocks.getSummary.mockReturnValue(new Promise((resolve) => { resolveSummary = resolve; }));
     const { container } = renderScreen();
-    expect(screen.getByLabelText("Loading spending dashboard")).toBeTruthy();
+    expect(screen.getByLabelText("Loading your spending page")).toBeTruthy();
     expect(container.querySelectorAll(".spending-summary-skeleton")).toHaveLength(4);
     expect(screen.queryByText("Loading spending dashboard…")).toBeNull();
     resolveSummary(summary);
@@ -150,7 +150,7 @@ describe("SpendingScreen", () => {
 
     renderScreen();
     expect(screen.getAllByText("$1000.00").length).toBeGreaterThan(0);
-    expect(screen.queryByLabelText("Loading spending dashboard")).toBeNull();
+    expect(screen.queryByLabelText("Loading your spending page")).toBeNull();
     expect(mocks.getSummary).toHaveBeenCalledTimes(1);
   });
 
@@ -281,15 +281,17 @@ describe("SpendingScreen", () => {
     const user = userEvent.setup();
     renderScreen();
     await user.click(screen.getByRole("tab", { name: "Categories" }));
+    expect(screen.getByRole("radio", { name: "Amber" })).toBeTruthy();
+    expect(screen.queryByRole("radio", { name: /#B45309/i })).toBeNull();
     await user.type(screen.getByLabelText("Name"), "Pet care");
     await user.click(screen.getByRole("button", { name: "Create category" }));
     await waitFor(() => expect(mocks.createCategory).toHaveBeenCalledWith(expect.objectContaining({ name: "Pet care" })));
     await user.click(screen.getByRole("button", { name: "Edit Groceries" }));
     expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("Groceries");
-    await user.click(screen.getByRole("button", { name: "Archive" }));
+    await user.click(screen.getByRole("button", { name: "Hide" }));
     await user.click(screen.getByRole("button", { name: "Confirm" }));
     await waitFor(() => expect(mocks.archiveCategory).toHaveBeenCalledWith(categories[0].id));
-    await user.click(screen.getByRole("button", { name: "Restore" }));
+    await user.click(screen.getByRole("button", { name: "Use again" }));
     await waitFor(() => expect(mocks.patchCategory).toHaveBeenCalledWith(categories[1].id, { archived: false }));
   });
 
@@ -298,7 +300,7 @@ describe("SpendingScreen", () => {
     mocks.getSummary.mockRejectedValueOnce(new Error("Summary unavailable")).mockResolvedValueOnce(summary);
     renderScreen();
     expect(await screen.findByText(/Summary unavailable/)).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: "Retry" }));
+    await user.click(screen.getByRole("button", { name: "Try again" }));
     expect((await screen.findAllByText("$1000.00")).length).toBeGreaterThan(0);
     expect((screen.getByLabelText("This month") as HTMLInputElement).checked).toBe(true);
   });

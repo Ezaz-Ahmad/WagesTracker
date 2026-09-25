@@ -334,17 +334,17 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
               >
                 <option value="">Choose a location</option>
                 {selected?.location && !selected.workLocationId && (
-                  <option value={selected.location}>{selected.location} (historical)</option>
+                  <option value={selected.location}>{selected.location} (saved on this shift)</option>
                 )}
                 {selected?.workLocationId && !activeLocations.some((item) => item.id === selected.workLocationId) && (
-                  <option value={selected.workLocationId}>{selected.location} (archived)</option>
+                  <option value={selected.workLocationId}>{selected.location} (hidden)</option>
                 )}
                 {activeLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
               </select>
             </div>
 
             <div className="field day-editor-fuel-field">
-              <label htmlFor="day-editor-fuel">Fuel allowance override</label>
+              <label htmlFor="day-editor-fuel">Fuel allowance for this day</label>
               <div className="day-editor-money-input">
                 <span aria-hidden="true">$</span>
                 <input
@@ -364,7 +364,7 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
                 />
               </div>
               <span id="day-editor-fuel-hint" className={`field-hint${fuelValid ? "" : " field-hint-danger"}`}>
-                {fuelValid ? "Optional. Leave blank to restore the automatic branch allowance." : "Enter an amount from $0 to $10,000 using no more than two decimal places."}
+                {fuelValid ? "Optional. Leave blank to use the allowance saved for this location." : "Enter an amount from $0 to $10,000 using no more than two decimal places."}
               </span>
             </div>
 

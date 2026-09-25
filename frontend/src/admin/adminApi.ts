@@ -1,5 +1,6 @@
 import type { Shift, User, WeekStart } from "../lib/types";
 import { errorHintForStatus, showErrorPopup } from "../lib/errorFeedback";
+import { toUserFacingError } from "../lib/userFacingError";
 
 // Deliberately separate from lib/api.ts: a different token, a different storage key, and a
 // different base path (/api/admin), so an admin session and a regular user session on the
@@ -48,14 +49,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       headers: { ...headers, ...(options.headers as Record<string, string> | undefined) },
     });
   } catch {
-    throw reportAdminError(new AdminApiError("Couldn't reach the server. Check your connection and try again.", 0));
+    throw reportAdminError(new AdminApiError("Couldn't connect to Wage Tracker. Check your internet connection and try again.", 0));
   }
   if (res.status === 204) return undefined as T;
 
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const payload = body as { error?: string; code?: string; field?: string; suggestion?: string };
-    throw reportAdminError(new AdminApiError(payload.error || `Request failed (${res.status})`, res.status, payload.code, payload.field, payload.suggestion));
+    throw reportAdminError(new AdminApiError(toUserFacingError(payload.error || `Request failed (${res.status})`, res.status), res.status, payload.code, payload.field, payload.suggestion));
   }
   return body as T;
 }

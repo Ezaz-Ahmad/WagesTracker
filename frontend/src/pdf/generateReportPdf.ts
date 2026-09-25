@@ -477,7 +477,7 @@ export async function createReportPdf(data: WeekReportData): Promise<GeneratedPd
       { key: "date", label: "Date", w: 0.18 },
       { key: "location", label: "Location", w: 0.44 },
       { key: "fuel", label: "Allowance", w: 0.19 },
-      { key: "source", label: "Source", w: 0.08 },
+      { key: "source", label: "Set by", w: 0.08 },
     ] as const;
     const fuelColX: number[] = [];
     let fcx0 = marginX;
@@ -525,7 +525,7 @@ export async function createReportPdf(data: WeekReportData): Promise<GeneratedPd
       doc.setFont("helvetica", "normal");
       doc.setFontSize(6.5);
       doc.setTextColor(MUTED);
-      doc.text(d.fuelSource === "manual" ? "MANUAL" : d.fuelSource === "mixed" ? "MIXED" : d.fuelSource === "automatic" ? "AUTO" : "RECORDED", fuelColX[4], y);
+      doc.text(d.fuelSource === "manual" ? "CHANGED" : d.fuelSource === "mixed" ? "BOTH" : d.fuelSource === "automatic" ? "SAVED" : "RECORDED", fuelColX[4], y);
       doc.setFont("helvetica", "normal");
       y += 5.8;
     });

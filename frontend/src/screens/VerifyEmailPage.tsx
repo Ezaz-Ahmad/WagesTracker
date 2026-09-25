@@ -66,7 +66,7 @@ export function VerifyEmailPage({ token: providedToken }: { token?: string } = {
         <>
           <StatusBanner tone="success">{result.message}</StatusBanner>
           <p><strong>{result.email}</strong> is now {result.purpose === "signup" ? "verified for your account" : "your login email"}.</p>
-          <p>Your password, shifts, reports, settings, and active sessions were not changed.</p>
+          <p>Your password, shifts, reports, settings, and signed-in devices were not changed.</p>
           <p><a className="btn btn-primary" href="/" onClick={returnToApp}>{result.purpose === "signup" ? "Go to log in" : "Return to Wage Tracker"}</a></p>
         </>
       )}

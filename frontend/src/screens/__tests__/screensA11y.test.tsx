@@ -185,7 +185,7 @@ describe("chart alternatives", () => {
     appShifts = [];
     render(<ReportScreen />);
     expect(screen.getByText("Your trend starts here")).toBeTruthy();
-    expect(screen.getByText(/Complete your first weekly cycle/)).toBeTruthy();
+    expect(screen.getByText(/Complete your first work week/)).toBeTruthy();
     expect(document.querySelector(".chart-svg")).toBeNull();
   });
 

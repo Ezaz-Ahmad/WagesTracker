@@ -18,29 +18,29 @@ function formatElapsed(sec: number): string {
   const whole = Math.max(0, Math.floor(sec));
   const minutes = Math.floor(whole / 60);
   const seconds = String(whole % 60).padStart(2, "0");
-  return `${minutes}:${seconds} elapsed`;
+  return `${minutes}:${seconds} waiting`;
 }
 
 const WAKEUP_COPY: Record<HealthWakeupPhase, { heading: string; caption: string; hint: string }> = {
   connecting: {
-    heading: "Connecting securely",
-    caption: "Checking your Wage Tracker service…",
+    heading: "Connecting to Wage Tracker",
+    caption: "Checking that everything is ready…",
     hint: "",
   },
   waking: {
-    heading: "Starting your workspace",
-    caption: "Your workspace was resting and is waking up.",
-    hint: "A cold start can take around a minute. You can keep this screen open.",
+    heading: "Getting Wage Tracker ready",
+    caption: "The app is starting after a short rest.",
+    hint: "This can take about a minute. You can keep this screen open.",
   },
   slow: {
     heading: "Still starting",
-    caption: "Your workspace is still responding.",
-    hint: "This is slower than usual, but we’re continuing to try automatically.",
+    caption: "Wage Tracker is still getting ready.",
+    hint: "This is slower than usual, but we'll keep trying.",
   },
   long: {
     heading: "Taking longer than usual",
-    caption: "The service has not responded yet.",
-    hint: "We’ll keep trying, or you can restart the connection below.",
+    caption: "Wage Tracker has not responded yet.",
+    hint: "We'll keep trying, or you can try again below.",
   },
   connected: {
     heading: "Almost ready",
@@ -53,13 +53,13 @@ const WAKEUP_COPY: Record<HealthWakeupPhase, { heading: string; caption: string;
     hint: "",
   },
   failed: {
-    heading: "We couldn’t start your workspace",
-    caption: "The service didn’t respond. Try again in a moment.",
+    heading: "We couldn’t open Wage Tracker",
+    caption: "The app didn’t respond. Try again in a moment.",
     hint: "",
   },
 };
 
-const STAGES = ["Connection", "Workspace", "Account"] as const;
+const STAGES = ["Connect", "Start", "Account"] as const;
 
 function stageState(phase: HealthWakeupPhase, index: number): "complete" | "current" | "pending" {
   if (phase === "connected") return index < 2 ? "complete" : "current";
@@ -156,9 +156,9 @@ export function WakingUpScreen() {
 
   const meta =
     phase === "connecting" || phase === "waking" || phase === "slow" || phase === "long"
-        ? `Attempt ${attempt} · ${formatElapsed(elapsedSec)}`
+        ? `${formatElapsed(elapsedSec)}${attempt > 1 ? ` · try ${attempt}` : ""}`
         : phase === "connected"
-          ? "Service ready"
+          ? "Ready"
           : "";
 
   const showHint = hint.length > 0;
@@ -200,7 +200,7 @@ export function WakingUpScreen() {
               grow the card or nudge anything below it — only its opacity
               changes. */}
           <p className={`wakeup-slow-hint${showHint ? " is-visible" : ""}`} aria-hidden={showHint ? undefined : true}>
-            {hint || "Wage Tracker is preparing your workspace."}
+            {hint || "Wage Tracker is getting ready."}
           </p>
           {/* Visually shows the real attempt/elapsed figures (and, only once
               truly connected, "100%") but is deliberately excluded from the
@@ -220,12 +220,12 @@ export function WakingUpScreen() {
               className="btn btn-primary wakeup-retry-btn"
               onClick={retry}
               busy={retryBusy}
-              idleLabel="Retry"
-              busyLabel="Retrying…"
+              idleLabel="Try again"
+              busyLabel="Trying again…"
             />
           ) : (
             <span className="wakeup-action-note" aria-hidden="true">
-              {phase === "connected" ? "Finishing up…" : "Preparing automatically — no action needed"}
+              {phase === "connected" ? "Finishing up…" : "We'll keep trying — no action needed"}
             </span>
           )}
         </div>

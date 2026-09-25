@@ -184,7 +184,7 @@ spendingRouter.post(
     if (!parsed.success) return validationError(res, parsed.error.issues[0]?.message || "Invalid category");
     await ensureDefaultSpendingCategories(req.userId!);
     if (await activeNameExists(req.userId!, parsed.data.name)) {
-      res.status(409).json({ error: "You already have an active category with that name." });
+      res.status(409).json({ error: "You already have an available category with that name." });
       return;
     }
     const id = randomUUID();
@@ -218,7 +218,7 @@ spendingRouter.patch(
     const restoring = parsed.data.archived === false && current.archived_at !== null;
     const activeAfter = parsed.data.archived === true ? false : current.archived_at === null || restoring;
     if (activeAfter && await activeNameExists(req.userId!, nextName, current.id)) {
-      res.status(409).json({ error: "You already have an active category with that name." });
+      res.status(409).json({ error: "You already have an available category with that name." });
       return;
     }
     const now = new Date().toISOString();
@@ -346,7 +346,7 @@ spendingRouter.post(
     await ensureDefaultSpendingCategories(req.userId!);
     const category = await ownedCategory(req.userId!, parsed.data.categoryId);
     if (!category) return validationError(res, "Choose a category that belongs to your account.");
-    if (category.archived_at) return validationError(res, "That category is archived. Choose an active category.");
+    if (category.archived_at) return validationError(res, "That category is hidden. Choose an available category.");
 
     if (parsed.data.clientRequestId) {
       const existing = await db.execute({
@@ -415,7 +415,7 @@ spendingRouter.patch(
     const category = await ownedCategory(req.userId!, categoryId);
     if (!category) return validationError(res, "Choose a category that belongs to your account.");
     if (category.archived_at && categoryId !== current.category_id) {
-      return validationError(res, "That category is archived. Choose an active category.");
+      return validationError(res, "That category is hidden. Choose an available category.");
     }
     const now = new Date().toISOString();
     await db.execute({

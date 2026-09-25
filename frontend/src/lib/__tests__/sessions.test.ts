@@ -102,7 +102,7 @@ describe("session API calls (lib/api.ts)", () => {
     api = await import("../api");
     api.setToken("test-jwt-token");
     mockFetchOnce(401, { error: "Invalid or expired token" });
-    await expect(api.listSessions()).rejects.toMatchObject({ message: "Invalid or expired token", status: 401 });
+    await expect(api.listSessions()).rejects.toMatchObject({ message: "Your sign-in has expired. Please log in again.", status: 401 });
   });
 
   it("never includes a token, password, or password hash in a parsed sessions response", async () => {

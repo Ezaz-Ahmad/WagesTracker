@@ -17,7 +17,7 @@ type Mode = "login" | "signup" | "forgot";
 function biometryName(kind: "faceId" | "touchId" | "none"): string {
   if (kind === "faceId") return "Face ID";
   if (kind === "touchId") return "Touch ID";
-  return "biometric login";
+  return "Face ID or Touch ID";
 }
 
 export function AuthScreen() {
@@ -101,7 +101,7 @@ export function AuthScreen() {
     showErrorPopup({
       title: "Check your details",
       message,
-      hint: "Your other entries are still here. Correct the highlighted field and submit again.",
+      hint: "Your other entries are still here. Correct the highlighted field and try again.",
       field,
       suggestion: field === "email" ? emailCheck?.suggestion : undefined,
     });
@@ -156,7 +156,7 @@ export function AuthScreen() {
       return;
     }
     if (check.suggestion) {
-      focusInvalid("email", `That domain may be misspelled. Did you mean ${check.suggestion}?`);
+      focusInvalid("email", `The part after @ may be misspelled. Did you mean ${check.suggestion}?`);
       return;
     }
     if (!password || signupPasswordCheck?.valid === false) {
@@ -403,7 +403,7 @@ export function AuthScreen() {
                 <div className="auth-form-heading">
                   <span className="auth-form-eyebrow">Get started</span>
                   <h2 className="auth-form-title">Create your account</h2>
-                  <p>Set up your private workspace for shifts, wages, and reports.</p>
+                  <p>Set up your private account for shifts, wages, and reports.</p>
                 </div>
                 <div className="field field-spaced">
                   <label htmlFor="signup-name">Full name</label>
@@ -421,7 +421,7 @@ export function AuthScreen() {
                       </span>
                     </div>
                   )}
-                  {(!emailCheck || (emailCheck.valid && !emailCheck.suggestion)) && <div id="signup-email-hint" className="field-hint">We'll check the format and flag common domain typos. We won't send a confirmation email.</div>}
+                  {(!emailCheck || (emailCheck.valid && !emailCheck.suggestion)) && <div id="signup-email-hint" className="field-hint">We'll check the format and common spelling mistakes after @. We won't send a confirmation email.</div>}
                 </div>
                 <div className="field field-spaced">
                   <label htmlFor="signup-password">Password</label>
@@ -451,7 +451,7 @@ export function AuthScreen() {
                     </div>
                   ) : (
                     <div id="signup-password-hint" className="field-hint">
-                      {MIN_PASSWORD_LENGTH}–128 characters. No symbols, uppercase letters, or numbers are required; very common and app-related passwords are blocked.
+                      {MIN_PASSWORD_LENGTH}–128 characters. Symbols, capital letters, and numbers are optional. Easy-to-guess passwords are blocked.
                     </div>
                   )}
                 </div>

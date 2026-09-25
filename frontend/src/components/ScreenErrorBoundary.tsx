@@ -40,9 +40,9 @@ export class ScreenErrorBoundary extends Component<Props, State> {
       return (
         <div className="screen-narrow screen-transition">
           <div className="card elev-sm anim-rise screen-error-card">
-            <div className="card-title">This screen hit a snag</div>
+            <div className="card-title">This screen couldn't open</div>
             <p className="card-body" style={{ margin: 0 }}>
-              Nothing was lost — your data's saved on the server. Try again, or switch to another tab below.
+              Nothing was lost. Try again, or switch to another tab below.
             </p>
             <button className="btn btn-primary" onClick={() => this.setState({ error: null })}>
               Try again

@@ -92,7 +92,7 @@ export function GoalSettings() {
         )}
       </div>
       <button type="button" className="btn btn-ghost" onClick={handleAutoGoal} disabled={!hoursField.valid} style={{ marginBottom: "var(--space-2)" }}>
-        Set goal = rate × hour goal
+        Calculate from hourly rate
       </button>
 
       <SettingsSaveBar

@@ -180,7 +180,7 @@ export function emailChangedEmail(input: {
       paragraphs: [
         escapeHtml(greeting(input.name)),
         `The login email for your Wage Tracker account changed from <strong>${escapeHtml(input.oldEmail)}</strong> to <strong>${escapeHtml(input.newEmail)}</strong>.`,
-        "Your password, shifts, reports, settings, and active sessions were not changed.",
+        "Your password, shifts, reports, settings, and signed-in devices were not changed.",
       ],
       footnote: input.sentToOldAddress
         ? `If you didn't authorise this, contact support immediately: <a href="${escapeHtml(input.supportUrl)}" style="color:${BRAND.accentDark};">${escapeHtml(input.supportUrl)}</a>`
@@ -190,7 +190,7 @@ export function emailChangedEmail(input: {
       greeting(input.name),
       "",
       `Your Wage Tracker login email changed from ${input.oldEmail} to ${input.newEmail}.`,
-      "Your password, shifts, reports, settings, and active sessions were not changed.",
+      "Your password, shifts, reports, settings, and signed-in devices were not changed.",
       "",
       input.sentToOldAddress ? `If you didn't authorise this, contact support immediately: ${input.supportUrl}` : "This address is now used to log in.",
       "",

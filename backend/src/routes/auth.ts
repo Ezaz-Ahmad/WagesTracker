@@ -86,7 +86,7 @@ authRouter.post(
     }
     if (emailCheck.suggestion) {
       res.status(400).json({
-        error: `That email domain may be misspelled. Did you mean ${emailCheck.suggestion}?`,
+        error: `The part after @ may be misspelled. Did you mean ${emailCheck.suggestion}?`,
         code: "EMAIL_DOMAIN_TYPO",
         field: "email",
         suggestion: emailCheck.suggestion,

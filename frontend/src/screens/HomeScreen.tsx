@@ -317,7 +317,7 @@ function HomeSpendingSnapshotCard(props: {
         <div className="home-spending-title-row"><SpendingIcon size={18} /><div><span className="card-kicker">Monthly snapshot</span><h2 id="home-spending-title" className="card-title">Personal spending — {props.monthLabel}</h2></div></div>
         <div className="home-spending-heading-status">
           {props.error && props.snapshot ? (
-            <button type="button" className="home-spending-refresh-state is-warning" onClick={() => void props.refresh().catch(() => {})} title={props.error}>Retry refresh</button>
+            <button type="button" className="home-spending-refresh-state is-warning" onClick={() => void props.refresh().catch(() => {})} title={props.error}>Try loading again</button>
           ) : (
             <span className={`home-spending-updating${props.loading && props.snapshot ? " is-visible" : ""}`} aria-live="polite">Updating…</span>
           )}
@@ -352,7 +352,7 @@ function HomeSpendingSnapshotCard(props: {
           <button type="button" className="btn btn-secondary home-spending-cta" onClick={() => props.onNavigate?.("spending")}>View full spending dashboard <span aria-hidden="true">→</span></button>
         </div>
       ) : props.loading ? <HomeSpendingSkeleton /> : props.error ? (
-        <div className="home-spending-error" role="alert"><span>{props.error}</span><button type="button" className="btn btn-secondary" onClick={() => void props.refresh().catch(() => {})}>Retry</button></div>
+        <div className="home-spending-error" role="alert"><span>{props.error}</span><button type="button" className="btn btn-secondary" onClick={() => void props.refresh().catch(() => {})}>Try again</button></div>
       ) : <div className="card-meta">Open Spending to record and review personal expenses.</div>}
     </section>
   );
@@ -532,7 +532,7 @@ function HomeStatWidget({ id, index }: { id: HomeStatWidgetId; index: number }) 
     <HomeInsightSheet
       eyebrow="Weeks on goal"
       title={stats.historyLength ? `${stats.metGoalCount} of ${stats.historyLength} weeks` : "No completed weeks yet"}
-      description="A seven-week lookback showing how often you reached your weekly earnings goal."
+      description="See how often you reached your earnings goal in the last seven completed weeks."
       icon={<HistoryIcon size={20} />}
       onClose={() => setDetailsOpen(false)}
     >
@@ -563,7 +563,7 @@ function HomeStatWidget({ id, index }: { id: HomeStatWidgetId; index: number }) 
     <HomeInsightSheet
       eyebrow="Current streak"
       title={stats.streak ? `${stats.streak} ${stats.streak === 1 ? "day" : "days"} in a row` : "Start your next streak"}
-      description="Consecutive calendar days with completed work, including streaks that cross week boundaries."
+      description="See how many days in a row you completed work."
       icon={<FlameIcon size={21} />}
       live={stats.ticking}
       onClose={() => setDetailsOpen(false)}

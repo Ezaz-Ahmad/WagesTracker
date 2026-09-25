@@ -133,7 +133,9 @@ describe("the per-week download action", () => {
     expect(screen.getByRole("button", { name: "Choose report date range. Showing February 2026" })).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: /Choose report date range/i }));
-    expect(screen.getByRole("dialog", { name: "Choose a date range" })).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: "Choose report period" })).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Close date range picker" })));
+    expect(document.activeElement).not.toBe(screen.getByLabelText("From"));
     await user.click(screen.getByRole("button", { name: "All history" }));
 
     expect(await screen.findByRole("heading", { name: /Jan 19/ })).toBeTruthy();
@@ -153,7 +155,7 @@ describe("the per-week download action", () => {
     expect(await screen.findByRole("heading", { name: /Jan 19/ })).toBeTruthy();
     expect(screen.getByRole("heading", { name: /Jan 12/ })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: /Jan 26/ })).toBeNull();
-    expect(screen.getAllByText("Jan 12–25, 2026")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Choose report date range. Showing Jan 12–25, 2026" })).toBeTruthy();
   });
 
   it("gives every completed week its own download", async () => {

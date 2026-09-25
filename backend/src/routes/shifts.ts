@@ -362,7 +362,7 @@ shiftsRouter.post(
 
     const selectedLocation = await findActiveWorkLocation(req.userId!, workLocationId, location);
     if (workLocationId && !selectedLocation) {
-      res.status(400).json({ error: "Select an active work location" });
+      res.status(400).json({ error: "Choose an available work location" });
       return;
     }
     const locationSnapshot = selectedLocation?.name ?? location;
@@ -543,7 +543,7 @@ shiftsRouter.patch(
         updates.location
       );
       if (updates.workLocationId && !selectedLocation) {
-        res.status(400).json({ error: "Select an active work location" });
+        res.status(400).json({ error: "Choose an available work location" });
         return;
       }
     }

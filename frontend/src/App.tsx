@@ -182,7 +182,7 @@ function AuthedAppShell() {
             <StatusBanner tone="warning">
               <span className="offline-banner-content">
                 <span><strong>You're offline.</strong> Loaded information remains available, but changes cannot be saved.</span>
-                <button type="button" className="offline-retry-btn" onClick={() => void retryConnectivity()}>Retry</button>
+                <button type="button" className="offline-retry-btn" onClick={() => void retryConnectivity()}>Try again</button>
               </span>
             </StatusBanner>
             )}

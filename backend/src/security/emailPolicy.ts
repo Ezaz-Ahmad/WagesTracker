@@ -122,7 +122,7 @@ export function validateEmailAddress(raw: unknown): EmailValidationResult {
     ) &&
     /^(?:[a-z]{2,63}|xn--[a-z0-9-]{2,59})$/iu.test(labels.at(-1) ?? "");
   if (!domainValid) {
-    return { valid: false, normalized, error: "Check the email domain after @ (for example, example.com)" };
+    return { valid: false, normalized, error: "Check the part after @ (for example, example.com)" };
   }
 
   const correctedDomain = suggestDomainCorrection(domain);
