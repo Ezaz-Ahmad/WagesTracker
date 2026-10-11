@@ -160,7 +160,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       headers: { ...headers, ...(options.headers as Record<string, string> | undefined) },
     });
   } catch {
-    throw reportApiError(new ApiError("Couldn't connect to Wage Tracker. Check your internet connection and try again.", 0));
+    throw reportApiError(new ApiError("Couldn't connect to Wages Tracker. Check your internet connection and try again.", 0));
   }
   if (res.status === 204) return undefined as T;
 
@@ -277,7 +277,7 @@ export async function fetchMeWithToken(token: string): Promise<{ user: User }> {
   try {
     res = await fetch(`${API_ORIGIN}/api/me`, { headers: { Authorization: `Bearer ${token}` } });
   } catch {
-    throw new ApiError("Couldn't connect to Wage Tracker. Check your internet connection and try again.", 0);
+    throw new ApiError("Couldn't connect to Wages Tracker. Check your internet connection and try again.", 0);
   }
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -343,7 +343,7 @@ export async function changePassword(currentPassword: string, newPassword: strin
       body: JSON.stringify({ currentPassword, newPassword }),
     });
   } catch {
-    throw reportApiError(new ApiError("Couldn't connect to Wage Tracker. Check your internet connection and try again.", 0));
+    throw reportApiError(new ApiError("Couldn't connect to Wages Tracker. Check your internet connection and try again.", 0));
   }
 
   if (!res.ok) {
@@ -357,7 +357,7 @@ export async function changePassword(currentPassword: string, newPassword: strin
     // Shouldn't happen against this app's own backend — surfaced as an error
     // rather than silently leaving the old (about-to-be-invalidated) token
     // in place, which would just fail on the very next request instead.
-    throw reportApiError(new ApiError("Your password changed, but Wage Tracker couldn't finish signing you back in. Log in again with your new password.", 500));
+    throw reportApiError(new ApiError("Your password changed, but Wages Tracker couldn't finish signing you back in. Log in again with your new password.", 500));
   }
   return { token: newToken };
 }
@@ -435,7 +435,7 @@ export async function setSessionBiometricProtection(enabled: boolean): Promise<{
       body: JSON.stringify({ biometricProtected: enabled }),
     });
   } catch {
-    throw reportApiError(new ApiError("Couldn't connect to Wage Tracker. Check your internet connection and try again.", 0));
+    throw reportApiError(new ApiError("Couldn't connect to Wages Tracker. Check your internet connection and try again.", 0));
   }
 
   if (!res.ok) {
@@ -445,7 +445,7 @@ export async function setSessionBiometricProtection(enabled: boolean): Promise<{
 
   const newToken = res.headers.get("X-New-Token");
   if (!newToken) {
-    throw reportApiError(new ApiError("Face ID or Touch ID was updated, but Wage Tracker couldn't finish the sign-in setup. Log in again and try once more.", 500));
+    throw reportApiError(new ApiError("Face ID or Touch ID was updated, but Wages Tracker couldn't finish the sign-in setup. Log in again and try once more.", 500));
   }
   return { token: newToken };
 }

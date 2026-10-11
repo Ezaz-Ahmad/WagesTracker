@@ -1140,7 +1140,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setSmartReminderAuthorization(authorization);
       if (authorization !== "authorized") {
         throw new Error(authorization === "denied"
-          ? "Notifications are turned off for Wage Tracker in iOS Settings. Allow notifications there, then try again."
+          ? "Notifications are turned off for Wages Tracker in iOS Settings. Allow notifications there, then try again."
           : "This device couldn't enable notifications. Please try again.");
       }
     }

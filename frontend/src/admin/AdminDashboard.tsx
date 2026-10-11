@@ -171,7 +171,7 @@ export function AdminDashboard({
         <span className="nav-brand admin-brand">
           <Logo size={20} />
           <span className="admin-brand-copy">
-            <strong>Wage Tracker</strong>
+            <strong>Wages Tracker</strong>
             <small>Admin panel</small>
           </span>
         </span>

@@ -66,7 +66,7 @@ export class ConsoleTransport implements EmailTransport {
     console.info(
       [
         "",
-        "-------- Wage Tracker development email --------",
+        "-------- Wages Tracker development email --------",
         `To: ${message.to}`,
         `Subject: ${message.subject}`,
         "",

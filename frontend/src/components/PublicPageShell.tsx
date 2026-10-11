@@ -23,12 +23,12 @@ export function PublicPageShell({ eyebrow, title, summary, children, standalone 
   return (
     <div className="public-page-shell public-page-transition">
       <header className="public-page-header">
-        {standalone ? <a className="public-page-brand" href="/" aria-label="Wage Tracker home">
+        {standalone ? <a className="public-page-brand" href="/" aria-label="Wages Tracker home">
           <Logo size={25} />
-          <span>Wage Tracker</span>
-        </a> : <button className="public-page-brand" type="button" onClick={returnToWageTracker} aria-label="Wage Tracker home">
+          <span>Wages Tracker</span>
+        </a> : <button className="public-page-brand" type="button" onClick={returnToWageTracker} aria-label="Wages Tracker home">
           <Logo size={25} />
-          <span>Wage Tracker</span>
+          <span>Wages Tracker</span>
         </button>}
         <nav className="public-page-nav" aria-label="Legal and support">
           <InternalAppLink href="/privacy">Privacy</InternalAppLink>
@@ -49,8 +49,8 @@ export function PublicPageShell({ eyebrow, title, summary, children, standalone 
         <span>© {new Date().getFullYear()} Ezaz Ahmad</span>
         <span aria-hidden="true">·</span>
         {standalone
-          ? <a className="public-page-return" href="/">Return to Wage Tracker</a>
-          : <button type="button" className="public-page-return" onClick={returnToWageTracker}>Return to Wage Tracker</button>}
+          ? <a className="public-page-return" href="/">Return to Wages Tracker</a>
+          : <button type="button" className="public-page-return" onClick={returnToWageTracker}>Return to Wages Tracker</button>}
       </footer>
     </div>
   );

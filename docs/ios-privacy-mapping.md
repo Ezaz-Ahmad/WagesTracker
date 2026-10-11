@@ -4,9 +4,9 @@ This document is the review record for `ios/App/App/PrivacyInfo.xcprivacy` and t
 
 ## Data collection
 
-All declared data is linked to the signed-in Wage Tracker account, used only for app functionality, and not used for tracking or advertising.
+All declared data is linked to the signed-in Wages Tracker account, used only for app functionality, and not used for tracking or advertising.
 
-| Apple category | Wage Tracker data | Purpose and processing |
+| Apple category | Wages Tracker data | Purpose and processing |
 | --- | --- | --- |
 | Name | Account name | Account display and named PDF reports; API/Render and Turso |
 | Email address | Sign-in email | Authentication and account support; API/Render and Turso |
@@ -25,6 +25,8 @@ Before the next App Store submission, the Account Holder should update/reconfirm
 
 ## Required-reason APIs
 
+The native App Store update checker uses the existing `@capacitor/app` and core HTTP bridge to fetch public Apple catalog metadata. The lookup sends the fixed App Store ID and storefront, with no Wages Tracker account/session/shift/spending payload. Apple receives ordinary connection metadata. The local reminder stores only a dismissed public version and timestamp in the app's existing WebView storage. No SDK, permission, advertising identifier, or tracking purpose is added. The public Privacy Policy discloses this request and the external App Store destination.
+
 `@capacitor/filesystem` writes a generated PDF into the application’s cache before sharing it and removes the temporary file afterward. Its file metadata/timestamp access is declared as `NSPrivacyAccessedAPICategoryFileTimestamp` with Apple-approved reason `C617.1`, limited to files inside the app container.
 
 Biometric authentication (`ios/App/App/BiometricAuthPlugin.swift`, via Apple’s `LocalAuthentication` framework) is not one of Apple’s required-reason API categories and adds no entry to `NSPrivacyAccessedAPITypes`. `LAContext` never exposes raw biometric data to the app or this manifest — it returns only a success/failure signal from the Secure Enclave — so nothing here changes because of it.
@@ -33,7 +35,7 @@ Biometric authentication (`ios/App/App/BiometricAuthPlugin.swift`, via Apple’s
 
 The current native app requests no Contacts, Photos, Camera, Microphone, Location, Bluetooth or advertising-tracking permission. Filesystem access is app-container Cache access and Share presents a user-initiated system sheet; neither requires adding a protected-resource usage description.
 
-Face ID requires `NSFaceIDUsageDescription` (Touch ID needs no Info.plist declaration): `ios/App/App/Info.plist` declares "Use Face ID to securely unlock WagesTracker." The app never receives the face/fingerprint data itself — only the OS-level authentication result — and never bundles that description text or any biometric state into analytics or logs. See "Biometric login (Face ID / Touch ID)" below for what is and is not stored as a result of a successful prompt.
+Face ID requires `NSFaceIDUsageDescription` (Touch ID needs no Info.plist declaration): `ios/App/App/Info.plist` declares "Use Face ID to securely unlock Wages Tracker." The app never receives the face/fingerprint data itself — only the OS-level authentication result — and never bundles that description text or any biometric state into analytics or logs. See "Biometric login (Face ID / Touch ID)" below for what is and is not stored as a result of a successful prompt.
 
 ## Biometric login (Face ID / Touch ID)
 

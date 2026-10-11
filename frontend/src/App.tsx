@@ -37,6 +37,7 @@ import {
 } from "./lib/appNavigation";
 import { LayoutPreferencesProvider, useLayoutPreferences } from "./context/LayoutPreferencesContext";
 import { SmartReminderActionDialog } from "./components/SmartReminderActionDialog";
+import { AppUpdatePrompt } from "./components/AppUpdatePrompt";
 
 // Build-time constant. Vite inlines `import.meta.env.VITE_VIEWPORT_DEBUG`, so
 // in every normal build this folds to `false`, the JSX branch below is dead
@@ -140,7 +141,7 @@ function AuthedAppShell() {
           <div className="app-nav-identity">
             <span className="nav-brand">
               <Logo size={22} />
-              Wage Tracker
+              Wages Tracker
             </span>
             <span className="app-nav-greeting">Welcome back{user ? `, ${user.name.split(" ")[0]}` : ""}</span>
             <span className="app-nav-date">{todayLabel}</span>
@@ -160,7 +161,7 @@ function AuthedAppShell() {
             className="app-nav-logout"
             onClick={logout}
             aria-label="Log out"
-            data-confirm="Log out of Wage Tracker? Any shift in progress keeps counting in the background."
+            data-confirm="Log out of Wages Tracker? Any shift in progress keeps counting in the background."
             data-confirm-tone="danger"
           >
             <LogoutIcon size={16} />
@@ -327,6 +328,7 @@ function Root() {
 }
 
 function RoutedRoot() {
+  const { status, authBusy, biometricPromptActive } = useApp();
   const [path, setPath] = useState(normaliseAppPath);
   const publicPage = isPublicAppPath(path) ? path : null;
 
@@ -351,6 +353,7 @@ function RoutedRoot() {
       </div>
       {publicPage === "/privacy" && <PrivacyPolicyPage />}
       {publicPage === "/support" && <SupportPage />}
+      <AppUpdatePrompt enabled={status !== "loading" && !authBusy && !biometricPromptActive && !publicPage && !getDeepLink()} />
     </>
   );
 }

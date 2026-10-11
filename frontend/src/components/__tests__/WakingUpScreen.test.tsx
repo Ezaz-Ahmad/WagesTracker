@@ -51,13 +51,13 @@ describe("WakingUpScreen — connecting", () => {
     pingHealthMock.mockImplementation(() => new Promise(() => {}));
     render(<WakingUpScreen />);
 
-    expect(screen.getByRole("heading", { name: "Connecting to Wage Tracker" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Connecting to Wages Tracker" })).toBeTruthy();
     expect(screen.getByText("Checking that everything is ready…")).toBeTruthy();
     expect(screen.getByText("0:00 waiting")).toBeTruthy();
 
     const status = screen.getByRole("status");
     expect(status.getAttribute("aria-live")).toBe("polite");
-    expect(status.getAttribute("aria-label")).toBe("Preparing Wage Tracker");
+    expect(status.getAttribute("aria-label")).toBe("Preparing Wages Tracker");
 
     // No manufactured percentage anywhere, and no indeterminate element
     // exposing a fake numeric value.
@@ -152,7 +152,7 @@ describe("WakingUpScreen — max-wait failure", () => {
       });
     }
 
-    expect(screen.getByRole("heading", { name: "We couldn’t open Wage Tracker" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "We couldn’t open Wages Tracker" })).toBeTruthy();
     expect(screen.getByText(/app didn’t respond/i)).toBeTruthy();
     expect(screen.getByRole("button", { name: /^try again$/i })).toBeTruthy();
   });

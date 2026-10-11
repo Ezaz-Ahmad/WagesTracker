@@ -35,7 +35,7 @@ export function BottomNav({
       <span className="app-bottomnav-indicator" aria-hidden="true" />
       <div className="app-sidebar-brand">
         <Logo size={22} />
-        Wage Tracker
+        Wages Tracker
       </div>
       {tabs.map(({ screen: s, label, Icon }) => (
         <button

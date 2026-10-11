@@ -17,7 +17,7 @@ describe("Capacitor production configuration", () => {
   it("uses the shared Vite output and permanent application identity", () => {
     expect(config).toMatchObject({
       appId: "com.ezazahmad.wagestracker",
-      appName: "WagesTracker",
+      appName: "Wages Tracker",
       webDir: "dist",
       ios: { path: "../ios", scheme: "App" },
     });
@@ -49,7 +49,7 @@ describe("Capacitor production configuration", () => {
     const usageDescriptionKeys = [...infoPlist.matchAll(/NS[A-Za-z]+UsageDescription/g)].map((m) => m[0]);
     expect(usageDescriptionKeys).toEqual(["NSFaceIDUsageDescription"]);
     expect(infoPlist).toContain(
-      "<key>NSFaceIDUsageDescription</key>\n\t<string>Use Face ID to securely unlock WagesTracker.</string>"
+      "<key>NSFaceIDUsageDescription</key>\n\t<string>Use Face ID to securely unlock Wages Tracker.</string>"
     );
     expect(swiftPackage).not.toContain("\\");
   });

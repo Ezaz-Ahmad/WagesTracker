@@ -49,7 +49,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       headers: { ...headers, ...(options.headers as Record<string, string> | undefined) },
     });
   } catch {
-    throw reportAdminError(new AdminApiError("Couldn't connect to Wage Tracker. Check your internet connection and try again.", 0));
+    throw reportAdminError(new AdminApiError("Couldn't connect to Wages Tracker. Check your internet connection and try again.", 0));
   }
   if (res.status === 204) return undefined as T;
 

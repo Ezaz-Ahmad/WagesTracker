@@ -170,7 +170,7 @@ describe("cold-launch automatic biometric prompt", () => {
 
     // While the native Face ID/Touch ID sheet itself would still be up,
     // the screen intentionally stays blank rather than showing "Getting
-    // Wage Tracker ready" underneath it — see biometricPromptActive's own
+    // Wages Tracker ready" underneath it — see biometricPromptActive's own
     // doc comment. Not asserted here beyond letting the 500ms grace delay
     // elapse with nothing resolved yet; the real assertion is the state
     // change below.
@@ -180,7 +180,7 @@ describe("cold-launch automatic biometric prompt", () => {
     // backend re-validation of the recovered token) is still pending —
     // exactly the gap the bug lived in. WakingUpScreen must appear once the
     // 500ms grace window passes, not stay blank.
-    await screen.findByText(/Connecting to Wage Tracker/, {}, { timeout: 2000 });
+    await screen.findByText(/Connecting to Wages Tracker/, {}, { timeout: 2000 });
 
     resolveFetchMe({ user: USER });
     await screen.findByRole("navigation", { name: "Main" });

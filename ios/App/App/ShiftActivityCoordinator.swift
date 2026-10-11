@@ -454,7 +454,7 @@ actor ShiftActivityCoordinator {
                     phase: .retry,
                     endedAt: nil,
                     finalDurationSeconds: nil,
-                    message: "Open WagesTracker to refresh End Shift.",
+                    message: "Open Wages Tracker to refresh End Shift.",
                     appearance: nil
                 )
             )
@@ -511,7 +511,7 @@ actor ShiftActivityCoordinator {
                     phase: .retry,
                     endedAt: nil,
                     finalDurationSeconds: nil,
-                    message: "Open WagesTracker to refresh End Shift.",
+                    message: "Open Wages Tracker to refresh End Shift.",
                     appearance: nil
                 )
             )
@@ -541,7 +541,7 @@ actor ShiftActivityCoordinator {
                     phase: .retry,
                     endedAt: nil,
                     finalDurationSeconds: nil,
-                    message: "Couldn't prepare End Shift. Open WagesTracker and try again.",
+                    message: "Couldn't prepare End Shift. Open Wages Tracker and try again.",
                     appearance: credential.appearance
                 )
             )

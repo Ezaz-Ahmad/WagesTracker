@@ -1,6 +1,6 @@
 {
-  "name": "Wage Tracker",
-  "short_name": "Wage Tracker",
+  "name": "Wages Tracker",
+  "short_name": "Wages Tracker",
   "description": "Clock in, log shifts, and track your weekly earnings.",
   "start_url": "/",
   "display": "standalone",

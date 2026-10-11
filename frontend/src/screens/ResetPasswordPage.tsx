@@ -50,7 +50,7 @@ export function ResetPasswordPage({ token: providedToken }: { token?: string } =
       .catch((error: unknown) => {
         if (cancelled) return;
         const nextMessage = error instanceof ApiError && error.status === 0
-          ? "We couldn't reach Wage Tracker to check this link. Check your connection and reload the page."
+          ? "We couldn't reach Wages Tracker to check this link. Check your connection and reload the page."
           : error instanceof Error
             ? error.message
             : "This password reset link is no longer valid.";
@@ -108,7 +108,7 @@ export function ResetPasswordPage({ token: providedToken }: { token?: string } =
       standalone
       eyebrow="Account recovery"
       title="Reset your password"
-      summary="Choose a new password for your Wage Tracker account. Your shifts, spending, and reports remain unchanged."
+      summary="Choose a new password for your Wages Tracker account. Your shifts, spending, and reports remain unchanged."
     >
       {stage === "checking" && (
         <p className="public-page-note" role="status"><BubbleLoader label="Checking your link" /></p>
@@ -117,8 +117,8 @@ export function ResetPasswordPage({ token: providedToken }: { token?: string } =
       {stage === "invalid" && (
         <>
           <StatusBanner tone="danger">{message ?? "This password reset link is no longer valid."}</StatusBanner>
-          <p>Reset links work once and expire after 25 minutes. Return to Wage Tracker and choose <strong>Forgot password?</strong> to request another.</p>
-          <p><a className="btn btn-primary" href="/" onClick={handleReturnToApp}>Back to Wage Tracker</a></p>
+          <p>Reset links work once and expire after 25 minutes. Return to Wages Tracker and choose <strong>Forgot password?</strong> to request another.</p>
+          <p><a className="btn btn-primary" href="/" onClick={handleReturnToApp}>Back to Wages Tracker</a></p>
         </>
       )}
 

@@ -29,7 +29,7 @@ export function AdminLogin({ onLoggedIn }: { onLoggedIn: (token: string) => void
         <div className="card elev-md">
           <div className="section-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Logo size={20} />
-            Wage Tracker — Admin
+            Wages Tracker — Admin
           </div>
           <form onSubmit={handleSubmit} className="anim-rise">
             <h1 style={{ margin: "0 0 var(--space-3)" }}>Admin login</h1>

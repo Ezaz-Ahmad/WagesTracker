@@ -29,7 +29,7 @@ setInterval(() => {
 
 const PORT = Number(process.env.PORT) || 4000;
 const server = app.listen(PORT, () => {
-  console.log(`Wage Tracker API listening on http://localhost:${PORT}`);
+  console.log(`Wages Tracker API listening on http://localhost:${PORT}`);
 });
 
 let isShuttingDown = false;

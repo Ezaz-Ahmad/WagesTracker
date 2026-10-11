@@ -207,7 +207,7 @@ public class BiometricAuthPlugin: CAPPlugin, CAPBridgedPlugin {
     let accountLabel = call.getString("accountLabel") ?? ""
 
     let context = LAContext()
-    let reason = "Enable Face ID to sign in to WagesTracker"
+    let reason = "Enable Face ID to sign in to Wages Tracker"
 
     context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { [weak self] success, error in
       guard let self else { return }
@@ -276,7 +276,7 @@ public class BiometricAuthPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     let context = LAContext()
-    let reason = "Sign in to WagesTracker"
+    let reason = "Sign in to Wages Tracker"
 
     context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { [weak self] success, error in
       guard let self else { return }

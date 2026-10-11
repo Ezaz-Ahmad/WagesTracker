@@ -1,4 +1,4 @@
-# Wage Tracker architecture
+# Wages Tracker architecture
 
 **Applies to:** 1.20.0 source candidate
 

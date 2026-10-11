@@ -61,7 +61,7 @@ export function LandingHeroContent() {
   return (
     <>
       <div className="landing-kicker anim-rise" style={{ ["--i" as string]: 0 }}>
-        Wage Tracker
+        Wages Tracker
       </div>
       <h1 className="landing-headline anim-rise" style={{ ["--i" as string]: 2 }}>
         Track your hours.

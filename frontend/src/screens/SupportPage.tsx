@@ -10,7 +10,7 @@ export function SupportPage() {
   return (
     <PublicPageShell
       eyebrow="Help centre"
-      title="Wage Tracker Support"
+      title="Wages Tracker Support"
       summary="Get help with your account, shifts, wage totals, reports, app setup, or any other problem."
     >
       <section className="support-callout" aria-labelledby="support-contact-title">
@@ -53,7 +53,7 @@ export function SupportPage() {
 
         <h3>A wage total looks incorrect</h3>
         <p>
-          Review your hourly rate, shift times, expenses, and other earnings. Wage Tracker estimates totals from the
+          Review your hourly rate, shift times, expenses, and other earnings. Wages Tracker estimates totals from the
           details you enter. It does not calculate tax, superannuation, penalty rates, or payroll entitlements unless
           you add them to your entries.
         </p>
@@ -82,7 +82,7 @@ export function SupportPage() {
         <h2>Service status and updates</h2>
         <p>
           Release notes, known issues, and development updates are available on the public{" "}
-          <ExternalAppLink href={REPOSITORY_URL} description="Wage Tracker project page">Wage Tracker project page</ExternalAppLink>.
+          <ExternalAppLink href={REPOSITORY_URL} description="Wages Tracker project page">Wages Tracker project page</ExternalAppLink>.
         </p>
       </section>
     </PublicPageShell>

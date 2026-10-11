@@ -180,7 +180,7 @@ struct ShiftActivityAction: View {
             } else {
                 Label("Open app", systemImage: "arrow.up.forward.app")
                     .foregroundStyle(phase.accent(in: colorScheme))
-                    .accessibilityHint("Open WagesTracker to end this shift")
+                    .accessibilityHint("Open Wages Tracker to end this shift")
             }
         }
         .font(.system(.caption, design: .rounded, weight: .bold))
@@ -269,7 +269,7 @@ struct ShiftLockScreenView: View {
             if state.phase == .confirming {
                 ShiftActivityAction(shiftId: attributes.shiftId, phase: state.phase)
             } else if state.phase == .retry || state.phase == .ending {
-                Text(state.message ?? "Open WagesTracker to check this shift.")
+                Text(state.message ?? "Open Wages Tracker to check this shift.")
                     .font(.caption2)
                     .foregroundStyle(state.phase == .retry ? accent : Color.secondary)
                     .lineLimit(2)

@@ -51,7 +51,7 @@ if (bundle.includes("VITE_CAPACITOR_SERVER_URL")) {
 for (const [marker, description] of [
   ["wageTracker.adminToken", "admin bundle"],
   ["/api/admin", "admin API"],
-  ["Wage Tracker viewport diagnostics", "viewport-debug overlay"],
+  ["Wages Tracker viewport diagnostics", "viewport-debug overlay"],
   ["VITE_VIEWPORT_DEBUG", "viewport-debug configuration"],
   ["allowsAnyHTTPSCertificateForHost", "certificate-validation bypass"],
   ["NSURLAuthenticationMethodServerTrust", "certificate-validation bypass"],

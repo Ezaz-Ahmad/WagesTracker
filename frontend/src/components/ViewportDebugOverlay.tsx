@@ -29,7 +29,7 @@ function n(value: number | null | undefined): string {
 
 function formatDiagnostics(d: ViewportDiagnostics): string {
   const lines = [
-    `Wage Tracker viewport diagnostics`,
+    `Wages Tracker viewport diagnostics`,
     `version           v${APP_VERSION} (${BUILD_HASH})`,
     `build date        ${BUILD_DATE}`,
     `captured          ${new Date().toISOString()}`,

@@ -11,7 +11,7 @@ export function DataAccountSettings() {
       <h3 className="settings-subsection-title">How long your data is kept</h3>
       <p className="settings-note settings-note-static">
         Shift records and pay details are kept for up to {RETENTION_YEARS} years and then automatically
-        deleted. PDF reports are generated on your device and are not stored by Wage Tracker. Personal spending is
+        deleted. PDF reports are generated on your device and are not stored by Wages Tracker. Personal spending is
         kept until you delete it or delete your account. Log out from the button at the top of the app.
       </p>
 

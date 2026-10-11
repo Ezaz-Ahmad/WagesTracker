@@ -2,7 +2,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "com.ezazahmad.wagestracker",
-  appName: "WagesTracker",
+  appName: "Wages Tracker",
   webDir: "dist",
   loggingBehavior: "none",
   ios: {

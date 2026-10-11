@@ -23,23 +23,23 @@ function formatElapsed(sec: number): string {
 
 const WAKEUP_COPY: Record<HealthWakeupPhase, { heading: string; caption: string; hint: string }> = {
   connecting: {
-    heading: "Connecting to Wage Tracker",
+    heading: "Connecting to Wages Tracker",
     caption: "Checking that everything is ready…",
     hint: "",
   },
   waking: {
-    heading: "Getting Wage Tracker ready",
+    heading: "Getting Wages Tracker ready",
     caption: "The app is starting after a short rest.",
     hint: "This can take about a minute. You can keep this screen open.",
   },
   slow: {
     heading: "Still starting",
-    caption: "Wage Tracker is still getting ready.",
+    caption: "Wages Tracker is still getting ready.",
     hint: "This is slower than usual, but we'll keep trying.",
   },
   long: {
     heading: "Taking longer than usual",
-    caption: "Wage Tracker has not responded yet.",
+    caption: "Wages Tracker has not responded yet.",
     hint: "We'll keep trying, or you can try again below.",
   },
   connected: {
@@ -53,7 +53,7 @@ const WAKEUP_COPY: Record<HealthWakeupPhase, { heading: string; caption: string;
     hint: "",
   },
   failed: {
-    heading: "We couldn’t open Wage Tracker",
+    heading: "We couldn’t open Wages Tracker",
     caption: "The app didn’t respond. Try again in a moment.",
     hint: "",
   },
@@ -187,7 +187,7 @@ export function WakingUpScreen() {
           })}
         </ol>
 
-        <div className="wakeup-text" role="status" aria-live="polite" aria-label="Preparing Wage Tracker">
+        <div className="wakeup-text" role="status" aria-live="polite" aria-label="Preparing Wages Tracker">
           <h1 className="wakeup-heading">{heading}</h1>
           {/* Keyed so each distinct caption crossfades in on its own, instead
               of the text silently jumping mid-sentence. */}
@@ -200,7 +200,7 @@ export function WakingUpScreen() {
               grow the card or nudge anything below it — only its opacity
               changes. */}
           <p className={`wakeup-slow-hint${showHint ? " is-visible" : ""}`} aria-hidden={showHint ? undefined : true}>
-            {hint || "Wage Tracker is getting ready."}
+            {hint || "Wages Tracker is getting ready."}
           </p>
           {/* Visually shows the real attempt/elapsed figures (and, only once
               truly connected, "100%") but is deliberately excluded from the

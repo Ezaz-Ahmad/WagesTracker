@@ -24,7 +24,7 @@ export function ThemeSettings() {
         <div>
           <span className="weekly-cycle-eyebrow">Appearance</span>
           <h3 id="appearance-title">Theme</h3>
-          <p>Choose a look, or let WagesTracker follow your device automatically.</p>
+          <p>Choose a look, or let Wages Tracker follow your device automatically.</p>
         </div>
       </div>
 

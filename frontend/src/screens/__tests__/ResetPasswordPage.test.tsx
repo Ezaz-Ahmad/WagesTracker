@@ -50,14 +50,14 @@ describe("reset-password page", () => {
 
     await waitFor(() => expect(screen.getByText(/no longer valid/i)).toBeTruthy());
     expect(screen.queryByLabelText("New password")).toBeNull();
-    expect(screen.getByRole("link", { name: "Back to Wage Tracker" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Back to Wages Tracker" })).toBeTruthy();
   });
 
   it("distinguishes a connectivity problem from an expired credential", async () => {
     apiMocks.checkPasswordResetToken.mockRejectedValue(new ApiError("network", 0));
     visit("#token=anything");
     render(<ResetPasswordPage />);
-    await waitFor(() => expect(screen.getByText(/couldn't reach Wage Tracker/i)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/couldn't reach Wages Tracker/i)).toBeTruthy());
   });
 
   it("applies password policy and matching checks before submitting", async () => {
