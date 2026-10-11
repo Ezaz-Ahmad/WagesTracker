@@ -2,10 +2,10 @@
 
 **Implemented platform:** iOS native application
 
-**Last reviewed:** 5 September 2026
+**Last reviewed:** 11 October 2026
 
 When the user enables **Settings → Profile & preferences → Active shift
-notification**, WagesTracker uses a real ActivityKit Live Activity for an open
+notification**, Wages Tracker uses a real ActivityKit Live Activity for an open
 shift. The preference is off by default and stored separately for each account
 on each installation; enabling it on one iPhone does not turn it on elsewhere.
 It does not use a repeating JavaScript timer or a scheduled local-notification loop.
@@ -53,8 +53,8 @@ Lock Screen timer refreshes, Dynamic Island placement and real intent actions.
 
 | Surface | Behaviour |
 | --- | --- |
-| iOS 17 or later | Lock Screen, notification-area and Dynamic Island Live Activity with a native **Clock Out** action |
-| iOS 16.1–16.x | Live elapsed-time activity; tapping **Open to clock out** returns to WagesTracker because interactive Live Activity buttons require iOS 17 |
+| iOS 17 or later | Lock Screen, notification-area and Dynamic Island Live Activity with a native **End Shift** action |
+| iOS 16.1–16.x | Live elapsed-time activity; tapping **Open to clock out** returns to Wages Tracker because interactive Live Activity buttons require iOS 17 |
 | iOS 15 | The shift still starts and works normally, but ActivityKit is unavailable and the app shows a non-blocking explanation |
 | Web / installed PWA | Shift behaviour is unchanged; browsers cannot provide the native persistence guarantee |
 | Android | Not yet available because this repository does not contain an Android native shell; see [Android integration required](#android-integration-required) |
@@ -180,7 +180,7 @@ Verify the setting is absent on web/PWA, off on a fresh native installation,
 account-isolated, and able to start/remove the Live Activity during an existing
 shift without changing that shift. Test a normal shift and an offline clock-out on at least one small and one tall
 iPhone, in light/dark mode, from an unlocked app, another app, Lock Screen and
-after force-removing WagesTracker from recent apps. Also test permission denied,
+after force-removing Wages Tracker from recent apps. Also test permission denied,
 Live Activities disabled, rapid repeat taps, backend failure/retry, app relaunch,
 device restart, an overnight shift, and iOS 16.1/17/current iOS where available.
 Verify the first captured finish time, completed duration, dashboard, fuel

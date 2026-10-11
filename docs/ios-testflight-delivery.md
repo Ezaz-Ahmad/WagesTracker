@@ -4,7 +4,9 @@
 
 **Last reviewed:** 11 October 2026
 
-WagesTracker's signed iOS delivery is intentionally separate from pull-request, push, Simulator and CodeQL workflows. `.github/workflows/ios-testflight.yml` can be started only with `workflow_dispatch`; its delivery job additionally refuses every ref except protected `main`, rejects fork context, uses the protected `testflight` environment and serializes uploads through one non-cancelling concurrency group.
+**Latest verified upload:** 1.22.0 (50), accepted by Apple on 11 October 2026 in [run 38112108372](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38112108372), from protected-main commit `399176d8e48608382376b1e77e9f66e9aa07597e`. Validation and upload completed without errors, and temporary signing material was removed. Processing, tester availability, and physical-device results were not independently verified after upload.
+
+Wages Tracker's signed iOS delivery is intentionally separate from pull-request, push, Simulator and CodeQL workflows. `.github/workflows/ios-testflight.yml` can be started only with `workflow_dispatch`; its delivery job additionally refuses every ref except protected `main`, rejects fork context, uses the protected `testflight` environment and serializes uploads through one non-cancelling concurrency group.
 
 The workflow uploads a build to TestFlight only. It does not assign testers, submit the app to App Review, select a build for the App Store version or release the application publicly.
 

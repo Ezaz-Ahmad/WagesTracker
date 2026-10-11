@@ -30,7 +30,7 @@ services:
       - key: RESEND_API_KEY
         sync: false # server-only Resend API key; never expose this to Vite or the iOS bundle
       - key: MAIL_FROM
-        sync: false # e.g. Wage Tracker <no-reply@your-verified-domain.com>
+        sync: false # e.g. Wages Tracker <no-reply@your-verified-domain.com>
       - key: MAIL_REPLY_TO
         sync: false # optional support/reply address
       - key: APP_BASE_URL
