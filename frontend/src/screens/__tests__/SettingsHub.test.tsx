@@ -6,7 +6,7 @@
 // save-result contract fix (genuine success vs. failure, disabled-when-
 // unchanged), and that invalid numeric input is rejected rather than
 // silently coerced to zero.
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { useApp } from "../../context/AppContext";
@@ -111,6 +111,16 @@ describe("Settings hub — category navigation", () => {
 
     await user.click(screen.getByRole("button", { name: /data & account/i }));
     expect(screen.getByText(/Permanently delete your profile, settings, signed-in devices, shifts, expenses/)).toBeTruthy();
+
+    expect(screen.queryByRole("link", { name: /Privacy Policy/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /Support/ })).toBeNull();
+    await user.click(screen.getByRole("button", { name: /^About/ }));
+    expect(screen.getByRole("heading", { name: "About", level: 2 })).toBeTruthy();
+    const about = within(screen.getByRole("navigation", { name: "Privacy and support" }));
+    expect(about.getAllByRole("link")).toHaveLength(2);
+    expect(about.getByRole("link", { name: /Privacy Policy/ }).getAttribute("href")).toBe("/privacy");
+    expect(about.getByRole("link", { name: /Support/ }).getAttribute("href")).toBe("/support");
+    expect(screen.queryByRole("button", { name: "Delete account" })).toBeNull();
   });
 
   it("keeps an unsaved draft edit when navigating away from and back to a category", async () => {

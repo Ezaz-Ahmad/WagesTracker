@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { ChevronDownIcon } from "../components/icons";
+import { AppCredit } from "../components/AppCredit";
 import { SettingsNav, type SettingsCategory } from "./SettingsNav";
 import { useMatchMedia } from "../lib/useMatchMedia";
 
@@ -113,6 +114,9 @@ export function SettingsLayout({ categories, activeCategory, effectiveCategory, 
             else navButtonRefs.current.delete(id);
           }}
         />
+        <footer className="settings-credit" aria-label="App information">
+          <AppCredit showVersion />
+        </footer>
       </div>
       <div className="settings-detail-panel">
         <button type="button" className="settings-back-btn" onClick={onBack}>

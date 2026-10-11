@@ -7,14 +7,16 @@ import { WorkPaySettings } from "../settings/WorkPaySettings";
 import { GoalSettings } from "../settings/GoalSettings";
 import { SecuritySettings } from "../settings/SecuritySettings";
 import { DataAccountSettings } from "../settings/DataAccountSettings";
-import { BriefcaseIcon, DatabaseIcon, LockIcon, TargetIcon, UserIcon } from "../components/icons";
+import { AboutSettings } from "../settings/AboutSettings";
+import { BriefcaseIcon, DatabaseIcon, InfoIcon, LockIcon, TargetIcon, UserIcon } from "../components/icons";
 
 const SETTINGS_CATEGORIES: readonly SettingsCategory[] = [
   { id: "profile", label: "Profile & preferences", hint: "Profile, appearance, smart reminders", icon: UserIcon },
   { id: "workpay", label: "Work & pay", hint: "Location, address, hourly rate", icon: BriefcaseIcon },
   { id: "goals", label: "Weekly goals", hint: "Hours and earnings targets", icon: TargetIcon },
   { id: "security", label: "Security", hint: "Email, password and signed-in devices", icon: LockIcon },
-  { id: "data", label: "Data & account", hint: "Stored data, app version, delete account", icon: DatabaseIcon },
+  { id: "data", label: "Data & account", hint: "Data retention and account deletion", icon: DatabaseIcon },
+  { id: "about", label: "About", hint: "Privacy Policy and support", icon: InfoIcon },
 ];
 
 /**
@@ -55,6 +57,9 @@ export function SettingsScreen({ initialCategory = null }: { initialCategory?: s
       </div>
       <div className="settings-panel" hidden={effectiveCategory !== "data"}>
         <DataAccountSettings />
+      </div>
+      <div className="settings-panel" hidden={effectiveCategory !== "about"}>
+        <AboutSettings />
       </div>
     </SettingsLayout>
   );

@@ -44,7 +44,9 @@ Existing wage PDFs remain employer/accountant-facing work reports. They are gene
 
 ### Responsive Settings hub
 
-- Categorized navigation — Profile & preferences, Work & pay, Weekly goals, Security, and Data & account — each row showing an icon, label, and short description, with a clear accent-tinted active state
+- Categorized navigation — Profile & preferences, Work & pay, Weekly goals, Security, Data & account, and About — each row showing an icon, label, and short description, with a clear accent-tinted active state
+- About contains dedicated Privacy Policy and Support rows. The Settings overview footer shows the developer credit, GitHub and portfolio links, release/build identity, and a runtime copyright year with “All rights reserved”.
+- The glossy time-to-pay logo uses graphite for the default/light appearance and obsidian for dark appearance. Both renditions ship in the app UI and iOS icon/launch asset catalogs, with web icons generated from the same approved artwork.
 - Mobile list/detail navigation that collapses to a single column below the app's `1080px` breakpoint, and a persistent two-column layout above it
 - Category switching animates only background, border, and text/icon color — never a scale or position change — so nothing shakes or jumps when a row is pressed or selected
 - Every category panel stays mounted while you navigate between them, so an unsaved edit in one category is still there if you switch away and back
@@ -108,13 +110,13 @@ A `/api/health` response only ever tells the browser one of two things: it hasn'
 
 ## Product status and roadmap
 
-Wage Tracker is a production web application and installable PWA with a committed Capacitor iOS shell. The current source candidate is **1.20.0**, which adds the native active-shift Live Activity and atomic notification clock-out flow on top of the 1.19 motion, feedback, live-chart and public-navigation work. The web deployment, signed TestFlight upload, real-mail recovery flow, Universal Link opening, and physical-device regression are operational release gates; 1.20.0 must not be described as released until those gates have passed. The mobile strategy keeps product logic in one tested React/TypeScript codebase and introduces thin platform adapters only where web and native behaviour genuinely differ.
+Wage Tracker is a production web application and installable PWA with a committed Capacitor iOS shell. The current source candidate is **1.21.1**, including the Settings credit and About navigation improvements alongside the native active-shift Live Activity and atomic notification clock-out flow. The web deployment, signed TestFlight upload, real-mail recovery flow, Universal Link opening, and physical-device regression are operational release gates; this candidate must not be described as released until those gates have passed. The mobile strategy keeps product logic in one tested React/TypeScript codebase and introduces thin platform adapters only where web and native behaviour genuinely differ.
 
 | Capability | Current status | Planned delivery |
 | --- | --- | --- |
 | Responsive web application | Live on Vercel | Continues as the fastest release channel |
 | Installable PWA | Available from supported browsers | Maintained alongside native applications |
-| iPhone application | 1.20.0 source candidate; signed upload and physical-device verification still required | Register/sign the Shift Activity extension, run the protected TestFlight workflow, complete the device checklist, then consider App Store review |
+| iPhone application | 1.21.1 source candidate; signed upload and physical-device verification still required | Register/sign the Shift Activity extension, run the protected TestFlight workflow, complete the device checklist, then consider App Store review |
 | Android application | Planned after iOS | Same Capacitor foundation, internal testing, then Google Play |
 | Shared backend | Live on Render with Turso | One versioned HTTPS API for web, iOS, and Android |
 
@@ -154,7 +156,7 @@ Only platform boundaries receive adapters. Authentication uses unchanged browser
 1. **Store-readiness foundation - complete** - publish privacy/support pages, allow native API origins, introduce platform-neutral token/PDF boundaries, and verify authentication and account-deletion flows.
 2. **iOS shell and cloud-build foundation - complete** - add the thin, iPhone-only Capacitor/Xcode project, Remember Me storage in Keychain, reproducible SPM dependencies, and an unsigned Simulator build on GitHub-hosted macOS.
 3. **iOS product integration - complete** - add native PDF sharing, lifecycle/connectivity handling, final icons/splash assets, and the reviewed iOS privacy manifest.
-4. **iOS delivery - in progress** - protected signing and TestFlight upload are operational; the 1.20.0 candidate still needs the Shift Activity extension profile, a fresh workflow dispatch, real-device Live Activity/background regression, password-recovery verification and Universal Link verification before release.
+4. **iOS delivery - in progress** - protected signing and TestFlight upload are operational; the current candidate still needs the Shift Activity extension profile, a fresh workflow dispatch, real-device Live Activity/background regression, password-recovery verification and Universal Link verification before release.
 5. **Android delivery** - add the Android project from the same Capacitor codebase, use Android Keystore-backed session storage, test through Google Play's internal track, and prepare a production release.
 6. **Operational maturity** - add mobile crash reporting, privacy-preserving release telemetry, dependency and security scanning, documented rollback procedures, and versioned release notes.
 
@@ -263,7 +265,7 @@ The native foundation defines platform-neutral token-storage, PDF-delivery and a
 
 ## Versioning
 
-The public marketing version follows semantic versioning: major for a breaking/fundamental redesign, minor for new functionality, and patch for compatible fixes. Every release that contains code, UI, feature, or behaviour changes receives a new version; documentation-only maintenance can retain the current version. The current `1.20.0` source candidate is a minor release because it introduces the native active-shift system surface and its server clock-out contract.
+The public marketing version follows semantic versioning: major for a breaking/fundamental redesign, minor for new functionality, and patch for compatible fixes. Every release that contains code, UI, feature, or behaviour changes receives a new version; documentation-only maintenance can retain the current version. The current `1.21.1` source candidate is a patch release for the Settings credit, About navigation, and approved logo improvements. The release version is deliberately chosen for the scope of the release, rather than automatically incremented for every commit.
 
 `frontend/package.json` is the release source of truth. The same value must appear in `package-lock.json` and both Xcode build configurations. `frontend/scripts/verify-testflight-config.mjs` derives the expected value dynamically and fails if package metadata, lockfile, Xcode or the protected workflow diverges. The `testflight` GitHub environment variable `IOS_APP_VERSION` must match it. Before release, `git grep` for the previous version and review every result rather than copying a stale value forward.
 
