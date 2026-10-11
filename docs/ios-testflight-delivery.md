@@ -4,7 +4,9 @@
 
 **Last reviewed:** 11 October 2026
 
-**Latest verified upload:** 1.22.0 (50), accepted by Apple on 11 October 2026 in [run 38112108372](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38112108372), from protected-main commit `399176d8e48608382376b1e77e9f66e9aa07597e`. Validation and upload completed without errors, and temporary signing material was removed. Processing, tester availability, and physical-device results were not independently verified after upload.
+**Latest verified upload:** 1.23.0 (51), accepted by Apple on 11 October 2026 in [run 38116854116](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38116854116), from protected-main commit `98d376a0609a1471035cab88ea73c88542ec3acf`. Apple validation succeeded at 06:11:52 UTC and upload at 06:13:14 UTC, both without errors. The fresh dispatch used attempt 1, and temporary signing material was removed. Processing, tester availability, and physical-device results were not independently verified after upload.
+
+**Previous upload:** 1.22.0 (50), recorded in [run 38112108372](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38112108372) and the [1.22.0 release notes](release-notes-1.22.0.md).
 
 Wages Tracker's signed iOS delivery is intentionally separate from pull-request, push, Simulator and CodeQL workflows. `.github/workflows/ios-testflight.yml` can be started only with `workflow_dispatch`; its delivery job additionally refuses every ref except protected `main`, rejects fork context, uses the protected `testflight` environment and serializes uploads through one non-cancelling concurrency group.
 
@@ -23,7 +25,7 @@ Create these non-secret environment variables:
 | Variable | Value |
 | --- | --- |
 | `IOS_BUNDLE_ID` | `com.ezazahmad.wagestracker` |
-| `IOS_APP_VERSION` | `1.23.0` (must match `frontend/package.json`; set after the release source merges) |
+| `IOS_APP_VERSION` | `1.23.0` (matches `frontend/package.json`, verified before dispatch 51) |
 | `APPLE_TEAM_ID` | The 10-character Team ID shown in Apple Developer membership details and the App Store profile |
 | `IOS_PROVISIONING_PROFILE_NAME` | The exact `Name` inside the uploaded profile. Prefer a release-independent name such as `WagesTracker App Store Distribution` when next regenerating it |
 | `IOS_EXTENSION_PROVISIONING_PROFILE_NAME` | The exact `Name` inside the App Store profile for `com.ezazahmad.wagestracker.ShiftActivityExtension` |
@@ -95,6 +97,7 @@ An `always()` cleanup step deletes the temporary keychain, `.p12`, API key, deco
 - Signup, normal login, logout, authenticated password change, session list/revoke, account deletion confirmation and biometric enable/cancel/success/soft-lock/retry.
 - With a real registered mailbox: request reset, receive email, open it as a Universal Link, set a policy-valid new password, reject token reuse, reject old password, prove previous sessions are revoked, sign in with the new password, and re-enable/verify biometric login.
 - Home, Entry, Spending (all tabs and dialogs), Report PDF share sheet, History edits/PDF, Settings and public pages with realistic long and large values.
+- App layout → Tab bar: cancel and confirm hiding each optional tab, restore it, reorder visible tabs, and reload the app. Verify Settings remains accessible with every optional tab hidden. Confirm hiding Spending hides its Home snapshot, wage totals remain unchanged, and the last-clock-control warning explains recovery without ending an active shift.
 - Start a shift and verify the Live Activity in light/dark mode, Lock Screen, notification area and Dynamic Island where supported; confirm elapsed time remains accurate in the background and after removing the app from recent apps.
 - Clock out from the Live Activity after native confirmation; verify repeat taps are idempotent, offline clock-out retains its first finish time and retries, failures preserve the active shift, completion shows the final duration, and dashboard/fuel/wage totals refresh.
 - Deny ordinary notification permission and disable Live Activities separately; neither setting may prevent Start Shift. Re-enable and verify restoration on app launch. Record the documented eight-hour/boot-restoration ActivityKit boundaries from [`active-shift-live-activity.md`](active-shift-live-activity.md).
