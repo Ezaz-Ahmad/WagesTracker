@@ -50,4 +50,8 @@ Existing public 1.21.0 installations first need an ordinary App Store update to 
 
 Physical Face ID/Touch ID, Mail Universal Links, real-mail recovery, background behavior, and device installation results require the separately recorded iPhone checks.
 
+## Outstanding dependency maintenance
+
+GitHub Dependabot reports 35 open alerts, including eight critical alerts, as checked on 11 October 2026. These include runtime and development dependencies; ten dependency-update PRs remain open. This source release records the already uploaded application commit and does not apply those dependency upgrades. Review [the alert queue](https://github.com/Ezaz-Ahmad/WagesTracker/security/dependabot), coordinate native runtime pins, and complete regression checks before the next public release. CI and CodeQL results above are not a claim that dependency advisories are resolved.
+
 **Full changelog:** [v1.20.2 → v1.22.0](https://github.com/Ezaz-Ahmad/WagesTracker/compare/v1.20.2...v1.22.0)

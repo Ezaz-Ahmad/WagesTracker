@@ -275,6 +275,12 @@ Test counts are a dated snapshot; current CI output is authoritative. Backend te
 
 Physical iPhone testing is still required for Face ID/Touch ID, Universal Links from Mail, real email delivery, background behavior, ActivityKit limits, and Safari/Home Screen keyboard/safe-area behavior. Automated previews cannot prove those device outcomes.
 
+### Dependency maintenance
+
+As checked on 11 October 2026, GitHub Dependabot reports **35 open alerts**: 8 critical, 11 high, 11 medium, and 5 low, across runtime and development dependencies. Ten dependency-update PRs remain open. This documentation maintenance does not apply those updates, and passing CI/CodeQL does not resolve dependency advisories. See [dependency alerts](https://github.com/Ezaz-Ahmad/WagesTracker/security/dependabot) and [open dependency PRs](https://github.com/Ezaz-Ahmad/WagesTracker/pulls?q=is%3Apr+is%3Aopen+author%3Aapp%2Fdependabot).
+
+Prioritize security fixes and regression verification, including a coordinated Capacitor patch across the pinned npm packages and Swift runtime, before the next public release. Alert counts and package versions are dated observations; the live GitHub queue is authoritative.
+
 ## Versioning and releases
 
 `frontend/package.json` owns the marketing version. Its value must match the frontend entry in the root lockfile, app and extension Xcode configurations, and the GitHub `testflight` environment's `IOS_APP_VERSION`.
@@ -319,6 +325,6 @@ Alternative Railway/Netlify configuration files are reference options, not the c
 | [Smart Shift Reminders](docs/smart-shift-reminders.md) | Learning, roster adaptation and safe actions |
 | [iOS privacy mapping](docs/ios-privacy-mapping.md) | Data collection, native API usage and review checklist |
 
-The next iOS milestone is completing physical-device regression for 1.22.0 (50), confirming tester availability, updating the public listing name and review metadata, and explicitly submitting the chosen build to App Review. Android delivery and coordinated native runtime upgrades remain future work.
+The next iOS milestone is resolving pending dependency security updates, completing physical-device regression, confirming tester availability, updating the public listing name and review metadata, and explicitly submitting the chosen build to App Review. Android delivery remains future work.
 
 Built by [Ezaz Ahmad](https://www.ezazahmad.com/).
