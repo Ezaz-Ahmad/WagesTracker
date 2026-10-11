@@ -10,15 +10,15 @@ Last verified **11 October 2026**. A GitHub source release, a TestFlight upload,
 
 | Channel | Verified status |
 | --- | --- |
-| Source | **1.23.0** release candidate; approved tab visibility feature, with GitHub merge and signed delivery pending |
-| Deployed web | **1.22.0**; changes merged through [PR #73](https://github.com/Ezaz-Ahmad/WagesTracker/pull/73); Vercel deployment succeeded |
-| iOS beta | **1.22.0 (50)**; Apple validation and TestFlight upload succeeded in [delivery run 38112108372](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38112108372) |
+| Source | **1.23.0**; tab visibility merged through [PR #76](https://github.com/Ezaz-Ahmad/WagesTracker/pull/76) |
+| Deployed web | **1.23.0**; Vercel production deployment succeeded from the uploaded application source |
+| iOS beta | **1.23.0 (51)**; Apple validation and TestFlight upload succeeded in [delivery run 38116854116](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38116854116) |
 | Public iPhone app | Apple's [Australian listing](https://apps.apple.com/au/app/wagestracker/id6801702467) shows **1.21.0**, published 25 September 2026, under the previous listing name **WagesTracker** |
 | API and database | Render API with Turso/libSQL; production health check passed |
 | Universal Links | Production association file contains the literal Apple Team ID and app identifier; signed app entitlement inspection passed |
 | Android | Planned; no Android application project or Google Play release is committed |
 
-The uploaded beta was built from [`399176d8e48608382376b1e77e9f66e9aa07597e`](https://github.com/Ezaz-Ahmad/WagesTracker/commit/399176d8e48608382376b1e77e9f66e9aa07597e). Apple processing and tester availability were not independently verified after upload. Physical-device testing and App Store review remain separate steps; uploading to TestFlight does not publish an App Store update.
+The uploaded beta was built from [`98d376a0609a1471035cab88ea73c88542ec3acf`](https://github.com/Ezaz-Ahmad/WagesTracker/commit/98d376a0609a1471035cab88ea73c88542ec3acf). Apple returned validation success at **06:11 UTC** and upload success at **06:13 UTC** on 11 October 2026. Apple processing and tester availability were not independently verified after upload. Physical-device testing and App Store review remain separate steps; uploading to TestFlight does not publish an App Store update.
 
 See [1.23.0 release notes](docs/release-notes-1.23.0.md) for the new tab visibility feature and [1.22.0 release notes](docs/release-notes-1.22.0.md) for the preceding delivery evidence.
 
@@ -276,22 +276,23 @@ The public [Privacy Policy](https://wages-tracker-frontend.vercel.app/privacy) a
 
 ## Testing and CI
 
-Verified for the 1.22.0 uploaded source in [build 50](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38112108372):
+Verified for the 1.23.0 feature in [PR #76 CI](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38116441418) and [native Simulator CI](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38116441342):
 
 | Check | Result |
 | --- | --- |
 | Backend Vitest | **294 tests** across 31 files |
-| Frontend Vitest | **853 tests** across 108 files |
+| Frontend Vitest | **861 tests** across 109 files |
 | Universal Link generator | **3 tests** |
-| Total in `npm test` | **1,150 tests** |
+| Total in `npm test` | **1,158 tests** |
 | Distribution-entitlement regression suite | **8 tests** |
-| Production-browser smoke suite | **14 scenarios**, verified by frontend PR CI |
+| Production-browser smoke suite | **15 scenarios**, verified by frontend PR CI |
 | Native Live Activity previews | **40 layouts**, verified by macOS Simulator CI |
-| Type checks, builds, asset/config inspection, and CodeQL | Passed for the uploaded source |
+| Type checks, builds, asset/config inspection, signing, and Apple validation/upload | Passed in [signed delivery run 38116854116](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38116854116) |
+| CodeQL | JavaScript/TypeScript and Actions passed; Swift scan status is available in [run 38116441352](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38116441352) |
 
 Test counts are a dated snapshot; current CI output is authoritative. Backend tests use isolated temporary SQLite databases. Component tests cover actual screens, focus, dialogs, accessibility, authentication, native adapters, reminders, and update prompts. Browser tests exercise the built production bundle.
 
-For the 1.23.0 candidate, local frontend verification passed **861 tests across 109 files**, plus the 3 Universal Link tests and **15 production-browser scenarios**. The new browser scenario verifies confirmation/cancellation, persistence, restoration, unchanged displayed wages, and zero account-data writes when hiding a tab. GitHub and signed-delivery results will be recorded after they complete.
+The new browser scenario verifies confirmation/cancellation, persistence, restoration, unchanged displayed wages, and zero account-data writes when hiding a tab. Responsive browser previews also passed for compact/tall phones, landscape, tablet, desktop, and light/dark appearance.
 
 [CI](.github/workflows/ci.yml) runs backend/frontend jobs on pushes and PRs to `main`. [CodeQL](.github/workflows/codeql.yml) analyzes JavaScript/TypeScript, Actions, and Swift. [Simulator CI](.github/workflows/ios-simulator.yml) builds and inspects an unsigned app, renders native layouts, and retains diagnostic artifacts.
 
@@ -325,7 +326,7 @@ Every release containing application code, UI, feature, or behavior changes rece
 | Marketing version, e.g. `1.23.0` | Chosen for the release in `frontend/package.json` | Settings, PDF footer, and native app version |
 | Short commit hash | `git rev-parse --short HEAD`, captured on each frontend build | Settings and PDF footer, identifying the built source |
 | Commit date | `git log -1 --format=%cI`, captured on each frontend build | Settings, alongside the version and hash |
-| TestFlight build number, e.g. `50` | `github.run_number` from each **fresh** signed workflow dispatch | Apple/TestFlight build identity, e.g. `1.22.0 (50)` |
+| TestFlight build number, e.g. `51` | `github.run_number` from each **fresh** signed workflow dispatch | Apple/TestFlight build identity, e.g. `1.23.0 (51)` |
 
 [Vite's build configuration](frontend/vite.config.ts) injects `__APP_VERSION__`, `__BUILD_HASH__`, and `__BUILD_DATE__`; [appVersion.ts](frontend/src/lib/appVersion.ts) formats them. Settings shows `v<version> (<hash>) · <commit date>`, while the PDF footer uses `v<version> (<hash>)` beside the report's own generation date.
 
@@ -345,7 +346,7 @@ TestFlight build numbers are separate from semantic versions, so multiple test b
 
 [`verify-testflight-config.mjs`](frontend/scripts/verify-testflight-config.mjs) derives the expected version from package metadata and checks the lockfile, Xcode release invariants, and signed-workflow configuration. The signed workflow also compares the actual environment's `IOS_APP_VERSION` with the package version and stops if they differ; a GitHub variable cannot be validated from local files alone.
 
-A GitHub release tag should identify the exact application source it describes. `v1.22.0` identifies the source used for 1.22.0 (50); subsequent documentation commits do not change that uploaded binary.
+A GitHub release tag should identify the exact application source it describes. `v1.23.0` identifies `98d376a`, the source used for 1.23.0 (51); `v1.22.0` retains the preceding 1.22.0 (50) source. Subsequent documentation commits do not change either uploaded binary.
 
 Work enters through `codex/*` branches and pull requests against protected `main`. Required CI checks must pass before merge. GitHub automatically deletes merged PR head branches; active dependency PR branches remain until reviewed and resolved.
 
