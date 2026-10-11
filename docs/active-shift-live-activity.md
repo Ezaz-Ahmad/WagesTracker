@@ -150,7 +150,7 @@ the PWA is closed and neither provides a production clock-out action.
 
 The required native milestone is:
 
-1. Add and commit the Capacitor 8.4.2 Android platform from the existing shared
+1. Add and commit the Capacitor 8.4.3 Android platform from the existing shared
    frontend contract.
 2. Add a Kotlin `ActiveShiftActivity` Capacitor plugin backed by a
    `START_STICKY` foreground service and one low-importance notification

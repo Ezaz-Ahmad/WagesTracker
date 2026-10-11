@@ -28,11 +28,11 @@ describe("Capacitor production configuration", () => {
     expect(packageLock.packages.frontend.version).toBe(frontendPackage.version);
     expect(xcodeProject).toContain("TARGETED_DEVICE_FAMILY = 1;");
     expect(xcodeProject).not.toContain('TARGETED_DEVICE_FAMILY = "1,2";');
-    expect(swiftPackage).toContain('capacitor-swift-pm.git", exact: "8.4.2"');
+    expect(swiftPackage).toContain('capacitor-swift-pm.git", exact: "8.4.3"');
     expect(swiftPackage).toContain('AparajitaCapacitorSecureStorage", path: "../../../node_modules/');
     expect(swiftResolution.pins).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ identity: "capacitor-swift-pm", state: expect.objectContaining({ version: "8.4.2" }) }),
+        expect.objectContaining({ identity: "capacitor-swift-pm", state: expect.objectContaining({ version: "8.4.3", revision: "89e0d8ec2321025f549ddb19259a717467943b97" }) }),
         expect.objectContaining({ identity: "keychain-swift", state: expect.objectContaining({ version: "21.0.0" }) }),
       ])
     );

@@ -10,7 +10,7 @@ Last verified **11 October 2026**. A GitHub source release, a TestFlight upload,
 
 | Channel | Verified status |
 | --- | --- |
-| Source | **1.23.0**; tab visibility merged through [PR #76](https://github.com/Ezaz-Ahmad/WagesTracker/pull/76) |
+| Source | **1.23.1** security patch candidate; tab visibility was delivered in [PR #76](https://github.com/Ezaz-Ahmad/WagesTracker/pull/76) |
 | Deployed web | **1.23.0**; Vercel production deployment succeeded from the uploaded application source |
 | iOS beta | **1.23.0 (51)**; Apple validation and TestFlight upload succeeded in [delivery run 38116854116](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38116854116) |
 | Public iPhone app | Apple's [Australian listing](https://apps.apple.com/au/app/wagestracker/id6801702467) shows **1.21.0**, published 25 September 2026, under the previous listing name **WagesTracker** |
@@ -20,7 +20,7 @@ Last verified **11 October 2026**. A GitHub source release, a TestFlight upload,
 
 The uploaded beta was built from [`98d376a0609a1471035cab88ea73c88542ec3acf`](https://github.com/Ezaz-Ahmad/WagesTracker/commit/98d376a0609a1471035cab88ea73c88542ec3acf). Apple returned validation success at **06:11 UTC** and upload success at **06:13 UTC** on 11 October 2026. Apple processing and tester availability were not independently verified after upload. Physical-device testing and App Store review remain separate steps; uploading to TestFlight does not publish an App Store update.
 
-See [1.23.0 release notes](docs/release-notes-1.23.0.md) for the new tab visibility feature and [1.22.0 release notes](docs/release-notes-1.22.0.md) for the preceding delivery evidence.
+See [1.23.1 release notes](docs/release-notes-1.23.1.md) for the security patch candidate, [1.23.0 release notes](docs/release-notes-1.23.0.md) for tab visibility, and [1.22.0 release notes](docs/release-notes-1.22.0.md) for the preceding delivery evidence. The 1.23.1 candidate still requires protected-main CI and a fresh signed upload before App Review.
 
 ## Features
 
@@ -99,7 +99,7 @@ The API revalidates client input, derives record ownership from authentication, 
 | Frontend | React 18, TypeScript, Vite 8, plain CSS, jsPDF |
 | Backend | Node.js 22, Express 4, TypeScript, zod, JWTs, Argon2id |
 | Data | `@libsql/client`; local SQLite in development, Turso in production |
-| iOS | Capacitor 8.4.2, Swift Package Manager, native Swift bridges, ActivityKit/WidgetKit |
+| iOS | Capacitor 8.4.3, Swift Package Manager, native Swift bridges, ActivityKit/WidgetKit |
 | Verification | Vitest, Supertest, Testing Library, axe, Playwright, CodeQL, macOS/Xcode checks |
 
 Capacitor Core/iOS/Android are intentionally aligned by root npm overrides. Runtime upgrades require a coordinated dependency change and lifecycle/device regression.
@@ -300,9 +300,9 @@ Physical iPhone testing is still required for Face ID/Touch ID, Universal Links 
 
 ### Dependency maintenance
 
-As checked on 11 October 2026, GitHub Dependabot reports **35 open alerts**: 8 critical, 11 high, 11 medium, and 5 low, across runtime and development dependencies. Ten dependency-update PRs remain open. The tab visibility release does not apply those updates, and passing CI/CodeQL does not resolve dependency advisories. See [dependency alerts](https://github.com/Ezaz-Ahmad/WagesTracker/security/dependabot) and [open dependency PRs](https://github.com/Ezaz-Ahmad/WagesTracker/pulls?q=is%3Apr+is%3Aopen+author%3Aapp%2Fdependabot).
+The 11 October 2026 baseline had **35 open Dependabot alerts**: 8 critical, 11 high, 11 medium, and 5 low. The 1.23.1 patch updates the affected runtime and development dependencies, including Capacitor 8.4.3 in npm and Swift, Express 4.22.3 with qs 6.16.0, proxy-addr 2.0.8, DOMPurify 3.4.16, Sharp 0.35.5, and Vitest 4.1.11. A clean install of the updated lockfile reports **zero vulnerabilities with `npm audit`**. See [patch details](docs/release-notes-1.23.1.md), [dependency alerts](https://github.com/Ezaz-Ahmad/WagesTracker/security/dependabot), and [open dependency PRs](https://github.com/Ezaz-Ahmad/WagesTracker/pulls?q=is%3Apr+is%3Aopen+author%3Aapp%2Fdependabot).
 
-Prioritize security fixes and regression verification, including a coordinated Capacitor patch across the pinned npm packages and Swift runtime, before the next public release. Alert counts and package versions are dated observations; the live GitHub queue is authoritative.
+The native Capacitor advisory requires rebuilding and redistributing the iPhone app; a web deployment alone does not patch an installed binary. The alignment gate checks the Swift manifest, resolved upstream tag commit, shared JavaScript/iOS versions, and transitive Android runtime. The GitHub queue can update after the fix reaches main, and newly published advisories remain possible; the live queue is authoritative.
 
 ## Versioning and releases
 
@@ -317,7 +317,7 @@ The public marketing version uses **`MAJOR.MINOR.PATCH`**, with the increment ch
 | Compatible bug fix, UI polish, or security fix | Increase patch | `1.23.0` → `1.23.1` |
 | Documentation-only maintenance | Keep the current marketing version | `1.23.0` remains `1.23.0` |
 
-Every release containing application code, UI, feature, or behavior changes receives a new marketing version. Several commits can belong to one release, so **the marketing version is deliberately updated by hand, not automatically incremented on each commit**. The current **1.23.0** is a minor release because it adds optional tab visibility with impact confirmations and recovery. The preceding 1.22.0 added App Store update prompts and the visible name change to Wages Tracker. The examples above explain the policy; they do not announce future releases.
+Every release containing application code, UI, feature, or behavior changes receives a new marketing version. Several commits can belong to one release, so **the marketing version is deliberately updated by hand, not automatically incremented on each commit**. The current **1.23.1** is a patch release because it fixes dependency security advisories without changing the approved UI or wage calculations. Version 1.23.0 added optional tab visibility with impact confirmations and recovery. The preceding 1.22.0 added App Store update prompts and the visible name change to Wages Tracker.
 
 ### What updates automatically
 

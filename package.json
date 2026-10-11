@@ -26,14 +26,14 @@
     "ios:build:simulator": "npm run ios:build:simulator -w frontend"
   },
   "devDependencies": {
-    "concurrently": "^9.1.0"
+    "concurrently": "^9.2.5"
   },
   "overrides": {
     "jsdom": "^29.1.1",
-    "@capacitor/android": "8.4.2",
-    "@capacitor/core": "8.4.2",
-    "@capacitor/ios": "8.4.2",
-    "sharp": "0.35.3",
+    "@capacitor/android": "8.4.3",
+    "@capacitor/core": "8.4.3",
+    "@capacitor/ios": "8.4.3",
+    "sharp": "0.35.5",
     "tar": "7.5.22",
     "uuid": "11.1.1"
   },

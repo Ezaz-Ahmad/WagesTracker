@@ -1,8 +1,10 @@
 # Signed TestFlight delivery
 
-**Current source marketing version:** `1.23.0`
+**Current source marketing version:** `1.23.1`
 
 **Last reviewed:** 11 October 2026
+
+**Current candidate:** 1.23.1 patches the dependency advisories, including the native Capacitor HTTP proxy issue. It requires a fresh signed build; 1.23.0 (51) contains the previous native framework and is not the candidate for the next App Review submission. Upload and submission results will be recorded only after Apple confirms them.
 
 **Latest verified upload:** 1.23.0 (51), accepted by Apple on 11 October 2026 in [run 38116854116](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38116854116), from protected-main commit `98d376a0609a1471035cab88ea73c88542ec3acf`. Apple validation succeeded at 06:11:52 UTC and upload at 06:13:14 UTC, both without errors. The fresh dispatch used attempt 1, and temporary signing material was removed. Processing, tester availability, and physical-device results were not independently verified after upload.
 
@@ -25,7 +27,7 @@ Create these non-secret environment variables:
 | Variable | Value |
 | --- | --- |
 | `IOS_BUNDLE_ID` | `com.ezazahmad.wagestracker` |
-| `IOS_APP_VERSION` | `1.23.0` (matches `frontend/package.json`, verified before dispatch 51) |
+| `IOS_APP_VERSION` | `1.23.1` (required for this candidate; update the protected environment before dispatch) |
 | `APPLE_TEAM_ID` | The 10-character Team ID shown in Apple Developer membership details and the App Store profile |
 | `IOS_PROVISIONING_PROFILE_NAME` | The exact `Name` inside the uploaded profile. Prefer a release-independent name such as `WagesTracker App Store Distribution` when next regenerating it |
 | `IOS_EXTENSION_PROVISIONING_PROFILE_NAME` | The exact `Name` inside the App Store profile for `com.ezazahmad.wagestracker.ShiftActivityExtension` |
@@ -69,7 +71,7 @@ Do not trigger the signed workflow from this feature branch. Pull-request valida
 
 ## Build numbers
 
-`CFBundleShortVersionString` is `1.23.0` for this release. `frontend/package.json` is the source of truth; the lockfile, Xcode project and GitHub `IOS_APP_VERSION` variable must match, and the validation script/workflow fail if they do not. Each new workflow dispatch derives `CFBundleVersion` directly from `github.run_number`, which increases across new runs without committing build-number churn to the Xcode project. The workflow accepts only `github.run_attempt == 1`; GitHub reruns keep the original run number and could therefore break reliable ordering after a newer dispatch. If a run fails, fix the cause and start a new **Run workflow** dispatch instead of using **Re-run jobs**.
+`CFBundleShortVersionString` is `1.23.1` for this release. `frontend/package.json` is the source of truth; the lockfile, Xcode project and GitHub `IOS_APP_VERSION` variable must match, and the validation script/workflow fail if they do not. Each new workflow dispatch derives `CFBundleVersion` directly from `github.run_number`, which increases across new runs without committing build-number churn to the Xcode project. The workflow accepts only `github.run_attempt == 1`; GitHub reruns keep the original run number and could therefore break reliable ordering after a newer dispatch. If a run fails, fix the cause and start a new **Run workflow** dispatch instead of using **Re-run jobs**.
 
 ## Signing, validation and cleanup
 
