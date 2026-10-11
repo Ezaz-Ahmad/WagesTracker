@@ -238,11 +238,28 @@ Enabling protection rotates the session to a **five-year absolute lifetime**, ex
 
 The [biometric session guide](docs/biometric-5-year-session-handoff.md), [account-scoping fix](docs/biometric-account-scoping-fix.md), and [native recovery fix](docs/ios-white-screen-after-faceid-fix.md) document the implementation history. Actual Face ID/Touch ID and Keychain behavior require physical-device verification.
 
-### Admin panel
+## Admin panel
 
-`/admin` is a separate application, with its own token and a server-configured `ADMIN_PASSWORD`. Admin JWTs expire after 12 hours and use separate middleware; ordinary user JWTs cannot authorize admin routes.
+The admin panel is a separate browser application at **`/admin`**, available at [the production admin URL](https://wages-tracker-frontend.vercel.app/admin) or `http://localhost:5173/admin` during local development. It is not linked from the user-facing app. Access requires the backend's shared `ADMIN_PASSWORD`; a normal user's email/password does not grant admin access.
 
-It provides user/account and shift views and confirmed account deletion, without exposing password hashes or session bearer credentials. It is not linked from the user-facing app. Leave `ADMIN_PASSWORD` unset to disable login.
+### Setup and login
+
+1. Set a strong, unique `ADMIN_PASSWORD` in `backend/.env` for local development, or in the Render backend service's environment for production. Keep it on the server; never put it in a frontend variable or commit it to Git.
+2. Restart the local backend or redeploy the Render service after changing the environment, then open `/admin` and enter that password.
+3. Leave `ADMIN_PASSWORD` unset to disable new admin logins. There is no default admin password or admin account to create through signup.
+
+### Account management
+
+- **User directory:** search by name or email, with total-user/shift counts and each user's name, email, work location, hourly rate, weekly goals, shift count, and join date. The layout adapts to smaller screens.
+- **View account:** open a user's work settings and shift history, including dates, locations, and sign-in/sign-out times.
+- **Edit login email:** validate and normalize the address, suggest corrections for likely domain typos, and reject addresses already used by another account. The password, signed-in sessions, settings, and shift records are retained. An admin-applied address is marked verified, pending verification links are invalidated, and security notifications are attempted to both the old and new addresses.
+- **Delete account:** the UI requires typing the user's email in a confirmation dialog. Deletion permanently removes the profile, settings, sessions, password-reset/email-verification records, shifts, work expenses/extras/locations, personal expenses, and spending categories.
+
+### Authentication and data access
+
+`POST /api/admin/login` is limited to **10 attempts per IP per 15 minutes**. A successful login issues a JWT with `role: "admin"` and a **12-hour expiry**. The frontend stores it under its own `wageTracker.adminToken` key, separate from regular-user authentication; expired or rejected credentials require signing in again.
+
+User listing/detail, email editing, and deletion under `/api/admin` require the server's separate `requireAdmin` middleware. A valid ordinary-user JWT receives `403` on those routes. Admin responses use explicit public-data mappings, so password hashes and session bearer credentials are not exposed. The panel's unlisted URL does not replace these authorization checks. See [admin routes](backend/src/routes/admin.ts), [admin authentication](backend/src/auth.ts), and [the admin UI](frontend/src/admin/AdminDashboard.tsx).
 
 ## Data and privacy
 
@@ -283,11 +300,45 @@ Prioritize security fixes and regression verification, including a coordinated C
 
 ## Versioning and releases
 
-`frontend/package.json` owns the marketing version. Its value must match the frontend entry in the root lockfile, app and extension Xcode configurations, and the GitHub `testflight` environment's `IOS_APP_VERSION`.
+### How the release version is chosen
 
-Use semantic versioning: major for breaking changes, minor for new functionality, and patch for compatible fixes. Choose the version for a release's scope; do not increment the marketing version for every commit. Documentation-only maintenance can retain 1.22.0.
+The public marketing version uses **`MAJOR.MINOR.PATCH`**, with the increment chosen for the combined scope of a release:
 
-Every build automatically stamps the Git commit hash and commit date into Settings and PDF metadata. Every **fresh** signed workflow dispatch uses `github.run_number` as the TestFlight build number. Do not use **Re-run jobs** for signed delivery; fix the cause and dispatch a new run.
+| Change being released | Version change | Example |
+| --- | --- | --- |
+| Breaking change or fundamental redesign | Increase major; reset minor and patch | `1.22.0` → `2.0.0` |
+| New functionality compatible with existing use | Increase minor; reset patch | `1.21.1` → `1.22.0` |
+| Compatible bug fix, UI polish, or security fix | Increase patch | `1.22.0` → `1.22.1` |
+| Documentation-only maintenance | Keep the current marketing version | `1.22.0` remains `1.22.0` |
+
+Every release containing application code, UI, feature, or behavior changes receives a new marketing version. Several commits can belong to one release, so **the marketing version is deliberately updated by hand, not automatically incremented on each commit**. The current **1.22.0** is a minor release because it adds App Store update prompts, alongside the visible name change to Wages Tracker. The examples above explain the policy; they do not announce future releases.
+
+### What updates automatically
+
+| Identifier | Source and update trigger | Where it appears |
+| --- | --- | --- |
+| Marketing version, e.g. `1.22.0` | Chosen for the release in `frontend/package.json` | Settings, PDF footer, and native app version |
+| Short commit hash | `git rev-parse --short HEAD`, captured on each frontend build | Settings and PDF footer, identifying the built source |
+| Commit date | `git log -1 --format=%cI`, captured on each frontend build | Settings, alongside the version and hash |
+| TestFlight build number, e.g. `50` | `github.run_number` from each **fresh** signed workflow dispatch | Apple/TestFlight build identity, e.g. `1.22.0 (50)` |
+
+[Vite's build configuration](frontend/vite.config.ts) injects `__APP_VERSION__`, `__BUILD_HASH__`, and `__BUILD_DATE__`; [appVersion.ts](frontend/src/lib/appVersion.ts) formats them. Settings shows `v<version> (<hash>) · <commit date>`, while the PDF footer uses `v<version> (<hash>)` beside the report's own generation date.
+
+Building a new commit automatically refreshes the source hash/date, even when the marketing version stays the same. Rebuilding the same commit preserves that source identity. The Settings date is the **source commit's date**, not the deployment date. A commit alone does not change an installed iPhone app; it continues to show the metadata bundled with its installed binary until the user installs an updated build.
+
+TestFlight build numbers are separate from semantic versions, so multiple test builds can share one marketing version. Do not use **Re-run jobs** for signed delivery; the workflow rejects reruns to avoid reusing a build number. Fix the cause and dispatch a new run.
+
+### Preparing a version change
+
+[`frontend/package.json`](frontend/package.json) is the release source of truth. Before delivering a new application release:
+
+1. Choose the next marketing version using the release's scope above, and update `frontend/package.json` plus the frontend workspace entry in the root [`package-lock.json`](package-lock.json).
+2. Set the same `MARKETING_VERSION` in **all four** app/Live Activity extension Debug and Release configurations in [`project.pbxproj`](ios/App/App.xcodeproj/project.pbxproj).
+3. Set the GitHub repository's **Settings → Environments → testflight → Environment variables → `IOS_APP_VERSION`** to that same value.
+4. Review `git grep` results for the previous version. Update current metadata and release documentation while retaining intentionally historical notes.
+5. Run `npm run ios:testflight:verify -w frontend` and the release checks in the [TestFlight delivery guide](docs/ios-testflight-delivery.md) before a fresh dispatch from protected `main`.
+
+[`verify-testflight-config.mjs`](frontend/scripts/verify-testflight-config.mjs) derives the expected version from package metadata and checks the lockfile, Xcode release invariants, and signed-workflow configuration. The signed workflow also compares the actual environment's `IOS_APP_VERSION` with the package version and stops if they differ; a GitHub variable cannot be validated from local files alone.
 
 A GitHub release tag should identify the exact application source it describes. `v1.22.0` identifies the source used for 1.22.0 (50); subsequent documentation commits do not change that uploaded binary.
 
