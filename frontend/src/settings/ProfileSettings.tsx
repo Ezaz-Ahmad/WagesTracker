@@ -127,7 +127,7 @@ export function ProfileSettings() {
           <div className="profile-layout-settings-copy">
             <span className="weekly-cycle-eyebrow">Make it yours</span>
             <h3 id="profile-layout-title">App layout</h3>
-            <p>Choose what appears on Home and arrange the tab bar around the way you work.</p>
+            <p>Choose your Home widgets, show or hide tabs, and arrange your menu.</p>
           </div>
           <button type="button" className="profile-layout-settings-action" onClick={() => setCustomizerOpen(true)} aria-haspopup="dialog">
             <span>Customise app layout</span><ChevronRightIcon size={17} />

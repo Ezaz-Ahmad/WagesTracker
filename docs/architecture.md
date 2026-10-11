@@ -1,6 +1,6 @@
 # Wages Tracker architecture
 
-**Applies to:** 1.22.0 application source
+**Applies to:** 1.23.0 application source
 
 **Last reviewed:** 11 October 2026
 
@@ -57,6 +57,10 @@ flowchart LR
 ```
 
 The browser and native web view are untrusted clients. They may provide helpful validation, but the Express API revalidates every request, derives ownership from the authenticated session, and is the only component allowed to access Turso or Resend. Vercel serves the browser/PWA assets and the public AASA file. The iOS application embeds its synchronized React build inside the signed application, so normal app startup does not load its UI from Vercel. No server credential belongs in either bundle. PDFs are generated from authenticated data on the device and are not uploaded as files to the backend.
+
+## Device layout preferences
+
+Home widgets, navigation order, and hidden tabs are stored under the existing per-account/device `wagesTracker.layout.v1:<userId>` local-storage key. Older layouts default to all tabs visible. Invalid, duplicate, and stale IDs are normalized; Settings cannot be hidden. Hidden tabs are omitted from mobile, desktop, swipe navigation, and screen selection, with an available-screen fallback when another window updates the layout. Hiding Spending also disables the Home spending snapshot and summary fetch while preserving its separate widget preference. These preferences do not write account, shift, or expense data and do not alter wage calculations. See [tab visibility](tab-visibility.md).
 
 ## Authentication, sessions, biometrics, and recovery
 

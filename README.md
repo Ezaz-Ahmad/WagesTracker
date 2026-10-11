@@ -10,7 +10,8 @@ Last verified **11 October 2026**. A GitHub source release, a TestFlight upload,
 
 | Channel | Verified status |
 | --- | --- |
-| Source and web | **1.22.0**; changes merged through [PR #73](https://github.com/Ezaz-Ahmad/WagesTracker/pull/73); Vercel deployment succeeded |
+| Source | **1.23.0** release candidate; approved tab visibility feature, with GitHub merge and signed delivery pending |
+| Deployed web | **1.22.0**; changes merged through [PR #73](https://github.com/Ezaz-Ahmad/WagesTracker/pull/73); Vercel deployment succeeded |
 | iOS beta | **1.22.0 (50)**; Apple validation and TestFlight upload succeeded in [delivery run 38112108372](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38112108372) |
 | Public iPhone app | Apple's [Australian listing](https://apps.apple.com/au/app/wagestracker/id6801702467) shows **1.21.0**, published 25 September 2026, under the previous listing name **WagesTracker** |
 | API and database | Render API with Turso/libSQL; production health check passed |
@@ -19,7 +20,7 @@ Last verified **11 October 2026**. A GitHub source release, a TestFlight upload,
 
 The uploaded beta was built from [`399176d8e48608382376b1e77e9f66e9aa07597e`](https://github.com/Ezaz-Ahmad/WagesTracker/commit/399176d8e48608382376b1e77e9f66e9aa07597e). Apple processing and tester availability were not independently verified after upload. Physical-device testing and App Store review remain separate steps; uploading to TestFlight does not publish an App Store update.
 
-See [1.22.0 release notes](docs/release-notes-1.22.0.md) for the changes and delivery evidence.
+See [1.23.0 release notes](docs/release-notes-1.23.0.md) for the new tab visibility feature and [1.22.0 release notes](docs/release-notes-1.22.0.md) for the preceding delivery evidence.
 
 ## Features
 
@@ -46,6 +47,8 @@ Shift and expense writes use the device's validated IANA timezone. Calendar date
 
 - Light, dark, and system appearance, with the approved graphite/obsidian time-to-pay logo and matching native icon and launch assets.
 - Customizable Home widgets and navigation order, interactive charts, and an earnings privacy toggle.
+- Hide or restore Home, Entry, Spending, Report, and History under **Profile & preferences → App layout → Tab bar**. Each hide action explains the affected tools and confirms that saved records and wage calculations are preserved. Settings always remains available to restore tabs.
+- Hidden tabs are removed from mobile, desktop, and swipe navigation. Hiding Spending also removes its Home snapshot; restoring it respects the previous widget preference. Preferences are saved per account on the device. See [tab visibility](docs/tab-visibility.md).
 - A responsive Settings hub: Profile & preferences, Work & pay, Weekly goals, Security, Data & account, and About.
 - About contains clean Privacy Policy and Support rows. The Settings overview contains the developer credit, GitHub/portfolio links, build identity, and a copyright year that updates at runtime.
 - Keyboard navigation, focus-managed dialogs, text/table chart alternatives, reduced motion, and mobile touch targets.
@@ -288,13 +291,15 @@ Verified for the 1.22.0 uploaded source in [build 50](https://github.com/Ezaz-Ah
 
 Test counts are a dated snapshot; current CI output is authoritative. Backend tests use isolated temporary SQLite databases. Component tests cover actual screens, focus, dialogs, accessibility, authentication, native adapters, reminders, and update prompts. Browser tests exercise the built production bundle.
 
+For the 1.23.0 candidate, local frontend verification passed **861 tests across 109 files**, plus the 3 Universal Link tests and **15 production-browser scenarios**. The new browser scenario verifies confirmation/cancellation, persistence, restoration, unchanged displayed wages, and zero account-data writes when hiding a tab. GitHub and signed-delivery results will be recorded after they complete.
+
 [CI](.github/workflows/ci.yml) runs backend/frontend jobs on pushes and PRs to `main`. [CodeQL](.github/workflows/codeql.yml) analyzes JavaScript/TypeScript, Actions, and Swift. [Simulator CI](.github/workflows/ios-simulator.yml) builds and inspects an unsigned app, renders native layouts, and retains diagnostic artifacts.
 
 Physical iPhone testing is still required for Face ID/Touch ID, Universal Links from Mail, real email delivery, background behavior, ActivityKit limits, and Safari/Home Screen keyboard/safe-area behavior. Automated previews cannot prove those device outcomes.
 
 ### Dependency maintenance
 
-As checked on 11 October 2026, GitHub Dependabot reports **35 open alerts**: 8 critical, 11 high, 11 medium, and 5 low, across runtime and development dependencies. Ten dependency-update PRs remain open. This documentation maintenance does not apply those updates, and passing CI/CodeQL does not resolve dependency advisories. See [dependency alerts](https://github.com/Ezaz-Ahmad/WagesTracker/security/dependabot) and [open dependency PRs](https://github.com/Ezaz-Ahmad/WagesTracker/pulls?q=is%3Apr+is%3Aopen+author%3Aapp%2Fdependabot).
+As checked on 11 October 2026, GitHub Dependabot reports **35 open alerts**: 8 critical, 11 high, 11 medium, and 5 low, across runtime and development dependencies. Ten dependency-update PRs remain open. The tab visibility release does not apply those updates, and passing CI/CodeQL does not resolve dependency advisories. See [dependency alerts](https://github.com/Ezaz-Ahmad/WagesTracker/security/dependabot) and [open dependency PRs](https://github.com/Ezaz-Ahmad/WagesTracker/pulls?q=is%3Apr+is%3Aopen+author%3Aapp%2Fdependabot).
 
 Prioritize security fixes and regression verification, including a coordinated Capacitor patch across the pinned npm packages and Swift runtime, before the next public release. Alert counts and package versions are dated observations; the live GitHub queue is authoritative.
 
@@ -306,18 +311,18 @@ The public marketing version uses **`MAJOR.MINOR.PATCH`**, with the increment ch
 
 | Change being released | Version change | Example |
 | --- | --- | --- |
-| Breaking change or fundamental redesign | Increase major; reset minor and patch | `1.22.0` → `2.0.0` |
-| New functionality compatible with existing use | Increase minor; reset patch | `1.21.1` → `1.22.0` |
-| Compatible bug fix, UI polish, or security fix | Increase patch | `1.22.0` → `1.22.1` |
-| Documentation-only maintenance | Keep the current marketing version | `1.22.0` remains `1.22.0` |
+| Breaking change or fundamental redesign | Increase major; reset minor and patch | `1.23.0` → `2.0.0` |
+| New functionality compatible with existing use | Increase minor; reset patch | `1.22.0` → `1.23.0` |
+| Compatible bug fix, UI polish, or security fix | Increase patch | `1.23.0` → `1.23.1` |
+| Documentation-only maintenance | Keep the current marketing version | `1.23.0` remains `1.23.0` |
 
-Every release containing application code, UI, feature, or behavior changes receives a new marketing version. Several commits can belong to one release, so **the marketing version is deliberately updated by hand, not automatically incremented on each commit**. The current **1.22.0** is a minor release because it adds App Store update prompts, alongside the visible name change to Wages Tracker. The examples above explain the policy; they do not announce future releases.
+Every release containing application code, UI, feature, or behavior changes receives a new marketing version. Several commits can belong to one release, so **the marketing version is deliberately updated by hand, not automatically incremented on each commit**. The current **1.23.0** is a minor release because it adds optional tab visibility with impact confirmations and recovery. The preceding 1.22.0 added App Store update prompts and the visible name change to Wages Tracker. The examples above explain the policy; they do not announce future releases.
 
 ### What updates automatically
 
 | Identifier | Source and update trigger | Where it appears |
 | --- | --- | --- |
-| Marketing version, e.g. `1.22.0` | Chosen for the release in `frontend/package.json` | Settings, PDF footer, and native app version |
+| Marketing version, e.g. `1.23.0` | Chosen for the release in `frontend/package.json` | Settings, PDF footer, and native app version |
 | Short commit hash | `git rev-parse --short HEAD`, captured on each frontend build | Settings and PDF footer, identifying the built source |
 | Commit date | `git log -1 --format=%cI`, captured on each frontend build | Settings, alongside the version and hash |
 | TestFlight build number, e.g. `50` | `github.run_number` from each **fresh** signed workflow dispatch | Apple/TestFlight build identity, e.g. `1.22.0 (50)` |

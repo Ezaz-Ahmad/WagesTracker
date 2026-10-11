@@ -40,12 +40,15 @@ export interface LayoutPreferences {
   homeWidgetOrder: HomeWidgetId[];
   hiddenHomeWidgets: HomeWidgetId[];
   tabOrder: Screen[];
+  hiddenTabs: Screen[];
 }
 
 interface LayoutPreferencesContextValue extends LayoutPreferences {
+  visibleTabOrder: Screen[];
   moveHomeWidget: (id: HomeWidgetId, targetVisibleIndex: number) => void;
   setHomeWidgetVisible: (id: HomeWidgetId, visible: boolean) => void;
   moveTab: (id: Screen, targetIndex: number) => void;
+  setTabVisible: (id: Screen, visible: boolean) => void;
   resetHome: () => void;
   resetTabs: () => void;
 }
@@ -54,14 +57,17 @@ const DEFAULT_PREFERENCES: LayoutPreferences = {
   homeWidgetOrder: [...HOME_WIDGET_IDS],
   hiddenHomeWidgets: [],
   tabOrder: [...DEFAULT_TAB_ORDER],
+  hiddenTabs: [],
 };
 
 const noop = () => {};
 const LayoutPreferencesContext = createContext<LayoutPreferencesContextValue>({
   ...DEFAULT_PREFERENCES,
+  visibleTabOrder: [...DEFAULT_TAB_ORDER],
   moveHomeWidget: noop,
   setHomeWidgetVisible: noop,
   moveTab: noop,
+  setTabVisible: noop,
   resetHome: noop,
   resetTabs: noop,
 });
@@ -89,7 +95,7 @@ function normaliseSubset<T extends string>(candidate: unknown, allowedValues: re
 }
 
 export function parseLayoutPreferences(raw: string | null): LayoutPreferences {
-  if (!raw) return { ...DEFAULT_PREFERENCES, homeWidgetOrder: [...HOME_WIDGET_IDS], hiddenHomeWidgets: [], tabOrder: [...DEFAULT_TAB_ORDER] };
+  if (!raw) return { ...DEFAULT_PREFERENCES, homeWidgetOrder: [...HOME_WIDGET_IDS], hiddenHomeWidgets: [], tabOrder: [...DEFAULT_TAB_ORDER], hiddenTabs: [] };
   try {
     const parsed = JSON.parse(raw) as Partial<LayoutPreferences>;
     const homeWidgetOrder = normaliseOrder(parsed.homeWidgetOrder, HOME_WIDGET_IDS);
@@ -99,9 +105,12 @@ export function parseLayoutPreferences(raw: string | null): LayoutPreferences {
       homeWidgetOrder,
       hiddenHomeWidgets,
       tabOrder: normaliseOrder(parsed.tabOrder, DEFAULT_TAB_ORDER),
+      // Settings is the permanent recovery path, including for stale or
+      // externally edited preferences that try to hide every tab.
+      hiddenTabs: normaliseSubset(parsed.hiddenTabs, DEFAULT_TAB_ORDER).filter((id) => id !== "settings"),
     };
   } catch {
-    return { ...DEFAULT_PREFERENCES, homeWidgetOrder: [...HOME_WIDGET_IDS], hiddenHomeWidgets: [], tabOrder: [...DEFAULT_TAB_ORDER] };
+    return { ...DEFAULT_PREFERENCES, homeWidgetOrder: [...HOME_WIDGET_IDS], hiddenHomeWidgets: [], tabOrder: [...DEFAULT_TAB_ORDER], hiddenTabs: [] };
   }
 }
 
@@ -183,7 +192,22 @@ export function LayoutPreferencesProvider({ userId, children }: { userId: string
   }, [update]);
 
   const moveTab = useCallback((id: Screen, targetIndex: number) => {
-    update((current) => ({ ...current, tabOrder: moveItem(current.tabOrder, id, targetIndex) }));
+    update((current) => {
+      const visible = current.tabOrder.filter((tab) => !current.hiddenTabs.includes(tab));
+      const reordered = moveItem(visible, id, targetIndex);
+      let visibleIndex = 0;
+      return { ...current, tabOrder: current.tabOrder.map((tab) => current.hiddenTabs.includes(tab) ? tab : reordered[visibleIndex++]) };
+    });
+  }, [update]);
+
+  const setTabVisible = useCallback((id: Screen, visible: boolean) => {
+    if (id === "settings") return;
+    update((current) => {
+      const hidden = new Set(current.hiddenTabs);
+      if (visible) hidden.delete(id);
+      else hidden.add(id);
+      return { ...current, hiddenTabs: [...hidden] };
+    });
   }, [update]);
 
   const resetHome = useCallback(() => {
@@ -191,17 +215,19 @@ export function LayoutPreferencesProvider({ userId, children }: { userId: string
   }, [update]);
 
   const resetTabs = useCallback(() => {
-    update((current) => ({ ...current, tabOrder: [...DEFAULT_TAB_ORDER] }));
+    update((current) => ({ ...current, tabOrder: [...DEFAULT_TAB_ORDER], hiddenTabs: [] }));
   }, [update]);
 
   const value = useMemo<LayoutPreferencesContextValue>(() => ({
     ...preferences,
+    visibleTabOrder: preferences.tabOrder.filter((tab) => !preferences.hiddenTabs.includes(tab)),
     moveHomeWidget,
     setHomeWidgetVisible,
     moveTab,
+    setTabVisible,
     resetHome,
     resetTabs,
-  }), [preferences, moveHomeWidget, setHomeWidgetVisible, moveTab, resetHome, resetTabs]);
+  }), [preferences, moveHomeWidget, setHomeWidgetVisible, moveTab, setTabVisible, resetHome, resetTabs]);
 
   return <LayoutPreferencesContext.Provider value={value}>{children}</LayoutPreferencesContext.Provider>;
 }
