@@ -4,11 +4,13 @@
 
 **Last reviewed:** 11 October 2026
 
-**Current candidate:** 1.23.1 patches the dependency advisories, including the native Capacitor HTTP proxy issue. It requires a fresh signed build; 1.23.0 (51) contains the previous native framework and is not the candidate for the next App Review submission. Upload and submission results will be recorded only after Apple confirms them.
+**Latest verified upload:** **1.23.1 (52)**, accepted by Apple on 11 October 2026 in [run 38121118588](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38121118588), from protected-main commit `d54eb41579a4b76fd56335e43b829444e7a3efa4`. Apple validation succeeded at **07:26:32 UTC** and upload at **07:28:02 UTC**, both without errors. The fresh dispatch used attempt 1; temporary signing material was removed.
 
-**Latest verified upload:** 1.23.0 (51), accepted by Apple on 11 October 2026 in [run 38116854116](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38116854116), from protected-main commit `98d376a0609a1471035cab88ea73c88542ec3acf`. Apple validation succeeded at 06:11:52 UTC and upload at 06:13:14 UTC, both without errors. The fresh dispatch used attempt 1, and temporary signing material was removed. Processing, tester availability, and physical-device results were not independently verified after upload.
+**Processing and testers:** App Store Connect confirmed completed processing and the build's assignment to **WagesTracker Internal Testers** before submission. Physical-device behavior remains a separate check.
 
-**Previous upload:** 1.22.0 (50), recorded in [run 38112108372](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38112108372) and the [1.22.0 release notes](release-notes-1.22.0.md).
+**App Review:** **1.23.1 (52), Waiting for Review**, submitted **11 October 2026 at 07:37 UTC / 18:37 AEDT**. Submission ID: `e08bed98-479f-4cff-befc-11c5c3af39c6`. Release is automatic after approval, immediately to all users. The public Australian listing was still **1.21.0** when the submission was verified. See the [App Review guide](app-store-review.md).
+
+**Previous upload:** 1.23.0 (51), accepted in [run 38116854116](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38116854116) from `98d376a0609a1471035cab88ea73c88542ec3acf`. It contains the previous native framework; build 52 replaces it for this review. The preceding 1.22.0 (50) is recorded in [its release notes](release-notes-1.22.0.md).
 
 Wages Tracker's signed iOS delivery is intentionally separate from pull-request, push, Simulator and CodeQL workflows. `.github/workflows/ios-testflight.yml` can be started only with `workflow_dispatch`; its delivery job additionally refuses every ref except protected `main`, rejects fork context, uses the protected `testflight` environment and serializes uploads through one non-cancelling concurrency group.
 
@@ -27,7 +29,7 @@ Create these non-secret environment variables:
 | Variable | Value |
 | --- | --- |
 | `IOS_BUNDLE_ID` | `com.ezazahmad.wagestracker` |
-| `IOS_APP_VERSION` | `1.23.1` (required for this candidate; update the protected environment before dispatch) |
+| `IOS_APP_VERSION` | `1.23.1` (required for this release; update the protected environment before dispatch) |
 | `APPLE_TEAM_ID` | The 10-character Team ID shown in Apple Developer membership details and the App Store profile |
 | `IOS_PROVISIONING_PROFILE_NAME` | The exact `Name` inside the uploaded profile. Prefer a release-independent name such as `WagesTracker App Store Distribution` when next regenerating it |
 | `IOS_EXTENSION_PROVISIONING_PROFILE_NAME` | The exact `Name` inside the App Store profile for `com.ezazahmad.wagestracker.ShiftActivityExtension` |
@@ -63,7 +65,7 @@ After those gates pass:
 3. Approve the `testflight` environment deployment if an approval rule is configured.
 4. Review the run through validation, archive, export and App Store Connect validation.
 5. Record the workflow URL, protected-main commit, printed marketing/build pair, and App Store Connect processing result.
-6. Confirm the upload is processing in App Store Connect → WagesTracker → TestFlight. Processing can continue after the workflow reports that Apple accepted the upload.
+6. Confirm the upload is processing in App Store Connect → Wages Tracker → TestFlight. Processing can continue after the workflow reports that Apple accepted the upload.
 7. Assign the processed build to the intended internal tester group and install it on the physical test iPhone.
 8. Complete the device and password-recovery checklist below before treating it as a release candidate.
 
