@@ -43,11 +43,14 @@ Those users need Apple's automatic updates or a manual first update to a
 release containing this feature. Later public releases can then trigger the
 popup without any hardcoded latest-version change.
 
-Before submitting the next version publicly, set **App Store Connect → WagesTracker →
-App Information → Localizable Information → Name** to **Wages Tracker** for
-each supported localization. The display name inside the binary does not
-rename the App Store listing. Save the name with the next review submission;
-do not create a new listing or change the application identity.
+The **Wages Tracker** listing name was saved for the existing English
+(Australia) localization and included in the **1.23.1 (52)** submission on
+11 October 2026. App Review showed **Waiting for Review**; the public listing
+retains its previous name until the update is released. Future name changes
+must be saved under **App Information → Localizable Information → Name** for
+each supported localization and included with the next review submission.
+The binary display name alone does not rename the listing. Keep the existing
+App Store and bundle identities. See the [App Review guide](app-store-review.md).
 
 TestFlight uploads do not trigger App Store prompts. Apple must approve and
 publish a numerically newer version, and its public catalog must reflect it.

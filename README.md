@@ -10,17 +10,20 @@ Last verified **11 October 2026**. A GitHub source release, a TestFlight upload,
 
 | Channel | Verified status |
 | --- | --- |
-| Source | **1.23.1** security patch candidate; tab visibility was delivered in [PR #76](https://github.com/Ezaz-Ahmad/WagesTracker/pull/76) |
-| Deployed web | **1.23.0**; Vercel production deployment succeeded from the uploaded application source |
-| iOS beta | **1.23.0 (51)**; Apple validation and TestFlight upload succeeded in [delivery run 38116854116](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38116854116) |
-| Public iPhone app | Apple's [Australian listing](https://apps.apple.com/au/app/wagestracker/id6801702467) shows **1.21.0**, published 25 September 2026, under the previous listing name **WagesTracker** |
-| API and database | Render API with Turso/libSQL; production health check passed |
+| Source | **1.23.1**; dependency fixes merged in [PR #78](https://github.com/Ezaz-Ahmad/WagesTracker/pull/78), workflow hardening in [PR #79](https://github.com/Ezaz-Ahmad/WagesTracker/pull/79) |
+| Deployed web | **1.23.1**; Vercel production deployment succeeded from the uploaded application source |
+| iOS beta | **1.23.1 (52)**; Apple accepted and processed the upload, assigned to **WagesTracker Internal Testers** |
+| App Review | **1.23.1 (52), Waiting for Review**; submitted 11 October 2026 at **07:37 UTC / 18:37 AEDT**, with automatic release after approval |
+| Public iPhone app | Apple's [Australian listing](https://apps.apple.com/au/app/wagestracker/id6801702467) still shows **1.21.0**, published 25 September 2026, under the previous listing name **WagesTracker** |
+| API and database | Render deployed the patched backend; production `/api/health` returned `{ "ok": true }` |
 | Universal Links | Production association file contains the literal Apple Team ID and app identifier; signed app entitlement inspection passed |
 | Android | Planned; no Android application project or Google Play release is committed |
 
-The uploaded beta was built from [`98d376a0609a1471035cab88ea73c88542ec3acf`](https://github.com/Ezaz-Ahmad/WagesTracker/commit/98d376a0609a1471035cab88ea73c88542ec3acf). Apple returned validation success at **06:11 UTC** and upload success at **06:13 UTC** on 11 October 2026. Apple processing and tester availability were not independently verified after upload. Physical-device testing and App Store review remain separate steps; uploading to TestFlight does not publish an App Store update.
+The submitted beta was built from [`d54eb41579a4b76fd56335e43b829444e7a3efa4`](https://github.com/Ezaz-Ahmad/WagesTracker/commit/d54eb41579a4b76fd56335e43b829444e7a3efa4) in [signed delivery run 38121118588](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38121118588), fresh dispatch 52, attempt 1. Apple validation succeeded at **07:26:32 UTC**, upload at **07:28:02 UTC**, and temporary signing material was removed. App Store Connect confirmed processing, tester assignment and the selected build before accepting the review submission. Workflow-only and documentation commits afterward do not change that binary.
 
-See [1.23.1 release notes](docs/release-notes-1.23.1.md) for the security patch candidate, [1.23.0 release notes](docs/release-notes-1.23.0.md) for tab visibility, and [1.22.0 release notes](docs/release-notes-1.22.0.md) for the preceding delivery evidence. The 1.23.1 candidate still requires protected-main CI and a fresh signed upload before App Review.
+App Review submission **`e08bed98-479f-4cff-befc-11c5c3af39c6`** includes the name **Wages Tracker**, the refreshed icon, clean description and release notes, the existing screenshot assets and privacy declarations, and the preserved review sign-in/contact fields. Apple approval and public availability are separate from the confirmed submission. Physical-device behavior is not independently established by CI.
+
+See [1.23.1 release notes](docs/release-notes-1.23.1.md), the [App Review guide](docs/app-store-review.md), [1.23.0 release notes](docs/release-notes-1.23.0.md) for tab visibility, and [1.22.0 release notes](docs/release-notes-1.22.0.md) for the preceding delivery.
 
 ## Features
 
@@ -74,7 +77,7 @@ Native iOS compares the actual installed marketing version with Apple's public c
 - Updating to the current public version stops that release's reminders. Future releases use the same lookup automatically.
 - Equal versions, newer TestFlight versions, and offline lookup failures remain silent.
 
-Existing public 1.21.0 installations need one ordinary App Store update to acquire this checker. TestFlight uploads do not trigger public-release prompts. The visible product name is now **Wages Tracker**; the App Store Connect listing name must be updated with the next public review submission. Details: [App Store updates](docs/app-store-updates.md).
+Existing public 1.21.0 installations need one ordinary App Store update to acquire this checker. TestFlight uploads do not trigger public-release prompts. The visible product name is now **Wages Tracker**; the name is included in the submitted 1.23.1 App Review version and will appear publicly with its release. Details: [App Store updates](docs/app-store-updates.md).
 
 ## Architecture
 
@@ -276,7 +279,7 @@ The public [Privacy Policy](https://wages-tracker-frontend.vercel.app/privacy) a
 
 ## Testing and CI
 
-Verified for the 1.23.0 feature in [PR #76 CI](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38116441418) and [native Simulator CI](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38116441342):
+Verified for the 1.23.1 security patch in [PR #78 CI](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38119707304), [native Simulator CI](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38119707310), and the fresh signed delivery:
 
 | Check | Result |
 | --- | --- |
@@ -287,8 +290,8 @@ Verified for the 1.23.0 feature in [PR #76 CI](https://github.com/Ezaz-Ahmad/Wag
 | Distribution-entitlement regression suite | **8 tests** |
 | Production-browser smoke suite | **15 scenarios**, verified by frontend PR CI |
 | Native Live Activity previews | **40 layouts**, verified by macOS Simulator CI |
-| Type checks, builds, asset/config inspection, signing, and Apple validation/upload | Passed in [signed delivery run 38116854116](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38116854116) |
-| CodeQL | JavaScript/TypeScript and Actions passed; Swift scan status is available in [run 38116441352](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38116441352) |
+| Type checks, builds, asset/config inspection, signing, and Apple validation/upload | Passed in [signed delivery run 38121118588](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38121118588) |
+| CodeQL | JavaScript/TypeScript, Actions and Swift all passed in [run 38119707344](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38119707344) |
 
 Test counts are a dated snapshot; current CI output is authoritative. Backend tests use isolated temporary SQLite databases. Component tests cover actual screens, focus, dialogs, accessibility, authentication, native adapters, reminders, and update prompts. Browser tests exercise the built production bundle.
 
@@ -300,7 +303,7 @@ Physical iPhone testing is still required for Face ID/Touch ID, Universal Links 
 
 ### Dependency maintenance
 
-The 11 October 2026 baseline had **35 open Dependabot alerts**: 8 critical, 11 high, 11 medium, and 5 low. The 1.23.1 patch updates the affected runtime and development dependencies, including Capacitor 8.4.3 in npm and Swift, Express 4.22.3 with qs 6.16.0, proxy-addr 2.0.8, DOMPurify 3.4.16, Sharp 0.35.5, and Vitest 4.1.11. A clean install of the updated lockfile reports **zero vulnerabilities with `npm audit`**. See [patch details](docs/release-notes-1.23.1.md), [dependency alerts](https://github.com/Ezaz-Ahmad/WagesTracker/security/dependabot), and [open dependency PRs](https://github.com/Ezaz-Ahmad/WagesTracker/pulls?q=is%3Apr+is%3Aopen+author%3Aapp%2Fdependabot).
+The 11 October 2026 baseline had **35 open Dependabot alerts**: 8 critical, 11 high, 11 medium, and 5 low. The 1.23.1 patch updates the affected runtime and development dependencies, including Capacitor 8.4.3 in npm and Swift, Express 4.22.3 with qs 6.16.0, proxy-addr 2.0.8, DOMPurify 3.4.16, Sharp 0.35.5, and Vitest 4.1.11. A clean install of the updated lockfile reports **zero vulnerabilities with `npm audit`**. After merge, GitHub reported **zero open Dependabot alerts and zero open CodeQL alerts** on 11 October 2026. PR #79 fixed three existing workflow permission warnings by using read-only repository permissions for CI and no repository permissions for the public keep-warm request. See [patch details](docs/release-notes-1.23.1.md), [dependency alerts](https://github.com/Ezaz-Ahmad/WagesTracker/security/dependabot), and [open dependency PRs](https://github.com/Ezaz-Ahmad/WagesTracker/pulls?q=is%3Apr+is%3Aopen+author%3Aapp%2Fdependabot).
 
 The native Capacitor advisory requires rebuilding and redistributing the iPhone app; a web deployment alone does not patch an installed binary. The alignment gate checks the Swift manifest, resolved upstream tag commit, shared JavaScript/iOS versions, and transitive Android runtime. The GitHub queue can update after the fix reaches main, and newly published advisories remain possible; the live queue is authoritative.
 
@@ -315,7 +318,7 @@ The public marketing version uses **`MAJOR.MINOR.PATCH`**, with the increment ch
 | Breaking change or fundamental redesign | Increase major; reset minor and patch | `1.23.0` → `2.0.0` |
 | New functionality compatible with existing use | Increase minor; reset patch | `1.22.0` → `1.23.0` |
 | Compatible bug fix, UI polish, or security fix | Increase patch | `1.23.0` → `1.23.1` |
-| Documentation-only maintenance | Keep the current marketing version | `1.23.0` remains `1.23.0` |
+| Documentation-only maintenance | Keep the current marketing version | `1.23.1` remains `1.23.1` |
 
 Every release containing application code, UI, feature, or behavior changes receives a new marketing version. Several commits can belong to one release, so **the marketing version is deliberately updated by hand, not automatically incremented on each commit**. The current **1.23.1** is a patch release because it fixes dependency security advisories without changing the approved UI or wage calculations. Version 1.23.0 added optional tab visibility with impact confirmations and recovery. The preceding 1.22.0 added App Store update prompts and the visible name change to Wages Tracker.
 
@@ -323,10 +326,10 @@ Every release containing application code, UI, feature, or behavior changes rece
 
 | Identifier | Source and update trigger | Where it appears |
 | --- | --- | --- |
-| Marketing version, e.g. `1.23.0` | Chosen for the release in `frontend/package.json` | Settings, PDF footer, and native app version |
+| Marketing version, e.g. `1.23.1` | Chosen for the release in `frontend/package.json` | Settings, PDF footer, and native app version |
 | Short commit hash | `git rev-parse --short HEAD`, captured on each frontend build | Settings and PDF footer, identifying the built source |
 | Commit date | `git log -1 --format=%cI`, captured on each frontend build | Settings, alongside the version and hash |
-| TestFlight build number, e.g. `51` | `github.run_number` from each **fresh** signed workflow dispatch | Apple/TestFlight build identity, e.g. `1.23.0 (51)` |
+| TestFlight build number, e.g. `52` | `github.run_number` from each **fresh** signed workflow dispatch | Apple/TestFlight build identity, e.g. `1.23.1 (52)` |
 
 [Vite's build configuration](frontend/vite.config.ts) injects `__APP_VERSION__`, `__BUILD_HASH__`, and `__BUILD_DATE__`; [appVersion.ts](frontend/src/lib/appVersion.ts) formats them. Settings shows `v<version> (<hash>) · <commit date>`, while the PDF footer uses `v<version> (<hash>)` beside the report's own generation date.
 
@@ -346,7 +349,7 @@ TestFlight build numbers are separate from semantic versions, so multiple test b
 
 [`verify-testflight-config.mjs`](frontend/scripts/verify-testflight-config.mjs) derives the expected version from package metadata and checks the lockfile, Xcode release invariants, and signed-workflow configuration. The signed workflow also compares the actual environment's `IOS_APP_VERSION` with the package version and stops if they differ; a GitHub variable cannot be validated from local files alone.
 
-A GitHub release tag should identify the exact application source it describes. `v1.23.0` identifies `98d376a`, the source used for 1.23.0 (51); `v1.22.0` retains the preceding 1.22.0 (50) source. Subsequent documentation commits do not change either uploaded binary.
+A GitHub release tag should identify the exact application source it describes. `v1.23.1` identifies `d54eb41`, the source used for the submitted 1.23.1 (52). `v1.23.0` identifies `98d376a`, the source used for 1.23.0 (51); `v1.22.0` retains the preceding 1.22.0 (50) source. Subsequent workflow-only or documentation commits do not change those uploaded binaries.
 
 Work enters through `codex/*` branches and pull requests against protected `main`. Required CI checks must pass before merge. GitHub automatically deletes merged PR head branches; active dependency PR branches remain until reviewed and resolved.
 
@@ -375,6 +378,8 @@ Alternative Railway/Netlify configuration files are reference options, not the c
 | Guide | Scope |
 | --- | --- |
 | [Architecture](docs/architecture.md) | System, data, security boundaries and delivery diagrams |
+| [1.23.1 release notes](docs/release-notes-1.23.1.md) | Security fixes, verified tests, build 52 and App Review receipt |
+| [App Review submission](docs/app-store-review.md) | Metadata, build selection, final submission and future updates |
 | [1.22.0 release notes](docs/release-notes-1.22.0.md) | Changes, source commit and verified upload |
 | [TestFlight delivery](docs/ios-testflight-delivery.md) | Signing setup, processing, device checks and recovery |
 | [App Store updates](docs/app-store-updates.md) | Installed/latest comparison, 48-hour snooze and rollout |
@@ -382,6 +387,6 @@ Alternative Railway/Netlify configuration files are reference options, not the c
 | [Smart Shift Reminders](docs/smart-shift-reminders.md) | Learning, roster adaptation and safe actions |
 | [iOS privacy mapping](docs/ios-privacy-mapping.md) | Data collection, native API usage and review checklist |
 
-The next iOS milestone is resolving pending dependency security updates, completing physical-device regression, confirming tester availability, updating the public listing name and review metadata, and explicitly submitting the chosen build to App Review. Android delivery remains future work.
+Version **1.23.1 (52)** is waiting for Apple App Review and will release automatically after approval. TestFlight remains available for physical-device checks; respond to any reviewer request in App Store Connect. Android delivery remains future work.
 
 Built by [Ezaz Ahmad](https://www.ezazahmad.com/).

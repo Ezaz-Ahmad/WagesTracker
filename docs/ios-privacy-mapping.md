@@ -2,7 +2,7 @@
 
 This document is the review record for `ios/App/App/PrivacyInfo.xcprivacy` and the App Store Connect privacy questionnaire. It must be re-audited whenever a native plugin, SDK, backend data field, analytics tool or advertising feature is added.
 
-**Last reviewed:** 11 October 2026, for the 1.23.0 application source. Tab visibility extends existing device-local layout preferences; it adds no native SDK, permission, analytics event, or backend data field.
+**Last reviewed:** 11 October 2026, for the 1.23.1 application source and App Review submission. Tab visibility extends existing device-local layout preferences; the security patch updates existing dependencies without adding a permission, analytics event, or backend data field. App Store Connect's six linked App Functionality data types were checked and retained for this submission.
 
 ## Data collection
 
