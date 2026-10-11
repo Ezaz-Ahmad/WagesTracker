@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptDirectory, '..', '..');
-const expectedVersion = '8.4.2';
+const expectedVersion = '8.4.3';
+const expectedSwiftRevision = '89e0d8ec2321025f549ddb19259a717467943b97';
 const alignedPackages = ['@capacitor/core', '@capacitor/ios'];
 
 function fail(message) {
@@ -44,10 +45,30 @@ for (const packageName of alignedPackages) {
   }
 }
 
+if (frontendManifest.devDependencies?.['@capacitor/cli'] !== expectedVersion) {
+  fail(`frontend must use @capacitor/cli@${expectedVersion}.`);
+}
+
+if (rootManifest.overrides?.['@capacitor/android'] !== expectedVersion) {
+  fail(`the transitive Android runtime must be overridden to ${expectedVersion}.`);
+}
+for (const [installPath, metadata] of Object.entries(lockfile.packages)) {
+  if (installPath.endsWith('node_modules/@capacitor/android') && metadata.version !== expectedVersion) {
+    fail(`${installPath} resolves to ${metadata.version}, expected ${expectedVersion}.`);
+  }
+}
+
 const packageResolved = await readJson('ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved');
 const capacitorSwift = packageResolved.pins?.find((pin) => pin.identity === 'capacitor-swift-pm');
 if (capacitorSwift?.state?.version !== expectedVersion) {
   fail(`Swift runtime resolves to ${capacitorSwift?.state?.version || 'missing'}, expected ${expectedVersion}.`);
+}
+if (capacitorSwift.state.revision !== expectedSwiftRevision) {
+  fail(`Swift runtime must resolve to the ${expectedVersion} upstream tag commit ${expectedSwiftRevision}.`);
+}
+const swiftManifest = await readFile(path.join(repositoryRoot, 'ios/App/CapApp-SPM/Package.swift'), 'utf8');
+if (!swiftManifest.includes(`capacitor-swift-pm.git", exact: "${expectedVersion}"`)) {
+  fail(`the Swift package manifest must pin the runtime to ${expectedVersion}.`);
 }
 
 const bundleRoots = process.argv.slice(2).flatMap((argument, index, arguments_) =>
