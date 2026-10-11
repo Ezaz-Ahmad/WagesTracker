@@ -1,6 +1,8 @@
 # iOS privacy manifest and App Store mapping
 
-This document is the review record for `ios/App/App/PrivacyInfo.xcprivacy` and the future App Store Connect privacy questionnaire. It must be re-audited whenever a native plugin, SDK, backend data field, analytics tool or advertising feature is added.
+This document is the review record for `ios/App/App/PrivacyInfo.xcprivacy` and the App Store Connect privacy questionnaire. It must be re-audited whenever a native plugin, SDK, backend data field, analytics tool or advertising feature is added.
+
+**Last reviewed:** 11 October 2026, for the 1.22.0 application source.
 
 ## Data collection
 
@@ -21,7 +23,7 @@ Vercel serves the web build and processes ordinary request metadata. Render host
 
 This feature adds no native SDK, permission, advertising identifier, analytics event, bank connection, receipt/photo access or tracking. It therefore requires no new `NSPrivacyAccessedAPITypes` entry and no change to the committed `PrivacyInfo.xcprivacy` category set: the data remains covered by Apple's existing **Other Financial Info**, linked to the account, used for **App Functionality**, and not used for tracking.
 
-Before the next App Store submission, the Account Holder should update/reconfirm the App Store Connect App Privacy questionnaire's explanatory scope for **Other Financial Info** so it explicitly includes optional personal expense data. This PR deliberately does not change App Store Connect declarations or upload a build.
+Before each App Store submission, reconfirm the App Store Connect App Privacy questionnaire's scope for **Other Financial Info**, including optional personal expense data. Source documentation and TestFlight delivery do not automatically change the questionnaire.
 
 ## Required-reason APIs
 
@@ -46,7 +48,9 @@ Biometric login is an optional, user-initiated alternative to typing a password 
 | Metadata | Account id, display name, detected biometry kind — no secret | Ordinary Keychain (`whenUnlockedThisDeviceOnly`), not biometric-gated, so Settings/the login screen can read it without a Face ID/Touch ID prompt |
 | Credential | The session bearer token (JWT) | `SecAccessControl` with `.biometryCurrentSet`, requiring a live Face ID/Touch ID match against the device's *current* enrollment on every read |
 
-Nothing here is collected by, or leaves to, Vercel/Render/Turso — both items exist only in this device's Keychain. Re-enrolling or changing the device's Face ID/Touch ID invalidates the credential item at the OS level; the app detects that on the next attempt and clears both items rather than leaving a broken credential behind. Logging out, changing the password, revoking the current session, or deleting the account also clears both items immediately (see AppContext in the main README).
+The Keychain items are stored only on this device. The credential supplies the bearer token for authenticated HTTPS requests, but biometric enrollment data itself never reaches Vercel, Render, or Turso. Re-enrolling or changing Face ID/Touch ID invalidates the credential at the OS level; the app detects that on the next attempt and clears the saved items.
+
+With biometric login enabled, Log out is a local soft lock: it retains the protected credential and backend session for a subsequent biometric unlock. Ordinary logout, disabling biometric login, changing the password, revoking the current session, and account deletion clear the relevant saved credential. See [the README's biometric behavior](../README.md#biometric-login-face-id--touch-id).
 
 ## Review checklist for App Store submission
 
@@ -54,4 +58,4 @@ Nothing here is collected by, or leaves to, Vercel/Render/Turso — both items e
 - Inspect Xcode’s privacy report and every bundled SDK privacy manifest.
 - Confirm App Store Connect answers mark the declared categories as linked, App Functionality, and not tracking.
 - Re-audit if analytics, crash reporting, support SDKs or new permissions are introduced.
-- Confirm `NSFaceIDUsageDescription` is present and accurate, and that Face ID/Touch ID is answered as App Functionality, not tracking, in the App Privacy questionnaire.
+- Confirm `NSFaceIDUsageDescription` is present and accurate. Reconcile the questionnaire with the account data actually collected; the app receives an OS authentication result, not face/fingerprint enrollment data.

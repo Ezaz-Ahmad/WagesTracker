@@ -1,8 +1,8 @@
 # Wages Tracker architecture
 
-**Applies to:** 1.20.0 source candidate
+**Applies to:** 1.22.0 application source
 
-**Last reviewed:** 30 August 2026
+**Last reviewed:** 11 October 2026
 
 This document describes the deployed web/PWA system, the Capacitor iOS application, the security boundaries, and the delivery pipeline. Source code and automated checks remain authoritative if a diagram and implementation ever differ.
 
@@ -12,7 +12,7 @@ This document describes the deployed web/PWA system, the Capacitor iOS applicati
 flowchart LR
   subgraph U["User-controlled devices"]
     WEB["Browser / installed PWA\nReact 18 + Vite"]
-    IOS["WagesTracker iPhone app\nReact bundle in Capacitor/WebKit"]
+    IOS["Wages Tracker iPhone app\nReact bundle in Capacitor/WebKit"]
     LIVE["ActivityKit + WidgetKit\nactive-shift Live Activity"]
     REMIND["UserNotifications\none-shot smart reminders"]
     PDF["Client-side jsPDF\nweekly wage report"]
@@ -36,6 +36,7 @@ flowchart LR
   subgraph APPLE["Apple services boundary"]
     AASA["Universal Link validation"]
     ASC["App Store Connect / TestFlight"]
+    CATALOG["Public App Store catalog"]
   end
 
   WEB -->|"HTTPS static assets"| VERCEL
@@ -52,6 +53,7 @@ flowchart LR
   VERCEL --> AASA
   AASA --> IOS
   ASC --> IOS
+  IOS -->|"Public app/storefront identifiers only"| CATALOG
 ```
 
 The browser and native web view are untrusted clients. They may provide helpful validation, but the Express API revalidates every request, derives ownership from the authenticated session, and is the only component allowed to access Turso or Resend. Vercel serves the browser/PWA assets and the public AASA file. The iOS application embeds its synchronized React build inside the signed application, so normal app startup does not load its UI from Vercel. No server credential belongs in either bundle. PDFs are generated from authenticated data on the device and are not uploaded as files to the backend.
@@ -86,9 +88,12 @@ sequenceDiagram
 
 - New passwords use Argon2id. Legacy bcrypt hashes are verified only for migration and are replaced after a successful login.
 - Ordinary sessions are database-backed and JWTs carry both a session id and `tokenVersion`; revocation, password change, password recovery, and account deletion invalidate them before JWT expiry.
+- Ordinary sessions expire after 30 days or 10 minutes of inactivity. Biometric-protected sessions rotate to a five-year absolute lifetime and skip ordinary idle expiry; explicit revocation and token-version checks still apply.
 - The iOS biometric plugin stores metadata separately from the bearer credential. The protected credential is device-only Keychain data guarded by the current biometric set and device passcode. The password itself is never stored.
+- Biometric-enabled logout is a local soft lock that retains the protected credential and backend session; ordinary logout revokes the session. Disabling biometrics, changing passwords, revoking the current session, or deleting the account clears the relevant credential.
+- Signup validates the email and likely domain typos without an ownership-confirmation email. An authenticated email change requires the current password and a one-use verification link at the proposed new address.
 - Recovery tokens are 32 random bytes. Only a domain-separated HMAC-SHA-256 digest keyed by the backend application secret is persisted. A token works once, expires after 25 minutes, and is superseded by a newer request.
-- Forgot-password responses and asynchronous delivery behaviour avoid confirming whether an account exists. Per-IP and keyed per-address rate limits reduce enumeration and mail flooding.
+- Forgot-password responses and asynchronous delivery behaviour avoid confirming whether an account exists. Per-IP and hashed per-address rate limits reduce enumeration and mail flooding.
 
 ## Wage, shift, spending, and report data flow
 
@@ -130,9 +135,17 @@ The embedded `ShiftActivityExtension` contains presentation code and intent meta
 
 ### Smart-reminder lifecycle
 
-Smart reminders are an account-level, default-off preference and a device notification capability. The React layer learns weekday patterns from the retained shift snapshot, but accepts only live-captured completed rows marked reminder-eligible by the API. A historical/completed create is marked manual immediately; any later PATCH that touches a time permanently marks that row ineligible, while the atomic live clock-out path preserves eligibility. The robust learner also excludes split-shift dates, extreme durations, irregular attendance and loose time clusters.
+Smart reminders are an account-level, default-off preference and a device notification capability. The React layer learns from completed shift history, including historical/manual entries and corrected times. At least four reliable occurrences on a weekday are needed. The latest twelve usable occurrences, recent cadence, and time agreement determine reliability; split-shift dates, extreme durations, irregular attendance and statistical outliers are excluded.
+
+Four consistent shifts at new hours replace an older routine; two conflicting shifts pause an uncertain routine. A three-week weekday gap starts a fresh learning era, and a routine whose last sample is more than fourteen days old stays silent. No API eligibility flag is used to exclude historical shifts from the current learner.
 
 The iOS bridge receives at most eight one-shot notification requests covering the next seven local calendar days and the currently open shift. It replaces that short horizon whenever authenticated shifts refresh or mutate, so clocking in cancels the corresponding start reminder and clocking out cancels the finish reminder. Notification actions do not receive a session token and do not call the API: Sign In/Sign Out only foreground the app and produce a pending intent, which the React confirmation dialog rechecks against current shift state before an explicit confirm tap can write anything. See [`smart-shift-reminders.md`](smart-shift-reminders.md).
+
+### Public App Store update detection
+
+The native adapter reads the installed marketing version through the existing App plugin and uses Capacitor's core HTTP bridge to query Apple's public catalog for App Store ID `6801702467`. It checks both that ID and the stable bundle ID before accepting a numeric newer version. No account token or wage/spending data is sent.
+
+Foreground checks share an in-flight request, cache successful lookups for six hours, and quietly retry failed lookups after fifteen minutes. Not now persists a public version and dismissal timestamp for a full 48-hour snooze. At its deadline a fresh lookup supplies the current latest version; equal versions and newer TestFlight versions never prompt. See [`app-store-updates.md`](app-store-updates.md) for lifecycle and rollout details.
 
 ### Work locations and allowance invariants
 
@@ -148,11 +161,13 @@ Entry presents those IDs through a responsive modal/bottom-sheet picker rather t
 
 ```mermaid
 flowchart LR
-  BRANCH["feature/* branch"] --> PR["Pull request"]
+  BRANCH["codex/* branch"] --> PR["Pull request"]
   PR --> CI["GitHub Actions CI\ntypes, tests, builds, smoke/a11y"]
   PR --> SIM["Unsigned iOS Simulator compile"]
+  PR --> CODEQL["CodeQL: JavaScript/TypeScript, Actions, Swift"]
   CI --> MAIN["Protected main commit"]
   SIM --> MAIN
+  CODEQL --> MAIN
   MAIN --> WEB["Vercel frontend deployment"]
   MAIN --> API["Render backend deployment"]
   MAIN --> MANUAL["Manual iOS TestFlight workflow dispatch"]
@@ -173,6 +188,7 @@ flowchart LR
 | `users` | Account profile, pay settings, goals, password hash, token version | User id is taken from auth, never request ownership fields |
 | `user_sessions` | Per-installation session state, expiry, revocation, biometric protection | Required by every regular-user JWT; explicit revocation supported |
 | `password_reset_tokens` | Recovery-token digest and lifecycle timestamps | No raw token; one-use, expiry and invalidation columns |
+| `email_verification_tokens` | Proposed email-change address and token lifecycle | Current-password confirmation, keyed token digest, one-use and expiry |
 | `work_locations` | User-owned named branches, optional address, allowance and archive state | Unique normalized name per user; active selector excludes archived rows |
 | `shifts` | Dated start/end/location work records | Overlap, duration, future-date, ownership and timezone rules |
 | `day_expenses` | Work/fuel value for a calendar day | Automatic and manual cents are retained separately; part of wage calculation; five-year pruning |
