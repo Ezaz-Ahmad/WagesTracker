@@ -37,7 +37,7 @@ The short horizon is deliberate. iOS can still deliver the requests while the We
 
 Missed sign-in alerts expose **Sign In**, **Remind Me Later**, and **Dismiss**. Missed sign-out alerts expose **Sign Out**, **Remind Me Later**, and **Dismiss**.
 
-- **Sign In/Sign Out:** requires device authentication, foregrounds Wage Tracker, and stores only a small pending action intent. It never calls the API. The app then rechecks current shift state and requires a second explicit confirmation. Sign In also requires an active work location.
+- **Sign In/Sign Out:** requires device authentication, foregrounds Wages Tracker, and stores only a small pending action intent. It never calls the API. The app then rechecks current shift state and requires a second explicit confirmation. Sign In also requires an active work location.
 - **Remind Me Later:** schedules one new notification after 15 minutes because the user explicitly requested it.
 - **Dismiss:** performs no follow-up action.
 

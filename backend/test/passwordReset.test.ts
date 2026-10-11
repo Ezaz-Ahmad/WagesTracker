@@ -255,7 +255,7 @@ describe("password recovery", () => {
     await request(app).post("/api/auth/reset-password").send({ token, password: replacement }).expect(200);
 
     const notice = outbox.find((message) => message.tag === "password-changed");
-    expect(notice?.subject).toBe("Your Wage Tracker password was changed");
+    expect(notice?.subject).toBe("Your Wages Tracker password was changed");
     for (const body of [notice?.text ?? "", notice?.html ?? ""]) {
       expect(body).not.toContain(account.password);
       expect(body).not.toContain(replacement);

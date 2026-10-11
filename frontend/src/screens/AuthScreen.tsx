@@ -208,7 +208,7 @@ export function AuthScreen() {
             <div className="auth-card-topline">
               <div className="section-title auth-card-brand">
                 <Logo size={22} />
-                Wage Tracker
+                Wages Tracker
               </div>
               <span className="auth-secure-badge"><LockIcon size={12} /> Secure</span>
             </div>
@@ -298,7 +298,7 @@ export function AuthScreen() {
                     Requested for <strong>{email.trim()}</strong>
                   </p>
                   <p className="field-hint auth-recovery-guidance">
-                    For privacy, Wage Tracker shows this confirmation for every address. Check your spam folder if the
+                    For privacy, Wages Tracker shows this confirmation for every address. Check your spam folder if the
                     email does not arrive, then try again later or create an account.
                   </p>
                   <button

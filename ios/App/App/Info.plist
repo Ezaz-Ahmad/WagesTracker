@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>WagesTracker</string>
+        <string>Wages Tracker</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -34,7 +34,7 @@
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>NSFaceIDUsageDescription</key>
-	<string>Use Face ID to securely unlock WagesTracker.</string>
+	<string>Use Face ID to securely unlock Wages Tracker.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>LSRequiresIPhoneOS</key>

@@ -5,11 +5,11 @@ const FRIENDLY_EXACT_MESSAGES: Readonly<Record<string, string>> = {
   "Invalid or expired token": "Your sign-in has expired. Please log in again.",
   "Missing or invalid Authorization header": "Your sign-in has expired. Please log in again.",
   "Internal server error": "Something went wrong. Please try again.",
-  "Origin not allowed": "Wage Tracker couldn't connect securely. Please try again later.",
+  "Origin not allowed": "Wages Tracker couldn't connect securely. Please try again later.",
   "Session not found": "That signed-in device is no longer listed. Refresh and try again.",
   "biometricProtected must be a boolean": "Couldn't update Face ID or Touch ID. Please try again.",
-  "Invalid device installation id": "This device couldn't be recognised. Close and reopen Wage Tracker, then try again.",
-  "Invalid or expired shift action token": "That shift shortcut has expired. Open Wage Tracker and try again.",
+  "Invalid device installation id": "This device couldn't be recognised. Close and reopen Wages Tracker, then try again.",
+  "Invalid or expired shift action token": "That shift shortcut has expired. Open Wages Tracker and try again.",
 };
 
 /**

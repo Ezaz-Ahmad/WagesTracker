@@ -115,7 +115,7 @@ export function BiometricLoginSettings() {
       <div className="section-hint">
         {enabledForMe
           ? `Use ${name} instead of retyping your password on this device. It keeps you signed in until you log out or turn this off.`
-          : `Turn on ${name} to open Wage Tracker without retyping your password on this device. Your password will still work everywhere.`}
+          : `Turn on ${name} to open Wages Tracker without retyping your password on this device. Your password will still work everywhere.`}
       </div>
       {anotherAccountHasItOn && (
         <div className="section-hint" style={{ marginBottom: 0 }}>

@@ -24,7 +24,7 @@ export function VerifyEmailPage({ token: providedToken }: { token?: string } = {
   useEffect(() => {
     let cancelled = false;
     if (!token) {
-      setMessage("This verification link is incomplete. Request a new one from Wage Tracker.");
+      setMessage("This verification link is incomplete. Request a new one from Wages Tracker.");
       setStage("invalid");
       return;
     }
@@ -52,14 +52,14 @@ export function VerifyEmailPage({ token: providedToken }: { token?: string } = {
       standalone
       eyebrow="Account security"
       title="Verify your email"
-      summary="Email ownership is confirmed with a secure, single-use link. Wage Tracker never changes your password during this process."
+      summary="Email ownership is confirmed with a secure, single-use link. Wages Tracker never changes your password during this process."
     >
       {stage === "checking" && <p className="public-page-note" role="status"><BubbleLoader label="Verifying your email" /></p>}
       {stage === "invalid" && (
         <>
           <StatusBanner tone="danger">{message ?? "This verification link is no longer valid."}</StatusBanner>
-          <p>Verification links work once and expire after 24 hours. Return to Wage Tracker to request a fresh link.</p>
-          <p><a className="btn btn-primary" href="/" onClick={returnToApp}>Back to Wage Tracker</a></p>
+          <p>Verification links work once and expire after 24 hours. Return to Wages Tracker to request a fresh link.</p>
+          <p><a className="btn btn-primary" href="/" onClick={returnToApp}>Back to Wages Tracker</a></p>
         </>
       )}
       {stage === "done" && result && (
@@ -67,7 +67,7 @@ export function VerifyEmailPage({ token: providedToken }: { token?: string } = {
           <StatusBanner tone="success">{result.message}</StatusBanner>
           <p><strong>{result.email}</strong> is now {result.purpose === "signup" ? "verified for your account" : "your login email"}.</p>
           <p>Your password, shifts, reports, settings, and signed-in devices were not changed.</p>
-          <p><a className="btn btn-primary" href="/" onClick={returnToApp}>{result.purpose === "signup" ? "Go to log in" : "Return to Wage Tracker"}</a></p>
+          <p><a className="btn btn-primary" href="/" onClick={returnToApp}>{result.purpose === "signup" ? "Go to log in" : "Return to Wages Tracker"}</a></p>
         </>
       )}
     </PublicPageShell>

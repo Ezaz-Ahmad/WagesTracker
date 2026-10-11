@@ -1,22 +1,22 @@
 import { PublicPageShell } from "../components/PublicPageShell";
 import { InternalAppLink } from "../components/AppLink";
 
-const LAST_UPDATED = "6 September 2026";
+const LAST_UPDATED = "11 October 2026";
 
 export function PrivacyPolicyPage() {
   return (
     <PublicPageShell
       eyebrow="Privacy"
       title="Privacy Policy"
-      summary="Wage Tracker collects only the information needed to run your private account and keep it secure."
+      summary="Wages Tracker collects only the information needed to run your private account and keep it secure."
     >
       <p className="public-page-updated">Last updated: {LAST_UPDATED}</p>
 
       <section>
-        <h2>Who operates Wage Tracker</h2>
+        <h2>Who operates Wages Tracker</h2>
         <p>
-          Wage Tracker is developed and operated by Ezaz Ahmad in New South Wales, Australia. This policy applies to
-          the Wage Tracker website, installed web app, and mobile applications.
+          Wages Tracker is developed and operated by Ezaz Ahmad in New South Wales, Australia. This policy applies to
+          the Wages Tracker website, installed web app, and mobile applications.
         </p>
       </section>
 
@@ -31,7 +31,7 @@ export function PrivacyPolicyPage() {
           <li><strong>Signed-in device information:</strong> device or browser type, internet address, sign-in and last-used times, and whether access has ended.</li>
           <li><strong>Connection and error information:</strong> the page or action requested, timing, internet address, browser details, and security or error logs.</li>
         </ul>
-        <p>Wage Tracker does not request access to your contacts, photos, precise device location, microphone, or your device's advertising ID.</p>
+        <p>Wages Tracker does not request access to your contacts, photos, precise device location, microphone, or your device's advertising ID.</p>
       </section>
 
       <section>
@@ -47,25 +47,30 @@ export function PrivacyPolicyPage() {
       </section>
 
       <section>
-        <h2>Companies that help run Wage Tracker</h2>
+        <h2>Companies that help run Wages Tracker</h2>
         <p>
           <strong>Vercel</strong> displays the website and may process normal connection details such as your internet
-          address, browser, requested page, and timing. <strong>Render</strong> runs Wage Tracker's online service and
+          address, browser, requested page, and timing. <strong>Render</strong> runs Wages Tracker's online service and
           may process sign-in details, connection information, and operating logs. <strong>Turso</strong> stores account,
           work, personal spending, and signed-in device records. <strong>Resend</strong> processes your email address and
-          message content when Wage Tracker sends password-reset instructions or a password-change notice.
+          message content when Wages Tracker sends password-reset instructions or a password-change notice.
           <strong>Google Fonts</strong> may receive normal connection information when the app loads its fonts.
         </p>
         <p>
-          These providers use information only to help run Wage Tracker and may operate outside Australia.
-          Weekly wage PDFs are created on your device from your current work records. Wage Tracker does not upload a
+          The iPhone app checks <strong>Apple's App Store</strong> for publicly available updates. Apple receives
+          normal connection information for this request; we do not send your account, shifts, or spending records.
+          Choosing Update now opens Apple's listing, which follows Apple's own privacy practices.
+        </p>
+        <p>
+          These providers use information only to help run Wages Tracker and may operate outside Australia.
+          Weekly wage PDFs are created on your device from your current work records. Wages Tracker does not upload a
           separate copy of the finished PDF. Personal spending is not included in those employer-facing wage PDFs.
           Following a link to GitHub or the developer website
           is governed by that destination's own privacy practices.
         </p>
         <p>
           Passwords are protected in a one-way form that cannot be turned back into your readable password. No online
-          service can guarantee complete security, but Wage Tracker uses reasonable safeguards for the information it holds.
+          service can guarantee complete security, but Wages Tracker uses reasonable safeguards for the information it holds.
         </p>
       </section>
 
@@ -101,13 +106,13 @@ export function PrivacyPolicyPage() {
 
       <section>
         <h2>Children</h2>
-        <p>Wage Tracker is not directed to children under 13, and we do not knowingly collect their personal information.</p>
+        <p>Wages Tracker is not directed to children under 13, and we do not knowingly collect their personal information.</p>
       </section>
 
       <section>
         <h2>Changes to this policy</h2>
         <p>
-          We may update this policy as Wage Tracker or its legal obligations change. The latest version will remain
+          We may update this policy as Wages Tracker or its legal obligations change. The latest version will remain
           available at this URL and will show its effective date above.
         </p>
       </section>

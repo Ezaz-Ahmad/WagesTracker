@@ -46,7 +46,7 @@ function layout(input: EmailLayout): string {
 <body style="margin:0;padding:0;background:${BRAND.background};"><div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(input.intro)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${BRAND.background};padding:32px 12px;"><tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;background:${BRAND.surface};border:1px solid ${BRAND.border};border-radius:16px;"><tr><td style="padding:28px 32px 8px;font-family:Segoe UI,Helvetica,Arial,sans-serif;color:${BRAND.accent};font-size:15px;font-weight:800;">Wage&nbsp;Tracker</td></tr><tr><td style="padding:0 32px 32px;font-family:Segoe UI,Helvetica,Arial,sans-serif;"><h1 style="margin:8px 0 16px;font-size:22px;line-height:1.3;color:${BRAND.text};">${escapeHtml(input.heading)}</h1>${paragraphs}${button}<hr style="border:0;border-top:1px solid ${BRAND.border};margin:8px 0 16px;"><p style="margin:0;font-size:12px;line-height:1.6;color:${BRAND.muted};">${input.footnote}</p></td></tr></table>
-<p style="max-width:560px;margin:16px auto 0;font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;line-height:1.6;color:${BRAND.muted};text-align:center;">This is an automated message from Wage Tracker. Please don't reply to it.</p>
+<p style="max-width:560px;margin:16px auto 0;font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;line-height:1.6;color:${BRAND.muted};text-align:center;">This is an automated message from Wages Tracker. Please don't reply to it.</p>
 </td></tr></table></body></html>`;
 }
 
@@ -56,7 +56,7 @@ export function passwordResetEmail(input: {
   resetUrl: string;
   expiresInMinutes: number;
 }): EmailMessage {
-  const heading = "Reset your Wage Tracker password";
+  const heading = "Reset your Wages Tracker password";
   return {
     to: input.to,
     subject: heading,
@@ -66,7 +66,7 @@ export function passwordResetEmail(input: {
       intro: `Use this link within ${input.expiresInMinutes} minutes to choose a new password.`,
       paragraphs: [
         escapeHtml(greeting(input.name)),
-        "We received a request to reset the password for your Wage Tracker account.",
+        "We received a request to reset the password for your Wages Tracker account.",
       ],
       buttonLabel: "Choose a new password",
       buttonUrl: input.resetUrl,
@@ -75,7 +75,7 @@ export function passwordResetEmail(input: {
     text: [
       greeting(input.name),
       "",
-      "We received a request to reset the password for your Wage Tracker account.",
+      "We received a request to reset the password for your Wages Tracker account.",
       "Open this link to choose a new password:",
       "",
       input.resetUrl,
@@ -83,13 +83,13 @@ export function passwordResetEmail(input: {
       `This link works once and expires in ${input.expiresInMinutes} minutes.`,
       "If you didn't request it, you can safely ignore this email; your current password remains unchanged.",
       "",
-      "— Wage Tracker",
+      "— Wages Tracker",
     ].join("\n"),
   };
 }
 
 export function passwordChangedEmail(input: { to: string; name: string; supportUrl: string }): EmailMessage {
-  const heading = "Your Wage Tracker password was changed";
+  const heading = "Your Wages Tracker password was changed";
   return {
     to: input.to,
     subject: heading,
@@ -99,21 +99,21 @@ export function passwordChangedEmail(input: { to: string; name: string; supportU
       intro: "Every signed-in device has been signed out.",
       paragraphs: [
         escapeHtml(greeting(input.name)),
-        "The password on your Wage Tracker account was changed, and every signed-in device was signed out.",
+        "The password on your Wages Tracker account was changed, and every signed-in device was signed out.",
         "If this was you, there is nothing else to do—just sign in again with your new password.",
       ],
-      footnote: `If this wasn't you, secure your email account, reset your Wage Tracker password again immediately, and contact support: <a href="${escapeHtml(input.supportUrl)}" style="color:${BRAND.accentDark};">${escapeHtml(input.supportUrl)}</a>`,
+      footnote: `If this wasn't you, secure your email account, reset your Wages Tracker password again immediately, and contact support: <a href="${escapeHtml(input.supportUrl)}" style="color:${BRAND.accentDark};">${escapeHtml(input.supportUrl)}</a>`,
     }),
     text: [
       greeting(input.name),
       "",
-      "The password on your Wage Tracker account was changed, and every signed-in device was signed out.",
+      "The password on your Wages Tracker account was changed, and every signed-in device was signed out.",
       "If this was you, there is nothing else to do—just sign in again with your new password.",
       "",
       "If this wasn't you, secure your email account, reset your password again immediately, and contact support:",
       input.supportUrl,
       "",
-      "— Wage Tracker",
+      "— Wages Tracker",
     ].join("\n"),
   };
 }
@@ -126,7 +126,7 @@ export function emailVerificationEmail(input: {
   purpose: "signup" | "change";
 }): EmailMessage {
   const changing = input.purpose === "change";
-  const heading = changing ? "Confirm your new email" : "Verify your Wage Tracker email";
+  const heading = changing ? "Confirm your new email" : "Verify your Wages Tracker email";
   return {
     to: input.to,
     subject: heading,
@@ -137,8 +137,8 @@ export function emailVerificationEmail(input: {
       paragraphs: [
         escapeHtml(greeting(input.name)),
         changing
-          ? "A request was made to use this email address for your Wage Tracker account. Your current login email remains active until you confirm this one."
-          : "Confirm that this email address belongs to you before signing in to your new Wage Tracker account.",
+          ? "A request was made to use this email address for your Wages Tracker account. Your current login email remains active until you confirm this one."
+          : "Confirm that this email address belongs to you before signing in to your new Wages Tracker account.",
       ],
       buttonLabel: changing ? "Confirm new email" : "Verify email",
       buttonUrl: input.verificationUrl,
@@ -148,15 +148,15 @@ export function emailVerificationEmail(input: {
       greeting(input.name),
       "",
       changing
-        ? "Confirm this address before it replaces your current Wage Tracker login email."
-        : "Confirm that this email address belongs to you before signing in to your new Wage Tracker account.",
+        ? "Confirm this address before it replaces your current Wages Tracker login email."
+        : "Confirm that this email address belongs to you before signing in to your new Wages Tracker account.",
       "",
       input.verificationUrl,
       "",
       `This link works once and expires in ${input.expiresInHours} hours.`,
       "If you didn't request it, ignore this email; no email address or password will be changed.",
       "",
-      "— Wage Tracker",
+      "— Wages Tracker",
     ].join("\n"),
   };
 }
@@ -169,7 +169,7 @@ export function emailChangedEmail(input: {
   supportUrl: string;
   sentToOldAddress: boolean;
 }): EmailMessage {
-  const heading = "Your Wage Tracker email was changed";
+  const heading = "Your Wages Tracker email was changed";
   return {
     to: input.to,
     subject: heading,
@@ -179,22 +179,22 @@ export function emailChangedEmail(input: {
       intro: `Your login email is now ${input.newEmail}. Your password was not changed.`,
       paragraphs: [
         escapeHtml(greeting(input.name)),
-        `The login email for your Wage Tracker account changed from <strong>${escapeHtml(input.oldEmail)}</strong> to <strong>${escapeHtml(input.newEmail)}</strong>.`,
+        `The login email for your Wages Tracker account changed from <strong>${escapeHtml(input.oldEmail)}</strong> to <strong>${escapeHtml(input.newEmail)}</strong>.`,
         "Your password, shifts, reports, settings, and signed-in devices were not changed.",
       ],
       footnote: input.sentToOldAddress
         ? `If you didn't authorise this, contact support immediately: <a href="${escapeHtml(input.supportUrl)}" style="color:${BRAND.accentDark};">${escapeHtml(input.supportUrl)}</a>`
-        : "This message confirms that this address is now used to log in to your Wage Tracker account.",
+        : "This message confirms that this address is now used to log in to your Wages Tracker account.",
     }),
     text: [
       greeting(input.name),
       "",
-      `Your Wage Tracker login email changed from ${input.oldEmail} to ${input.newEmail}.`,
+      `Your Wages Tracker login email changed from ${input.oldEmail} to ${input.newEmail}.`,
       "Your password, shifts, reports, settings, and signed-in devices were not changed.",
       "",
       input.sentToOldAddress ? `If you didn't authorise this, contact support immediately: ${input.supportUrl}` : "This address is now used to log in.",
       "",
-      "— Wage Tracker",
+      "— Wages Tracker",
     ].join("\n"),
   };
 }

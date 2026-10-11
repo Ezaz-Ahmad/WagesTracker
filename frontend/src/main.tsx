@@ -7,6 +7,7 @@ import { configureTokenStorage, initializeTokenStorage } from "./platform/tokenS
 import { configurePdfDelivery } from "./platform/pdfDelivery";
 import { configureConnectivityAdapter } from "./platform/connectivity";
 import { configureAppLifecycleAdapter } from "./platform/appLifecycle";
+import { configureAppUpdates } from "./platform/appUpdates";
 import { configureBiometricAuth } from "./platform/biometricAuth";
 import { configureActiveShiftActivity } from "./platform/activeShiftActivity";
 import { configureSmartShiftReminderNotifications } from "./platform/smartShiftReminderNotifications";
@@ -21,6 +22,7 @@ import "./styles/public-pages.css";
 import "./styles/spending.css";
 import "./styles/customization.css";
 import "./styles/home-insights.css";
+import "./styles/app-update.css";
 import { ErrorPopup } from "./components/ErrorPopup";
 
 // Last-resort net for a stray rejected promise nothing else catches (every
@@ -57,6 +59,10 @@ if (__NATIVE_CONSUMER_BUILD__ && Capacitor.isNativePlatform()) {
   configurePdfDelivery(new pdf.IosPdfDeliveryAdapter());
   configureConnectivityAdapter(new connectivity.NativeConnectivityAdapter());
   configureAppLifecycleAdapter(new lifecycle.NativeAppLifecycleAdapter());
+  if (Capacitor.getPlatform() === "ios") {
+    const { IosAppUpdateAdapter } = await import("./platform/nativeAppUpdates");
+    configureAppUpdates(new IosAppUpdateAdapter());
+  }
   configureBiometricAuth(new biometrics.NativeBiometricAuthAdapter());
   configureActiveShiftActivity(new activeShift.NativeActiveShiftActivityAdapter());
   configureSmartShiftReminderNotifications(new smartReminders.NativeSmartShiftReminderNotificationAdapter());

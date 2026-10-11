@@ -13,7 +13,7 @@ describe("public App Store pages", () => {
     const { container } = render(<PrivacyPolicyPage />);
 
     expect(screen.getByRole("heading", { level: 1, name: "Privacy Policy" })).toBeTruthy();
-    expect(screen.getByText(/Last updated: 6 September 2026/)).toBeTruthy();
+    expect(screen.getByText(/Last updated: 11 October 2026/)).toBeTruthy();
     expect(screen.getByText(/Optional personal spending records:/)).toBeTruthy();
     expect(screen.getByText(/Personal spending is not included in those employer-facing wage PDFs/)).toBeTruthy();
     expect(screen.getByText("Resend").parentElement?.textContent).toContain("message content");
@@ -29,7 +29,7 @@ describe("public App Store pages", () => {
   it("publishes support and safe-reporting guidance", async () => {
     const { container } = render(<SupportPage />);
 
-    expect(screen.getByRole("heading", { level: 1, name: "Wage Tracker Support" })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Wages Tracker Support" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "ezazahmadshanto@gmail.com" }).getAttribute("href"))
       .toBe("mailto:ezazahmadshanto@gmail.com");
     expect(screen.getByRole("link", { name: /Public issue form.*opens in a new tab/ }).getAttribute("href"))

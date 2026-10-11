@@ -1,4 +1,4 @@
-# Wage Tracker
+# Wages Tracker
 
 A full-stack app for tracking work shifts, hourly earnings, personal spending, and weekly goals — clock in/out, record everyday expenses, understand the difference between recorded earnings and spending, review trends, and export private wage reports. Mobile-first, with a persistent sidebar dashboard layout on tablet/desktop.
 
@@ -51,6 +51,10 @@ Existing wage PDFs remain employer/accountant-facing work reports. They are gene
 - Category switching animates only background, border, and text/icon color — never a scale or position change — so nothing shakes or jumps when a row is pressed or selected
 - Every category panel stays mounted while you navigate between them, so an unsaved edit in one category is still there if you switch away and back
 - Fully keyboard-operable, with a focus ring that's visually distinct from the selected-row styling, and touch targets sized for mobile use
+
+### App Store updates and product name
+
+The visible app name is **Wages Tracker**, including the native home-screen label, app UI, PWA, reports and emails. Native iOS checks Apple's published App Store version after startup, on foreground resume and periodically while visible. A newer public release shows a responsive, theme-aware **Update now / Not now** dialog; Update now opens the existing App Store listing, while dismissal postpones reminders for 48 hours across launches. The reminder returns only if the installed app is still older, using actual Installed → Latest version numbers. Future releases are detected automatically from Apple's catalog. Equal versions, newer TestFlight builds and offline failures remain silent. Existing `1.21.0` installations first need an ordinary App Store update to acquire the checker. The App Store Connect listing name must also be changed with the next review submission. See [`docs/app-store-updates.md`](docs/app-store-updates.md) for the rollout, caching and verification details.
 
 ### Work locations, fuel allowance, and weekly memory
 
@@ -110,13 +114,13 @@ A `/api/health` response only ever tells the browser one of two things: it hasn'
 
 ## Product status and roadmap
 
-Wage Tracker is a production web application and installable PWA with a committed Capacitor iOS shell. The current source candidate is **1.21.1**, including the Settings credit and About navigation improvements alongside the native active-shift Live Activity and atomic notification clock-out flow. The web deployment, signed TestFlight upload, real-mail recovery flow, Universal Link opening, and physical-device regression are operational release gates; this candidate must not be described as released until those gates have passed. The mobile strategy keeps product logic in one tested React/TypeScript codebase and introduces thin platform adapters only where web and native behaviour genuinely differ.
+Wages Tracker is a production web application and installable PWA with a committed Capacitor iOS shell. The current source candidate is **1.22.0**, adding App Store update prompts and the consistent Wages Tracker name, alongside the Settings credit, About navigation, native active-shift Live Activity and atomic notification clock-out flow. The web deployment, signed TestFlight upload, real-mail recovery flow, Universal Link opening, and physical-device regression are operational release gates; this candidate must not be described as released until those gates have passed. The mobile strategy keeps product logic in one tested React/TypeScript codebase and introduces thin platform adapters only where web and native behaviour genuinely differ.
 
 | Capability | Current status | Planned delivery |
 | --- | --- | --- |
 | Responsive web application | Live on Vercel | Continues as the fastest release channel |
 | Installable PWA | Available from supported browsers | Maintained alongside native applications |
-| iPhone application | 1.21.1 source candidate; signed upload and physical-device verification still required | Register/sign the Shift Activity extension, run the protected TestFlight workflow, complete the device checklist, then consider App Store review |
+| iPhone application | 1.22.0 source candidate; signed upload and physical-device verification still required | Register/sign the Shift Activity extension, run the protected TestFlight workflow, complete the device checklist, then consider App Store review |
 | Android application | Planned after iOS | Same Capacitor foundation, internal testing, then Google Play |
 | Shared backend | Live on Render with Turso | One versioned HTTPS API for web, iOS, and Android |
 
@@ -265,7 +269,7 @@ The native foundation defines platform-neutral token-storage, PDF-delivery and a
 
 ## Versioning
 
-The public marketing version follows semantic versioning: major for a breaking/fundamental redesign, minor for new functionality, and patch for compatible fixes. Every release that contains code, UI, feature, or behaviour changes receives a new version; documentation-only maintenance can retain the current version. The current `1.21.1` source candidate is a patch release for the Settings credit, About navigation, and approved logo improvements. The release version is deliberately chosen for the scope of the release, rather than automatically incremented for every commit.
+The public marketing version follows semantic versioning: major for a breaking/fundamental redesign, minor for new functionality, and patch for compatible fixes. Every release that contains code, UI, feature, or behaviour changes receives a new version; documentation-only maintenance can retain the current version. The current `1.22.0` source candidate is a minor release adding App Store update prompts and standardising the visible product name as Wages Tracker. The release version is deliberately chosen for the scope of the release, rather than automatically incremented for every commit.
 
 `frontend/package.json` is the release source of truth. The same value must appear in `package-lock.json` and both Xcode build configurations. `frontend/scripts/verify-testflight-config.mjs` derives the expected value dynamically and fails if package metadata, lockfile, Xcode or the protected workflow diverges. The `testflight` GitHub environment variable `IOS_APP_VERSION` must match it. Before release, `git grep` for the previous version and review every result rather than copying a stale value forward.
 
@@ -387,7 +391,7 @@ On-device checklist: install the build to the Home Screen, log out, focus the pa
 | `ARGON2_TIME_COST` | no | Argon2id iteration count, defaults to `2` |
 | `ARGON2_PARALLELISM` | no | Argon2id parallelism factor, defaults to `1` |
 | `RESEND_API_KEY` | **yes for production password recovery** | server-only Resend API key. Never use a `VITE_` prefix and never add it to the frontend or iOS project |
-| `MAIL_FROM` | **yes for production password recovery** | sender on a domain verified in Resend, e.g. `Wage Tracker <no-reply@example.com>` |
+| `MAIL_FROM` | **yes for production password recovery** | sender on a domain verified in Resend, e.g. `Wages Tracker <no-reply@example.com>` |
 | `MAIL_REPLY_TO` | no | optional reply/support address for transactional mail |
 | `APP_BASE_URL` | **yes for production password recovery** | public HTTPS frontend origin used to build reset links, currently `https://wages-tracker-frontend.vercel.app` |
 | `MAIL_PROVIDER` | no | inferred automatically; `resend` may be set explicitly. `console` and `memory` are refused in production |
@@ -531,7 +535,7 @@ Set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` on the service (Environment tab)
 For password-recovery email, create a Resend account, add and verify a sending domain, then create a sending API key. On the Render service's **Environment** page set:
 
 - `RESEND_API_KEY` to that key (server secret).
-- `MAIL_FROM` to a sender on the verified domain, for example `Wage Tracker <no-reply@yourdomain.com>`.
+- `MAIL_FROM` to a sender on the verified domain, for example `Wages Tracker <no-reply@yourdomain.com>`.
 - `MAIL_REPLY_TO` optionally to the support inbox.
 - `APP_BASE_URL` to `https://wages-tracker-frontend.vercel.app` with no path.
 

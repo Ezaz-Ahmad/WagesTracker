@@ -1,0 +1,32 @@
+.app-update-backdrop {
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  overflow-y: auto;
+}
+.app-update-dialog {
+  width: min(420px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 28px 24px 20px;
+  gap: 14px;
+  color: var(--color-text);
+}
+.app-update-brand { display: flex; flex-direction: column; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; }
+.app-update-brand .app-logo { border-radius: 15px; overflow: hidden; box-shadow: var(--shadow-sm); }
+.app-update-eyebrow { margin-top: 8px; color: var(--color-neutral-700); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; font-weight: 600; }
+.app-update-dialog h2 { margin: 0; font-size: clamp(22px, 5.5vw, 26px); line-height: 1.2; letter-spacing: -.04em; }
+.app-update-dialog p { margin: 0; color: var(--color-neutral-700); font-size: 14px; line-height: 1.65; text-wrap: pretty; }
+.app-update-dialog p strong { color: var(--color-text); font-weight: 600; }
+.app-update-version { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 2px 0 4px; padding: 10px 12px; border: 1px solid var(--color-divider); border-radius: 10px; font-size: 11px; color: var(--color-neutral-700); }
+.app-update-version strong { color: var(--color-text); font-weight: 600; }
+.app-update-actions { flex-direction: column; gap: 8px; }
+.app-update-actions .confirm-action-btn { flex: none; display: flex; justify-content: center; align-items: center; min-height: 48px; padding: 12px 16px; text-decoration: none; font-size: 14px; font-weight: 600; }
+.app-update-primary { background: var(--color-text); color: var(--color-surface-raised); }
+.app-update-primary:hover { opacity: .88; }
+.app-update-later { background: transparent; color: var(--color-neutral-700); }
+.app-update-later:hover { background: var(--color-neutral-100); }
+@media (max-width: 350px), (max-height: 500px) {
+  .app-update-dialog { padding: 20px 18px 14px; gap: 10px; }
+  .app-update-brand { flex-direction: row; gap: 10px; }
+  .app-update-brand .app-logo { width: 40px !important; height: 40px !important; border-radius: 11px; }
+  .app-update-eyebrow { margin-top: 2px; }
+}
