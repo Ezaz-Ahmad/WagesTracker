@@ -1,7 +1,5 @@
 import { useState } from "react";
 import { RETENTION_YEARS, useApp } from "../context/AppContext";
-import { AppCredit } from "../components/AppCredit";
-import { InternalAppLink } from "../components/AppLink";
 import { DeleteAccountDialog } from "./DeleteAccountDialog";
 
 export function DataAccountSettings() {
@@ -16,14 +14,6 @@ export function DataAccountSettings() {
         deleted. PDF reports are generated on your device and are not stored by Wage Tracker. Personal spending is
         kept until you delete it or delete your account. Log out from the button at the top of the app.
       </p>
-
-      <div className="hr" />
-      <h3 className="settings-subsection-title">About</h3>
-      <AppCredit showVersion />
-      <nav className="settings-policy-links" aria-label="Privacy and support">
-        <InternalAppLink href="/privacy">Privacy Policy</InternalAppLink>
-        <InternalAppLink href="/support">Support</InternalAppLink>
-      </nav>
 
       <div className="hr" />
       <h3 className="settings-subsection-title settings-danger-title">Delete account</h3>

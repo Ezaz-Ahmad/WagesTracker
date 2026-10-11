@@ -9,11 +9,17 @@ const assetRoots = ["frontend/assets", "ios/App/App/Assets.xcassets"];
 
 export const REQUIRED_DIMENSIONS = new Map([
   ["frontend/assets/icon-only.png", [1024, 1024]],
+  ["frontend/assets/icon-dark.png", [1024, 1024]],
   ["frontend/assets/splash.png", [2732, 2732]],
+  ["frontend/assets/splash-dark.png", [2732, 2732]],
   ["ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png", [1024, 1024]],
+  ["ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-Dark.png", [1024, 1024]],
   ["ios/App/App/Assets.xcassets/Splash.imageset/Default@1x~universal~anyany.png", [2732, 2732]],
   ["ios/App/App/Assets.xcassets/Splash.imageset/Default@2x~universal~anyany.png", [2732, 2732]],
   ["ios/App/App/Assets.xcassets/Splash.imageset/Default@3x~universal~anyany.png", [2732, 2732]],
+  ["ios/App/App/Assets.xcassets/Splash.imageset/Default@1x~universal~anyany-dark.png", [2732, 2732]],
+  ["ios/App/App/Assets.xcassets/Splash.imageset/Default@2x~universal~anyany-dark.png", [2732, 2732]],
+  ["ios/App/App/Assets.xcassets/Splash.imageset/Default@3x~universal~anyany-dark.png", [2732, 2732]],
 ]);
 
 function portable(path) { return path.split(sep).join("/"); }

@@ -95,4 +95,12 @@ describe("Settings accessibility (axe)", () => {
 
     expect(await axe(container, axeOptions)).toHaveNoViolations();
   });
+
+  it("has no detectable violations on the About view", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<SettingsScreen />);
+    await user.click(screen.getByRole("button", { name: /^About/ }));
+
+    expect(await axe(container, axeOptions)).toHaveNoViolations();
+  });
 });

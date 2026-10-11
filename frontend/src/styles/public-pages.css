@@ -111,9 +111,6 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-.settings-policy-links { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 var(--space-3); }
-.settings-policy-links a { min-height: 44px; display: inline-flex; align-items: center; font-size: 12px; font-weight: 600; }
-
 @media (max-width: 520px) {
   .public-page-header { width: min(100% - 24px, 1000px); min-height: 64px; }
   .public-page-brand span { font-size: 14px; }

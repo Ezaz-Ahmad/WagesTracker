@@ -9,6 +9,12 @@ a:hover { color: var(--color-accent); }
 input[type="time"]::-webkit-calendar-picker-indicator { filter: none; opacity: 0.6; }
 button { font-family: inherit; }
 
+.app-logo { display: inline-grid; flex: none; overflow: hidden; border-radius: 25%; }
+.app-logo img { display: block; grid-area: 1 / 1; width: 100%; height: 100%; object-fit: contain; }
+.app-logo .app-logo-dark { display: none; }
+html[data-theme="dark"] .app-logo-default { display: none; }
+html[data-theme="dark"] .app-logo .app-logo-dark { display: block; }
+
 /* — auth — */
 .auth-wrap {
   min-height: 100vh; background: var(--color-page-chrome);
@@ -20,17 +26,17 @@ button { font-family: inherit; }
 
 /* — credit — */
 .app-credit {
-  display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
-  gap: var(--space-2); margin-top: var(--space-3); margin-bottom: var(--space-3);
+  display: flex; flex-direction: column; align-items: center;
+  gap: 12px; min-width: 0; text-align: center;
 }
-.app-credit-name { font-size: 11px; opacity: 0.7; }
-.app-credit-links { display: inline-flex; gap: 6px; }
+.app-credit-name { font-size: 12px; line-height: 1.5; color: color-mix(in srgb, var(--color-text) 70%, var(--color-bg)); }
+.app-credit-name strong { color: var(--color-text); font-weight: 600; }
+.app-credit-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: 100%; }
 .app-credit-link {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 6px 12px; font-size: 11px; font-weight: 600;
-  border-radius: 999px; border: 1px solid transparent; color: var(--color-text);
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px; box-sizing: border-box; padding: 8px 13px; font-size: 11px; font-weight: 600;
+  border-radius: 999px; border: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent); color: var(--color-text);
   background: color-mix(in srgb, var(--color-text) 5%, var(--color-bg));
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 50%, transparent);
   text-decoration: none;
   transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard),
     box-shadow var(--dur-base) var(--ease-standard), transform var(--dur-base) cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -38,13 +44,16 @@ button { font-family: inherit; }
 .app-credit-link svg { display: block; flex: none; }
 .app-credit-link:hover {
   color: var(--color-accent-700); background: var(--color-accent-100);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 50%, transparent), 0 4px 10px -6px color-mix(in srgb, var(--color-accent) 40%, transparent);
+  border-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
 }
+.app-credit-link:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
 .app-credit-link:active { transform: scale(var(--press-scale)); transition-duration: 90ms; transition-timing-function: var(--ease-standard); }
-.app-credit-version {
-  width: 100%; text-align: center; margin-top: 2px;
-  font-size: 10px; font-variant-numeric: tabular-nums;
-  color: color-mix(in srgb, var(--color-text) 65%, transparent);
+.app-credit-meta { display: flex; flex-direction: column; align-items: center; gap: 5px; max-width: 100%; }
+.app-credit-version,
+.app-credit-copyright {
+  max-width: 100%; overflow-wrap: anywhere;
+  font-size: 10.5px; line-height: 1.5; font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--color-text) 65%, var(--color-bg));
 }
 
 /* — password visibility toggle — */

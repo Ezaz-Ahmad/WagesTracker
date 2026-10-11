@@ -418,6 +418,16 @@ export function InfoIcon({ size = 16 }: IconProps) {
   );
 }
 
+export function HelpCircleIcon({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.75-2.5 2-2.5 4" />
+      <path d="M12 16.5v.25" />
+    </svg>
+  );
+}
+
 /* — device-kind glyphs for the Security → active sessions list. Three
    silhouettes rather than three labels: at card scale the shape is what the
    eye actually uses to sort "my phone" from "my laptop", and the written
