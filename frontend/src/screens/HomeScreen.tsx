@@ -618,11 +618,11 @@ export function HomeScreen({ onNavigate, onManageLocations }: { onNavigate?: (sc
   const [busy, setBusy] = useState(false);
   const [selectedClockLocationId, setSelectedClockLocationId] = useState("");
   const [locationPickerOpen, setLocationPickerOpen] = useState(false);
-  const { homeWidgetOrder, hiddenHomeWidgets } = useLayoutPreferences();
+  const { homeWidgetOrder, hiddenHomeWidgets, hiddenTabs } = useLayoutPreferences();
   const hiddenWidgets = useMemo(() => new Set(hiddenHomeWidgets), [hiddenHomeWidgets]);
   const visibleWidgets = useMemo(
-    () => homeWidgetOrder.filter((widgetId) => !hiddenWidgets.has(widgetId)),
-    [homeWidgetOrder, hiddenWidgets]
+    () => homeWidgetOrder.filter((widgetId) => !hiddenWidgets.has(widgetId) && !(widgetId === "spending" && hiddenTabs.includes("spending"))),
+    [homeWidgetOrder, hiddenWidgets, hiddenTabs]
   );
   const dashboardRef = useFlipAnimation<HTMLDivElement>(visibleWidgets.join("|"));
 
@@ -645,7 +645,7 @@ export function HomeScreen({ onNavigate, onManageLocations }: { onNavigate?: (sc
     loading: spendingSnapshotLoading,
     error: spendingSnapshotError,
     refresh: refreshSpendingSnapshot,
-  } = useSpendingSummary(user?.id ?? "logged-out", monthStartISO, monthEndISO, !!user);
+  } = useSpendingSummary(user?.id ?? "logged-out", monthStartISO, monthEndISO, !!user && !hiddenTabs.includes("spending"));
   const shiftsByDate = groupByDate(shifts);
   const expensesByDate = groupExpensesByDate(dayExpenses);
   const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, CURRENCY, rate, expensesByDate);

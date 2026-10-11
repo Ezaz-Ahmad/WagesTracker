@@ -14,13 +14,16 @@ import { useDismissTransition } from "../lib/useDismissTransition";
 import { useFlipAnimation } from "../lib/useFlipAnimation";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import type { Screen } from "../lib/types";
-import { ArrowDownIcon, ArrowUpIcon, CloseIcon, EyeOffIcon, GripIcon, PlusIcon, SlidersIcon } from "./icons";
+import { shiftAccessWarning, TAB_DESCRIPTIONS, type HideableTab } from "../lib/tabVisibility";
+import { ArrowDownIcon, ArrowUpIcon, CloseIcon, EyeOffIcon, GripIcon, InfoIcon, LockIcon, PlusIcon, SlidersIcon } from "./icons";
+import { HideTabDialog } from "./HideTabDialog";
 import { Overlay } from "./Overlay";
 
 interface SortableItem {
   id: string;
   label: string;
   description?: string;
+  alwaysVisible?: boolean;
 }
 
 function SortableList({
@@ -33,7 +36,7 @@ function SortableList({
   items: SortableItem[];
   label: string;
   onMove: (id: string, index: number) => void;
-  onHide?: (id: string) => void;
+  onHide?: (id: string, trigger: HTMLButtonElement) => void;
   onAnnounce: (message: string) => void;
 }) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -135,17 +138,18 @@ function SortableList({
             >
               <ArrowDownIcon />
             </button>
-            {onHide && (
+            {onHide && !item.alwaysVisible && (
               <button
                 type="button"
                 className="layout-row-action layout-hide-action"
-                onClick={() => onHide(item.id)}
+                onClick={(event) => onHide(item.id, event.currentTarget)}
                 aria-label={`Hide ${item.label}`}
-                title="Hide widget"
+                title={`Hide ${item.label}`}
               >
                 <EyeOffIcon />
               </button>
             )}
+            {item.alwaysVisible && <span className="layout-tab-locked" title="Settings stays available so you can restore hidden tabs"><LockIcon size={12} /><span>Always on</span></span>}
           </span>
         </li>
       ))}
@@ -158,24 +162,32 @@ export function LayoutCustomizer({ onClose }: { onClose: () => void }) {
     homeWidgetOrder,
     hiddenHomeWidgets,
     tabOrder,
+    hiddenTabs,
+    visibleTabOrder,
     moveHomeWidget,
     setHomeWidgetVisible,
     moveTab,
+    setTabVisible,
     resetHome,
     resetTabs,
   } = useLayoutPreferences();
   const [panel, setPanel] = useState<"dashboard" | "tabs">("dashboard");
   const [announcement, setAnnouncement] = useState("");
+  const [pendingTab, setPendingTab] = useState<HideableTab | null>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const { closing, requestClose } = useDismissTransition(220);
-  const dismiss = () => requestClose(onClose);
-  const dialogRef = useFocusTrap<HTMLDivElement>(true, dismiss, closeButtonRef);
+  const dismiss = () => { if (!pendingTab) requestClose(onClose); };
+  const dialogRef = useFocusTrap<HTMLDivElement>(!pendingTab, dismiss, returnFocusRef);
 
   const hidden = new Set(hiddenHomeWidgets);
-  const visibleWidgets = homeWidgetOrder.filter((id) => !hidden.has(id));
-  const hiddenWidgets = homeWidgetOrder.filter((id) => hidden.has(id));
+  const spendingTabHidden = hiddenTabs.includes("spending");
+  const availableWidgets = homeWidgetOrder.filter((id) => !(id === "spending" && spendingTabHidden));
+  const visibleWidgets = availableWidgets.filter((id) => !hidden.has(id));
+  const hiddenWidgets = availableWidgets.filter((id) => hidden.has(id));
   const widgetItems = visibleWidgets.map((id) => ({ id, ...HOME_WIDGET_DETAILS[id] }));
-  const tabItems = tabOrder.map((id) => ({ id, label: TAB_LABELS[id], description: id === "home" ? "Your personalised Home screen" : undefined }));
+  const tabItems = visibleTabOrder.map((id) => ({ id, label: TAB_LABELS[id], description: TAB_DESCRIPTIONS[id], alwaysVisible: id === "settings" }));
+  const hiddenTabItems = tabOrder.filter((id) => hiddenTabs.includes(id));
 
   const hideWidget = (id: string) => {
     const widgetId = id as HomeWidgetId;
@@ -198,6 +210,7 @@ export function LayoutCustomizer({ onClose }: { onClose: () => void }) {
           aria-modal="true"
           aria-labelledby="layout-customizer-title"
           aria-describedby="layout-customizer-description"
+          aria-hidden={pendingTab ? true : undefined}
           tabIndex={-1}
           onClick={(event) => event.stopPropagation()}
         >
@@ -206,7 +219,7 @@ export function LayoutCustomizer({ onClose }: { onClose: () => void }) {
             <span className="layout-customizer-icon" aria-hidden="true"><SlidersIcon size={20} /></span>
             <div>
               <h2 id="layout-customizer-title">Customise your layout</h2>
-              <p id="layout-customizer-description">Drag items into place or use the arrow buttons. Changes save automatically.</p>
+              <p id="layout-customizer-description">Make room for what matters. Changes save automatically.</p>
             </div>
             <button ref={closeButtonRef} type="button" className="layout-customizer-close" onClick={dismiss} aria-label="Close layout customisation">
               <CloseIcon />
@@ -238,6 +251,7 @@ export function LayoutCustomizer({ onClose }: { onClose: () => void }) {
                   <div className="layout-empty-visible"><strong>Your dashboard is clear</strong><span>Add a widget below whenever you need it.</span></div>
                 )}
 
+                {spendingTabHidden && <p className="layout-tabs-recovery"><InfoIcon size={13} /><span>Personal spending will return when you show the Spending tab.</span></p>}
                 {hiddenWidgets.length > 0 && (
                   <div className="layout-hidden-section">
                     <h3>Hidden widgets</h3>
@@ -254,16 +268,30 @@ export function LayoutCustomizer({ onClose }: { onClose: () => void }) {
             ) : (
               <section id="layout-tabs-panel" role="tabpanel" aria-labelledby="layout-tabs-tab">
                 <div className="layout-panel-intro">
-                  <div><strong>Tab order</strong><span>Your bottom bar, desktop menu, and swipe navigation use the same order.</span></div>
-                  <button type="button" onClick={() => { resetTabs(); setAnnouncement("Tab bar restored to its default order."); }}>Reset</button>
+                  <div><strong>Your tabs <span className="layout-visible-count">{visibleTabOrder.length} visible</span></strong><span>Hide tabs you don't use. Drag or use arrows to arrange them.</span></div>
+                  <button type="button" onClick={() => { resetTabs(); setAnnouncement("All tabs shown in their default order."); }}>Reset</button>
                 </div>
                 <SortableList
                   key="navigation-tabs"
                   items={tabItems}
                   label="App tabs"
                   onMove={(id, index) => moveTab(id as Screen, index)}
+                  onHide={(id, trigger) => { if (id !== "settings") { returnFocusRef.current = trigger; setPendingTab(id as HideableTab); } }}
                   onAnnounce={setAnnouncement}
                 />
+                <p className="layout-tabs-recovery"><LockIcon size={13} /><span>Settings stays available so you can bring any tab back.</span></p>
+                {hiddenTabItems.length > 0 && (
+                  <div className="layout-hidden-section">
+                    <h3>Hidden tabs</h3>
+                    <div className="layout-hidden-list">
+                      {hiddenTabItems.map((id) => (
+                        <button type="button" key={id} onClick={() => { setTabVisible(id, true); setAnnouncement(`${TAB_LABELS[id]} shown in your menu.`); }} aria-label={`Show ${TAB_LABELS[id]} tab`}>
+                          <PlusIcon /><span><strong>{TAB_LABELS[id]}</strong><small>Add back to your menu</small></span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </section>
             )}
           </div>
@@ -275,6 +303,14 @@ export function LayoutCustomizer({ onClose }: { onClose: () => void }) {
           </footer>
         </div>
       </div>
+      {pendingTab && <HideTabDialog tab={pendingTab} warning={shiftAccessWarning(pendingTab, hiddenTabs, hiddenHomeWidgets)}
+        onCancel={() => { if (!returnFocusRef.current?.isConnected) returnFocusRef.current = null; setPendingTab(null); }}
+        onConfirm={() => {
+          returnFocusRef.current = null;
+          setTabVisible(pendingTab, false);
+          setAnnouncement(`${TAB_LABELS[pendingTab]} hidden. You can show it again under Hidden tabs.`);
+          setPendingTab(null);
+        }} />}
     </Overlay>
   );
 }

@@ -64,17 +64,22 @@ function AuthedAppShell() {
     revealEarnings,
     hideEarningsNow,
   } = useApp();
-  const { tabOrder } = useLayoutPreferences();
-  const tabs = useMemo(() => tabsInOrder(tabOrder), [tabOrder]);
-  const [screen, setScreen] = useState<Screen>("home");
+  const { visibleTabOrder } = useLayoutPreferences();
+  const tabs = useMemo(() => tabsInOrder(visibleTabOrder), [visibleTabOrder]);
+  const fallbackScreen = visibleTabOrder.includes("home") ? "home" : visibleTabOrder[0];
+  const [requestedScreen, setScreen] = useState<Screen>(fallbackScreen);
+  const screen = visibleTabOrder.includes(requestedScreen) ? requestedScreen : fallbackScreen;
+  // Apply visibility before rendering, also when another window hides the
+  // active tab. A hidden page must never keep an unmatched nav indicator.
+  useEffect(() => { if (requestedScreen !== screen) setScreen(screen); }, [requestedScreen, screen]);
   const [settingsInitialCategory, setSettingsInitialCategory] = useState<string | null>(null);
 
   const todayLabel = today.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
   const navigate = useCallback((nextScreen: Screen) => {
     setSettingsInitialCategory(null);
-    setScreen(nextScreen);
-  }, []);
+    setScreen(visibleTabOrder.includes(nextScreen) ? nextScreen : fallbackScreen);
+  }, [visibleTabOrder, fallbackScreen]);
   const openWorkLocationSettings = useCallback(() => {
     setSettingsInitialCategory("workpay");
     setScreen("settings");
@@ -107,7 +112,7 @@ function AuthedAppShell() {
   // land here) — drives a directional slide on mount instead of a plain
   // fade, so tapping a tab feels like the same physical motion as swiping to
   // it, not two different transitions depending on how you got there.
-  const screenTransitionClass = useStableScreenTransition(screen, tabOrder);
+  const screenTransitionClass = useStableScreenTransition(screen, visibleTabOrder);
 
   // Purely cosmetic: the shell fades in rather than snapping in. This used
   // to double as the (unsuccessful) fix for the post-login bottom-nav gap —
@@ -239,7 +244,7 @@ function AuthedAppShell() {
 export function AuthedApp() {
   const { user } = useApp();
   return (
-    <LayoutPreferencesProvider userId={user?.id}>
+    <LayoutPreferencesProvider key={user?.id ?? "logged-out"} userId={user?.id}>
       <AuthedAppShell />
     </LayoutPreferencesProvider>
   );

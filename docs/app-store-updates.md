@@ -43,7 +43,7 @@ Those users need Apple's automatic updates or a manual first update to a
 release containing this feature. Later public releases can then trigger the
 popup without any hardcoded latest-version change.
 
-Before submitting **1.22.0** publicly, set **App Store Connect → WagesTracker →
+Before submitting the next version publicly, set **App Store Connect → WagesTracker →
 App Information → Localizable Information → Name** to **Wages Tracker** for
 each supported localization. The display name inside the binary does not
 rename the App Store listing. Save the name with the next review submission;
