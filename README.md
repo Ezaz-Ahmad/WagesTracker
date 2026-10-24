@@ -256,8 +256,10 @@ The admin panel is a separate browser application at **`/admin`**, available at 
 
 ### Account management
 
-- **User directory:** search by name or email, with total-user/shift counts and each user's name, email, work location, hourly rate, weekly goals, shift count, and join date. The layout adapts to smaller screens.
-- **View account:** open a user's work settings and shift history, including dates, locations, and sign-in/sign-out times.
+- **Weekly overview:** see combined earnings and completed hours, browse earlier weeks, and compare each user's selected and previous week. Date ranges respect each user's chosen week start day.
+- **User directory:** search by name or email, sort by earnings/name/shift count, and see daily earnings charts alongside account details. Desktop tables become cards on smaller screens.
+- **Earnings explorer:** open a user to browse historical weeks, inspect interactive daily charts, compare wages/fuel/extras, and check weekly goal progress. Charts support touch, keyboard navigation and reduced motion. Historical earnings use the user's current hourly rate; unfinished shifts add no wages. See the [admin improvement notes](docs/admin-weekly-earnings.md) for calculation and rollout details.
+- **View account:** select **Account & shifts** for work settings, weekly goals, total shift count, join date, and shift history, including dates, locations, and sign-in/sign-out times.
 - **Edit login email:** validate and normalize the address, suggest corrections for likely domain typos, and reject addresses already used by another account. The password, signed-in sessions, settings, and shift records are retained. An admin-applied address is marked verified, pending verification links are invalidated, and security notifications are attempted to both the old and new addresses.
 - **Delete account:** the UI requires typing the user's email in a confirmation dialog. Deletion permanently removes the profile, settings, sessions, password-reset/email-verification records, shifts, work expenses/extras/locations, personal expenses, and spending categories.
 

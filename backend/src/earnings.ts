@@ -6,6 +6,12 @@ interface EarningsShiftRow {
   sign_out: string | null;
 }
 
+/** Keep second-precision saved shifts consistent across every earnings view. */
+export function completedShiftHours(signIn: string | null, signOut: string | null): number {
+  if (!signIn || !signOut) return 0;
+  return Math.round((durationSeconds(signIn, signOut) / 3600) * 1_000_000) / 1_000_000;
+}
+
 /**
  * Canonical persisted earnings for a plain-calendar date range.
  *
@@ -41,9 +47,7 @@ export async function earningsForRange(
   const shiftRows = shiftResult.rows as unknown as EarningsShiftRow[];
   const hours = Math.round(
     shiftRows.reduce((total, shift) => {
-      if (!shift.sign_in || !shift.sign_out) return total;
-      const shiftHours = Math.round((durationSeconds(shift.sign_in, shift.sign_out) / 3600) * 1_000_000) / 1_000_000;
-      return total + shiftHours;
+      return total + completedShiftHours(shift.sign_in, shift.sign_out);
     }, 0) * 1_000_000
   ) / 1_000_000;
   const fuel = Math.round(fuelResult.rows.reduce((total, row) => total + Number(row.fuel_cost ?? 0), 0) * 100) / 100;

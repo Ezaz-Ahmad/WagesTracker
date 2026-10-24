@@ -75,18 +75,54 @@ export interface AdminUserSummary {
   goalEarnings: number;
   createdAt: string;
   shiftCount: number;
+  earnings: AdminWeekEarnings;
+  previousEarnings: AdminWeekEarnings;
+}
+
+export interface AdminEarningsDay {
+  date: string;
+  hours: number;
+  wages: number;
+  fuel: number;
+  total: number;
+  shiftCount: number;
+  openShiftCount: number;
+}
+
+export interface AdminWeekEarnings {
+  weekStart: string;
+  weekEnd: string;
+  hours: number;
+  wages: number;
+  fuel: number;
+  extras: number;
+  total: number;
+  shiftCount: number;
+  completedShiftCount: number;
+  openShiftCount: number;
+  days: AdminEarningsDay[];
+}
+
+export interface AdminUserEarnings {
+  week: AdminWeekEarnings;
+  previousWeek: AdminWeekEarnings;
+  availableWeeks: string[];
 }
 
 export function adminLogin(password: string): Promise<{ token: string }> {
   return request("/login", { method: "POST", body: JSON.stringify({ password }) });
 }
 
-export function fetchAllUsers(): Promise<{ users: AdminUserSummary[] }> {
-  return request("/users");
+export function fetchAllUsers(date?: string): Promise<{ users: AdminUserSummary[] }> {
+  return request(`/users${date ? `?date=${encodeURIComponent(date)}` : ""}`);
 }
 
 export function fetchUserDetail(id: string): Promise<{ user: User; shifts: Shift[] }> {
   return request(`/users/${id}`);
+}
+
+export function fetchUserEarnings(id: string, date: string): Promise<AdminUserEarnings> {
+  return request(`/users/${encodeURIComponent(id)}/earnings?date=${encodeURIComponent(date)}`);
 }
 
 export function deleteUser(id: string): Promise<void> {

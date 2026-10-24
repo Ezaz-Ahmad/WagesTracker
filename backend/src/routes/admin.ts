@@ -7,6 +7,8 @@ import { db } from "../db.js";
 import { toAdminUserSummary, toPublicShift, toPublicUser, type ShiftRow, type UserRow } from "../types.js";
 import { validateEmailAddress } from "../security/emailPolicy.js";
 import { sendEmailChangedNotifications, sendNotificationBestEffort } from "../email/emailService.js";
+import { adminAvailableWeeks, adminEarningsForUsers } from "../adminEarnings.js";
+import { isValidDate } from "../security/shiftRules.js";
 
 export const adminRouter = Router();
 
@@ -43,9 +45,20 @@ adminRouter.post(
 
 adminRouter.use(requireAdmin);
 
+const adminDateError = "date must be a real calendar date in YYYY-MM-DD form";
+function earningsAnchor(value: unknown): string | null {
+  if (value === undefined) return new Date().toISOString().slice(0, 10);
+  return typeof value === "string" && isValidDate(value) ? value : null;
+}
+
 adminRouter.get(
   "/users",
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
+    const anchor = earningsAnchor(req.query.date);
+    if (!anchor) {
+      res.status(400).json({ error: adminDateError });
+      return;
+    }
     const result = await db.execute(
       `SELECT u.*, COUNT(s.id) AS shift_count
        FROM users u
@@ -54,7 +67,33 @@ adminRouter.get(
        ORDER BY u.created_at DESC`
     );
     const rows = result.rows as unknown as (UserRow & { shift_count: unknown })[];
-    res.json({ users: rows.map(toAdminUserSummary) });
+    const earnings = await adminEarningsForUsers(db, rows, anchor);
+    res.json({ users: rows.map((row) => {
+      const pair = earnings.get(row.id)!;
+      return toAdminUserSummary(row, pair.week, pair.previousWeek);
+    }) });
+  })
+);
+
+adminRouter.get(
+  "/users/:id/earnings",
+  asyncHandler(async (req, res) => {
+    const anchor = earningsAnchor(req.query.date);
+    if (!anchor) {
+      res.status(400).json({ error: adminDateError });
+      return;
+    }
+    const userResult = await db.execute({ sql: "SELECT * FROM users WHERE id = ?", args: [req.params.id] });
+    const user = userResult.rows[0] as unknown as UserRow | undefined;
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    const [earnings, availableWeeks] = await Promise.all([
+      adminEarningsForUsers(db, [user], anchor, user.id),
+      adminAvailableWeeks(db, user, anchor),
+    ]);
+    res.json({ ...earnings.get(user.id)!, availableWeeks });
   })
 );
 

@@ -233,11 +233,43 @@ export function toPublicSession(row: UserSessionRow, currentSessionId: string): 
 
 export interface AdminUserSummary extends PublicUser {
   shiftCount: number;
+  earnings: AdminWeekEarnings;
+  previousEarnings: AdminWeekEarnings;
 }
 
-export function toAdminUserSummary(row: UserRow & { shift_count: unknown }): AdminUserSummary {
+export interface AdminEarningsDay {
+  date: string;
+  hours: number;
+  wages: number;
+  fuel: number;
+  total: number;
+  shiftCount: number;
+  openShiftCount: number;
+}
+
+export interface AdminWeekEarnings {
+  weekStart: string;
+  weekEnd: string;
+  hours: number;
+  wages: number;
+  fuel: number;
+  extras: number;
+  total: number;
+  shiftCount: number;
+  completedShiftCount: number;
+  openShiftCount: number;
+  days: AdminEarningsDay[];
+}
+
+export function toAdminUserSummary(
+  row: UserRow & { shift_count: unknown },
+  earnings: AdminWeekEarnings,
+  previousEarnings: AdminWeekEarnings
+): AdminUserSummary {
   return {
     ...toPublicUser(row),
     shiftCount: Number(row.shift_count ?? 0),
+    earnings,
+    previousEarnings,
   };
 }
