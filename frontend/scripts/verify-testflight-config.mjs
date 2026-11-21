@@ -98,6 +98,7 @@ for (const requiredStep of [
   /altool --validate-app/u,
   /altool --upload-app/u,
   /node frontend\/scripts\/confirm-testflight-build\.mjs/u,
+  /node frontend\/scripts\/confirm-testflight-build\.mjs --preflight/u,
   /if: always\(\)/u,
   /security delete-keychain/u,
   /AuthKey_\$\{ASC_KEY_ID\}\.p8/u,
@@ -105,6 +106,9 @@ for (const requiredStep of [
   /wagestracker-distribution\.p12/u,
 ]) {
   requireMatch(workflow, requiredStep, `missing required delivery safeguard: ${requiredStep}`);
+}
+for (const operation of ["validate-app", "upload-app"]) {
+  requireMatch(workflow, new RegExp(`altool --${operation}[^\\n]*--apple-id "\\$IOS_APPLE_ID"`, "u"), `Apple ${operation} must use the verified existing app ID`);
 }
 
 requireMatch(workflow, /GITHUB_RUN_ATTEMPT" != "1"/u, "signed delivery must reject reruns so build numbers remain monotonic");
