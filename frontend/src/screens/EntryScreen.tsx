@@ -28,6 +28,7 @@ import { FUTURE_DATE_WARNING, isFutureDate, isUnusuallyLongShift, LONG_SHIFT_WAR
 import type { WorkLocation } from "../lib/types";
 import * as api from "../lib/api";
 import { showErrorPopup } from "../lib/errorFeedback";
+import { ShiftRateDialog } from "../components/ShiftRateDialog";
 
 type Row = ShiftComputed & { tempId?: string };
 type TimeDraft = { signIn: string | null; signOut: string | null };
@@ -98,6 +99,7 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
   } = useApp();
   const { active, last, startAtLocation, end } = useTodayShift();
   const [busy, setBusy] = useState(false);
+  const [rateShiftId,setRateShiftId]=useState<string|null>(null);
   const [entryActionBusy, setEntryActionBusy] = useState<string | null>(null);
   const [pending, setPending] = useState<Record<string, string[]>>({});
   // Native iOS/Android time wheels can emit `change` while the wheel is still
@@ -690,7 +692,7 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
                       onBlur={(e) => void handleFieldCommit(day, row, rowIndex, "signOut", e.currentTarget.value)}
                     />
                   </div>
-                  <div className="shift-hours">{row.hoursLabel}<span className="job-row-rate">{CURRENCY}{fmt2(row.appliedRate??appliedPay.rate)}/hr</span></div>
+                  <div className="shift-hours">{row.hoursLabel}{row.id&&row.signIn&&row.signOut&&row.appliedRate!=null?<button type="button" className="job-row-rate job-row-rate-button" onClick={()=>setRateShiftId(row.id)} aria-label={`Review recorded pay for ${day.dayAbbr} ${day.dateLabel} shift ${rowIndex+1}`}>{CURRENCY}{fmt2(row.appliedRate)}/hr</button>:<span className="job-row-rate">{CURRENCY}{fmt2(row.appliedRate??appliedPay.rate)}/hr</span>}</div>
                   {row.canRemove && (
                     <button
                       type="button"
@@ -880,6 +882,7 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
           );
         })()}
 
+      {rateShiftId&&<ShiftRateDialog key={rateShiftId} shiftId={rateShiftId} onClose={()=>setRateShiftId(null)}/>}
       {otherPickerOpen && (
         <AmountWheelPicker
           title="Other earnings amount"

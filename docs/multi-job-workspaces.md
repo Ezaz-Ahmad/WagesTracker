@@ -8,7 +8,7 @@ Each account owns one or more jobs. A job owns its locations, hourly pay schedul
 - All jobs uses the same Monday–Sunday date range for every job. Its total includes archived jobs' records in that period; goals follow active jobs unless an overall target is saved.
 - Settings → Your jobs creates, renames, archives and restores jobs. Archiving retains shifts and reports, requires another active job and refuses a running shift.
 - Settings → Work & pay edits the selected job's default pay and each location's override, including effective dates and a return to the default. A same-date replacement requires review. Saved and running shifts retain their recorded pay.
-- History allows an explicit saved-rate correction with a before/after confirmation. Combined and archived history is read-only.
+- Tap a saved shift's hourly rate in Entry to correct current-week pay, or use History for earlier weeks. Both require a before/after confirmation; cancelling preserves the draft. Combined and archived history is read-only.
 - Combined report exports offer a personal summary or one employer's work week. Employer exports include only that job's shifts, fuel and extras. Filenames include the report scope.
 - Spending tags filter the personal ledger; the earnings comparison remains account-wide and is labelled accordingly.
 - Admin shows job counts, job/location/pay history, recorded rates on shifts and combined or per-job weekly earnings. Financial settings remain in the user's reviewed pay flow.
