@@ -29,7 +29,7 @@ describe("day-expenses (fuel cost)", () => {
       .set("Authorization", `Bearer ${tokenA}`)
       .send({ fuelCost: 12.5 });
     expect(res.status).toBe(200);
-    expect(res.body.expense).toEqual({
+    expect(res.body.expense).toMatchObject({
       date: DATE,
       fuelCost: 12.5,
       automaticFuelAllowance: 0,
@@ -99,7 +99,7 @@ describe("day-expenses (fuel cost)", () => {
 
     // B has never touched this date — their list shouldn't include A's record.
     const bList = await request(app).get("/api/day-expenses").set("Authorization", `Bearer ${tokenB}`);
-    expect(bList.body.expenses).toEqual([]);
+    expect(bList.body.expenses).toMatchObject([]);
 
     // B saving a fuel cost for the *same date* creates/updates only their own
     // row (the table's unique constraint is on (user_id, date), not date
@@ -107,7 +107,7 @@ describe("day-expenses (fuel cost)", () => {
     await request(app).put(`/api/day-expenses/${DATE}`).set("Authorization", `Bearer ${tokenB}`).send({ fuelCost: 99 });
 
     const aList = await request(app).get("/api/day-expenses").set("Authorization", `Bearer ${tokenA}`);
-    expect(aList.body.expenses).toEqual([{
+    expect(aList.body.expenses).toMatchObject([{
       date: DATE,
       fuelCost: 30,
       automaticFuelAllowance: 0,
@@ -116,7 +116,7 @@ describe("day-expenses (fuel cost)", () => {
     }]);
 
     const bList2 = await request(app).get("/api/day-expenses").set("Authorization", `Bearer ${tokenB}`);
-    expect(bList2.body.expenses).toEqual([{
+    expect(bList2.body.expenses).toMatchObject([{
       date: DATE,
       fuelCost: 99,
       automaticFuelAllowance: 0,

@@ -15,6 +15,7 @@ struct SmartReminderSchedulePayload: Codable {
 }
 
 struct SmartScheduledReminder: Codable {
+    let jobId: String?
     let id: String
     let kind: String
     let fireAtEpochMs: Double
@@ -26,6 +27,7 @@ struct SmartScheduledReminder: Codable {
 }
 
 struct SmartReminderPendingAction: Codable {
+    let jobId: String?
     let accountId: String
     let kind: String
     let reminderId: String
@@ -159,6 +161,7 @@ final class SmartShiftReminderCoordinator {
                 "accountId": payload.accountId,
                 "kind": reminder.kind,
                 "reminderId": reminder.id,
+                "jobId": reminder.jobId ?? "",
                 "shiftId": reminder.shiftId ?? "",
                 "weekdayName": reminder.weekdayName,
                 "usualTimeLabel": reminder.usualTimeLabel,
@@ -278,6 +281,7 @@ final class SmartShiftReminderCoordinator {
             return
         }
         let action = SmartReminderPendingAction(
+            jobId: info["jobId"] as? String,
             accountId: info["accountId"] as? String ?? "",
             kind: kind,
             reminderId: info["reminderId"] as? String ?? response.notification.request.identifier,

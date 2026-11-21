@@ -1,7 +1,11 @@
+import { sumShiftWages, wagesForHours } from "./pay";
 import { addDays, computeHours, dayAbbr, fmt2, formatTime12, isoDate, shortLabel, startOfWeek } from "./date";
 import type { DayExpense, Shift, WeekExtra, WeekStart } from "./types";
 
 export interface ShiftComputed {
+  appliedRate?: number | null;
+  jobName?: string | null;
+  jobId?: string;
   id: string | null;
   shiftIndex: number;
   location: string;
@@ -14,6 +18,7 @@ export interface ShiftComputed {
 }
 
 export interface DayComputed {
+  wages?:number;
   dateISO: string;
   dayAbbr: string;
   dateLabel: string;
@@ -47,6 +52,11 @@ export interface WeekSummary {
 }
 
 export interface ShiftRow {
+  workLocationId?:string|null;
+  rate?: number;
+  rateLabel?: string;
+  jobName?: string | null;
+  jobId?: string;
   day: string;
   date: string;
   location: string;
@@ -139,7 +149,7 @@ export function groupByDate(shifts: Shift[]): Map<string, Shift[]> {
  * shifts, which can have several per day). */
 export function groupExpensesByDate(expenses: DayExpense[]): Map<string, number> {
   const map = new Map<string, number>();
-  for (const e of expenses) map.set(e.date, e.fuelCost);
+  for (const e of expenses) map.set(e.date, (map.get(e.date) ?? 0) + e.fuelCost);
   return map;
 }
 
@@ -161,6 +171,7 @@ export function buildDayComputed(
       shiftIndex: i,
       location: sh.location || "",
       workLocationId: sh.workLocationId ?? null,
+      appliedRate: sh.appliedRate,jobName:sh.jobName,jobId:sh.jobId,
       signIn: sh.signIn,
       signOut: sh.signOut,
       hours,
@@ -174,8 +185,9 @@ export function buildDayComputed(
   const hours = Math.round(shifts.reduce((a, s) => a + s.hours, 0) * 1_000_000) / 1_000_000;
   // Fuel cost is a flat reimbursement added straight onto that day's earnings,
   // on top of hours × rate — not a deduction.
-  const dayEarnings = Math.round((hours * rate + fuelCost) * 100) / 100;
+  const dayEarnings = Math.round((sumShiftWages(shiftsForDate,rate) + fuelCost) * 100) / 100;
   return {
+    wages:sumShiftWages(shiftsForDate,rate),
     dateISO: isoDate(date),
     dayAbbr: dayAbbr(date),
     dateLabel: shortLabel(date),
@@ -212,7 +224,7 @@ export function weekTotals(
   const fuelCost = Math.round(days.reduce((a, d) => a + d.fuelCost, 0) * 100) / 100;
   return {
     hours,
-    earnings: Math.round((hours * rate + fuelCost) * 100) / 100,
+    earnings: Math.round((days.reduce((sum,day)=>sum+(day.wages??day.hours*rate),0) + fuelCost) * 100) / 100,
     daysLogged: days.filter((d) => d.hours > 0).length,
     fuelCost,
   };
@@ -221,7 +233,8 @@ export function weekTotals(
 /** Finds the single "other earnings" entry for the week that starts on
  * `weekStartISO`, if the user has added one. */
 export function weekExtraFor(weekStartISO: string, weekExtras: WeekExtra[]): WeekExtra | undefined {
-  return weekExtras.find((w) => w.weekStart === weekStartISO);
+  const entries=weekExtras.filter(w=>w.weekStart===weekStartISO);
+  return entries.length ? {...entries[0],amount:Math.round(entries.reduce((n,w)=>n+w.amount,0)*100)/100,reason:entries.map(w=>w.reason).filter(Boolean).join(" · ")} : undefined;
 }
 
 /**
@@ -268,7 +281,8 @@ export function buildShiftRows(days: DayComputed[], currency: string, rate: numb
         signOut: formatTime12(sh.signOut),
         hours: sh.hours,
         hoursLabel: sh.hoursLabel,
-        moneyLabel: sh.hours > 0 ? currency + fmt2(sh.hours * rate) : "—",
+        workLocationId:sh.workLocationId,rate:sh.appliedRate??rate,rateLabel:currency+fmt2(sh.appliedRate??rate),jobName:sh.jobName,jobId:sh.jobId,
+        moneyLabel: sh.hours > 0 ? currency + fmt2(wagesForHours(sh.hours,sh.appliedRate??rate)) : "—",
       });
     }
   }
@@ -293,10 +307,10 @@ export function buildLocationBreakdown(rows: ShiftRow[]): LocationBreakdown[] {
     if (r.hours <= 0) continue;
     const fullLabel = r.location.trim() || "Unspecified";
     const familyLabel = fullLabel.split(/\s+/)[0];
-    const familyKey = familyLabel.toLocaleLowerCase("en-AU");
+    const familyKey = `${r.jobId||r.jobName||""}:${r.workLocationId||familyLabel.toLocaleLowerCase("en-AU")}:${r.rate??""}`;
     const cur = map.get(familyKey) ?? {
       familyLabel,
-      firstFullLabel: fullLabel,
+      firstFullLabel: r.jobName ? `${r.jobName} · ${fullLabel}${r.rateLabel?` · ${r.rateLabel}/hr`:""}` : fullLabel,
       fullLabels: new Set<string>(),
       hours: 0,
       earnings: 0,
@@ -334,7 +348,10 @@ function sumFuelCost(expenses: DayExpense[]): number {
 }
 
 function weekExtrasInRange(weekExtras: WeekExtra[], startISO: string, endISO: string): WeekExtra[] {
-  return weekExtras.filter((w) => w.weekStart >= startISO && w.weekStart <= endISO);
+  return weekExtras.filter((w) => {
+    const date=w.effectiveDate??w.weekStart;
+    return date>=startISO&&date<=endISO;
+  });
 }
 
 function sumWeekExtras(weekExtras: WeekExtra[]): number {
@@ -384,7 +401,7 @@ export function weekEarningsFor(
     hours,
     fuelCost,
     extra,
-    earnings: Math.round((hours * rate + fuelCost + extra) * 100) / 100,
+    earnings: Math.round((sumShiftWages(weekShifts,rate) + fuelCost + extra) * 100) / 100,
     hasRecords: weekShifts.length > 0 || weekExpenses.length > 0 || extraEntry !== undefined,
   };
 }
@@ -405,7 +422,8 @@ export function buildWeeklyHistory(
     const start = addDays(currentWeekStart, -7 * i);
     const end = addDays(start, 6);
     if (signupDate && end < signupDate) continue;
-    const hours = sumHours(shiftsInRange(allShifts, isoDate(start), isoDate(end)));
+    const weekShifts=shiftsInRange(allShifts, isoDate(start), isoDate(end));
+    const hours = sumHours(weekShifts);
     const fuelCost = sumFuelCost(expensesInRange(allExpenses, isoDate(start), isoDate(end)));
     const extra = weekExtraFor(isoDate(start), allWeekExtras)?.amount ?? 0;
     weeks.push({
@@ -414,7 +432,7 @@ export function buildWeeklyHistory(
       label: `${shortLabel(start)} – ${end.getMonth() === start.getMonth() ? end.getDate() : shortLabel(end)}`,
       short: shortLabel(start),
       hours,
-      earnings: Math.round((hours * rate + fuelCost + extra) * 100) / 100,
+      earnings: Math.round((sumShiftWages(weekShifts,rate) + fuelCost + extra) * 100) / 100,
     });
   }
   return weeks;
@@ -550,7 +568,7 @@ export function buildMonthlyItems(
       label: MONTH_NAMES[d.getMonth()],
       short: MONTH_NAMES[d.getMonth()].slice(0, 3),
       hours,
-      earnings: Math.round((hours * rate + fuelCost + extras) * 100) / 100,
+      earnings: Math.round((sumShiftWages(shiftsInRange(allShifts,start,end),rate) + fuelCost + extras) * 100) / 100,
       inProgress: i === 0,
     });
   }
@@ -579,7 +597,7 @@ export function buildYearlyItems(
       label: i === 0 ? `${year} (YTD)` : String(year),
       short: i === 0 ? `${year} (YTD)` : String(year),
       hours,
-      earnings: Math.round((hours * rate + fuelCost + extras) * 100) / 100,
+      earnings: Math.round((sumShiftWages(shiftsInRange(allShifts,start,end),rate) + fuelCost + extras) * 100) / 100,
       inProgress: i === 0,
     });
   }

@@ -102,6 +102,7 @@ export function sanitizeNameForFilename(rawName: string): string {
  * the week being downloaded, already resolved against the user's week-start
  * preference — this function does not know or guess where a week begins.
  */
-export function weeklyPdfFilename(displayName: string, weekStartISO: string, weekEndISO: string): string {
-  return `${sanitizeNameForFilename(displayName)}-${weekStartISO}-to-${weekEndISO}.pdf`;
+export function weeklyPdfFilename(displayName: string, weekStartISO: string, weekEndISO: string, jobName?:string): string {
+  const scope=jobName?`-${truncateToBytes(sanitizeNameForFilename(jobName),60)}`:"";
+  return `${sanitizeNameForFilename(displayName)}${scope}-${weekStartISO}-to-${weekEndISO}.pdf`;
 }

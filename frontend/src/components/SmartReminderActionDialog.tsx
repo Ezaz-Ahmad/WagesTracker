@@ -13,6 +13,7 @@ export function SmartReminderActionDialog({ onNavigate }: { onNavigate: (screen:
     dismissPendingSmartReminderAction,
     today,
     shifts = [],
+    allShifts,jobs=[],selectedJobId,selectJob,
     workLocations = [],
     createShift,
     clockOutShift,
@@ -27,7 +28,9 @@ export function SmartReminderActionDialog({ onNavigate }: { onNavigate: (screen:
   const [error, setError] = useState<string | null>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
   const trapRef = useFocusTrap<HTMLDivElement>(!!action, undefined, confirmRef);
-  const openShift = findOpenShift(shifts);
+  const openShift = findOpenShift(allShifts??shifts);
+  const actionJobId=action?.jobId||(action?.shiftId?(allShifts??shifts).find(s=>s.id===action.shiftId)?.jobId:undefined);
+  useEffect(()=>{if(action&&action.accountId===user?.id&&actionJobId&&jobs.some(j=>j.id===actionJobId&&!j.archived)&&selectedJobId!==actionJobId)selectJob(actionJobId);},[action,actionJobId,selectedJobId,user?.id,jobs,selectJob]);
 
   useEffect(() => {
     if (!action) return;
@@ -50,7 +53,8 @@ export function SmartReminderActionDialog({ onNavigate }: { onNavigate: (screen:
   const signingOut = action.kind === "signOut";
   const requestedShiftIsCurrent = !!openShift && (!action.shiftId || action.shiftId === openShift.id);
   const wrongAccount = action.accountId !== user?.id;
-  const alreadyHandled = wrongAccount || (signingOut ? !requestedShiftIsCurrent : !!openShift);
+  const wrongJob=!!actionJobId&&(!jobs.some(j=>j.id===actionJobId&&!j.archived)||selectedJobId!==actionJobId)||(!signingOut&&!actionJobId&&jobs.length>1);
+  const alreadyHandled = wrongAccount || wrongJob || (signingOut ? !requestedShiftIsCurrent : !!openShift);
   const chosenLocation = activeLocations.find((location) => location.id === locationId);
   const canConfirm = !alreadyHandled && (signingOut || !!chosenLocation) && !busy;
 
@@ -88,6 +92,7 @@ export function SmartReminderActionDialog({ onNavigate }: { onNavigate: (screen:
 
   const stateMessage = wrongAccount
     ? "This reminder belongs to a different signed-in account, so no shift can be changed."
+    : wrongJob ? "Open the reminder’s job in the app before confirming. No shift has been changed."
     : alreadyHandled
     ? signingOut
       ? "This shift has already ended. Your saved times are unchanged."

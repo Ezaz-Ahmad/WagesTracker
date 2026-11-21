@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { User } from "../lib/types";
+import type { User,Job } from "../lib/types";
 import { isoDate, parseIsoDate, weekRangeLabel } from "../lib/date";
 import { addIsoDays, startOfWeekISO } from "../lib/weekBoundary.mjs";
 import { AdminApiError, fetchUserEarnings, type AdminUserEarnings as EarningsData } from "./adminApi";
@@ -8,43 +8,49 @@ import { AdminEarningsChart } from "./AdminEarningsChart";
 export const adminMoney = (amount: number) => new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(amount);
 export const adminWeekLabel = (start: string, end: string) => weekRangeLabel(parseIsoDate(start), parseIsoDate(end));
 
-export function AdminUserEarnings({ user, initialDate, onAuthError }: {
+export function AdminUserEarnings({ user,jobs=[], initialDate, onAuthError }: {
   user: User;
+  jobs?:Job[];
   initialDate: string;
   onAuthError: (error: unknown) => boolean;
 }) {
+  const [jobId,setJobId]=useState("all");
   const [date, setDate] = useState(initialDate);
   const [data, setData] = useState<EarningsData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
   const today = isoDate(new Date());
-  const currentStart = startOfWeekISO(today, user.weekStartsOn);
-  const selectedStart = startOfWeekISO(date, user.weekStartsOn);
+  const selectedJob=jobs.find(j=>j.id===jobId);
+  const boundary=selectedJob?.weekStartsOn??(jobs.length>1?"Monday":jobs[0]?.weekStartsOn??user.weekStartsOn);
+  const currentStart = startOfWeekISO(today, boundary);
+  const selectedStart = startOfWeekISO(date, boundary);
 
   useEffect(() => {
     let active = true;
     setData(null);
     setError(null);
-    void fetchUserEarnings(user.id, date).then((result) => {
+    void (jobId==="all"?fetchUserEarnings(user.id,date):fetchUserEarnings(user.id,date,jobId)).then((result) => {
       if (active) setData(result);
     }).catch((reason: unknown) => {
       if (!active || onAuthError(reason)) return;
       setError(reason instanceof AdminApiError ? reason.message : "Couldn't load earnings. Please try again.");
     });
     return () => { active = false; };
-  }, [user.id, date, retry, onAuthError]);
+  }, [user.id, date, retry, onAuthError,jobId]);
 
   const weeks = Array.from(new Set([currentStart, selectedStart, ...(data?.availableWeeks ?? [])])).sort().reverse();
   const week = data?.week;
   const previous = data?.previousWeek;
   const difference = week && previous ? Math.round((week.total - previous.total) * 100) / 100 : 0;
-  const goalProgress = week && user.goalEarnings > 0 ? Math.max(0, Math.min(100, week.total / user.goalEarnings * 100)) : 0;
+  const earningsGoal=selectedJob?.goalEarnings??(user.combinedGoalEarnings||(jobs.length?jobs.filter(j=>!j.archived).reduce((n,j)=>n+j.goalEarnings,0):user.goalEarnings));
+  const goalProgress = week && earningsGoal > 0 ? Math.max(0, Math.min(100, week.total / earningsGoal * 100)) : 0;
 
   return <section className="admin-user-earnings" aria-label={`${user.name} weekly earnings`}>
     <div className="admin-earnings-heading">
       <div><p className="admin-eyebrow">Earnings explorer</p><h3>{selectedStart === currentStart ? "This week's earnings" : "Weekly earnings"}</h3></div>
       <button className="btn btn-ghost" onClick={() => setDate(today)} disabled={selectedStart === currentStart}>This week</button>
     </div>
+    {jobs.length>0&&<label className="admin-job-select">Earnings scope<select className="input" value={jobId} onChange={e=>setJobId(e.target.value)}><option value="all">All jobs · same date range</option>{jobs.map(j=><option key={j.id} value={j.id}>{j.name}{j.archived?" (archived)":""}</option>)}</select></label>}
     <div className="admin-week-navigator">
       <button className="admin-week-arrow" aria-label="Previous earnings week" onClick={() => setDate(addIsoDays(selectedStart, -7))}>←</button>
       <div className="admin-week-select">
@@ -55,7 +61,7 @@ export function AdminUserEarnings({ user, initialDate, onAuthError }: {
       </div>
       <button className="admin-week-arrow" aria-label="Next earnings week" disabled={selectedStart >= currentStart} onClick={() => setDate(addIsoDays(selectedStart, 7))}>→</button>
     </div>
-    <p className="admin-context-note">{user.weekStartsOn} start · Use the arrows to explore any earlier week.</p>
+    <p className="admin-context-note">{boundary} start · Use the arrows to explore any earlier week.</p>
 
     {error ? <div className="admin-inline-error" role="alert"><p>{error}</p><button className="btn btn-secondary" onClick={() => setRetry((value) => value + 1)}>Retry earnings</button></div>
       : !week || !previous ? <div className="admin-earnings-loading" role="status"><div className="admin-skeleton" /><p>Loading weekly earnings…</p></div>
@@ -74,14 +80,15 @@ export function AdminUserEarnings({ user, initialDate, onAuthError }: {
           <div><dt>Weekly extras</dt><dd>{adminMoney(week.extras)}</dd></div>
           <div><dt>Previous week</dt><dd>{adminMoney(previous.total)}</dd></div>
         </dl>
-        {user.goalEarnings > 0 && <div className="admin-goal-progress">
-          <div><span>Weekly earnings goal</span><strong>{Math.round(goalProgress)}% of {adminMoney(user.goalEarnings)}</strong></div>
-          <div role="progressbar" aria-label="Weekly earnings goal" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(goalProgress)} aria-valuetext={`${adminMoney(week.total)} of ${adminMoney(user.goalEarnings)}`}><span style={{ width: `${goalProgress}%` }} /></div>
+        {earningsGoal > 0 && <div className="admin-goal-progress">
+          <div><span>Weekly earnings goal</span><strong>{Math.round(goalProgress)}% of {adminMoney(earningsGoal)}</strong></div>
+          <div role="progressbar" aria-label="Weekly earnings goal" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(goalProgress)} aria-valuetext={`${adminMoney(week.total)} of ${adminMoney(earningsGoal)}`}><span style={{ width: `${goalProgress}%` }} /></div>
         </div>}
+        {jobId==="all"&&data?.jobs&&<section className="admin-job-earnings-breakdown"><h4>Breakdown by job</h4>{data.jobs.map(j=><div key={j.id}><span><strong>{j.name}</strong><small>{j.earnings?.hours.toFixed(2)??"0.00"} hours{j.archived?" · Archived":""}</small></span><strong>{adminMoney(j.earnings?.total??0)}</strong></div>)}</section>}
         <AdminEarningsChart days={week.days} previousDays={previous.days} label="Daily earnings" />
-        <p className="admin-context-note">Daily bars include wages and fuel. Weekly extras are added separately to the total. Daily rounding can differ from the weekly total by a cent.</p>
+        <p className="admin-context-note">Daily bars include wages and fuel. Weekly extras are added separately to the total. Wages are rounded per shift, then summed.</p>
         {selectedStart === currentStart && <p className="admin-context-note">This week is still in progress; the comparison uses the full previous week.</p>}
-        <p className="admin-calculation-note">Completed shifts × current rate of {adminMoney(user.rate)}/hr, plus fuel and extras. Unfinished shifts add no wages. Historical amounts use the current rate.</p>
+        <p className="admin-calculation-note">Completed shifts use their recorded hourly rates, plus fuel and extras. Unfinished shifts add no wages. Historical pay is preserved.</p>
       </div>}
   </section>;
 }

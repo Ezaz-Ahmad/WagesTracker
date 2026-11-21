@@ -12,8 +12,13 @@ import {
 } from "./aggregate";
 import { buildWeekDays, fmt2, isoDate, weekRangeLabel } from "./date";
 import type { DayExpense, Shift, User, WeekExtra } from "./types";
+import { wagesForHours } from "./pay";
 
 export interface WeekReportData {
+  reportScopeLabel?:string;
+  ratesUsed?:number[];
+  combinedJobs?:boolean;
+  totalWages?:number;
   /** First and last day of the week this report covers, ISO. Carried on the
    * data rather than recomputed at save time so the filename can never
    * disagree with the contents — the two are built from one source. */
@@ -77,11 +82,10 @@ export function buildWeekReportData(
   const shiftsByDate = groupByDate(shifts);
   const expensesByDate = groupExpensesByDate(dayExpenses);
   const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, currency, user.rate, expensesByDate);
-  const expenseByDate = new Map(dayExpenses.map((expense) => [expense.date, expense]));
   const reportDays = days.map((day) => {
-    const expense = expenseByDate.get(day.dateISO);
-    const automatic = expense?.automaticFuelAllowance ?? (expense?.source === "automatic" ? expense.fuelCost : 0);
-    const manual = expense?.manualOverride ?? (expense?.source === "manual" ? expense.fuelCost : 0);
+    const expenses=dayExpenses.filter(expense=>expense.date===day.dateISO);
+    const automatic = expenses.reduce((sum,expense)=>sum+(expense.automaticFuelAllowance ?? (expense.source === "automatic" ? expense.fuelCost : 0)),0);
+    const manual = expenses.reduce((sum,expense)=>sum+(expense.manualOverride ?? (expense.source === "manual" ? expense.fuelCost : 0)),0);
     const fuelSource: DayComputed["fuelSource"] = automatic > 0 && manual > 0 ? "mixed" : manual > 0 ? "manual" : automatic > 0 ? "automatic" : null;
     return { ...day, fuelSource };
   });
@@ -116,8 +120,10 @@ export function buildWeekReportData(
       .map((w) => w[0] || "")
       .join("")
       .toUpperCase() || "—";
+  const locationCount=new Set(shiftRows.filter(row=>row.hours>0).map(row=>`${row.jobId||""}:${row.workLocationId||row.location.trim().split(/\s+/)[0].toLocaleLowerCase("en-AU")}`)).size;
 
   return {
+    reportScopeLabel:user.workspacesEnabled?user.workLocationName:undefined,
     weekStartISO: isoDate(weekDays[0]),
     weekEndISO: isoDate(weekDays[6]),
     weekRangeLabel: weekRangeLabel(weekDays[0], weekDays[6]),
@@ -129,6 +135,9 @@ export function buildWeekReportData(
     workAddress: user.workAddress,
     currency,
     rate: user.rate,
+    ratesUsed:Array.from(new Set(shiftRows.filter(s=>s.hours>0).map(s=>s.rate??user.rate))).sort((a,b)=>a-b),
+    combinedJobs:new Set(shifts.map(s=>s.jobId).filter(Boolean)).size>1,
+    totalWages:shiftRows.reduce((sum,row)=>sum+Math.round(wagesForHours(row.hours,row.rate??user.rate)*100),0)/100,
     totalHours,
     totalEarnings,
     totalFuelCost,
@@ -140,7 +149,7 @@ export function buildWeekReportData(
     otherEarningAmountLabel: otherEarningAmount > 0 ? currency + fmt2(otherEarningAmount) : "—",
     otherEarningReason: weekExtra?.reason ?? "",
     daysLogged,
-    locationsCountLabel: `${locationBreakdown.length || 1} ${locationBreakdown.length === 1 ? "location" : "locations"}`,
+    locationsCountLabel: `${locationCount || 1} ${locationCount <= 1 ? "location" : "locations"}`,
     days: reportDays,
     shiftRows,
     locationBreakdown,

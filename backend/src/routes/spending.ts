@@ -1,3 +1,4 @@
+import { userJobs } from "../jobs.js";
 import { Router, type Response } from "express";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -55,6 +56,7 @@ interface CategoryRow {
 }
 
 interface ExpenseRow {
+  job_id?:string|null;
   id: string;
   amount_cents: number;
   category_id: string;
@@ -88,6 +90,7 @@ function publicCategory(row: CategoryRow) {
 
 function publicExpense(row: ExpenseRow) {
   return {
+    jobId:row.job_id??null,
     id: row.id,
     amountCents: Number(row.amount_cents),
     categoryId: row.category_id,
@@ -255,6 +258,7 @@ spendingRouter.delete(
 
 const LOCAL_DATE_TIME_RE = /^(\d{4}-\d{2}-\d{2})T([01]\d|2[0-3]):[0-5]\d$/;
 const expenseWriteSchema = z.object({
+  jobId:z.string().min(1).max(120).nullable().optional().default(null),
   amountCents: z.number().int().min(1, "Amount must be greater than zero.").max(100_000_000, "Amount is too large."),
   categoryId: z.string().uuid("Choose a valid category."),
   spentAt: z.string().regex(LOCAL_DATE_TIME_RE, "Choose a valid date and time."),
@@ -305,6 +309,7 @@ spendingRouter.get(
     }
     const clauses = ["p.user_id = ?"];
     const args: (string | number)[] = [req.userId!];
+    if(typeof req.query.linkedJobId==="string"&&req.query.linkedJobId){clauses.push("p.job_id = ?");args.push(req.query.linkedJobId);}
     if (from) { clauses.push("p.spent_date >= ?"); args.push(from); }
     if (to) { clauses.push("p.spent_date <= ?"); args.push(to); }
     if (typeof req.query.categoryId === "string" && req.query.categoryId) {
@@ -360,15 +365,16 @@ spendingRouter.post(
       }
     }
 
+    if(parsed.data.jobId){const jobs=await userJobs(req.userId!);if(!jobs.some(j=>j.id===parsed.data.jobId&&!j.archived_at))return validationError(res,"Choose an active job from your account.");}
     const id = randomUUID();
     const now = new Date().toISOString();
     try {
       await db.execute({
         sql: `INSERT INTO personal_expenses
-                (id, user_id, category_id, amount_cents, spent_at, spent_date, time_zone,
+                (id, user_id, job_id, category_id, amount_cents, spent_at, spent_date, time_zone,
                  merchant, note, payment_method, client_request_id, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [id, req.userId!, parsed.data.categoryId, parsed.data.amountCents, parsed.data.spentAt,
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [id, req.userId!, parsed.data.jobId??null, parsed.data.categoryId, parsed.data.amountCents, parsed.data.spentAt,
           parsed.data.spentAt.slice(0, 10), timeZone, parsed.data.merchant, parsed.data.note,
           parsed.data.paymentMethod, parsed.data.clientRequestId ?? null, now, now],
       });
@@ -417,12 +423,13 @@ spendingRouter.patch(
     if (category.archived_at && categoryId !== current.category_id) {
       return validationError(res, "That category is hidden. Choose an available category.");
     }
+    if(parsed.data.jobId&&parsed.data.jobId!==current.job_id){const jobs=await userJobs(req.userId!);if(!jobs.some(j=>j.id===parsed.data.jobId&&!j.archived_at))return validationError(res,"Choose an active job from your account.");}
     const now = new Date().toISOString();
     await db.execute({
-      sql: `UPDATE personal_expenses SET category_id = ?, amount_cents = ?, spent_at = ?, spent_date = ?,
+      sql: `UPDATE personal_expenses SET job_id=?, category_id = ?, amount_cents = ?, spent_at = ?, spent_date = ?,
               time_zone = ?, merchant = ?, note = ?, payment_method = ?, updated_at = ?
             WHERE id = ? AND user_id = ?`,
-      args: [categoryId, parsed.data.amountCents ?? current.amount_cents, spentAt, spentAt.slice(0, 10),
+      args: [parsed.data.jobId===undefined?current.job_id??null:parsed.data.jobId, categoryId, parsed.data.amountCents ?? current.amount_cents, spentAt, spentAt.slice(0, 10),
         parsed.data.spentAt ? timeZone : current.time_zone, parsed.data.merchant ?? current.merchant,
         parsed.data.note ?? current.note, parsed.data.paymentMethod === undefined ? current.payment_method : parsed.data.paymentMethod,
         now, current.id, req.userId!],
@@ -457,10 +464,10 @@ function inclusiveDays(from: string, to: string): number {
   return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
 }
 
-async function spendingTotal(userId: string, from: string, to: string): Promise<number> {
+async function spendingTotal(userId: string, from: string, to: string, linkedJobId?:string): Promise<number> {
   const result = await db.execute({
-    sql: "SELECT COALESCE(SUM(amount_cents), 0) AS total FROM personal_expenses WHERE user_id = ? AND spent_date >= ? AND spent_date <= ?",
-    args: [userId, from, to],
+    sql: `SELECT COALESCE(SUM(amount_cents), 0) AS total FROM personal_expenses WHERE user_id = ? AND spent_date >= ? AND spent_date <= ? ${linkedJobId?"AND job_id=?":""}`,
+    args: linkedJobId?[userId,from,to,linkedJobId]:[userId, from, to],
   });
   return Number(result.rows[0]?.total ?? 0);
 }
@@ -474,35 +481,36 @@ spendingRouter.get(
       return validationError(res, "Choose a valid date range of 10 years or less.");
     }
     await ensureDefaultSpendingCategories(req.userId!);
+    const linkedJobId=typeof req.query.linkedJobId==="string"&&req.query.linkedJobId?req.query.linkedJobId:undefined;
     const days = inclusiveDays(from, to);
     const previousTo = addUtcDays(from, -1);
     const previousFrom = addUtcDays(previousTo, -(days - 1));
     const [totalCents, previousTotalCents, earnings, previousEarnings, countResult, categoryResult, trendResult, recentResult] = await Promise.all([
-      spendingTotal(req.userId!, from, to),
-      spendingTotal(req.userId!, previousFrom, previousTo),
+      spendingTotal(req.userId!, from, to,linkedJobId),
+      spendingTotal(req.userId!, previousFrom, previousTo,linkedJobId),
       earningsForRange(db, req.userId!, from, to),
       earningsForRange(db, req.userId!, previousFrom, previousTo),
       db.execute({
-        sql: "SELECT COUNT(*) AS count FROM personal_expenses WHERE user_id = ? AND spent_date >= ? AND spent_date <= ?",
-        args: [req.userId!, from, to],
+        sql: `SELECT COUNT(*) AS count FROM personal_expenses WHERE user_id = ? AND spent_date >= ? AND spent_date <= ? ${linkedJobId?"AND job_id=?":""}`,
+        args: linkedJobId?[req.userId!,from,to,linkedJobId]:[req.userId!, from, to],
       }),
       db.execute({
         sql: `SELECT c.id, c.name, c.icon, c.colour, SUM(p.amount_cents) AS total_cents, COUNT(*) AS transaction_count
               FROM personal_expenses p JOIN spending_categories c ON c.id = p.category_id
-              WHERE p.user_id = ? AND p.spent_date >= ? AND p.spent_date <= ?
+              WHERE p.user_id = ? AND p.spent_date >= ? AND p.spent_date <= ? ${linkedJobId?"AND p.job_id=?":""}
               GROUP BY c.id, c.name, c.icon, c.colour ORDER BY total_cents DESC, c.name COLLATE NOCASE`,
-        args: [req.userId!, from, to],
+        args: linkedJobId?[req.userId!,from,to,linkedJobId]:[req.userId!, from, to],
       }),
       db.execute({
         sql: `SELECT spent_date AS date, SUM(amount_cents) AS total_cents
-              FROM personal_expenses WHERE user_id = ? AND spent_date >= ? AND spent_date <= ?
+              FROM personal_expenses WHERE user_id = ? AND spent_date >= ? AND spent_date <= ? ${linkedJobId?"AND job_id=?":""}
               GROUP BY spent_date ORDER BY spent_date`,
-        args: [req.userId!, from, to],
+        args: linkedJobId?[req.userId!,from,to,linkedJobId]:[req.userId!, from, to],
       }),
       db.execute({
-        sql: `${EXPENSE_SELECT} WHERE p.user_id = ? AND p.spent_date >= ? AND p.spent_date <= ?
+        sql: `${EXPENSE_SELECT} WHERE p.user_id = ? AND p.spent_date >= ? AND p.spent_date <= ? ${linkedJobId?"AND p.job_id=?":""}
               ORDER BY p.spent_at DESC, p.id DESC LIMIT 5`,
-        args: [req.userId!, from, to],
+        args: linkedJobId?[req.userId!,from,to,linkedJobId]:[req.userId!, from, to],
       }),
     ]);
     const categories = categoryResult.rows.map((row) => ({

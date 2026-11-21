@@ -1,3 +1,4 @@
+import { jobScope, resolvePay, requestDate } from "../jobs.js";
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -8,7 +9,7 @@ import { dollarsToCents, hasAtMostTwoDecimals, MAX_FUEL_ALLOWANCE } from "../fue
 import { toPublicWorkLocation, type WorkLocationRow } from "../types.js";
 
 export const workLocationsRouter = Router();
-workLocationsRouter.use(requireAuth);
+workLocationsRouter.use(requireAuth, jobScope);
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -51,11 +52,15 @@ workLocationsRouter.get(
     const includeArchived = req.query.includeArchived === "true";
     const result = await db.execute({
       sql: `SELECT * FROM work_locations
-            WHERE user_id = ? ${includeArchived ? "" : "AND archived_at IS NULL"}
+            WHERE user_id = @userId ${req.jobId ? "AND job_id = @jobId" : ""} ${includeArchived ? "" : "AND archived_at IS NULL"}
             ORDER BY archived_at IS NOT NULL, name COLLATE NOCASE, created_at`,
-      args: [req.userId!],
+      args: req.jobId ? {userId:req.userId!,jobId:req.jobId} : {userId:req.userId!},
     });
-    res.json({ locations: (result.rows as unknown as WorkLocationRow[]).map(toPublicWorkLocation) });
+    const locations = await Promise.all((result.rows as unknown as WorkLocationRow[]).map(async row => {
+      const pay=await resolvePay(db,req.userId!,row.job_id || `job_${req.userId!}`,row.id,requestDate(req));
+      return {...toPublicWorkLocation(row),hourlyRate:pay.cents/100,rateSource:pay.source};
+    }));
+    res.json({ locations });
   })
 );
 
@@ -75,9 +80,9 @@ workLocationsRouter.get(
             FROM shifts s
             JOIN work_locations wl ON wl.id = s.work_location_id AND wl.user_id = s.user_id
             WHERE s.user_id = ? AND s.date BETWEEN ? AND ?
-              AND s.sign_in IS NOT NULL AND wl.archived_at IS NULL
+              AND s.sign_in IS NOT NULL AND wl.archived_at IS NULL AND s.job_id = ?
             ORDER BY s.date, s.created_at, s.id`,
-      args: [req.userId!, previousStart, previousEnd],
+      args: [req.userId!, previousStart, previousEnd, req.jobId || ""],
     });
 
     const suggestions: Record<string, string[]> = {};
@@ -106,13 +111,14 @@ workLocationsRouter.post(
     try {
       await db.execute({
         sql: `INSERT INTO work_locations
-              (id, user_id, name, normalized_name, address, fuel_allowance_cents, archived_at, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+              (id, user_id, job_id, name, normalized_name, address, fuel_allowance_cents, archived_at, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
         args: [
           id,
           req.userId!,
+          req.jobId!,
           name,
-          normalizeName(name),
+          `${req.jobId!}:${normalizeName(name)}`,
           parsed.data.address,
           parsed.data.fuelAllowance == null ? null : dollarsToCents(parsed.data.fuelAllowance),
           now,
@@ -148,8 +154,8 @@ workLocationsRouter.patch(
       return;
     }
     const existing = await db.execute({
-      sql: "SELECT id FROM work_locations WHERE id = ? AND user_id = ?",
-      args: [req.params.id, req.userId!],
+      sql: "SELECT id FROM work_locations WHERE id = ? AND user_id = ? AND job_id = ?",
+      args: [req.params.id, req.userId!, req.jobId!],
     });
     if (existing.rows.length === 0) {
       res.status(404).json({ error: "Work location not found" });
@@ -166,7 +172,7 @@ workLocationsRouter.patch(
       const name = cleanName(updates.name);
       clauses.push("name = @name", "normalized_name = @normalizedName");
       args.name = name;
-      args.normalizedName = normalizeName(name);
+      args.normalizedName = `${req.jobId!}:${normalizeName(name)}`;
     }
     if (updates.address !== undefined) {
       clauses.push("address = @address");
@@ -208,13 +214,13 @@ workLocationsRouter.delete(
     const now = new Date().toISOString();
     const result = await db.execute({
       sql: `UPDATE work_locations SET archived_at = ?, updated_at = ?
-            WHERE id = ? AND user_id = ? AND archived_at IS NULL`,
-      args: [now, now, req.params.id, req.userId!],
+            WHERE id = ? AND user_id = ? AND job_id = ? AND archived_at IS NULL`,
+      args: [now, now, req.params.id, req.userId!, req.jobId!],
     });
     if (result.rowsAffected === 0) {
       const exists = await db.execute({
-        sql: "SELECT id FROM work_locations WHERE id = ? AND user_id = ?",
-        args: [req.params.id, req.userId!],
+        sql: "SELECT id FROM work_locations WHERE id = ? AND user_id = ? AND job_id = ?",
+        args: [req.params.id, req.userId!, req.jobId!],
       });
       if (exists.rows.length === 0) {
         res.status(404).json({ error: "Work location not found" });

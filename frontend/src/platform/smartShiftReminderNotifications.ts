@@ -3,6 +3,7 @@ import type { SmartReminderScheduleItem } from "../lib/smartShiftReminders";
 export type NotificationAuthorization = "authorized" | "denied" | "notDetermined" | "unavailable";
 
 export interface SmartReminderAction {
+  jobId?:string;
   accountId: string;
   kind: "signIn" | "signOut";
   reminderId: string;

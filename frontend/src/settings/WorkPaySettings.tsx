@@ -1,8 +1,7 @@
+import { JobPayPanel } from "../components/JobWorkspace";
 import { useMemo, useState } from "react";
 import { CURRENCY, useApp } from "../context/AppContext";
-import { parseNumberField } from "../lib/numberField";
 import type { WorkLocation } from "../lib/types";
-import { SettingsSaveBar } from "./SettingsSaveBar";
 import { AsyncButton } from "../components/AsyncButton";
 
 interface LocationDraft {
@@ -28,19 +27,13 @@ function fuelAllowanceError(enabled: boolean, raw: string): string | null {
 
 export function WorkPaySettings() {
   const {
-    user,
-    updateSettings,
+    user,selectedJob,jobs=[],
     workLocations,
     workLocationsLoading,
     createWorkLocation,
     updateWorkLocation,
     archiveWorkLocation,
   } = useApp();
-  const [rateRaw, setRateRaw] = useState(user?.rate ? String(user.rate) : "");
-  const [savedRate, setSavedRate] = useState(rateRaw);
-  const [savingRate, setSavingRate] = useState(false);
-  const [rateError, setRateError] = useState<string | null>(null);
-  const [rateSuccess, setRateSuccess] = useState(false);
   const [draft, setDraft] = useState<LocationDraft | null>(null);
   const [locationBusy, setLocationBusy] = useState(false);
   const [locationBusyTarget, setLocationBusyTarget] = useState<string | null>(null);
@@ -51,16 +44,8 @@ export function WorkPaySettings() {
   const archivedLocations = useMemo(() => (workLocations ?? []).filter((location) => location.archived), [workLocations]);
 
   if (!user) return null;
+  if(user.workspacesEnabled&&jobs.length&&!selectedJob)return <p className="job-notice">Choose an individual job above to manage its pay and work locations.</p>;
 
-  const rateField = parseNumberField(rateRaw, { min: 0.01, max: 1000 });
-  const rateDecimalsValid = rateField.valid
-    && Math.abs(rateField.value * 100 - Math.round(rateField.value * 100)) < 1e-7;
-  const rateValid = rateField.valid && rateDecimalsValid;
-  const displayedRateError = !rateField.valid
-    ? rateField.error
-    : !rateDecimalsValid
-      ? "Use no more than two decimal places."
-      : null;
   const fuelError = draft ? fuelAllowanceError(draft.fuelEnabled, draft.fuelAllowanceRaw) : null;
   const locationValid = !!draft?.name.trim() && !fuelError;
 
@@ -132,24 +117,11 @@ export function WorkPaySettings() {
     }
   }
 
-  async function saveRate() {
-    if (!rateValid) return;
-    setSavingRate(true);
-    setRateError(null);
-    setRateSuccess(false);
-    try {
-      await updateSettings({ rate: rateField.value });
-      setSavedRate(rateRaw);
-      setRateSuccess(true);
-    } catch (error) {
-      setRateError(error instanceof Error ? error.message : "Couldn't save your hourly rate.");
-    } finally {
-      setSavingRate(false);
-    }
-  }
 
   return (
-    <div className="settings-section-card card work-pay-settings">
+    <div className="work-pay-settings">
+      <JobPayPanel/>
+      <fieldset className="settings-section-card card job-location-management" disabled={!!selectedJob?.archived}>
       <section aria-labelledby="work-locations-heading">
         <div className="settings-subsection-head">
           <div>
@@ -240,17 +212,7 @@ export function WorkPaySettings() {
         </div>
       </section>
 
-      <hr className="settings-divider" />
-
-      <section aria-labelledby="hourly-rate-heading">
-        <h3 id="hourly-rate-heading">Hourly pay</h3>
-        <div className="field field-spaced">
-          <label htmlFor="settings-rate">Hourly rate ({CURRENCY})</label>
-          <input id="settings-rate" className="input" type="text" inputMode="decimal" placeholder="e.g. 25.00" value={rateRaw} onChange={(event) => { setRateRaw(event.target.value); setRateSuccess(false); }} aria-invalid={!rateValid} aria-describedby={!rateValid ? "settings-rate-error" : undefined} />
-          {!rateValid && <div id="settings-rate-error" className="field-hint field-hint-danger">{displayedRateError}</div>}
-        </div>
-        <SettingsSaveBar saving={savingRate} dirty={rateRaw !== savedRate} success={rateSuccess} error={rateError} onSave={saveRate} disabled={!rateValid} />
-      </section>
+      </fieldset>
     </div>
   );
 }

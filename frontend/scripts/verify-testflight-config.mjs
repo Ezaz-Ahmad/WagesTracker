@@ -97,6 +97,7 @@ for (const requiredStep of [
   /inspect-ios-distribution\.mjs/u,
   /altool --validate-app/u,
   /altool --upload-app/u,
+  /node frontend\/scripts\/confirm-testflight-build\.mjs/u,
   /if: always\(\)/u,
   /security delete-keychain/u,
   /AuthKey_\$\{ASC_KEY_ID\}\.p8/u,

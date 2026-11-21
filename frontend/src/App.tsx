@@ -1,3 +1,4 @@
+import { AllJobsOverview, ChooseJobForEntry, JobSwitcher } from "./components/JobWorkspace";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { AppProvider, useApp } from "./context/AppContext";
 import { BottomNav, tabsInOrder } from "./components/BottomNav";
@@ -48,6 +49,8 @@ const VIEWPORT_DEBUG = !__NATIVE_CONSUMER_BUILD__ && import.meta.env.VITE_VIEWPO
 
 function AuthedAppShell() {
   const {
+    selectedJobId,
+    selectedJob,
     today,
     user,
     actionError,
@@ -173,6 +176,7 @@ function AuthedAppShell() {
             <span className="app-nav-logout-label">Log out</span>
           </button>
         </header>
+        <JobSwitcher onManageJobs={()=>{setSettingsInitialCategory("jobs");setScreen("settings");}}/>
 
         {/* The device-limit notice. The backend has sent this on the login
             response ever since per-installation sessions landed, but the
@@ -222,9 +226,9 @@ function AuthedAppShell() {
           )}
           <div className="swipe-track">
             <div key={screen} className={screenTransitionClass}>
-              <ScreenErrorBoundary key={screen}>
-                {screen === "home" && <HomeScreen onNavigate={navigate} onManageLocations={openWorkLocationSettings} />}
-                {screen === "entry" && <EntryScreen onManageLocations={openWorkLocationSettings} />}
+              <ScreenErrorBoundary key={screen==="settings"?screen:`${screen}:${selectedJobId}`}>
+                {screen === "home" && (selectedJobId === "all" ? <AllJobsOverview onNavigate={navigate}/> : <HomeScreen onNavigate={navigate} onManageLocations={openWorkLocationSettings} />)}
+                {screen === "entry" && (selectedJobId === "all" || selectedJob?.archived ? <ChooseJobForEntry/> : <EntryScreen onManageLocations={openWorkLocationSettings} />)}
                 {screen === "spending" && <SpendingScreen />}
                 {screen === "report" && <ReportScreen />}
                 {screen === "history" && <HistoryScreen />}
@@ -372,11 +376,11 @@ export default function App() {
   useViewportHeight();
 
   return (
-    <AppProvider>
-      <ConfirmProvider>
+    <ConfirmProvider>
+      <AppProvider>
         <RoutedRoot />
         {VIEWPORT_DEBUG && <ViewportDebugOverlay />}
-      </ConfirmProvider>
-    </AppProvider>
+      </AppProvider>
+    </ConfirmProvider>
   );
 }

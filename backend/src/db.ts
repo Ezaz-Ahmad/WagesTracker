@@ -2,6 +2,7 @@ import { createClient, type Client } from "@libsql/client";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { migrateJobs } from "./jobMigration.js";
 
 // Local/dev default: a plain SQLite file on disk, same as before.
 //
@@ -553,6 +554,8 @@ try {
     e instanceof Error ? e.message : e
   );
 }
+
+await migrateJobs(db);
 
 export const RETENTION_YEARS = 5;
 

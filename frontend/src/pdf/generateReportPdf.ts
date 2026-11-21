@@ -19,6 +19,13 @@ function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n - 1) + "…" : s;
 }
 
+function fitText(doc:import("jspdf").jsPDF,text:string,width:number):string{
+  if(doc.getTextWidth(text)<=width)return text;
+  let value=text;
+  while(value.length&&doc.getTextWidth(`${value}…`)>width)value=value.slice(0,-1);
+  return `${value.trimEnd()}…`;
+}
+
 /** The location(s) worked that day — fuel cost is logged per day, not per
  * shift, so a day with more than one shift/location joins them together. */
 function dayLocations(d: DayComputed): string {
@@ -270,13 +277,14 @@ export async function createReportPdf(data: WeekReportData): Promise<GeneratedPd
   doc.setTextColor(TEXT);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
-  doc.text(data.employeeName || "—", marginX + 14.5, y - 2.5);
+  const identityWidth=contentW-14.5-doc.getTextWidth(data.weekRangeLabel)-16;
+  doc.text(fitText(doc,data.employeeName||"—",identityWidth), marginX + 14.5, y - 2.5);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(MUTED);
   // The employee's own address, not the work location — that's covered
   // separately by the "Worked at" stat and the shift table's location column.
-  doc.text(data.employeeAddress || "—", marginX + 14.5, y + 3);
+  doc.text(fitText(doc,data.employeeAddress||"—",identityWidth), marginX + 14.5, y + 3);
 
   doc.setDrawColor(ACCENT);
   doc.setTextColor(ACCENT);
@@ -293,13 +301,20 @@ export async function createReportPdf(data: WeekReportData): Promise<GeneratedPd
   y += 8;
   drawDivider(doc, marginX, pageW - marginX, y, DIVIDER, 0.6);
 
+  if(data.reportScopeLabel){
+    y+=6;
+    doc.setFont("helvetica","bold");doc.setFontSize(9);doc.setTextColor(TEXT);
+    doc.text(fitText(doc,data.reportScopeLabel,contentW),marginX,y);
+  }
+
   // — summary stat cards —
   y += 8;
   const cardH = 18;
+  const rates=data.ratesUsed?.length?data.ratesUsed:[data.rate];
   drawStatRow(doc, marginX, contentW, y, cardH, 4, [
     { label: "Total hours", value: `${fmt2(data.totalHours)}h`, color: TEXT },
     { label: "Total earnings", value: `${data.currency}${fmt2(data.totalEarnings)}`, color: ACCENT_DARK },
-    { label: "Hourly rate", value: `${data.currency}${fmt2(data.rate)}`, color: TEXT },
+    { label: rates.length>1?"Hourly rates used":"Hourly rate", value: rates.length>1?`${rates.length} rates`:`${data.currency}${fmt2(rates[0])}`, color: TEXT, ...(rates.length>1?{caption:`${data.currency}${fmt2(rates[0])}–${data.currency}${fmt2(rates[rates.length-1])}/hr`}:{}) },
     { label: "Days worked", value: `${data.daysLogged} / 7`, color: TEXT },
   ]);
   y += cardH;
@@ -390,13 +405,14 @@ export async function createReportPdf(data: WeekReportData): Promise<GeneratedPd
   ensureSpace(10 + 5 + 2.5 + 5 + 5.8 * Math.min(3, data.shiftRows.length || 1));
   y += 10;
   const cols = [
-    { key: "day", label: "Day", w: 0.11 },
-    { key: "date", label: "Date", w: 0.14 },
-    { key: "location", label: "Location", w: 0.27 },
-    { key: "signIn", label: "Sign in", w: 0.13 },
-    { key: "signOut", label: "Sign out", w: 0.13 },
-    { key: "hoursLabel", label: "Hours", w: 0.11 },
-    { key: "moneyLabel", label: "Earnings", w: 0.11 },
+    { key: "day", label: "Day", w: 0.09 },
+    { key: "date", label: "Date", w: 0.12 },
+    { key: "location", label: data.combinedJobs?"Job / location":"Location", w: 0.20 },
+    { key: "signIn", label: "Sign in", w: 0.11 },
+    { key: "signOut", label: "Sign out", w: 0.11 },
+    { key: "hoursLabel", label: "Hours", w: 0.09 },
+    { key:"rateLabel",label:"Rate / hr",w:0.12 },
+    { key: "moneyLabel", label: "Wages", w: 0.16 },
   ] as const;
   const colX: number[] = [];
   let cx0 = marginX;
@@ -415,6 +431,7 @@ export async function createReportPdf(data: WeekReportData): Promise<GeneratedPd
     y += 5;
   }
 
+  const shiftRowHeight=data.combinedJobs?10:6.8;
   drawSectionLabel(doc, "Shifts this week", marginX, y);
   y += 5;
   drawShiftColHeader();
@@ -426,7 +443,7 @@ export async function createReportPdf(data: WeekReportData): Promise<GeneratedPd
       // A row that won't fit above the footer starts a fresh page instead of
       // being clipped or drawn underneath the footer band — with the column
       // headers repeated, so the new page's table is still self-explanatory.
-      if (y + 5.8 > footerLimit) {
+      if (y + shiftRowHeight > footerLimit) {
         drawFooter();
         doc.addPage();
         y = 20;
@@ -438,25 +455,29 @@ export async function createReportPdf(data: WeekReportData): Promise<GeneratedPd
       }
       if (i % 2 === 1) {
         doc.setFillColor(NEUTRAL_LIGHT);
-        doc.rect(marginX, y - 3.6, contentW, 5.8, "F");
+        doc.rect(marginX, y - 3.6, contentW, shiftRowHeight, "F");
       }
       doc.setTextColor(TEXT);
       doc.text(r.day, colX[0], y);
       doc.text(r.date, colX[1], y);
-      doc.text(truncate(r.location, 24), colX[2], y);
+      doc.text(fitText(doc,data.combinedJobs?r.jobName||"Job":r.location,contentW*0.2-2), colX[2], y);
+      if(data.combinedJobs){doc.setFontSize(6.5);doc.text(fitText(doc,r.location,contentW*0.2-2),colX[2],y+3.6);doc.setFontSize(8.5);}
       doc.text(r.signIn, colX[3], y);
       doc.text(r.signOut, colX[4], y);
       doc.text(r.hoursLabel, colX[5], y);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(ACCENT_DARK);
-      doc.text(r.moneyLabel, colX[6], y);
+      doc.setTextColor(TEXT);
+      doc.text(r.rateLabel || `${data.currency}${fmt2(data.rate)}`,colX[6],y);
+      doc.setTextColor(ACCENT_DARK);
+      doc.text(r.moneyLabel, colX[7], y);
       doc.setFont("helvetica", "normal");
-      y += 5.8;
+      y += shiftRowHeight;
     });
   } else {
     doc.setTextColor(MUTED);
     doc.text("No shifts logged this week.", marginX, y);
-    y += 5.8;
+    y += shiftRowHeight;
   }
 
   // — dedicated fuel allowance section: a small day-by-day breakdown of fuel
@@ -562,32 +583,33 @@ export async function createReportPdf(data: WeekReportData): Promise<GeneratedPd
   }
 
   if (data.multiLocation && data.locationBreakdown.length) {
-    ensureSpace(5 + 8 + 5 + 8);
+    ensureSpace(5 + 8 + 6.5 + 10);
     y += 5;
     drawDivider(doc, marginX, pageW - marginX, y);
     y += 8;
     drawSectionLabel(doc, "By location", marginX, y);
-    // +6.5 (not +5) so the box top lands just below the label's text
-    // baseline instead of 0.5mm above it — the tighter gap was slicing
-    // through the bottom of the "BY LOCATION" letters.
     y += 6.5;
-    const rowH = 8;
-    doc.setFillColor(NEUTRAL_LIGHT);
-    doc.roundedRect(marginX, y - 5.5, contentW, rowH, 1.6, 1.6, "F");
-    let lx = marginX + 5;
     data.locationBreakdown.forEach((lb) => {
+      doc.setFont("helvetica", "normal");doc.setFontSize(8.5);
+      const lines:string[]=doc.splitTextToSize(lb.location,contentW*0.64-8);
+      const rowH=Math.max(9,lines.length*3.8+4);
+      if(y+rowH>footerLimit){
+        drawFooter();doc.addPage();y=20;
+        drawSectionLabel(doc,"By location (continued)",marginX,y);y+=6.5;
+      }
+      doc.setFillColor(NEUTRAL_LIGHT);
+      doc.roundedRect(marginX,y-4,contentW,rowH-1,1.6,1.6,"F");
       doc.setFont("helvetica", "bold");
       doc.setFontSize(8.5);
       doc.setTextColor(TEXT);
-      doc.text(lb.location, lx, y);
-      const w1 = doc.getTextWidth(lb.location);
+      doc.text(lines,marginX+4,y);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(MUTED);
-      const rest = `  —  ${lb.hoursLabel} · ${lb.moneyLabel}`;
-      doc.text(rest, lx + w1, y);
-      lx += w1 + doc.getTextWidth(rest) + 11;
+      doc.text(lb.hoursLabel,marginX+contentW*0.77,y,{align:"right"});
+      doc.setFont("helvetica","bold");doc.setTextColor(ACCENT_DARK);
+      doc.text(lb.moneyLabel,pageW-marginX-4,y,{align:"right"});
+      y+=rowH;
     });
-    y += rowH - 1.5;
   }
 
   // — total —
@@ -627,7 +649,7 @@ export async function createReportPdf(data: WeekReportData): Promise<GeneratedPd
   // character) and used the prose date range, which sorts alphabetically by
   // month name rather than chronologically.
   return {
-    filename: weeklyPdfFilename(data.employeeName, data.weekStartISO, data.weekEndISO),
+    filename: weeklyPdfFilename(data.employeeName, data.weekStartISO, data.weekEndISO,data.reportScopeLabel),
     bytes: doc.output("arraybuffer"),
   };
 }

@@ -3,6 +3,8 @@ import type { WeekStart } from "./weekBoundary.mjs";
 export type { WeekStart };
 
 export interface User {
+  workspacesEnabled?:boolean;
+  combinedGoalEarnings?: number;
   id: string;
   name: string;
   email: string;
@@ -21,6 +23,10 @@ export interface User {
 }
 
 export interface Shift {
+  appliedRate?: number | null;
+  rateSource?: string | null;
+  jobName?: string | null;
+  jobId?: string;
   id: string;
   date: string; // YYYY-MM-DD
   location: string;
@@ -34,6 +40,7 @@ export interface Shift {
 // One per calendar day (not per shift) — a day can have multiple shifts but
 // only ever one fuel cost entry, upserted/cleared by date.
 export interface DayExpense {
+  jobId?: string;
   date: string; // YYYY-MM-DD
   fuelCost: number;
   automaticFuelAllowance?: number;
@@ -42,6 +49,9 @@ export interface DayExpense {
 }
 
 export interface WorkLocation {
+  hourlyRate?: number;
+  rateSource?: string;
+  jobId?: string;
   id: string;
   name: string;
   address: string;
@@ -56,6 +66,8 @@ export interface WorkLocation {
 // weekStartsOn setting) — a single lump amount like a tip, bonus, or
 // reimbursement, always paired with a reason.
 export interface WeekExtra {
+  effectiveDate?:string;
+  jobId?: string;
   weekStart: string; // YYYY-MM-DD
   amount: number;
   reason: string;
@@ -92,6 +104,7 @@ export interface ExpenseCategoryRef {
 }
 
 export interface PersonalExpense {
+  jobId?:string|null;
   id: string;
   amountCents: number;
   categoryId: string;
@@ -132,3 +145,6 @@ export interface SpendingCategoryTotal {
 }
 
 export type Screen = "home" | "entry" | "spending" | "report" | "history" | "settings";
+
+export interface Job {id:string;name:string;role:string;weekStartsOn:WeekStart;rate:number;goalHours:number;goalEarnings:number;smartRemindersEnabled:boolean;isPrimary:boolean;archived:boolean;createdAt:string;}
+export interface PayRate {id:string;jobId:string;locationId:string|null;effectiveFrom:string;rate:number|null;createdAt:string;}

@@ -423,7 +423,7 @@ function HomeStatsProvider(props: {
   let bestDay: HomeDay | undefined;
   let bestDayEarnings = 0;
   for (const day of liveDays) {
-    const earnings = day.hours * props.rate + day.fuelCost;
+    const earnings = (day.wages??day.hours*props.rate) + day.fuelCost;
     if (earnings > bestDayEarnings) {
       bestDayEarnings = earnings;
       bestDay = day;
@@ -613,7 +613,7 @@ function HomeStatWidget({ id, index }: { id: HomeStatWidgetId; index: number }) 
 }
 
 export function HomeScreen({ onNavigate, onManageLocations }: { onNavigate?: (screen: Screen) => void; onManageLocations?: () => void } = {}) {
-  const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras, earningsHidden, workLocations } = useApp();
+  const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras, earningsHidden, workLocations, selectedJob } = useApp();
   const { active, last, startAtLocation, end } = useTodayShift();
   const [busy, setBusy] = useState(false);
   const [selectedClockLocationId, setSelectedClockLocationId] = useState("");
@@ -630,7 +630,7 @@ export function HomeScreen({ onNavigate, onManageLocations }: { onNavigate?: (sc
   // React requires the same hooks in the same order every time, so the
   // "not ready yet" bail-out has to come AFTER all of them, using safe
   // fallbacks for anything that reads `user` before it's confirmed non-null.
-  const rate = user?.rate ?? 0;
+  const rate = last?.appliedRate ?? user?.rate ?? 0;
   const weekStartsOn = user?.weekStartsOn ?? "Monday";
   const goalHours = user?.goalHours ?? 0;
   const goalEarnings = user?.goalEarnings ?? 0;
@@ -721,7 +721,7 @@ export function HomeScreen({ onNavigate, onManageLocations }: { onNavigate?: (sc
     : todayHasExtra
       ? (
           <>
-            {fmt2(todayDay.hours)}h · <Amount>{CURRENCY}{fmt2(todayDay.hours * user.rate + todayDay.fuelCost)}</Amount>
+            {fmt2(todayDay.hours)}h · <Amount>{CURRENCY}{todayDay.moneyLabel.replace(CURRENCY, "")}</Amount>
           </>
         )
       : "Tap to start your shift.";
@@ -776,7 +776,7 @@ export function HomeScreen({ onNavigate, onManageLocations }: { onNavigate?: (sc
                   </div>
                 )}
               </div>
-              <ShiftButton active={active} onStart={handlePress} onEnd={handlePress} busy={busy} />
+              <ShiftButton active={active} onStart={handlePress} onEnd={handlePress} busy={busy} disabled={selectedJob?.archived} />
             </div>
           </div>
         </div>

@@ -1,3 +1,4 @@
+import { jobScope } from "../jobs.js";
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -8,7 +9,7 @@ import { toPublicWeekExtra, type WeekExtraRow } from "../types.js";
 import { addIsoDays, startOfWeekISO, type WeekStart } from "../weekBoundary.js";
 
 export const weekExtrasRouter = Router();
-weekExtrasRouter.use(requireAuth);
+weekExtrasRouter.use(requireAuth, jobScope);
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -20,13 +21,14 @@ weekExtrasRouter.get(
     const to = typeof req.query.to === "string" && DATE_RE.test(req.query.to) ? req.query.to : null;
 
     let query = "SELECT * FROM week_extras WHERE user_id = ?";
-    const params: unknown[] = [req.userId!];
+    if(req.jobId) query += " AND COALESCE(job_id,'job_' || user_id) = ?";
+    const params: unknown[] = req.jobId ? [req.userId!,req.jobId] : [req.userId!];
     if (from) {
-      query += " AND week_start >= ?";
+      query += req.jobId ? " AND week_start >= ?" : " AND effective_date >= ?";
       params.push(from);
     }
     if (to) {
-      query += " AND week_start <= ?";
+      query += req.jobId ? " AND week_start <= ?" : " AND effective_date <= ?";
       params.push(to);
     }
     query += " ORDER BY week_start ASC";
@@ -69,8 +71,8 @@ weekExtrasRouter.put(
     const transaction = await db.transaction("write");
     try {
       const userResult = await transaction.execute({
-        sql: "SELECT week_starts_on FROM users WHERE id = ?",
-        args: [req.userId!],
+        sql: "SELECT week_starts_on FROM jobs WHERE id = ? AND user_id = ?",
+        args: [req.jobId!,req.userId!],
       });
       const user = userResult.rows[0] as unknown as { week_starts_on: WeekStart } | undefined;
       if (!user) {
@@ -84,8 +86,8 @@ weekExtrasRouter.put(
 
       if (amount === 0) {
         await transaction.execute({
-          sql: "DELETE FROM week_extras WHERE user_id = ? AND week_start = ?",
-          args: [req.userId!, weekStart],
+          sql: "DELETE FROM week_extras WHERE user_id = ? AND week_start = ? AND COALESCE(job_id,'job_' || user_id) = ?",
+          args: [req.userId!, weekStart, req.jobId!],
         });
         await transaction.commit();
         res.json({ extra: null });
@@ -99,15 +101,15 @@ weekExtrasRouter.put(
       const id = randomUUID();
       const effectiveDate = addIsoDays(weekStart, 6);
       await transaction.execute({
-        sql: `INSERT INTO week_extras (id, user_id, week_start, effective_date, amount, reason, created_at, updated_at)
-              VALUES (@id, @userId, @weekStart, @effectiveDate, @amount, @reason, @now, @now)
-              ON CONFLICT(user_id, week_start) DO UPDATE SET amount = @amount, reason = @reason, updated_at = @now`,
-        args: { id, userId: req.userId!, weekStart, effectiveDate, amount, reason, now },
+        sql: `INSERT INTO week_extras (id, user_id, job_id, week_start, effective_date, amount, reason, created_at, updated_at)
+              VALUES (@id, @userId, @jobId, @weekStart, @effectiveDate, @amount, @reason, @now, @now)
+              ON CONFLICT(user_id, job_id, week_start) DO UPDATE SET amount = @amount, reason = @reason, updated_at = @now`,
+        args: { id, userId: req.userId!, jobId:req.jobId!, weekStart, effectiveDate, amount, reason, now },
       });
 
       const result = await transaction.execute({
-        sql: "SELECT * FROM week_extras WHERE user_id = ? AND week_start = ?",
-        args: [req.userId!, weekStart],
+        sql: "SELECT * FROM week_extras WHERE user_id = ? AND week_start = ? AND COALESCE(job_id,'job_' || user_id) = ?",
+        args: [req.userId!, weekStart, req.jobId!],
       });
       const row = result.rows[0] as unknown as WeekExtraRow;
       await transaction.commit();

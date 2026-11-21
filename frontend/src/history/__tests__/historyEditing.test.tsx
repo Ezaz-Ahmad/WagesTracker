@@ -142,6 +142,26 @@ afterEach(() => {
 });
 
 describe("opening the editor", () => {
+  it("keeps an unsaved rate correction and fuel draft when the review is cancelled",async()=>{
+    const api=await import("../../lib/api");
+    serverShifts=serverShifts.map(shift=>({...shift,appliedRate:10}));
+    patchImpl=async()=>{throw new api.ApiError("Recorded rate would change from $10.00/hr to $12.00/hr.",409,"RATE_CHANGE_CONFIRMATION_REQUIRED");};
+    const user=userEvent.setup({advanceTimers:vi.advanceTimersByTime});
+    render(<ConfirmProvider><AppProvider><HistoryScreen/></AppProvider></ConfirmProvider>);
+    const dialog=await openEditor(user,/Edit hours for Mon/);
+    const rate=within(dialog).getByLabelText("Recorded hourly rate (AUD)");
+    await user.clear(rate);await user.type(rate,"12");
+    await user.type(within(dialog).getByLabelText("Fuel allowance for this day"),"15");
+    await user.click(within(dialog).getByRole("button",{name:/^Save/}));
+    await screen.findByText(/Recorded rate would change from \$10.00\/hr to \$12.00\/hr/);
+    await user.click(within(screen.getByRole("alertdialog")).getByRole("button",{name:"Cancel"}));
+    await within(dialog).findByText(/Rate change cancelled/);
+    expect((rate as HTMLInputElement).value).toBe("12");
+    expect(within(dialog).queryByText("Saved")).toBeNull();
+    expect(serverShifts[0].appliedRate).toBe(10);
+    expect(api.patchShift).toHaveBeenCalledTimes(1);
+    expect(api.setDayExpense).not.toHaveBeenCalled();
+  });
   it("opens for the day that was clicked, with its existing times prefilled", async () => {
     const user = userEvent.setup();
     renderHistory();

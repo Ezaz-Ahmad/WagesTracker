@@ -1,8 +1,8 @@
 # Signed TestFlight delivery
 
-**Current source marketing version:** `1.23.1`
+**Current source marketing version:** `1.24.0`
 
-**Last reviewed:** 11 October 2026
+**Last reviewed:** 21 November 2026
 
 **Latest verified upload:** **1.23.1 (52)**, accepted by Apple on 11 October 2026 in [run 38121118588](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38121118588), from protected-main commit `d54eb41579a4b76fd56335e43b829444e7a3efa4`. Apple validation succeeded at **07:26:32 UTC** and upload at **07:28:02 UTC**, both without errors. The fresh dispatch used attempt 1; temporary signing material was removed.
 
@@ -14,7 +14,7 @@
 
 Wages Tracker's signed iOS delivery is intentionally separate from pull-request, push, Simulator and CodeQL workflows. `.github/workflows/ios-testflight.yml` can be started only with `workflow_dispatch`; its delivery job additionally refuses every ref except protected `main`, rejects fork context, uses the protected `testflight` environment and serializes uploads through one non-cancelling concurrency group.
 
-The workflow uploads a build to TestFlight only. It does not assign testers, submit the app to App Review, select a build for the App Store version or release the application publicly.
+The workflow uploads a build to TestFlight, waits for Apple processing and verifies availability for the existing **WagesTracker Internal Testers** group. It adds this exact build to that group if needed. It does not create testers/groups, change notification preferences, submit App Review, select an App Store version or release publicly. See Apple's [build-to-group API](https://developer.apple.com/documentation/appstoreconnectapi/post-v1-betagroups-_id_-relationships-builds).
 
 ## One-time GitHub environment setup
 
@@ -29,7 +29,7 @@ Create these non-secret environment variables:
 | Variable | Value |
 | --- | --- |
 | `IOS_BUNDLE_ID` | `com.ezazahmad.wagestracker` |
-| `IOS_APP_VERSION` | `1.23.1` (required for this release; update the protected environment before dispatch) |
+| `IOS_APP_VERSION` | `1.24.0` (required for this release; update the protected environment before dispatch) |
 | `APPLE_TEAM_ID` | The 10-character Team ID shown in Apple Developer membership details and the App Store profile |
 | `IOS_PROVISIONING_PROFILE_NAME` | The exact `Name` inside the uploaded profile. Prefer a release-independent name such as `WagesTracker App Store Distribution` when next regenerating it |
 | `IOS_EXTENSION_PROVISIONING_PROFILE_NAME` | The exact `Name` inside the App Store profile for `com.ezazahmad.wagestracker.ShiftActivityExtension` |
@@ -65,15 +65,15 @@ After those gates pass:
 3. Approve the `testflight` environment deployment if an approval rule is configured.
 4. Review the run through validation, archive, export and App Store Connect validation.
 5. Record the workflow URL, protected-main commit, printed marketing/build pair, and App Store Connect processing result.
-6. Confirm the upload is processing in App Store Connect → Wages Tracker → TestFlight. Processing can continue after the workflow reports that Apple accepted the upload.
-7. Assign the processed build to the intended internal tester group and install it on the physical test iPhone.
+6. Wait for the final processing/availability step. It checks the exact marketing version, build number and iOS platform, and refuses external or ambiguous groups.
+7. Install the ready build on the physical test iPhone from the existing internal group. If Apple processing takes more than 20 minutes, the run fails with an explicit pending-processing message; do not upload the same binary again. Inspect that build in App Store Connect.
 8. Complete the device and password-recovery checklist below before treating it as a release candidate.
 
 Do not trigger the signed workflow from this feature branch. Pull-request validation remains the existing unsigned Simulator, CI and three-language CodeQL workflows, with no signing secrets.
 
 ## Build numbers
 
-`CFBundleShortVersionString` is `1.23.1` for this release. `frontend/package.json` is the source of truth; the lockfile, Xcode project and GitHub `IOS_APP_VERSION` variable must match, and the validation script/workflow fail if they do not. Each new workflow dispatch derives `CFBundleVersion` directly from `github.run_number`, which increases across new runs without committing build-number churn to the Xcode project. The workflow accepts only `github.run_attempt == 1`; GitHub reruns keep the original run number and could therefore break reliable ordering after a newer dispatch. If a run fails, fix the cause and start a new **Run workflow** dispatch instead of using **Re-run jobs**.
+`CFBundleShortVersionString` is `1.24.0` for this release. `frontend/package.json` is the source of truth; the lockfile, Xcode project and GitHub `IOS_APP_VERSION` variable must match, and the validation script/workflow fail if they do not. Each new workflow dispatch derives `CFBundleVersion` directly from `github.run_number`, which increases across new runs without committing build-number churn to the Xcode project. The workflow accepts only `github.run_attempt == 1`; GitHub reruns keep the original run number and could therefore break reliable ordering after a newer dispatch. If a run fails, fix the cause and start a new **Run workflow** dispatch instead of using **Re-run jobs**.
 
 ## Signing, validation and cleanup
 

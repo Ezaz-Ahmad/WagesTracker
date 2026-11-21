@@ -1,5 +1,7 @@
+import { AdminJobsPay } from "./AdminJobsPay";
+import { shiftWages } from "../lib/pay";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Shift, User } from "../lib/types";
+import type { Shift, User,Job,PayRate,WorkLocation } from "../lib/types";
 import { AdminApiError, deleteUser, fetchAllUsers, fetchUserDetail, updateUserEmail, type AdminUserSummary } from "./adminApi";
 import { Logo } from "../components/Logo";
 import { Overlay } from "../components/Overlay";
@@ -39,10 +41,10 @@ export function AdminDashboard({
   const [sort, setSort] = useState("earnings");
   const today = isoDate(new Date());
 
-  const [detail, setDetail] = useState<{ user: User; shifts: Shift[] } | null>(null);
+  const [detail, setDetail] = useState<{ user: User; shifts: Shift[];jobs?:Job[];locations?:WorkLocation[];rates?:PayRate[] } | null>(null);
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
-  const [detailTab, setDetailTab] = useState<"earnings" | "account">("earnings");
+  const [detailTab, setDetailTab] = useState<"earnings" | "account" | "jobs">("earnings");
   const detailRequest = useRef(0);
   const [adminEmail, setAdminEmail] = useState("");
   const [emailSaving, setEmailSaving] = useState(false);
@@ -214,7 +216,7 @@ export function AdminDashboard({
         </section>
 
         <section className="admin-period-bar" aria-label="Dashboard reporting period">
-          <div><span className="admin-period-dot" /><strong>{anchor === today ? "This week's overview" : "Historical overview"}</strong><p>Each account follows its own week start day.</p></div>
+          <div><span className="admin-period-dot" /><strong>{anchor === today ? "This week's overview" : "Historical overview"}</strong><p>Single-job accounts follow their work week. Multiple-job accounts use Monday–Sunday combined totals.</p></div>
           <div className="admin-period-controls">
             <button className="admin-week-arrow" aria-label="Previous overview week" onClick={() => setAnchor(addIsoDays(anchor, -7))}>←</button>
             <div className="admin-date-field"><label htmlFor="admin-overview-date">Week containing</label><input id="admin-overview-date" className="input" type="date" max={today} value={anchor} onChange={(event) => { const value = event.target.value; if (value && value <= today) setAnchor(value); }} /></div>
@@ -287,7 +289,7 @@ export function AdminDashboard({
                   <tr>
                     <th>Name</th>
                     <th>Email</th>
-                    <th>Rate</th>
+                    <th>Jobs / default pay</th>
                     <th>{anchor === today ? "This week" : "Selected week"}</th>
                     <th>Previous week</th>
                     <th>Daily earnings</th>
@@ -301,7 +303,7 @@ export function AdminDashboard({
                       <td data-label="Email" className="admin-user-email">{u.email}</td>
                       <td data-label="Rate">
                         {CURRENCY}
-                        {fmt2(u.rate)}/hr
+                        {fmt2(u.rate)}/hr<small className="admin-user-job-count">{u.jobCount??1} {(u.jobCount??1)===1?"job":"jobs"} · {u.activeJobCount??1} active</small>
                       </td>
                       <td data-label={anchor === today ? "This week" : "Selected week"} className="admin-user-earned"><strong>{u.earnings ? adminMoney(u.earnings.total) : "—"}</strong><small>{u.earnings ? `${u.earnings.hours.toFixed(2)} hrs · ${u.earnings.completedShiftCount} complete` : "Earnings unavailable"}</small><small>{u.earnings ? adminWeekLabel(u.earnings.weekStart, u.earnings.weekEnd) : ""}</small></td>
                       <td data-label="Previous week" className="admin-user-previous"><strong>{u.previousEarnings ? adminMoney(u.previousEarnings.total) : "—"}</strong><small>{u.previousEarnings ? adminWeekLabel(u.previousEarnings.weekStart, u.previousEarnings.weekEnd) : ""}</small></td>
@@ -346,12 +348,12 @@ export function AdminDashboard({
               </div>
               <button type="button" className="admin-dialog-close" onClick={closeDetail} aria-label="Close user details">×</button>
             </div>
-            <div className="admin-detail-tabs" role="group" aria-label="User detail view"><button className={detailTab === "earnings" ? "is-active" : ""} aria-pressed={detailTab === "earnings"} onClick={() => setDetailTab("earnings")}>Earnings</button><button className={detailTab === "account" ? "is-active" : ""} aria-pressed={detailTab === "account"} onClick={() => setDetailTab("account")}>Account & shifts</button></div>
-            {detailTab === "earnings" ? <AdminUserEarnings key={detail.user.id} user={detail.user} initialDate={anchor} onAuthError={onAuthError} /> : <>
+            <div className="admin-detail-tabs" role="group" aria-label="User detail view"><button className={detailTab === "earnings" ? "is-active" : ""} aria-pressed={detailTab === "earnings"} onClick={() => setDetailTab("earnings")}>Earnings</button><button className={detailTab === "account" ? "is-active" : ""} aria-pressed={detailTab === "account"} onClick={() => setDetailTab("account")}>Account & shifts</button><button className={detailTab === "jobs" ? "is-active" : ""} aria-pressed={detailTab === "jobs"} onClick={()=>setDetailTab("jobs")}>Jobs & pay</button></div>
+            {detailTab === "earnings" ? <AdminUserEarnings key={detail.user.id} user={detail.user} jobs={detail.jobs} initialDate={anchor} onAuthError={onAuthError} /> : detailTab==="jobs" ? <AdminJobsPay jobs={detail.jobs} rates={detail.rates} locations={detail.locations}/> : <>
             <dl className="admin-detail-summary">
               <div><dt>Email</dt><dd>{detail.user.email}</dd></div>
               <div><dt>Work location</dt><dd>{detail.user.workLocationName || "Not set"}</dd></div>
-              <div><dt>Hourly rate</dt><dd>{CURRENCY}{fmt2(detail.user.rate)}/hr</dd></div>
+              <div><dt>Legacy account default</dt><dd>{CURRENCY}{fmt2(detail.user.rate)}/hr</dd></div>
               <div><dt>Weekly goal</dt><dd>{detail.user.goalHours}h · {CURRENCY}{fmt2(detail.user.goalEarnings)}</dd></div>
               <div><dt>Week starts</dt><dd>{detail.user.weekStartsOn}</dd></div>
               <div><dt>Shifts logged</dt><dd>{detail.shifts.length}</dd></div>
@@ -404,7 +406,8 @@ export function AdminDashboard({
                   <thead>
                     <tr>
                       <th>Date</th>
-                      <th>Location</th>
+                      <th>Job / location</th>
+                      <th>Applied rate</th><th>Wages</th>
                       <th>Sign in</th>
                       <th>Sign out</th>
                     </tr>
@@ -413,7 +416,7 @@ export function AdminDashboard({
                     {detail.shifts.map((s) => (
                       <tr key={s.id}>
                         <td data-label="Date">{s.date}</td>
-                        <td data-label="Location">{s.location || "—"}</td>
+                        <td data-label="Job / location"><strong>{s.jobName||detail.jobs?.find(j=>j.id===s.jobId)?.name||detail.user.workLocationName||"Primary job"}</strong><small>{s.location||"—"}</small></td><td data-label="Applied rate">{adminMoney(s.appliedRate??detail.user.rate)}/hr</td><td data-label="Wages">{s.signIn&&s.signOut?adminMoney(shiftWages(s,detail.user.rate)):"Pending"}</td>
                         <td data-label="Sign in">{s.signIn ?? "—"}</td>
                         <td data-label="Sign out">{s.signOut ?? "—"}</td>
                       </tr>

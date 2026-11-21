@@ -168,13 +168,13 @@ describe("me (profile/settings)", () => {
       .set("Authorization", `Bearer ${migrationToken}`)
       .send({ weekStartsOn: "Thursday" });
     expect(thursday.status).toBe(200);
-    expect(thursday.body.extras).toEqual([
+    expect(thursday.body.extras).toMatchObject([
       { weekStart: "2026-01-08", amount: 40, reason: "First bonus" },
       { weekStart: "2026-01-15", amount: 55, reason: "Second bonus" },
     ]);
 
     let list = await request(app).get("/api/week-extras").set("Authorization", `Bearer ${migrationToken}`);
-    expect(list.body.extras).toEqual([
+    expect(list.body.extras).toMatchObject([
       { weekStart: "2026-01-08", amount: 40, reason: "First bonus" },
       { weekStart: "2026-01-15", amount: 55, reason: "Second bonus" },
     ]);
@@ -187,7 +187,7 @@ describe("me (profile/settings)", () => {
       .send({ weekStartsOn: "Tuesday" });
     expect(tuesday.status).toBe(200);
     list = await request(app).get("/api/week-extras").set("Authorization", `Bearer ${migrationToken}`);
-    expect(list.body.extras).toEqual([
+    expect(list.body.extras).toMatchObject([
       { weekStart: "2026-01-06", amount: 40, reason: "First bonus" },
       { weekStart: "2026-01-13", amount: 55, reason: "Second bonus" },
     ]);

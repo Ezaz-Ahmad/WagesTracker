@@ -17,7 +17,7 @@ interface ProfileDraft {
 }
 
 export function ProfileSettings() {
-  const { user, updateSettings } = useApp();
+  const { user, selectedJob,selectedJobId, updateSettings } = useApp();
   const { values, setValues, dirty, markSaved } = useDirtyForm<ProfileDraft>({
     name: user?.name ?? "",
     address: user?.address ?? "",
@@ -47,7 +47,7 @@ export function ProfileSettings() {
     setError(null);
     setSuccess(false);
     try {
-      await updateSettings(values);
+      await updateSettings(selectedJobId==="all"?{name:values.name,address:values.address}:values);
       markSaved(values);
       setSuccess(true);
     } catch (e) {
@@ -102,9 +102,10 @@ export function ProfileSettings() {
 
           <div className="field field-spaced weekly-cycle-field">
             <span className="weekly-cycle-eyebrow" aria-hidden="true">Work week</span>
-            <label htmlFor="settings-week-start">Week starts on</label>
+            <label htmlFor="settings-week-start">Week starts on{selectedJob?` · ${selectedJob.name}`:""}</label>
             <select
               id="settings-week-start"
+              disabled={selectedJobId==="all"}
               className="input"
               value={values.weekStartsOn}
               onChange={(event) => update({ weekStartsOn: event.target.value as WeekStart })}

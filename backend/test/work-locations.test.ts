@@ -93,7 +93,7 @@ describe("structured work locations and automatic fuel allowance", () => {
     const expenses = await request(app)
       .get(`/api/day-expenses?from=${date}&to=${date}`)
       .set("Authorization", `Bearer ${tokenA}`);
-    expect(expenses.body.expenses).toEqual([{
+    expect(expenses.body.expenses).toMatchObject([{
       date,
       fuelCost: 19.75,
       automaticFuelAllowance: 19.75,
@@ -216,7 +216,7 @@ describe("structured work locations and automatic fuel allowance", () => {
     const expenses = await request(app)
       .get(`/api/day-expenses?from=${firstDate}&to=${secondDate}`)
       .set("Authorization", `Bearer ${tokenA}`);
-    expect(expenses.body.expenses.map((expense: { fuelCost: number }) => expense.fuelCost)).toEqual([9, 14]);
+    expect(expenses.body.expenses.map((expense: { fuelCost: number }) => expense.fuelCost)).toMatchObject([9, 14]);
   });
 
   it("returns previous-week branch order as a read-only current-week suggestion", async () => {

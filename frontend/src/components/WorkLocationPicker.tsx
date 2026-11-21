@@ -147,7 +147,7 @@ export function WorkLocationPicker({
               <span className="location-picker-heading-icon" aria-hidden="true"><LocationPinIcon size={20} /></span>
               <div>
                 <h2 id={titleId}>{title}</h2>
-                <p id={descriptionId}>Choose where you worked. The saved fuel allowance is added when you save the shift.</p>
+                <p id={descriptionId}>Choose where you worked. Its hourly rate and saved fuel allowance are applied to the shift.</p>
               </div>
             </div>
             <button ref={closeButtonRef} type="button" className="btn btn-icon btn-ghost location-picker-close" onClick={dismiss} aria-label="Close work location picker">
@@ -194,6 +194,7 @@ export function WorkLocationPicker({
                         {selected && <span className="location-picker-status">Selected</span>}
                       </span>
                       {location.address && <span className="location-picker-address">{location.address}</span>}
+                    {location.hourlyRate!=null&&<span className="job-row-rate">{CURRENCY}{fmt2(location.hourlyRate)}/hr · {location.rateSource==="location"?"location rate":"job default"}</span>}
                       <span className={`location-picker-fuel${location.fuelAllowance == null ? " is-empty" : ""}`}>
                         <FuelIcon size={13} /> {allowanceLabel(location.fuelAllowance)}
                       </span>

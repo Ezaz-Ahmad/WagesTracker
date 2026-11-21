@@ -21,6 +21,7 @@ export interface SpendingDataState<T> {
 
 interface CacheEntry<T> {
   scope: string;
+  linkedJobId?:string;
   snapshot: SpendingDataState<T>;
   listeners: Set<() => void>;
   inFlight: Promise<T> | null;
@@ -42,11 +43,12 @@ function summaryKey(scope: string, from: string, to: string): string {
   return `${scope}\u0000${from}\u0000${to}`;
 }
 
-function getSummaryEntry(scope: string, from: string, to: string): CacheEntry<SpendingSummary> {
-  const key = summaryKey(scope, from, to);
+function getSummaryEntry(scope: string, from: string, to: string, linkedJobId?:string): CacheEntry<SpendingSummary> {
+  const key = summaryKey(scope, from, to)+(linkedJobId?`\u0000${linkedJobId}`:"");
   let entry = summaries.get(key);
   if (!entry) {
     entry = createEntry(scope);
+    entry.linkedJobId=linkedJobId;
     summaries.set(key, entry);
   }
   return entry;
@@ -77,7 +79,7 @@ async function loadSummaryEntry(
 ): Promise<SpendingSummary> {
   if (entry.inFlight) return entry.inFlight;
   publish(entry, { loading: true, error: null });
-  const request = api.getSpendingSummary(from, to)
+  const request = (entry.linkedJobId?api.getSpendingSummary(from,to,entry.linkedJobId):api.getSpendingSummary(from,to))
     .then((result) => {
       publish(entry, { data: result, loading: false, stale: false, error: null, updatedAt: Date.now() });
       return result;
@@ -129,8 +131,8 @@ function needsLoad<T>(state: SpendingDataState<T>, maxAgeMs: number): boolean {
   return Date.now() - state.updatedAt >= maxAgeMs;
 }
 
-export function useSpendingSummary(scope: string, from: string, to: string, enabled = true) {
-  const entry = getSummaryEntry(scope, from, to);
+export function useSpendingSummary(scope: string, from: string, to: string, enabled = true, linkedJobId?:string) {
+  const entry = getSummaryEntry(scope, from, to,linkedJobId);
   const subscribe = useCallback((listener: () => void) => {
     entry.listeners.add(listener);
     return () => entry.listeners.delete(listener);

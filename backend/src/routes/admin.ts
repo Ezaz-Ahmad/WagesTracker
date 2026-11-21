@@ -1,3 +1,5 @@
+import { userJobs,publicJob,publicRate,requestDate,type RateRow } from "../jobs.js";
+import { toPublicWorkLocation,type WorkLocationRow } from "../types.js";
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
@@ -59,18 +61,23 @@ adminRouter.get(
       res.status(400).json({ error: adminDateError });
       return;
     }
-    const result = await db.execute(
-      `SELECT u.*, COUNT(s.id) AS shift_count
+    const result = await db.execute({sql:
+      `SELECT u.*, COUNT(s.id) AS shift_count, (SELECT COUNT(*) FROM jobs j WHERE j.user_id=u.id) AS job_count, (SELECT COUNT(*) FROM jobs j WHERE j.user_id=u.id AND j.archived_at IS NULL) AS active_job_count,
+         (SELECT week_starts_on FROM jobs j WHERE j.user_id=u.id AND j.is_primary=1) AS primary_week_starts_on,
+         (SELECT rate_cents/100.0 FROM pay_rates p JOIN jobs j ON j.id=p.job_id WHERE j.user_id=u.id AND j.is_primary=1 AND p.location_id IS NULL AND p.effective_from<=? ORDER BY p.effective_from DESC LIMIT 1) AS current_default_rate
        FROM users u
        LEFT JOIN shifts s ON s.user_id = u.id
        GROUP BY u.id
-       ORDER BY u.created_at DESC`
+       ORDER BY u.created_at DESC`,args:[requestDate(req)]}
     );
-    const rows = result.rows as unknown as (UserRow & { shift_count: unknown })[];
+    const rows = result.rows.map(raw=>({...raw,
+      week_starts_on:Number(raw.job_count)>1?"Monday":raw.primary_week_starts_on??raw.week_starts_on,
+      rate:raw.current_default_rate??raw.rate,
+    })) as unknown as (UserRow & { shift_count: unknown })[];
     const earnings = await adminEarningsForUsers(db, rows, anchor);
     res.json({ users: rows.map((row) => {
       const pair = earnings.get(row.id)!;
-      return toAdminUserSummary(row, pair.week, pair.previousWeek);
+      return {...toAdminUserSummary(row, pair.week, pair.previousWeek),jobCount:Number((row as unknown as {job_count:number}).job_count)||1,activeJobCount:Number((row as unknown as {active_job_count:number}).active_job_count)||1};
     }) });
   })
 );
@@ -89,11 +96,17 @@ adminRouter.get(
       res.status(404).json({ error: "User not found" });
       return;
     }
-    const [earnings, availableWeeks] = await Promise.all([
-      adminEarningsForUsers(db, [user], anchor, user.id),
-      adminAvailableWeeks(db, user, anchor),
+    const jobs=await userJobs(user.id);
+    const jobId=typeof req.query.jobId==="string"&&req.query.jobId!=="all"?req.query.jobId:undefined;
+    const selected=jobId?jobs.find(j=>j.id===jobId):undefined;
+    if(jobId&&!selected){res.status(404).json({error:"Job not found for this user"});return;}
+    const scopedUser={...user,week_starts_on:selected?.week_starts_on??(jobs.length>1?"Monday" as const:jobs[0]?.week_starts_on??user.week_starts_on)};
+    const [earnings, availableWeeks,byJob] = await Promise.all([
+      adminEarningsForUsers(db, [scopedUser], anchor, user.id,{jobId}),
+      adminAvailableWeeks(db, scopedUser, anchor,undefined,jobId),
+      adminEarningsForUsers(db,jobs.map(j=>({id:j.id,rate:user.rate,week_starts_on:scopedUser.week_starts_on})),anchor,user.id,{groupByJob:true}),
     ]);
-    res.json({ ...earnings.get(user.id)!, availableWeeks });
+    res.json({ ...earnings.get(user.id)!, availableWeeks,weekStartsOn:scopedUser.week_starts_on,jobs:await Promise.all(jobs.map(async j=>({...await publicJob(j,requestDate(req)),earnings:byJob.get(j.id)?.week}))) });
   })
 );
 
@@ -111,7 +124,9 @@ adminRouter.get(
       args: [req.params.id],
     });
     const shiftRows = shiftsResult.rows as unknown as ShiftRow[];
-    res.json({ user: toPublicUser(userRow), shifts: shiftRows.map(toPublicShift) });
+    const jobs=await userJobs(userRow.id);
+    const [locations,rates]=await Promise.all([db.execute({sql:"SELECT * FROM work_locations WHERE user_id=? ORDER BY name",args:[userRow.id]}),db.execute({sql:"SELECT * FROM pay_rates WHERE user_id=? ORDER BY effective_from DESC",args:[userRow.id]})]);
+    res.json({ user: toPublicUser(userRow), shifts: shiftRows.map(toPublicShift),jobs:await Promise.all(jobs.map(j=>publicJob(j,requestDate(req)))),locations:(locations.rows as unknown as WorkLocationRow[]).map(toPublicWorkLocation),rates:(rates.rows as unknown as RateRow[]).map(publicRate) });
   })
 );
 
@@ -216,6 +231,8 @@ adminRouter.delete(
         { sql: "DELETE FROM password_reset_tokens WHERE user_id = ?", args: [req.params.id] },
         { sql: "DELETE FROM email_verification_tokens WHERE user_id = ?", args: [req.params.id] },
         { sql: "DELETE FROM user_sessions WHERE user_id = ?", args: [req.params.id] },
+        { sql: "DELETE FROM pay_rates WHERE user_id = ?", args: [req.params.id] },
+        { sql: "DELETE FROM jobs WHERE user_id = ?", args: [req.params.id] },
         { sql: "DELETE FROM users WHERE id = ?", args: [req.params.id] },
       ],
       "write"

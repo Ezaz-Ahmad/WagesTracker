@@ -1,3 +1,4 @@
+import { resolveShiftRate } from "../lib/pay";
 import { useEffect, useRef, useState } from "react";
 import { CURRENCY, useApp } from "../context/AppContext";
 import {
@@ -27,6 +28,7 @@ import { FUTURE_DATE_WARNING, isFutureDate, isUnusuallyLongShift, LONG_SHIFT_WAR
 import type { WorkLocation } from "../lib/types";
 import * as api from "../lib/api";
 import { showErrorPopup } from "../lib/errorFeedback";
+import { ShiftRateDialog } from "../components/ShiftRateDialog";
 
 type Row = ShiftComputed & { tempId?: string };
 type TimeDraft = { signIn: string | null; signOut: string | null };
@@ -80,6 +82,7 @@ function LiveEntryWeekTotal(props: {
 
 export function EntryScreen({ onManageLocations = () => {} }: { onManageLocations?: () => void } = {}) {
   const confirm = useConfirm();
+  const {selectedJob,payRates=[]}=useApp();
   const {
     today,
     user,
@@ -96,6 +99,7 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
   } = useApp();
   const { active, last, startAtLocation, end } = useTodayShift();
   const [busy, setBusy] = useState(false);
+  const [rateShiftId,setRateShiftId]=useState<string|null>(null);
   const [entryActionBusy, setEntryActionBusy] = useState<string | null>(null);
   const [pending, setPending] = useState<Record<string, string[]>>({});
   // Native iOS/Android time wheels can emit `change` while the wheel is still
@@ -137,7 +141,7 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
 
   // Hooks below must run every render regardless of loading state, so the
   // bail-out has to come after all of them — see HomeScreen for the same fix.
-  const rate = user?.rate ?? 0;
+  const rate = last?.appliedRate ?? user?.rate ?? 0;
   const weekStartsOn = user?.weekStartsOn ?? "Monday";
 
   const weekDays = buildWeekDays(today, weekStartsOn);
@@ -528,7 +532,7 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
               "Your elapsed time updates live."
             ) : todayDay.hours > 0 || todayDay.fuelCost > 0 ? (
               <>
-                {fmt2(todayDay.hours)}h · <Amount>{CURRENCY}{fmt2(todayDay.hours * user.rate + todayDay.fuelCost)}</Amount>
+                {fmt2(todayDay.hours)}h · <Amount>{CURRENCY}{todayDay.moneyLabel.replace(CURRENCY, "")}</Amount>
               </>
             ) : (
               "Tap to start your shift."
@@ -640,6 +644,7 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
               {renderedRows.map((row, rowIndex) => {
                 const rowKey = `${day.dateISO}-${row.id ?? row.tempId ?? "placeholder"}`;
                 const selectedLocation = displayLocationFor(row);
+                const appliedPay=selectedJob?resolveShiftRate(selectedJob,payRates,row.workLocationId??null,day.dateISO):{rate:user.rate,source:"job" as const};
                 return (
                 <div className="shift-row" key={rowKey}>
                   <div className="shift-field shift-field-location">
@@ -687,7 +692,7 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
                       onBlur={(e) => void handleFieldCommit(day, row, rowIndex, "signOut", e.currentTarget.value)}
                     />
                   </div>
-                  <div className="shift-hours">{row.hoursLabel}</div>
+                  <div className="shift-hours">{row.hoursLabel}{row.id&&row.signIn&&row.signOut&&row.appliedRate!=null?<button type="button" className="job-row-rate job-row-rate-button" onClick={()=>setRateShiftId(row.id)} aria-label={`Review recorded pay for ${day.dayAbbr} ${day.dateLabel} shift ${rowIndex+1}`}>{CURRENCY}{fmt2(row.appliedRate)}/hr</button>:<span className="job-row-rate">{CURRENCY}{fmt2(row.appliedRate??appliedPay.rate)}/hr</span>}</div>
                   {row.canRemove && (
                     <button
                       type="button"
@@ -877,6 +882,7 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
           );
         })()}
 
+      {rateShiftId&&<ShiftRateDialog key={rateShiftId} shiftId={rateShiftId} onClose={()=>setRateShiftId(null)}/>}
       {otherPickerOpen && (
         <AmountWheelPicker
           title="Other earnings amount"

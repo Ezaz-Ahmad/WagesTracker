@@ -15,12 +15,14 @@ export interface UserRow {
   goal_hours: number;
   goal_earnings: number;
   smart_reminders_enabled: number;
+  combined_goal_earnings?: number;
   email_verified: number;
   token_version: number;
   created_at: string;
 }
 
 export interface PublicUser {
+  workspacesEnabled?:boolean;
   id: string;
   name: string;
   email: string;
@@ -34,10 +36,15 @@ export interface PublicUser {
   goalHours: number;
   goalEarnings: number;
   smartRemindersEnabled: boolean;
+  combinedGoalEarnings?: number;
   createdAt: string;
 }
 
 export interface ShiftRow {
+  applied_rate_cents?: number | null;
+  rate_source?: string | null;
+  job_name_snapshot?: string | null;
+  job_id?: string;
   id: string;
   user_id: string;
   date: string;
@@ -52,6 +59,10 @@ export interface ShiftRow {
 }
 
 export interface PublicShift {
+  appliedRate?: number | null;
+  rateSource?: string | null;
+  jobName?: string | null;
+  jobId?: string;
   id: string;
   date: string;
   location: string;
@@ -63,6 +74,7 @@ export interface PublicShift {
 
 export function toPublicUser(row: UserRow): PublicUser {
   return {
+    workspacesEnabled:true,
     id: row.id,
     name: row.name,
     email: row.email,
@@ -76,12 +88,17 @@ export function toPublicUser(row: UserRow): PublicUser {
     goalHours: row.goal_hours,
     goalEarnings: row.goal_earnings,
     smartRemindersEnabled: !!row.smart_reminders_enabled,
+    combinedGoalEarnings: Number(row.combined_goal_earnings || 0),
     createdAt: row.created_at,
   };
 }
 
 export function toPublicShift(row: ShiftRow): PublicShift {
   return {
+    jobId: row.job_id,
+    appliedRate: row.applied_rate_cents == null ? null : Number(row.applied_rate_cents) / 100,
+    rateSource: row.rate_source,
+    jobName: row.job_name_snapshot,
     id: row.id,
     date: row.date,
     location: row.location_snapshot || row.location,
@@ -95,6 +112,7 @@ export function toPublicShift(row: ShiftRow): PublicShift {
 }
 
 export interface DayExpenseRow {
+  job_id?: string;
   id: string;
   user_id: string;
   date: string;
@@ -106,6 +124,7 @@ export interface DayExpenseRow {
 }
 
 export interface PublicDayExpense {
+  jobId?: string;
   date: string;
   fuelCost: number;
   automaticFuelAllowance: number;
@@ -115,6 +134,7 @@ export interface PublicDayExpense {
 
 export function toPublicDayExpense(row: DayExpenseRow): PublicDayExpense {
   return {
+    jobId: row.job_id,
     date: row.date,
     fuelCost: row.fuel_cost,
     automaticFuelAllowance: Number(row.automatic_fuel_cents || 0) / 100,
@@ -124,6 +144,7 @@ export function toPublicDayExpense(row: DayExpenseRow): PublicDayExpense {
 }
 
 export interface WorkLocationRow {
+  job_id?: string;
   id: string;
   user_id: string;
   name: string;
@@ -136,6 +157,7 @@ export interface WorkLocationRow {
 }
 
 export interface PublicWorkLocation {
+  jobId?: string;
   id: string;
   name: string;
   address: string;
@@ -148,6 +170,7 @@ export interface PublicWorkLocation {
 
 export function toPublicWorkLocation(row: WorkLocationRow): PublicWorkLocation {
   return {
+    jobId: row.job_id,
     id: row.id,
     name: row.name,
     address: row.address,
@@ -160,6 +183,7 @@ export function toPublicWorkLocation(row: WorkLocationRow): PublicWorkLocation {
 }
 
 export interface WeekExtraRow {
+  job_id?: string;
   id: string;
   user_id: string;
   week_start: string;
@@ -171,6 +195,8 @@ export interface WeekExtraRow {
 }
 
 export interface PublicWeekExtra {
+  effectiveDate?:string;
+  jobId?: string;
   weekStart: string;
   amount: number;
   reason: string;
@@ -178,6 +204,8 @@ export interface PublicWeekExtra {
 
 export function toPublicWeekExtra(row: WeekExtraRow): PublicWeekExtra {
   return {
+    jobId: row.job_id,
+    effectiveDate:row.effective_date,
     weekStart: row.week_start,
     amount: row.amount,
     reason: row.reason,

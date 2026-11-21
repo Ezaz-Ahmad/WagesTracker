@@ -6,6 +6,7 @@ import { formatReminderTime, getSmartShiftLearningProgress } from "../lib/smartS
 export function SmartShiftReminderSettings() {
   const {
     user,
+    selectedJobId,
     smartReminderPatterns,
     smartReminderAuthorization,
     setSmartRemindersEnabled,
@@ -22,6 +23,7 @@ export function SmartShiftReminderSettings() {
   const enabled = !!user?.smartRemindersEnabled;
 
   if (!user) return null;
+  if(selectedJobId==="all")return <section className="settings-section-card card"><h3>Smart reminders</h3><p className="field-hint">Choose an individual job above to manage its reminders. Each job learns from its own shift history.</p></section>;
 
   async function toggle() {
     if (busy) return;

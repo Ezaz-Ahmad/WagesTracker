@@ -33,6 +33,7 @@ import { ReportIcon } from "../components/icons";
 import { LiveDataBadge } from "../components/LiveDataBadge";
 import { useChartReveal } from "../lib/useChartReveal";
 import { WeeklyTrendChart } from "../components/WeeklyTrendChart";
+import { PdfExportDialog } from "../components/PdfExportDialog";
 
 type Metric = "earnings" | "hours";
 type Period = "week" | "month" | "year";
@@ -44,7 +45,8 @@ const PERIOD_COPY: Record<Period, { singular: string; plural: string; adjective:
 };
 
 export function ReportScreen() {
-  const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras, earningsHidden } = useApp();
+  const { today, user, shifts, shiftsLoaded, dayExpenses, weekExtras, earningsHidden, selectedJobId } = useApp();
+  const [exportOpen,setExportOpen]=useState(false);
   const { active, last } = useTodayShift();
   const [trendMetric, setTrendMetric] = useState<Metric>("earnings");
   const [trendPeriod, setTrendPeriod] = useState<Period>("week");
@@ -61,7 +63,7 @@ export function ReportScreen() {
 
   // Hooks below must run every render regardless of loading state, so the
   // bail-out has to come after all of them — see HomeScreen for the same fix.
-  const rate = user?.rate ?? 0;
+  const rate = last?.appliedRate ?? user?.rate ?? 0;
   const weekStartsOn = user?.weekStartsOn ?? "Monday";
   const goalHours = user?.goalHours ?? 0;
   const goalEarnings = user?.goalEarnings ?? 0;
@@ -140,6 +142,7 @@ export function ReportScreen() {
   }
 
   function handleDownloadPdf() {
+    if(selectedJobId==="all"){setExportOpen(true);return;}
     void downloadPdf({ user: user!, today, currency: CURRENCY });
   }
 
@@ -201,6 +204,7 @@ export function ReportScreen() {
         </button>
       </div>
       <div className="section-hint">See your current totals and progress over time.</div>
+      {exportOpen&&<PdfExportDialog onClose={()=>setExportOpen(false)}/>}
       {/* Dismissal used to be an onClick on the <div> itself — no button, no
           label, no keyboard route, and nothing on screen suggesting the
           message could be cleared at all. */}
