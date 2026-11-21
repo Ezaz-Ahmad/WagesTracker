@@ -42,11 +42,16 @@ requireMatch(workflow, /github\.event_name == 'workflow_dispatch'.*github\.ref =
 requireMatch(workflow, /permissions:\s*\n\s+contents: read\s*$/mu, "workflow permissions must be read-only");
 requireAbsent(workflow, /^\s+\S+: write\s*$/mu, "workflow must not request write permissions");
 requireMatch(workflow, /environment:\s*\n\s+name: testflight/mu, "job must use the testflight environment");
-for (const nativeWorkflow of [workflow, await source(".github/workflows/ios-simulator.yml"), await source(".github/workflows/codeql.yml")]) {
+for (const nativeWorkflow of [workflow, await source(".github/workflows/ios-simulator.yml")]) {
   requireMatch(nativeWorkflow, /runs-on: xcode-27/u, "native builds must use the Xcode 27 runner");
   requireMatch(nativeWorkflow, /DEVELOPER_DIR: \/Applications\/Xcode_27\.2\.app\/Contents\/Developer/u, "native builds must select stable Xcode 27.2 explicitly");
   requireMatch(nativeWorkflow, /npm run ios:toolchain:verify -w frontend/u, "native builds must check the actual iOS SDK before building");
+  requireMatch(nativeWorkflow, /node frontend\/scripts\/inspect-ios-build-sdk\.mjs/u, "release and Simulator artifacts must enforce the minimum App Store SDK");
 }
+const swiftAnalysis = await source(".github/workflows/codeql.yml");
+requireMatch(swiftAnalysis, /runs-on: macos-26/u, "Swift traced analysis must use a supported macOS runner");
+requireMatch(swiftAnalysis, /DEVELOPER_DIR: \/Applications\/Xcode_26\.6\.app\/Contents\/Developer/u, "Swift analysis must pin its supported compiler separately from distribution builds");
+requireMatch(swiftAnalysis, /languages: swift\s*\n\s+build-mode: manual/mu, "Swift security analysis must remain enabled");
 requireMatch(workflow, /concurrency:\s*\n\s+group: testflight-production\s*\n\s+cancel-in-progress: false/mu, "production delivery must be serialized without cancellation");
 requireAbsent(workflow, /actions\/upload-artifact/iu, "signed IPA files must never be uploaded as GitHub artifacts");
 requireAbsent(workflow, /\bset\s+-x\b|\bprintenv\b|\benv\s*\|/u, "workflow must not enable shell tracing or dump its environment");

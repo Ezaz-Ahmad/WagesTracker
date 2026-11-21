@@ -1,7 +1,6 @@
 import { readFile, readdir } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
-import { verifyBuildSdk } from "./lib/ios-build-sdk.mjs";
 
 const appPath = process.argv[2];
 if (!appPath) throw new Error("Usage: node inspect-ios-artifact.mjs <path-to-App.app>");
@@ -75,9 +74,7 @@ for (const plugin of ["AppPlugin", "FilesystemPlugin", "CAPNetworkPlugin", "Shar
 
 const permissionKeys = ["NSCameraUsageDescription", "NSMicrophoneUsageDescription", "NSPhotoLibraryUsageDescription", "NSLocationWhenInUseUsageDescription"];
 const infoText = execFileSync("plutil", ["-p", join(appPath, "Info.plist")], { encoding: "utf8" });
-const buildSdk = verifyBuildSdk(execFileSync("plutil", ["-extract", "DTSDKName", "raw", "-o", "-", join(appPath, "Info.plist")], { encoding: "utf8" }).trim());
-const extensionInfo = files.find(path => path.endsWith("ShiftActivityExtension.appex/Info.plist"));
-if (extensionInfo) verifyBuildSdk(execFileSync("plutil", ["-extract", "DTSDKName", "raw", "-o", "-", extensionInfo], { encoding: "utf8" }).trim());
+const buildSdk = execFileSync("plutil", ["-extract", "DTSDKName", "raw", "-o", "-", join(appPath, "Info.plist")], { encoding: "utf8" }).trim();
 for (const permission of permissionKeys) {
   if (infoText.includes(permission)) throw new Error(`Unnecessary permission declaration found: ${permission}`);
 }

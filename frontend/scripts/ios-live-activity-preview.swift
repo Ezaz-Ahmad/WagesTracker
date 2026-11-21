@@ -4,17 +4,25 @@ import UIKit
 
 @main
 final class LiveActivityPreviewApp: UIResponder, UIApplicationDelegate {
+    func application(_ application: UIApplication, configurationForConnecting connectingSceneSession: UISceneSession, options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+        let configuration = UISceneConfiguration(name: "Preview", sessionRole: connectingSceneSession.role)
+        configuration.delegateClass = LiveActivityPreviewScene.self
+        return configuration
+    }
+}
+
+final class LiveActivityPreviewScene: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
     private var didStartRendering = false
 
-    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
-        window = UIWindow(frame: UIScreen.main.bounds)
+    func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
+        guard let windowScene = scene as? UIWindowScene else { return }
+        window = UIWindow(windowScene: windowScene)
         window?.rootViewController = UIViewController()
         window?.makeKeyAndVisible()
-        return true
     }
 
-    func applicationDidBecomeActive(_ application: UIApplication) {
+    func sceneDidBecomeActive(_ scene: UIScene) {
         guard !didStartRendering else { return }
         didStartRendering = true
         Task { @MainActor in await renderCases() }

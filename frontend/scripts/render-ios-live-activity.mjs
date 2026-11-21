@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { smokeNativeLaunch } from "./lib/ios-launch-smoke.mjs";
 
 if (process.platform !== "darwin") throw new Error("Live Activity rendering requires macOS and Xcode.");
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -26,9 +27,11 @@ writeFileSync(path.join(app, "Info.plist"), `<?xml version="1.0" encoding="UTF-8
 <key>CFBundleShortVersionString</key><string>1.0</string>
 <key>MinimumOSVersion</key><string>17.0</string>
 <key>UILaunchScreen</key><dict/>
+<key>UIApplicationSceneManifest</key><dict><key>UIApplicationSupportsMultipleScenes</key><false/><key>UISceneConfigurations</key><dict><key>UIWindowSceneSessionRoleApplication</key><array><dict><key>UISceneConfigurationName</key><string>Preview</string><key>UISceneDelegateClassName</key><string>LiveActivityPreview.LiveActivityPreviewScene</string></dict></array></dict></dict>
 </dict></plist>`);
 const sdk = run("xcrun", ["--sdk", "iphonesimulator", "--show-sdk-path"]);
 run("xcrun", ["--sdk", "iphonesimulator", "swiftc", "-sdk", sdk,
+  "-module-name", "LiveActivityPreview",
   "-target", `${process.arch === "arm64" ? "arm64" : "x86_64"}-apple-ios17.0-simulator`,
   "-D", "WIDGET_EXTENSION", "-parse-as-library",
   "ios/App/App/ShiftActivityAttributes.swift", "ios/App/App/EndShiftIntent.swift",
@@ -36,10 +39,16 @@ run("xcrun", ["--sdk", "iphonesimulator", "swiftc", "-sdk", sdk,
   "-o", path.join(app, "LiveActivityPreview")]);
 run("codesign", ["--force", "--sign", "-", app]);
 const { devices } = JSON.parse(run("xcrun", ["simctl", "list", "devices", "available", "--json"]));
-const device = Object.entries(devices).filter(([runtime]) => runtime.includes("iOS"))
+const phones = Object.entries(devices).filter(([runtime]) => runtime.includes("iOS"))
   .sort(([a], [b]) => b.localeCompare(a, undefined, { numeric: true }))
-  .flatMap(([, entries]) => entries).find((entry) => entry.name.startsWith("iPhone"));
+  .flatMap(([runtime, entries]) => entries.map(entry => ({ ...entry, runtime })))
+  .filter(entry => entry.name.startsWith("iPhone"));
+// Prefer a conventional phone viewport; the Duo's two display surfaces need
+// separate visual coverage and are not representative of the standard phone.
+const device = phones.find(entry => entry.name === "iPhone 18 Pro")
+  ?? phones.find(entry => /^iPhone \d/.test(entry.name)) ?? phones[0];
 if (!device) throw new Error("No available iPhone simulator.");
+console.log(`Using ${device.name} (${device.runtime}) for native visual QA.`);
 const bootedHere = device.state !== "Booted";
 try {
   if (bootedHere) run("xcrun", ["simctl", "boot", device.udid]);
@@ -57,6 +66,7 @@ try {
   if (launchError) throw launchError;
   if (results.length !== 40) throw new Error(`Expected 40 rendered layouts; got ${results.length}.`);
   console.log(`Verified ${results.length} native layouts; screenshots: ${output}/screenshots`);
+  await smokeNativeLaunch({ run, deviceId: device.udid, appPath: path.join(root, "ios/DerivedData/Build/Products/Debug-iphonesimulator/App.app"), output: path.join(root, "test-results/ios-app-launch") });
 } finally {
   run("xcrun", ["simctl", "uninstall", device.udid, bundleId]);
   if (bootedHere) run("xcrun", ["simctl", "shutdown", device.udid]);

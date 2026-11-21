@@ -95,6 +95,7 @@ jobs:
           set -o pipefail
           plutil -lint ios/DerivedData/Build/Products/Debug-iphonesimulator/App.app/PrivacyInfo.xcprivacy
           node frontend/scripts/inspect-ios-artifact.mjs ios/DerivedData/Build/Products/Debug-iphonesimulator/App.app | tee ios-artifact-inspection.json
+          node frontend/scripts/inspect-ios-build-sdk.mjs ios/DerivedData/Build/Products/Debug-iphonesimulator/App.app | tee ios-sdk-inspection.json
 
       - name: Render and verify Live Activity layouts
         run: node frontend/scripts/render-ios-live-activity.mjs
@@ -117,6 +118,16 @@ jobs:
             ios-sync.log
             ios-build.log
             ios-artifact-inspection.json
+            ios-sdk-inspection.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload native app launch checks
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ios-app-launch-checks
+          path: test-results/ios-app-launch
           if-no-files-found: warn
           retention-days: 14
 

@@ -4,8 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptDirectory, '..', '..');
-const expectedVersion = '8.4.3';
-const expectedSwiftRevision = '89e0d8ec2321025f549ddb19259a717467943b97';
+const expectedVersion = '8.6.2';
+const expectedSwiftRevision = 'b945758eaf3f034cea377e3138a60611cb40a88b';
 const alignedPackages = ['@capacitor/core', '@capacitor/ios'];
 
 function fail(message) {

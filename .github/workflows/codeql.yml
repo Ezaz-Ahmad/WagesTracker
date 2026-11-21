@@ -47,9 +47,12 @@ jobs:
 
   analyze-swift:
     name: Analyze (swift)
-    runs-on: xcode-27
+    # Traced Swift extraction currently requires macOS/Xcode 26. Release
+    # and Simulator builds independently use Xcode 27.2 and enforce SDK 27+.
+    # https://codeql.github.com/docs/codeql-overview/system-requirements/
+    runs-on: macos-26
     env:
-      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
     timeout-minutes: 45
 
     steps:
@@ -62,8 +65,12 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Verify stable Xcode and App Store SDK requirement
-        run: npm run ios:toolchain:verify -w frontend
+      - name: Verify supported Swift analysis toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          [[ "$(xcodebuild -version | head -n 1)" == "Xcode 26.6" ]]
 
       - name: Install JavaScript dependencies
         run: npm ci

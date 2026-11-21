@@ -279,6 +279,7 @@ jobs:
           [[ -n "$APP_PATH" ]]
           plutil -lint "$APP_PATH/Info.plist" "$APP_PATH/PrivacyInfo.xcprivacy"
           node frontend/scripts/inspect-ios-artifact.mjs "$APP_PATH"
+          node frontend/scripts/inspect-ios-build-sdk.mjs "$APP_PATH"
           node frontend/scripts/inspect-ios-distribution.mjs "$APP_PATH"
           EXTENSION_PATH="$APP_PATH/PlugIns/ShiftActivityExtension.appex"
           [[ -d "$EXTENSION_PATH" ]]
