@@ -222,10 +222,17 @@ meRouter.patch(
       }
 
       const nextWeekStart = updates.weekStartsOn;
+      const primaryResult = await transaction.execute({ sql: "SELECT id FROM jobs WHERE user_id=? AND is_primary=1", args: [req.userId!] });
+      const primaryJobId = primaryResult.rows[0] ? String(primaryResult.rows[0].id) : null;
+      if (!primaryJobId && keys.some(key => ["rate", "weekStartsOn", "goalHours", "goalEarnings", "smartRemindersEnabled", "workLocationName", "workAddress", "multipleLocations", "otherLocations"].includes(key))) {
+        await transaction.rollback();
+        res.status(409).json({ error: "Add a job in Settings → Your jobs before changing work settings." });
+        return;
+      }
       if (nextWeekStart && nextWeekStart !== current.week_starts_on) {
         const extrasResult = await transaction.execute({
-          sql: "SELECT id, week_start, effective_date FROM week_extras WHERE user_id = ? AND COALESCE(job_id,'job_' || user_id)='job_' || user_id ORDER BY week_start",
-          args: [req.userId!],
+          sql: "SELECT id, week_start, effective_date FROM week_extras WHERE user_id = ? AND job_id=? ORDER BY week_start",
+          args: [req.userId!, primaryJobId],
         });
         const reassociations: Array<{ id: string; effectiveDate: string; weekStart: string }> = [];
         const targetDates = new Set<string>();
@@ -260,8 +267,8 @@ meRouter.patch(
           // client once saved a non-aligned date. Nothing outside this
           // transaction can observe the temporary values.
           await transaction.execute({
-            sql: "UPDATE week_extras SET week_start = '__reassociate__' || id WHERE user_id = ? AND COALESCE(job_id,'job_' || user_id)='job_' || user_id",
-            args: [req.userId!],
+            sql: "UPDATE week_extras SET week_start = '__reassociate__' || id WHERE user_id = ? AND job_id=?",
+            args: [req.userId!, primaryJobId],
           });
           await transaction.batch(
             reassociations.map((extra) => ({
@@ -278,11 +285,11 @@ meRouter.patch(
       const primaryFields=keys.filter(key=>["weekStartsOn","goalHours","goalEarnings","smartRemindersEnabled"].includes(key));
       if(primaryFields.length)await transaction.execute({sql:`UPDATE jobs SET ${primaryFields.map(key=>`${FIELD_TO_COLUMN[key]}=@${key}`).join(",")} WHERE user_id=@id AND is_primary=1`,args:Object.fromEntries([["id",req.userId!],...primaryFields.map(key=>[key,typeof updates[key]==="boolean"?(updates[key]?1:0):updates[key]!])])});
       if(updates.rate!==undefined)await transaction.execute({sql:`INSERT INTO pay_rates(id,user_id,job_id,location_id,effective_from,rate_cents,created_at) VALUES(?,?,?,NULL,?,?,?)
-        ON CONFLICT(job_id,effective_from) WHERE location_id IS NULL DO UPDATE SET rate_cents=excluded.rate_cents`,args:[randomUUID(),req.userId!,`job_${req.userId!}`,requestDate(req),Math.round(updates.rate*100),new Date().toISOString()]});
+        ON CONFLICT(job_id,effective_from) WHERE location_id IS NULL DO UPDATE SET rate_cents=excluded.rate_cents`,args:[randomUUID(),req.userId!,primaryJobId,requestDate(req),Math.round(updates.rate*100),new Date().toISOString()]});
       if (nextWeekStart && nextWeekStart !== current.week_starts_on) {
         const extras = await transaction.execute({
-          sql: "SELECT * FROM week_extras WHERE user_id = ? AND COALESCE(job_id,'job_' || user_id)='job_' || user_id ORDER BY week_start",
-          args: [req.userId!],
+          sql: "SELECT * FROM week_extras WHERE user_id = ? AND job_id=? ORDER BY week_start",
+          args: [req.userId!, primaryJobId],
         });
         reassociatedExtras = (extras.rows as unknown as WeekExtraRow[]).map(toPublicWeekExtra);
       }

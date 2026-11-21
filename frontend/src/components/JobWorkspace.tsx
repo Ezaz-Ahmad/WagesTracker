@@ -1,6 +1,8 @@
 import { LegacyHourlyPay } from "../settings/LegacyHourlyPay";
+import * as api from "../lib/api";
 import {
   useId,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -26,7 +28,7 @@ import {
   ChevronRightIcon,
   CloseIcon,
   EntryIcon,
-  LocationPinIcon,
+  TrashIcon,
 } from "./icons";
 
 const cash = (n: number) =>
@@ -110,7 +112,7 @@ export function JobDialog({
 }
 
 export function CreateJobDialog({ onClose }: { onClose: () => void }) {
-  const { createJob } = useApp();
+  const { createJob, jobs = [] } = useApp();
   const [name, setName] = useState(""),
     [role, setRole] = useState(""),
     [rate, setRate] = useState(""),
@@ -143,7 +145,7 @@ export function CreateJobDialog({ onClose }: { onClose: () => void }) {
   }
   return (
     <JobDialog
-      title="Add another job"
+      title={jobs.length ? "Add another job" : "Add a job"}
       description="Give this job its own pay, shifts, locations and goals."
       onClose={onClose}
       busy={busy}
@@ -414,23 +416,16 @@ export function JobSwitcher({ onManageJobs }: { onManageJobs: () => void }) {
 
 export function JobsSettings({ onOpenWorkPay }: { onOpenWorkPay: () => void }) {
   const { jobs = [], selectJob, updateJob } = useApp();
-  const confirm = useConfirm();
   const [adding, setAdding] = useState(false),
     [editing, setEditing] = useState<Job | null>(null),
+    [deleting, setDeleting] = useState<Job | null>(null),
     [busy, setBusy] = useState<string | null>(null),
     [error, setError] = useState<string | null>(null);
-  async function archive(j: Job) {
-    if (
-      !j.archived &&
-      !(await confirm(
-        `Archive ${j.name}? Past shifts, earnings and reports stay available.`
-      ))
-    )
-      return;
+  async function restore(j: Job) {
     setBusy(j.id);
     setError(null);
     try {
-      await updateJob(j.id, { archived: !j.archived });
+      await updateJob(j.id, { archived: false });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't update this job");
     } finally {
@@ -456,6 +451,7 @@ export function JobsSettings({ onOpenWorkPay }: { onOpenWorkPay: () => void }) {
         </p>
       )}
       <div className="job-settings-list">
+        {!jobs.length && <div className="job-empty-state"><BriefcaseIcon size={30}/><h4>A fresh start</h4><p>Add a job to set up your locations, hourly pay and work records.</p></div>}
         {jobs.map((j) => (
           <article
             key={j.id}
@@ -489,17 +485,14 @@ export function JobsSettings({ onOpenWorkPay }: { onOpenWorkPay: () => void }) {
               <button className="job-text-button" onClick={() => setEditing(j)}>
                 Edit job & goals
               </button>
-              <button
+              {j.archived && <button
                 className="job-text-button"
                 disabled={busy === j.id}
-                onClick={() => void archive(j)}
+                onClick={() => void restore(j)}
               >
-                {busy === j.id
-                  ? "Saving…"
-                  : j.archived
-                  ? "Restore job"
-                  : "Archive job"}
-              </button>
+                {busy === j.id ? "Restoring…" : "Restore job"}
+              </button>}
+              <button className="job-text-button job-delete-action" onClick={() => setDeleting(j)} aria-label={`Delete ${j.name}`}><TrashIcon size={15}/> Delete job</button>
             </div>
           </article>
         ))}
@@ -508,8 +501,49 @@ export function JobsSettings({ onOpenWorkPay }: { onOpenWorkPay: () => void }) {
       {editing && (
         <EditJobDialog job={editing} onClose={() => setEditing(null)} />
       )}
+      {deleting && <DeleteJobDialog job={deleting} onClose={() => setDeleting(null)}/>}
     </div>
   );
+}
+
+export function DeleteJobDialog({ job, onClose }: { job: Job; onClose: () => void }) {
+  const { deleteJob } = useApp();
+  const [impact, setImpact] = useState<api.JobDeletionImpact | null>(null);
+  const [confirmation, setConfirmation] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const id = useId();
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true); setError(null); setImpact(null);
+    void api.getJobDeletionImpact(job.id).then(result => { if (!cancelled) setImpact(result); })
+      .catch(error => { if (!cancelled) setError(error instanceof Error ? error.message : "Couldn't load the deletion details."); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [job.id, attempt]);
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!impact || impact.hasRunningShift || confirmation.trim() !== impact.name || busy) return;
+    setBusy(true); setError(null);
+    try { await deleteJob(job.id, confirmation.trim()); onClose(); }
+    catch (error) { setError(error instanceof Error ? error.message : "Couldn't delete this job. Try again."); setBusy(false); }
+  }
+  const labels: [keyof api.JobDeletionImpact["counts"], string][] = [["shifts", "Shifts"], ["locations", "Work locations"], ["payRates", "Pay rate records"], ["fuelAllowances", "Fuel allowances"], ["weeklyExtras", "Weekly extras"], ["linkedExpenses", "Linked spending"]];
+  return <JobDialog title="Delete this job?" description={job.name} onClose={onClose} busy={busy}>
+    {loading && <p role="status" className="job-delete-loading">Checking the records for this job…</p>}
+    {error && <p role="alert" className="settings-error">{error}</p>}
+    {!loading && !impact && <button className="btn btn-secondary" onClick={() => setAttempt(value => value + 1)}>Try again</button>}
+    {impact && <form onSubmit={submit}>
+      <div className="job-delete-warning"><TrashIcon size={20}/><div><strong>This permanently removes {impact.name}.</strong><p>Its work history, locations, pay changes, allowances, extras and spending linked to this job will be deleted. This cannot be undone.</p></div></div>
+      <dl className="job-delete-counts">{labels.map(([key, label]) => <div key={key}><dt>{label}</dt><dd>{impact.counts[key].toLocaleString()}</dd></div>)}</dl>
+      <p className="job-delete-detail">Earnings totals and future PDF reports will no longer include this job. PDFs you have already downloaded remain on your device.</p>
+      <p className="job-delete-detail">Your account, other jobs and spending without this job tag stay available.</p>
+      {impact.lastJob && <p className="job-notice">This is your last job. You can add a new job afterwards; deleted records will not return.</p>}
+      {impact.hasRunningShift ? <p role="alert" className="job-delete-warning">End the running shift before deleting this job.</p> : <label className="field field-spaced" htmlFor={id}><span>Type <strong>{impact.name}</strong> to confirm</span><input id={id} className="input" value={confirmation} onChange={e => setConfirmation(e.target.value)} autoComplete="off" autoCorrect="off" spellCheck={false} maxLength={120} disabled={busy}/></label>}
+      <div className="job-delete-footer"><button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>Keep job</button><AsyncButton type="submit" className="btn btn-danger btn-destructive-final" busy={busy} disabled={impact.hasRunningShift || confirmation.trim() !== impact.name} idleLabel="Delete job & data" busyLabel="Deleting job…"/></div>
+    </form>}
+  </JobDialog>;
 }
 
 function EditJobDialog({ job, onClose }: { job: Job; onClose: () => void }) {
@@ -1013,11 +1047,7 @@ function RateHistoryRow({
   );
 }
 
-export function AllJobsOverview({
-  onNavigate,
-}: {
-  onNavigate: (screen: Screen) => void;
-}) {
+export function AllJobsOverview(_props: { onNavigate: (screen: Screen) => void }) {
   const {
     jobs = [],
     allShifts = [],
@@ -1068,6 +1098,7 @@ export function AllJobsOverview({
         Loading your jobs…
       </div>
     );
+  if (!jobs.length) return <EmptyJobsState/>;
   return (
     <div className="screen-wide jobs-overview">
       <div className="job-overview-title">
@@ -1191,19 +1222,6 @@ export function AllJobsOverview({
               </button>
             ))}
           </div>
-          <div className="card job-spending-link">
-            <LocationPinIcon size={18} />
-            <span>
-              <strong>Personal spending</strong>
-              <small>One ledger across all your jobs</small>
-            </span>
-            <button
-              className="job-text-button"
-              onClick={() => onNavigate("spending")}
-            >
-              View →
-            </button>
-          </div>
         </section>
       </div>
       {adding && <CreateJobDialog onClose={() => setAdding(false)} />}
@@ -1213,6 +1231,7 @@ export function AllJobsOverview({
 
 export function ChooseJobForEntry() {
   const { jobs = [], selectJob } = useApp();
+  if (!jobs.length) return <EmptyJobsState/>;
   return (
     <div className="screen-narrow">
       <h1 className="section-title">Choose a job</h1>
@@ -1240,4 +1259,9 @@ export function ChooseJobForEntry() {
       </div>
     </div>
   );
+}
+
+function EmptyJobsState() {
+  const [adding, setAdding] = useState(false);
+  return <section className="screen-narrow job-empty-state"><span className="job-monogram"><BriefcaseIcon size={26}/></span><h1>Your next job starts here.</h1><p>Add a job to track your shifts, set hourly rates for each location and build your work history.</p><button className="btn btn-primary" onClick={() => setAdding(true)}>Add a job</button>{adding && <CreateJobDialog onClose={() => setAdding(false)}/>}</section>;
 }

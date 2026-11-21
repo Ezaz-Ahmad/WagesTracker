@@ -17,11 +17,12 @@ jobs:
       github.event_name == 'workflow_dispatch' &&
       github.ref == 'refs/heads/main' &&
       github.event.repository.fork == false
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 60
     environment:
       name: testflight
     env:
+      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
       IOS_BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID }}
       IOS_APP_VERSION: ${{ vars.IOS_APP_VERSION }}
       APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
@@ -38,6 +39,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      - name: Verify stable Xcode and App Store SDK requirement
+        run: npm run ios:toolchain:verify -w frontend
 
       - name: Verify protected-main release configuration
         shell: bash

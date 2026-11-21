@@ -134,6 +134,7 @@ interface AppContextValue {
   allShifts:Shift[];allDayExpenses:DayExpense[];allWeekExtras:WeekExtra[];
   createJob:(input:api.JobInput)=>Promise<Job>;
   updateJob:(id:string,patch:Partial<Omit<api.JobInput,"rate">>&{archived?:boolean})=>Promise<void>;
+  deleteJob:(id:string,confirmationName:string)=>Promise<void>;
   addPayRate:(jobId:string,input:api.PayRateInput)=>Promise<void>;
 
   status: Status;
@@ -1004,7 +1005,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     const enabledJobs=jobs.filter(j=>!j.archived&&j.smartRemindersEnabled);
-    if (!enabledJobs.length && !(jobs.length===0&&user.smartRemindersEnabled)) {
+    if (!enabledJobs.length && !(jobs.length===0&&!user.workspacesEnabled&&user.smartRemindersEnabled)) {
       setSmartReminderScheduledCount(0);
       void cancelSmartShiftReminderNotifications();
       return;
@@ -1112,6 +1113,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await clearBiometricCredential();
     api.clearRememberedEmail();
     api.clearLastActivity();
+    loadedJobAccountRef.current=null;reloadSequenceRef.current++;api.setJobScope(null);setJobs([]);setPayRates([]);
+    setPendingSmartReminderAction(null);
     setUser(null);
     setShifts([]);
     setDayExpenses([]);
@@ -1668,12 +1671,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const workspaceUser=user ? selectedJob ? {...user,rate:selectedJob.rate,weekStartsOn:selectedJob.weekStartsOn,goalHours:selectedJob.goalHours,goalEarnings:selectedJob.goalEarnings,smartRemindersEnabled:selectedJob.smartRemindersEnabled,workLocationName:selectedJob.name,multipleLocations:visibleLocations.length>1} : {...user,weekStartsOn:"Monday" as const,goalHours:jobs.filter(j=>!j.archived).reduce((n,j)=>n+j.goalHours,0),goalEarnings:user.combinedGoalEarnings||jobs.filter(j=>!j.archived).reduce((n,j)=>n+j.goalEarnings,0)} : null;
   const createJob=useCallback(async(input:api.JobInput)=>{const {job}=await api.createJob(input);if(user)await reloadShifts(user,today);selectJob(job.id);return job;},[user,today,reloadShifts,selectJob]);
   const updateJob=useCallback(async(id:string,patch:Partial<Omit<api.JobInput,"rate">>&{archived?:boolean})=>{await api.patchJob(id,patch);if(user)await reloadShifts(user,today);},[user,today,reloadShifts]);
+  const deleteJob=useCallback(async(id:string,confirmationName:string)=>{
+    const result=await api.deleteJob(id,confirmationName);
+    if(loadedJobAccountRef.current!==result.user.id)return;
+    // Evict deleted financial records immediately, including a pending older
+    // reload, before fetching fresh totals. A refresh error cannot undo deletion.
+    ++reloadSequenceRef.current;
+    setJobs(current=>current.filter(job=>job.id!==id));
+    setPayRates(current=>current.filter(rate=>rate.jobId!==id));
+    setShifts(current=>current.filter(shift=>shift.jobId!==id));
+    setDayExpenses(current=>current.filter(expense=>expense.jobId!==id));
+    setWeekExtras(current=>current.filter(extra=>extra.jobId!==id));
+    setWorkLocations(current=>current.filter(location=>location.jobId!==id));
+    setPendingSmartReminderAction(current=>!current?.jobId||current.jobId===id?null:current);
+    setUser(result.user);
+    clearSpendingDataCache(result.user.id);
+    if(selectedJobRef.current===id)selectJob(result.nextJobId??"all");
+    try{await reloadShifts(result.user,today);}catch{setActionError("The job was deleted. Pull to refresh to reload the remaining jobs.");}
+  },[today,reloadShifts,selectJob]);
   const addPayRate=useCallback(async(jobId:string,input:api.PayRateInput)=>{await api.addPayRate(jobId,input);if(user)await reloadShifts(user,today);},[user,today,reloadShifts]);
   const value = useMemo<AppContextValue>(
     () => ({
       status,
       user:workspaceUser,
-      jobs,payRates,selectedJobId,selectedJob,selectJob,allShifts:shifts,allDayExpenses:dayExpenses,allWeekExtras:weekExtras,createJob,updateJob,addPayRate,
+      jobs,payRates,selectedJobId,selectedJob,selectJob,allShifts:shifts,allDayExpenses:dayExpenses,allWeekExtras:weekExtras,createJob,updateJob,deleteJob,addPayRate,
       authError,
       authBusy,
       actionError,
@@ -1742,7 +1763,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       hideEarningsNow,
     }),
     [
-      workspaceUser,jobs,payRates,selectedJobId,selectedJob,selectJob,visibleShifts,visibleExpenses,visibleExtras,visibleLocations,createJob,updateJob,addPayRate,
+      workspaceUser,jobs,payRates,selectedJobId,selectedJob,selectJob,visibleShifts,visibleExpenses,visibleExtras,visibleLocations,createJob,updateJob,deleteJob,addPayRate,
       status,
       user,
       authError,

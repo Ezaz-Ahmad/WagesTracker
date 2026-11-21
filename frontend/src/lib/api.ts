@@ -675,5 +675,8 @@ export interface JobInput {name:string;role?:string;rate:number;weekStartsOn?:We
 export function listJobs():Promise<{jobs:Job[];rates:PayRate[]}>{return request("/jobs");}
 export function createJob(input:JobInput):Promise<{job:Job}>{return request("/jobs",{method:"POST",body:JSON.stringify(input)});}
 export function patchJob(id:string,patch:Partial<Omit<JobInput,"rate">>&{archived?:boolean}):Promise<{job:Job}>{return request(`/jobs/${encodeURIComponent(id)}`,{method:"PATCH",body:JSON.stringify(patch)});}
+export interface JobDeletionImpact { jobId:string;name:string;hasRunningShift:boolean;lastJob:boolean;counts:Record<"shifts"|"locations"|"payRates"|"fuelAllowances"|"weeklyExtras"|"linkedExpenses",number>; }
+export function getJobDeletionImpact(id:string):Promise<JobDeletionImpact>{return request(`/jobs/${encodeURIComponent(id)}/deletion-impact`);}
+export function deleteJob(id:string,confirmationName:string):Promise<{deletedJobId:string;nextJobId:string|null;user:User}>{return request(`/jobs/${encodeURIComponent(id)}`,{method:"DELETE",body:JSON.stringify({confirmationName})});}
 export interface PayRateInput {locationId:string|null;rate:number|null;effectiveFrom:string;replaceExisting?:boolean;}
 export function addPayRate(jobId:string,input:PayRateInput):Promise<{rate:PayRate;job:Job}>{return request(`/jobs/${encodeURIComponent(jobId)}/rates`,{method:"POST",body:JSON.stringify(input)});}

@@ -47,7 +47,9 @@ jobs:
 
   analyze-swift:
     name: Analyze (swift)
-    runs-on: macos-26
+    runs-on: xcode-27
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
     timeout-minutes: 45
 
     steps:
@@ -59,6 +61,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      - name: Verify stable Xcode and App Store SDK requirement
+        run: npm run ios:toolchain:verify -w frontend
 
       - name: Install JavaScript dependencies
         run: npm ci
