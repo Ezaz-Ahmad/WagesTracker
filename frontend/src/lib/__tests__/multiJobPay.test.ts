@@ -107,12 +107,60 @@ const extras: WeekExtra[] = [
 ];
 
 describe("recorded pay across jobs and locations", () => {
-  it("allocates an extra to its effective month and year across period boundaries",()=>{
-    const monthExtra:WeekExtra[]=[{weekStart:"2026-11-30",effectiveDate:"2026-12-06",amount:25,reason:"Bonus"}];
-    const months=buildMonthlyItems([],new Date(2026,11,10),30,2,[],monthExtra);
-    expect(months.map(month=>month.earnings)).toEqual([0,25]);
-    const yearExtra:WeekExtra[]=[{weekStart:"2026-12-28",effectiveDate:"2027-01-03",amount:50,reason:"Year-end bonus"}];
-    expect(buildYearlyItems([],new Date(2027,0,10),30,2,[],yearExtra).map(year=>year.earnings)).toEqual([0,50]);
+  it("keeps exact half-cent rounding identical in totals and PDF rows", () => {
+    const rows: Shift[] = [
+      {
+        ...shifts[0],
+        signIn: "08:00:00",
+        signOut: "08:01:48",
+        appliedRate: 18.5,
+      },
+      {
+        ...shifts[1],
+        signIn: "09:00:00",
+        signOut: "10:05:00",
+        appliedRate: 30.3,
+      },
+    ];
+    const report = buildWeekReportData(user, rows, new Date(2026, 10, 18), "$");
+    expect(report.totalEarnings).toBe(33.39);
+    expect(report.totalWages).toBe(33.39);
+    expect(report.shiftRows.map((row) => row.moneyLabel)).toEqual([
+      "$0.56",
+      "$32.83",
+    ]);
+  });
+  it("allocates an extra to its effective month and year across period boundaries", () => {
+    const monthExtra: WeekExtra[] = [
+      {
+        weekStart: "2026-11-30",
+        effectiveDate: "2026-12-06",
+        amount: 25,
+        reason: "Bonus",
+      },
+    ];
+    const months = buildMonthlyItems(
+      [],
+      new Date(2026, 11, 10),
+      30,
+      2,
+      [],
+      monthExtra
+    );
+    expect(months.map((month) => month.earnings)).toEqual([0, 25]);
+    const yearExtra: WeekExtra[] = [
+      {
+        weekStart: "2026-12-28",
+        effectiveDate: "2027-01-03",
+        amount: 50,
+        reason: "Year-end bonus",
+      },
+    ];
+    expect(
+      buildYearlyItems([], new Date(2027, 0, 10), 30, 2, [], yearExtra).map(
+        (year) => year.earnings
+      )
+    ).toEqual([0, 50]);
   });
   it("keeps current, historical, monthly, yearly and PDF totals at the recorded amounts", () => {
     const today = new Date(2026, 10, 23, 12);
@@ -207,14 +255,12 @@ describe("recorded pay across jobs and locations", () => {
   });
 
   it("sums each shift's cents and combines same-day fuel without losing a job", () => {
-    const short = shifts
-      .slice(0, 2)
-      .map((shift) => ({
-        ...shift,
-        signIn: "09:00:00",
-        signOut: "09:01:00",
-        appliedRate: 30.03,
-      }));
+    const short = shifts.slice(0, 2).map((shift) => ({
+      ...shift,
+      signIn: "09:00:00",
+      signOut: "09:01:00",
+      appliedRate: 30.03,
+    }));
     expect(sumShiftWages(short, 99)).toBe(1);
     expect(
       groupExpensesByDate([

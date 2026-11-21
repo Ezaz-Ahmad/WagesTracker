@@ -1,5 +1,5 @@
 import type { Client } from "@libsql/client";
-import { completedShiftHours } from "./earnings.js";
+import { completedShiftHours, completedShiftWageCents } from "./earnings.js";
 import type { AdminEarningsDay, AdminWeekEarnings, UserRow } from "./types.js";
 import { addIsoDays, startOfWeekISO, weekDayIndex } from "./weekBoundary.js";
 
@@ -112,7 +112,7 @@ export async function adminEarningsForUsers(
     if (signIn && signOut) {
       const shiftHours = completedShiftHours(signIn, signOut);
       const rate=Number(row.applied_rate_cents ?? Number(fallbackRates.get(key(row)) ?? 0)*100);
-      const wages=Math.round(shiftHours*rate)/100;
+      const wages=completedShiftWageCents(signIn,signOut,rate)/100;
       target.day.wages+=wages;target.week.wages+=wages;
       target.day.hours += shiftHours;
       target.week.hours += shiftHours;

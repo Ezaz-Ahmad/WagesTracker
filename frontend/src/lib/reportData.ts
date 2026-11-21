@@ -12,6 +12,7 @@ import {
 } from "./aggregate";
 import { buildWeekDays, fmt2, isoDate, weekRangeLabel } from "./date";
 import type { DayExpense, Shift, User, WeekExtra } from "./types";
+import { wagesForHours } from "./pay";
 
 export interface WeekReportData {
   reportScopeLabel?:string;
@@ -136,7 +137,7 @@ export function buildWeekReportData(
     rate: user.rate,
     ratesUsed:Array.from(new Set(shiftRows.filter(s=>s.hours>0).map(s=>s.rate??user.rate))).sort((a,b)=>a-b),
     combinedJobs:new Set(shifts.map(s=>s.jobId).filter(Boolean)).size>1,
-    totalWages:Math.round(shiftRows.reduce((sum,s)=>sum+Math.round(s.hours*(s.rate??user.rate)*100),0))/100,
+    totalWages:shiftRows.reduce((sum,row)=>sum+Math.round(wagesForHours(row.hours,row.rate??user.rate)*100),0)/100,
     totalHours,
     totalEarnings,
     totalFuelCost,

@@ -6,6 +6,7 @@ import { CloseIcon } from "../components/icons";
 import { useDismissTransition } from "../lib/useDismissTransition";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { computeHours, fmt2, parseIsoDate } from "../lib/date";
+import { wagesForHours } from "../lib/pay";
 import { describeShiftTimes, FUTURE_DATE_WARNING, isFutureDate, isUnusuallyLongShift, LONG_SHIFT_WARNING } from "../lib/shiftRules";
 import { useApp } from "../context/AppContext";
 import { useConfirm } from "../components/ConfirmProvider";
@@ -348,7 +349,7 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
               </select>
             </div>
 
-            {selected?.appliedRate!=null&&<div className="field field-spaced"><label htmlFor="day-editor-applied-rate">Recorded hourly rate (AUD)</label><input id="day-editor-applied-rate" className="input" type="number" min="0.01" max="1000" step="0.01" inputMode="decimal" value={rateRaw} onChange={e=>{setRateRaw(e.target.value);setSaved(false);}} disabled={busy} aria-invalid={!rateValid||undefined}/><span className="field-hint">A rate correction affects this shift only. You will review and confirm the change before it is saved.</span>{rateDirty&&rateValid&&<p className="job-pay-preview">{fmt2(previewHours)}h × ${Number(rateRaw).toFixed(2)}/hr = ${(Math.round(previewHours*Number(rateRaw)*100)/100).toFixed(2)} wages</p>}</div>}
+            {selected?.appliedRate!=null&&<div className="field field-spaced"><label htmlFor="day-editor-applied-rate">Recorded hourly rate (AUD)</label><input id="day-editor-applied-rate" className="input" type="number" min="0.01" max="1000" step="0.01" inputMode="decimal" value={rateRaw} onChange={e=>{setRateRaw(e.target.value);setSaved(false);}} disabled={busy} aria-invalid={!rateValid||undefined}/><span className="field-hint">A rate correction affects this shift only. You will review and confirm the change before it is saved.</span>{rateDirty&&rateValid&&<p className="job-pay-preview">{fmt2(previewHours)}h × ${Number(rateRaw).toFixed(2)}/hr = ${wagesForHours(previewHours,Number(rateRaw)).toFixed(2)} wages</p>}</div>}
             <div className="field day-editor-fuel-field">
               <label htmlFor="day-editor-fuel">Fuel allowance for this day</label>
               <div className="day-editor-money-input">

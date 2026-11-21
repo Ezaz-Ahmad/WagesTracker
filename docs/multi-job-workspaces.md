@@ -17,7 +17,7 @@ Each account owns one or more jobs. A job owns its locations, hourly pay schedul
 
 For a new shift, the worked date selects the latest location pay record effective on or before that date. A null location rate means inherit the job default effective on that date. The selected rate is saved as integer cents with its source and job name. Backdated entries use their worked date; changing a schedule never changes existing snapshots, including running shifts.
 
-Completed shift wages are rounded to cents once per shift, then summed. Incomplete shifts add no persisted wages. Live estimates use the running shift's snapshot. Home, Entry, History, Report, spending comparisons, PDF and admin use the same rule.
+Completed shift wages multiply integer elapsed seconds by integer rate cents, divide by 3,600, then round to cents once per shift and sum. Displayed hours are never used as the calculation's rounded input. Incomplete shifts add no persisted wages. Live estimates use the running shift's snapshot. Home, Entry, History, Report, spending comparisons, PDF and admin use the same rule.
 
 Changing a saved shift's location recalculates its proposed rate for the original worked date; a changed rate requires confirmation. Clearing a location returns to the job default. A manual rate correction affects that shift only. Times-only edits retain the saved rate.
 

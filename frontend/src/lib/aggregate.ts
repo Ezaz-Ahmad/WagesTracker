@@ -1,4 +1,4 @@
-import { sumShiftWages } from "./pay";
+import { sumShiftWages, wagesForHours } from "./pay";
 import { addDays, computeHours, dayAbbr, fmt2, formatTime12, isoDate, shortLabel, startOfWeek } from "./date";
 import type { DayExpense, Shift, WeekExtra, WeekStart } from "./types";
 
@@ -282,7 +282,7 @@ export function buildShiftRows(days: DayComputed[], currency: string, rate: numb
         hours: sh.hours,
         hoursLabel: sh.hoursLabel,
         workLocationId:sh.workLocationId,rate:sh.appliedRate??rate,rateLabel:currency+fmt2(sh.appliedRate??rate),jobName:sh.jobName,jobId:sh.jobId,
-        moneyLabel: sh.hours > 0 ? currency + fmt2(Math.round(sh.hours*(sh.appliedRate??rate)*100)/100) : "—",
+        moneyLabel: sh.hours > 0 ? currency + fmt2(wagesForHours(sh.hours,sh.appliedRate??rate)) : "—",
       });
     }
   }

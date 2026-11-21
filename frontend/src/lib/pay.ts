@@ -4,15 +4,17 @@ import type { WeekExtra, WeekStart } from "./types";
 import { addIsoDays, startOfWeekISO } from "./weekBoundary.mjs";
 
 /** Currency is rounded once per completed shift; every total sums those cents. */
+export function wagesForHours(hours: number, rate: number): number {
+  const seconds = Math.round(hours * 3600);
+  return Math.round((seconds * Math.round(rate * 100)) / 3600) / 100;
+}
 export function shiftWages(
   shift: Pick<Shift, "signIn" | "signOut" | "appliedRate">,
   fallbackRate: number
 ): number {
-  return (
-    Math.round(
-      computeHours(shift.signIn, shift.signOut) *
-        Math.round((shift.appliedRate ?? fallbackRate) * 100)
-    ) / 100
+  return wagesForHours(
+    computeHours(shift.signIn, shift.signOut),
+    shift.appliedRate ?? fallbackRate
   );
 }
 export function sumShiftWages(shifts: Shift[], fallbackRate: number): number {
