@@ -1,11 +1,12 @@
 import { sign } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { appendFile, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const APPLE_API = "https://api.appstoreconnect.apple.com";
 const BUNDLE_ID = "com.ezazahmad.wagestracker";
+export const APPLE_APP_ID = "6801702467";
 export const INTERNAL_GROUP = "WagesTracker Internal Testers";
 
 // Apple JWT and TestFlight relationship APIs:
@@ -28,9 +29,23 @@ export function appleClient({ keyId, issuerId, privateKey, fetchImpl = fetch }) 
       ...(body ? { body: JSON.stringify(body) } : {}),
       signal: AbortSignal.timeout(30_000),
     });
-    if (!response.ok) throw Object.assign(new Error(`App Store Connect request failed (${response.status}). Credentials were not logged.`), { status: response.status });
+    if (!response.ok) {
+      const failure = await response.json().catch(() => ({}));
+      // Report Apple's bounded error codes only; response details may contain
+      // account data and must never enter Actions logs.
+      const codes = (failure.errors ?? []).map(error => error.code).filter(code => typeof code === "string" && /^[A-Z0-9_.]{1,100}$/.test(code)).slice(0, 3);
+      throw Object.assign(new Error(`App Store Connect request failed (${response.status})${codes.length ? `: ${codes.join(", ")}` : ""}. Credentials were not logged.`), { status: response.status });
+    }
     return response.status === 204 ? {} : response.json();
   };
+}
+
+export async function verifyAppleApplication(request) {
+  const apps = await request(`/v1/apps?${new URLSearchParams({ "filter[bundleId]": BUNDLE_ID, limit: "2" })}`);
+  if (apps.data?.length !== 1) throw new Error("Expected exactly one WagesTracker application");
+  const app = apps.data[0];
+  if (app.id !== APPLE_APP_ID || app.attributes?.bundleId !== BUNDLE_ID) throw new Error("Apple application identity does not match the existing WagesTracker app; refusing delivery");
+  return app.id;
 }
 
 /** Operates on one exact build and the pre-existing internal group only.
@@ -38,9 +53,7 @@ export function appleClient({ keyId, issuerId, privateKey, fetchImpl = fetch }) 
  * beta review, select an App Store version or release an app publicly. */
 export async function confirmTestFlight({ request, version, buildNumber, now = Date.now, sleep = ms => new Promise(done => setTimeout(done, ms)), timeoutMs = 20 * 60_000, log = console.log }) {
   if (!/^\d+\.\d+\.\d+$/.test(version) || !/^[1-9]\d*$/.test(String(buildNumber))) throw new Error("Invalid release version or build number");
-  const apps = await request(`/v1/apps?${new URLSearchParams({ "filter[bundleId]": BUNDLE_ID, limit: "2" })}`);
-  if (apps.data?.length !== 1) throw new Error("Expected exactly one WagesTracker application");
-  const appId = apps.data[0].id;
+  const appId = await verifyAppleApplication(request);
   const deadline = now() + timeoutMs;
   let previous = "";
   while (now() < deadline) {
@@ -86,10 +99,19 @@ export async function confirmTestFlight({ request, version, buildNumber, now = D
 
 async function main() {
   const env = process.env;
+  const mode = process.argv[2];
+  if (mode && mode !== "--preflight") throw new Error("Unknown TestFlight command");
   if (env.GITHUB_ACTIONS !== "true" || env.GITHUB_REF !== "refs/heads/main" || env.GITHUB_RUN_ATTEMPT !== "1" || env.IOS_BUNDLE_ID !== BUNDLE_ID) throw new Error("TestFlight confirmation is restricted to a fresh protected-main delivery");
   if (!/^[A-Z0-9]{10}$/.test(env.ASC_KEY_ID ?? "") || !/^[0-9a-f-]{36}$/i.test(env.ASC_ISSUER_ID ?? "")) throw new Error("App Store Connect credentials are not configured");
   const privateKey = await readFile(join(homedir(), ".appstoreconnect", "private_keys", `AuthKey_${env.ASC_KEY_ID}.p8`), "utf8");
   const request = appleClient({ keyId: env.ASC_KEY_ID, issuerId: env.ASC_ISSUER_ID, privateKey });
+  if (mode === "--preflight") {
+    if (!env.GITHUB_ENV) throw new Error("GitHub environment file is unavailable");
+    const appId = await verifyAppleApplication(request);
+    await appendFile(env.GITHUB_ENV, `IOS_APPLE_ID=${appId}\n`);
+    console.log(`Verified existing Apple application ${appId} (${BUNDLE_ID}) before signing. Validation and upload will use this explicit app ID.`);
+    return;
+  }
   await confirmTestFlight({ request, version: env.IOS_APP_VERSION, buildNumber: env.IOS_BUILD_NUMBER });
 }
 

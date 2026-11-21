@@ -209,6 +209,12 @@ jobs:
           printf '%s' "$INSTALLED_EXTENSION_PROFILE_PATH" > "$RUNNER_TEMP/wagestracker-installed-extension-profile-path"
           echo "Temporary distribution identity and both App Store profiles validated and installed."
 
+      - name: Verify Apple access and resolve existing application ID
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: node frontend/scripts/confirm-testflight-build.mjs --preflight
+
       - name: Resolve native dependencies
         run: npm run ios:resolve:native
 
@@ -282,7 +288,7 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
           set -euo pipefail
-          xcrun altool --validate-app --type ios --file "$IPA_PATH" --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+          xcrun altool --validate-app --type ios --file "$IPA_PATH" --apple-id "$IOS_APPLE_ID" --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
 
       - name: Upload build to TestFlight
         shell: bash
@@ -291,7 +297,7 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
           set -euo pipefail
-          xcrun altool --upload-app --type ios --file "$IPA_PATH" --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+          xcrun altool --upload-app --type ios --file "$IPA_PATH" --apple-id "$IOS_APPLE_ID" --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
           echo "Upload accepted by App Store Connect. Checking processing and internal tester availability next."
 
       - name: Confirm Apple processing and internal TestFlight availability
