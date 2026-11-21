@@ -14,7 +14,7 @@
 
 Wages Tracker's signed iOS delivery is intentionally separate from pull-request, push, Simulator and CodeQL workflows. `.github/workflows/ios-testflight.yml` can be started only with `workflow_dispatch`; its delivery job additionally refuses every ref except protected `main`, rejects fork context, uses the protected `testflight` environment and serializes uploads through one non-cancelling concurrency group.
 
-The workflow uploads a build to TestFlight only. It does not assign testers, submit the app to App Review, select a build for the App Store version or release the application publicly.
+The workflow uploads a build to TestFlight, waits for Apple processing and verifies availability for the existing **WagesTracker Internal Testers** group. It adds this exact build to that group if needed. It does not create testers/groups, change notification preferences, submit App Review, select an App Store version or release publicly. See Apple's [build-to-group API](https://developer.apple.com/documentation/appstoreconnectapi/post-v1-betagroups-_id_-relationships-builds).
 
 ## One-time GitHub environment setup
 
@@ -65,8 +65,8 @@ After those gates pass:
 3. Approve the `testflight` environment deployment if an approval rule is configured.
 4. Review the run through validation, archive, export and App Store Connect validation.
 5. Record the workflow URL, protected-main commit, printed marketing/build pair, and App Store Connect processing result.
-6. Confirm the upload is processing in App Store Connect → Wages Tracker → TestFlight. Processing can continue after the workflow reports that Apple accepted the upload.
-7. Assign the processed build to the intended internal tester group and install it on the physical test iPhone.
+6. Wait for the final processing/availability step. It checks the exact marketing version, build number and iOS platform, and refuses external or ambiguous groups.
+7. Install the ready build on the physical test iPhone from the existing internal group. If Apple processing takes more than 20 minutes, the run fails with an explicit pending-processing message; do not upload the same binary again. Inspect that build in App Store Connect.
 8. Complete the device and password-recovery checklist below before treating it as a release candidate.
 
 Do not trigger the signed workflow from this feature branch. Pull-request validation remains the existing unsigned Simulator, CI and three-language CodeQL workflows, with no signing secrets.

@@ -292,7 +292,13 @@ jobs:
         run: |
           set -euo pipefail
           xcrun altool --upload-app --type ios --file "$IPA_PATH" --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
-          echo "Upload accepted by App Store Connect. Processing and tester assignment remain in App Store Connect."
+          echo "Upload accepted by App Store Connect. Checking processing and internal tester availability next."
+
+      - name: Confirm Apple processing and internal TestFlight availability
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: node frontend/scripts/confirm-testflight-build.mjs
 
       - name: Remove temporary signing material
         if: always()
