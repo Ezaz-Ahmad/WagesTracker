@@ -39,10 +39,16 @@ run("xcrun", ["--sdk", "iphonesimulator", "swiftc", "-sdk", sdk,
   "-o", path.join(app, "LiveActivityPreview")]);
 run("codesign", ["--force", "--sign", "-", app]);
 const { devices } = JSON.parse(run("xcrun", ["simctl", "list", "devices", "available", "--json"]));
-const device = Object.entries(devices).filter(([runtime]) => runtime.includes("iOS"))
+const phones = Object.entries(devices).filter(([runtime]) => runtime.includes("iOS"))
   .sort(([a], [b]) => b.localeCompare(a, undefined, { numeric: true }))
-  .flatMap(([, entries]) => entries).find((entry) => entry.name.startsWith("iPhone"));
+  .flatMap(([runtime, entries]) => entries.map(entry => ({ ...entry, runtime })))
+  .filter(entry => entry.name.startsWith("iPhone"));
+// Prefer a conventional phone viewport; the Duo's two display surfaces need
+// separate visual coverage and are not representative of the standard phone.
+const device = phones.find(entry => entry.name === "iPhone 18 Pro")
+  ?? phones.find(entry => /^iPhone \d/.test(entry.name)) ?? phones[0];
 if (!device) throw new Error("No available iPhone simulator.");
+console.log(`Using ${device.name} (${device.runtime}) for native visual QA.`);
 const bootedHere = device.state !== "Booted";
 try {
   if (bootedHere) run("xcrun", ["simctl", "boot", device.udid]);

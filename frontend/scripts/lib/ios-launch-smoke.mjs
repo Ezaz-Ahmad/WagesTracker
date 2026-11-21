@@ -19,7 +19,9 @@ export async function smokeNativeLaunch({ run, deviceId, appPath, output }) {
   run("xcrun", ["simctl", "install", deviceId, appPath]);
   try {
     const initialPid = pidFrom(run("xcrun", ["simctl", "launch", "--terminate-running-process", deviceId, bundleId]));
-    await delay(10_000);
+    // Give a newly booted hosted Simulator time to start its first WebKit
+    // process before collecting evidence of the rendered application.
+    await delay(45_000);
     assertAlive(initialPid);
     screenshot("cold-launch.png");
     run("xcrun", ["simctl", "launch", deviceId, "com.apple.Preferences"]);
@@ -29,16 +31,17 @@ export async function smokeNativeLaunch({ run, deviceId, appPath, output }) {
     assertAlive(resumedPid);
     if (resumedPid !== initialPid) throw new Error("The app restarted instead of resuming its existing scene");
     screenshot("resumed.png");
-    // An unsupported, harmless route must still reach the scene and leave the
-    // app usable; account recovery tokens are never used in this test.
+    // Capture the OS handling of a harmless custom URL. iOS can present an
+    // Open confirmation here; this does not assert delivery past that prompt.
+    // Account recovery tokens are never used in this test.
     run("xcrun", ["simctl", "terminate", deviceId, bundleId]);
     run("xcrun", ["simctl", "openurl", deviceId, "wagestracker://native-launch-check"]);
     await delay(5000);
     const linkedPid = pidFrom(run("xcrun", ["simctl", "launch", deviceId, bundleId]));
     assertAlive(linkedPid);
-    screenshot("cold-link-launch.png");
-    const result = { coldLaunch: true, resumedWithoutRestart: true, coldCustomUrlLaunch: true };
+    screenshot("custom-url-request.png");
+    const result = { coldLaunch: true, resumedWithoutRestart: true, customUrlRequestCaptured: true };
     writeFileSync(path.join(output, "launch-results.json"), JSON.stringify(result, null, 2));
-    console.log("Verified native cold launch, scene resume and custom-URL cold launch; inspect the captured app screenshots.");
+    console.log("Verified native cold launch and scene resume; inspect the app screenshots and custom-URL system prompt capture.");
   } finally { run("xcrun", ["simctl", "uninstall", deviceId, bundleId]); }
 }
