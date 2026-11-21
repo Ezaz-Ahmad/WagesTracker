@@ -8,7 +8,7 @@ services:
     # as an implicit "skip devDependencies" flag, but typescript and the @types/* packages needed to
     # compile the backend live in devDependencies. This forces them in for the build step; the compiled
     # output in dist/ is plain JS, so it doesn't matter that devDependencies are present at runtime.
-    buildCommand: npm install --include=dev && npm run build -w backend
+    buildCommand: npm ci --include=dev && npm run security:audit && npm run build -w backend
     startCommand: npm run start -w backend
     healthCheckPath: /api/health
     autoDeploy: true

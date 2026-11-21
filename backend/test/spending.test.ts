@@ -196,6 +196,21 @@ describe("personal spending", () => {
     expect(result.body.expense).toMatchObject({ amountCents: 5500, spentDate: "2026-08-04", merchant: "Train", category: { name: "Transport" } });
   });
 
+  it("preserves omitted expense fields and rejects an empty edit", async () => {
+    const jobs = await request(app).get("/api/jobs").set(auth()).set("X-Client-Time-Zone", ZONE);
+    const jobId = jobs.body.jobs[0].id;
+    const created = await expense({ jobId, amountCents: 200, categoryId: transportId, spentAt: "2026-08-04T09:00", merchant: "Before", note: "Keep this note", paymentMethod: "cash" });
+    expect(created.status).toBe(201);
+    const id = created.body.expense.id;
+    try {
+      const edited = await request(app).patch(`/api/spending/expenses/${id}`).set(auth()).set("X-Client-Time-Zone", ZONE).send({ merchant: "After" });
+      expect(edited.status).toBe(200);
+      expect(edited.body.expense).toMatchObject({ jobId, amountCents: 200, merchant: "After", note: "Keep this note", paymentMethod: "cash" });
+      const empty = await request(app).patch(`/api/spending/expenses/${id}`).set(auth()).set("X-Client-Time-Zone", ZONE).send({});
+      expect(empty.status).toBe(400);
+    } finally { await request(app).delete(`/api/spending/expenses/${id}`).set(auth()); }
+  });
+
   it("prevents cross-user expense reads, edits, and deletes", async () => {
     const list = await request(app).get("/api/spending/expenses").set(auth(tokenB));
     const edit = await request(app).patch(`/api/spending/expenses/${expenseId}`).set(auth(tokenB)).set("X-Client-Time-Zone", ZONE).send({ amountCents: 1 });

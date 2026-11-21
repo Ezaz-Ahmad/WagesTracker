@@ -4,7 +4,7 @@ import { ExternalAppLink, InternalAppLink } from "../components/AppLink";
 const REPOSITORY_URL = "https://github.com/Ezaz-Ahmad/WagesTracker";
 const ISSUE_URL = `${REPOSITORY_URL}/issues/new`;
 const SUPPORT_EMAIL = "ezazahmadshanto@gmail.com";
-const CONTACT_URL = "https://www.ezazahmad.com/#contact";
+const CONTACT_URL = "https://www.ezazahmad.com/";
 
 export function SupportPage() {
   return (
@@ -19,13 +19,13 @@ export function SupportPage() {
         <h2 id="support-contact-title">Contact support</h2>
         <p>
           For private account, wage, privacy, or security assistance, email{" "}
-          <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a> or use the developer's private contact form.
+          <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a> or use “Contact with me” at the bottom of the developer's website.
           Include the device you use, the app version shown in Settings, what you expected, and what happened.
         </p>
         <div className="support-actions">
           <a className="btn btn-primary" href={`mailto:${SUPPORT_EMAIL}?subject=Wages%20Tracker%20support`}>Email support</a>
-          <ExternalAppLink className="btn btn-secondary" href={CONTACT_URL} description="Private contact form">
-            Open private contact form
+          <ExternalAppLink className="btn btn-secondary" href={CONTACT_URL} description="Developer website with contact options">
+            Visit developer website
           </ExternalAppLink>
         </div>
         <div className="support-checklist"><strong>Help us understand the issue</strong><ul><li>Your device and app version from Settings → About.</li><li>What you were trying to do and what happened.</li><li>A screenshot with private details hidden, if helpful.</li></ul></div>

@@ -45,32 +45,34 @@ const path = window.location.pathname.replace(/\/+$/, "") || "/";
 // Native secure-storage adapters hydrate their in-memory token cache here,
 // before any API request or authentication state is evaluated. The web
 // adapter is a no-op and preserves the existing synchronous startup path.
-if (__NATIVE_CONSUMER_BUILD__ && Capacitor.isNativePlatform()) {
-  const [storage, pdf, connectivity, lifecycle, biometrics, activeShift, smartReminders] = await Promise.all([
-    import("./platform/nativeSecureTokenStorage"),
-    import("./platform/nativePdfDelivery"),
-    import("./platform/nativeConnectivity"),
-    import("./platform/nativeAppLifecycle"),
-    import("./platform/nativeBiometricAuth"),
-    import("./platform/nativeActiveShiftActivity"),
-    import("./platform/nativeSmartShiftReminderNotifications"),
-  ]);
-  const { NativeSecureTokenStorageAdapter } = storage;
-  configureTokenStorage(new NativeSecureTokenStorageAdapter());
-  configurePdfDelivery(new pdf.IosPdfDeliveryAdapter());
-  configureConnectivityAdapter(new connectivity.NativeConnectivityAdapter());
-  configureAppLifecycleAdapter(new lifecycle.NativeAppLifecycleAdapter());
-  if (Capacitor.getPlatform() === "ios") {
-    const { IosAppUpdateAdapter } = await import("./platform/nativeAppUpdates");
-    configureAppUpdates(new IosAppUpdateAdapter());
+async function initializePlatform() {
+  if (__NATIVE_CONSUMER_BUILD__ && Capacitor.isNativePlatform()) {
+    const [storage, pdf, connectivity, lifecycle, biometrics, activeShift, smartReminders] = await Promise.all([
+      import("./platform/nativeSecureTokenStorage"),
+      import("./platform/nativePdfDelivery"),
+      import("./platform/nativeConnectivity"),
+      import("./platform/nativeAppLifecycle"),
+      import("./platform/nativeBiometricAuth"),
+      import("./platform/nativeActiveShiftActivity"),
+      import("./platform/nativeSmartShiftReminderNotifications"),
+    ]);
+    const { NativeSecureTokenStorageAdapter } = storage;
+    configureTokenStorage(new NativeSecureTokenStorageAdapter());
+    configurePdfDelivery(new pdf.IosPdfDeliveryAdapter());
+    configureConnectivityAdapter(new connectivity.NativeConnectivityAdapter());
+    configureAppLifecycleAdapter(new lifecycle.NativeAppLifecycleAdapter());
+    if (Capacitor.getPlatform() === "ios") {
+      const { IosAppUpdateAdapter } = await import("./platform/nativeAppUpdates");
+      configureAppUpdates(new IosAppUpdateAdapter());
+    }
+    configureBiometricAuth(new biometrics.NativeBiometricAuthAdapter());
+    configureActiveShiftActivity(new activeShift.NativeActiveShiftActivityAdapter());
+    configureSmartShiftReminderNotifications(new smartReminders.NativeSmartShiftReminderNotificationAdapter());
+    const { startDeepLinkListener } = await import("./platform/deepLinks");
+    void startDeepLinkListener();
   }
-  configureBiometricAuth(new biometrics.NativeBiometricAuthAdapter());
-  configureActiveShiftActivity(new activeShift.NativeActiveShiftActivityAdapter());
-  configureSmartShiftReminderNotifications(new smartReminders.NativeSmartShiftReminderNotificationAdapter());
-  const { startDeepLinkListener } = await import("./platform/deepLinks");
-  void startDeepLinkListener();
+  await initializeTokenStorage();
 }
-await initializeTokenStorage();
 
 async function route() {
   if (!__NATIVE_CONSUMER_BUILD__ && path === "/admin") {
@@ -88,11 +90,31 @@ async function route() {
   return <App />;
 }
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
+const root = createRoot(document.getElementById("root")!);
+async function startApp() {
+  await initializePlatform();
+  const screen = await route();
+  root.render(
+    <StrictMode>
+      <ThemeProvider>
+        <ErrorBoundary>{screen}</ErrorBoundary>
+        <ErrorPopup />
+      </ThemeProvider>
+    </StrictMode>
+  );
+}
+
+void startApp().catch(error => {
+  console.error("App startup failed:", error);
+  root.render(
     <ThemeProvider>
-      <ErrorBoundary>{await route()}</ErrorBoundary>
-      <ErrorPopup />
-    </ThemeProvider>
-  </StrictMode>
-);
+      <main className="app-shell is-entered">
+        <div className="app-frame" style={{ padding: "var(--space-4)" }}>
+          <h1 className="section-title">Couldn't open Wages Tracker</h1>
+          <p className="card-body">Check your connection and reload to try again.</p>
+          <button className="btn btn-primary" onClick={() => window.location.reload()}>Reload</button>
+        </div>
+      </main>
+    </ThemeProvider>,
+  );
+});

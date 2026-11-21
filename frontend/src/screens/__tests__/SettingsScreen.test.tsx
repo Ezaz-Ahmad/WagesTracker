@@ -157,9 +157,12 @@ async function goToSecurity() {
 
 async function fillAndSubmitPasswordChangeForm() {
   const user = userEvent.setup();
-  await user.type(screen.getByLabelText("Current password"), "current-password-123");
-  await user.type(screen.getByLabelText("New password"), "brand-new-secure-login-2026!");
-  await user.type(screen.getByLabelText("Confirm new password"), "brand-new-secure-login-2026!");
+  await user.click(screen.getByLabelText("Current password"));
+  await user.paste("current-password-123");
+  await user.click(screen.getByLabelText("New password"));
+  await user.paste("brand-new-secure-login-2026!");
+  await user.click(screen.getByLabelText("Confirm new password"));
+  await user.paste("brand-new-secure-login-2026!");
   await user.click(screen.getByRole("button", { name: /change password/i }));
 }
 

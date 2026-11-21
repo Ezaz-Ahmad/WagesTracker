@@ -86,6 +86,9 @@ jobs:
       - name: Install dependencies reproducibly
         run: npm ci
 
+      - name: Check dependency security advisories before distribution
+        run: npm run security:audit
+
       - name: Verify libSQL macOS ARM64 dependency alignment
         run: |
           npm run verify:libsql

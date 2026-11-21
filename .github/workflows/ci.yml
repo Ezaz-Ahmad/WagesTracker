@@ -49,6 +49,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Check dependency security advisories
+        run: npm run security:audit
       - name: Verify Capacitor dependency alignment
         run: npm run verify:capacitor
       # Text/JSON checks against project.pbxproj, Main.storyboard and the
@@ -66,7 +68,15 @@ jobs:
         run: npm run test -w frontend
       - name: Build
         run: npm run build -w frontend
-      - name: Install Chromium for production-bundle smoke test
-        run: npx playwright install --with-deps chromium
+      - name: Install Chromium and WebKit for browser checks
+        run: npx playwright install --with-deps chromium webkit
       - name: Browser smoke test
         run: npm run test:smoke -w frontend
+      - name: Upload browser review evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: app-browser-review
+          path: frontend/test-results
+          if-no-files-found: ignore
+          retention-days: 7

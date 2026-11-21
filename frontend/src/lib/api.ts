@@ -22,6 +22,7 @@ import {
 } from "../platform/tokenStorage";
 import { errorHintForStatus, showErrorPopup } from "./errorFeedback";
 import { toUserFacingError } from "./userFacingError";
+import { RequestTimeoutError, withRequestTimeout } from "./networkRequest";
 
 // In local dev this is left unset and Vite's dev-server proxy forwards "/api" to the backend
 // (see vite.config.ts). In production, set VITE_API_URL to the deployed backend's origin
@@ -153,25 +154,54 @@ function reportApiError(error: ApiError): ApiError {
   return error;
 }
 
+async function withApiDeadline<T>(operation: (signal: AbortSignal) => Promise<T>, options: { quiet?: boolean; mutating?: boolean; signal?: AbortSignal | null } = {}): Promise<T> {
+  try { return await withRequestTimeout(operation, { signal: options.signal }); }
+  catch (error) {
+    const apiError = error instanceof RequestTimeoutError
+      ? new ApiError(options.mutating ? "We couldn't confirm the result in time. Refresh to check it before trying again." : "Wages Tracker is taking longer than expected. Try again in a moment.", 0, "REQUEST_TIMEOUT")
+      : error instanceof ApiError && error.code === "INVALID_RESPONSE" ? error : null;
+    if (apiError) throw options.quiet ? apiError : reportApiError(apiError);
+    throw error;
+  }
+}
+
+async function readResponseJson(res: Response, signal: AbortSignal): Promise<unknown> {
+  try {
+    const body: unknown = await res.json();
+    if (body === null || typeof body !== "object") {
+      if (res.ok) throw new Error("Missing response data");
+      return {};
+    }
+    return body;
+  } catch (error) {
+    if (signal.aborted) throw error;
+    if (res.ok) throw new ApiError("Wages Tracker returned an incomplete response. Refresh and try again.", 502, "INVALID_RESPONSE");
+    return {};
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
 
+  return withApiDeadline(async signal => {
   let res: Response;
   try {
     res = await fetch(`${API_ORIGIN}/api${path}`, {
       ...options,
+      signal,
       headers: {
         ...(workJobScope ? {"X-Work-Job":workJobScope} : {}),
         ...(/^\/(?:jobs|work-locations)(?:\/|\?|$)/.test(path)?{[CLIENT_TIME_ZONE_HEADER]:Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC"}:{}), ...headers, ...(options.headers as Record<string, string> | undefined) },
     });
-  } catch {
+  } catch (error) {
+    if (signal.aborted) throw error;
     throw reportApiError(new ApiError("Couldn't connect to Wages Tracker. Check your internet connection and try again.", 0));
   }
   if (res.status === 204) return undefined as T;
 
-  const body = await res.json().catch(() => ({}));
+  const body = await readResponseJson(res, signal);
   if (!res.ok) {
     const errorBody = body as { error?: string; code?: string; field?: string; suggestion?: string };
     const message = errorBody.code === "INVALID_CLIENT_TIME_ZONE"
@@ -182,6 +212,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw reportApiError(error);
   }
   return body as T;
+  }, { mutating: !/^(GET|HEAD|OPTIONS)$/i.test(options.method || "GET"), signal: options.signal });
 }
 
 export interface SignupInput {
@@ -282,18 +313,21 @@ export function fetchMe(): Promise<{ user: User }> {
  * stored token, even briefly, if it turns out to be expired or revoked.
  */
 export async function fetchMeWithToken(token: string): Promise<{ user: User }> {
+  return withApiDeadline(async signal => {
   let res: Response;
   try {
-    res = await fetch(`${API_ORIGIN}/api/me`, { headers: { Authorization: `Bearer ${token}` } });
-  } catch {
+    res = await fetch(`${API_ORIGIN}/api/me`, { signal, headers: { Authorization: `Bearer ${token}` } });
+  } catch (error) {
+    if (signal.aborted) throw error;
     throw new ApiError("Couldn't connect to Wages Tracker. Check your internet connection and try again.", 0);
   }
-  const body = await res.json().catch(() => ({}));
+  const body = await readResponseJson(res, signal);
   if (!res.ok) {
     const errorBody = body as { error?: string };
     throw new ApiError(toUserFacingError(errorBody.error || `Request failed (${res.status})`, res.status), res.status);
   }
   return body as { user: User };
+  }, { quiet: true });
 }
 
 export interface MePatch {
@@ -341,6 +375,7 @@ export function deleteAccount(password: string): Promise<void> {
  * and error-shape handling.
  */
 export async function changePassword(currentPassword: string, newPassword: string): Promise<{ token: string }> {
+  return withApiDeadline(async signal => {
   const token = getToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -349,15 +384,17 @@ export async function changePassword(currentPassword: string, newPassword: strin
   try {
     res = await fetch(`${API_ORIGIN}/api/me/password`, {
       method: "PATCH",
+      signal,
       headers,
       body: JSON.stringify({ currentPassword, newPassword }),
     });
-  } catch {
+  } catch (error) {
+    if (signal.aborted) throw error;
     throw reportApiError(new ApiError("Couldn't connect to Wages Tracker. Check your internet connection and try again.", 0));
   }
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
+    const body = await readResponseJson(res, signal);
     const payload = body as { error?: string; code?: string; field?: string; suggestion?: string };
     throw reportApiError(new ApiError(toUserFacingError(payload.error || `Request failed (${res.status})`, res.status), res.status, payload.code, payload.field, payload.suggestion));
   }
@@ -370,6 +407,7 @@ export async function changePassword(currentPassword: string, newPassword: strin
     throw reportApiError(new ApiError("Your password changed, but Wages Tracker couldn't finish signing you back in. Log in again with your new password.", 500));
   }
   return { token: newToken };
+  }, { mutating: true });
 }
 
 export interface SessionInfo {
@@ -433,6 +471,7 @@ export function revokeOtherSessions(): Promise<void> {
  * this call just revoked).
  */
 export async function setSessionBiometricProtection(enabled: boolean): Promise<{ token: string }> {
+  return withApiDeadline(async signal => {
   const token = getToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -441,15 +480,17 @@ export async function setSessionBiometricProtection(enabled: boolean): Promise<{
   try {
     res = await fetch(`${API_ORIGIN}/api/me/sessions/current`, {
       method: "PATCH",
+      signal,
       headers,
       body: JSON.stringify({ biometricProtected: enabled }),
     });
-  } catch {
+  } catch (error) {
+    if (signal.aborted) throw error;
     throw reportApiError(new ApiError("Couldn't connect to Wages Tracker. Check your internet connection and try again.", 0));
   }
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
+    const body = await readResponseJson(res, signal);
     throw reportApiError(new ApiError(toUserFacingError((body as { error?: string }).error || `Request failed (${res.status})`, res.status), res.status));
   }
 
@@ -458,6 +499,7 @@ export async function setSessionBiometricProtection(enabled: boolean): Promise<{
     throw reportApiError(new ApiError("Face ID or Touch ID was updated, but Wages Tracker couldn't finish the sign-in setup. Log in again and try once more.", 500));
   }
   return { token: newToken };
+  }, { mutating: true });
 }
 
 /** Server-side logout: revokes the session backing the current token, so a

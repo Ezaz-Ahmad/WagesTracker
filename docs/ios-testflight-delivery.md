@@ -1,6 +1,6 @@
 # Signed TestFlight delivery
 
-**Current source marketing version:** `1.25.0`
+**Current source marketing version:** `1.26.0`
 
 **Last reviewed:** 22 November 2026
 

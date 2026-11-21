@@ -62,7 +62,7 @@ const signupSchema = z.object({
   multipleLocations: z.boolean().optional().default(false),
   otherLocations: z.string().trim().max(300).optional().default(""),
   rate: z
-    .number({ required_error: "Hourly rate is required", invalid_type_error: "Enter a valid hourly rate" })
+    .number({ error: issue => issue.input === undefined ? "Hourly rate is required" : "Enter a valid hourly rate" })
     .positive("Hourly rate must be greater than zero")
     .max(1000, "Hourly rate cannot exceed 1000")
     .refine(hasAtMostTwoDecimals, "Hourly rate can have at most two decimal places"),

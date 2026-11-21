@@ -70,7 +70,6 @@ export function createApp(): express.Express {
       allowedHeaders: ["Authorization", "Content-Type", "X-Client-Time-Zone", "X-Work-Job"],
     })
   );
-  app.use(express.json({ limit: "100kb" }));
 
   const generalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -86,7 +85,9 @@ export function createApp(): express.Express {
     message: { error: "Too many attempts. Please try again later." },
   });
 
-  app.use("/api", generalLimiter);
+  // Reject excessive traffic before reading or parsing its body. Our clients
+  // send ordinary JSON; compressed request bodies add unnecessary decoder risk.
+  app.use("/api", generalLimiter, express.json({ limit: "100kb", inflate: false }));
 
   // Friendly landing response for anyone hitting the bare API URL directly
   // (e.g. clicking the link to check whether Render has spun the service back
@@ -131,6 +132,22 @@ export function createApp(): express.Express {
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     if (err instanceof Error && err.message === "Not allowed by CORS") {
       res.status(403).json({ error: "Origin not allowed" });
+      return;
+    }
+    const type = typeof err === "object" && err !== null && "type" in err ? err.type : undefined;
+    const requestErrors: Record<string, { status: number; message: string }> = {
+      "entity.parse.failed": { status: 400, message: "Request body must contain valid JSON." },
+      "entity.too.large": { status: 413, message: "Request body is too large." },
+      "encoding.unsupported": { status: 415, message: "Send an uncompressed JSON request." },
+      "charset.unsupported": { status: 415, message: "Use UTF-8 JSON for this request." },
+      "request.aborted": { status: 400, message: "The request was interrupted." },
+      "request.size.invalid": { status: 400, message: "Invalid request body length." },
+    };
+    const invalidRequest = typeof type === "string" && Object.hasOwn(requestErrors, type) ? requestErrors[type] : undefined;
+    if (invalidRequest) {
+      // Parser errors can carry the submitted body, including a password.
+      // Return a safe message without writing that body to application logs.
+      res.status(invalidRequest.status).json({ error: invalidRequest.message });
       return;
     }
     console.error(err);

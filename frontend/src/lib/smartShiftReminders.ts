@@ -199,7 +199,7 @@ export function analyseSmartShiftPatterns(
     }
     const era = samples.slice(eraStart).slice(-MAX_SAMPLES);
     if (era.length < SMART_REMINDER_MIN_SHIFTS || !hasWeeklyCadence(era)) continue;
-    if (calendarDaysBetween(era.at(-1)!.day, today) > MAX_ROUTINE_IDLE_DAYS) continue;
+    if (calendarDaysBetween(era[era.length - 1].day, today) > MAX_ROUTINE_IDLE_DAYS) continue;
 
     // Four recent, mutually consistent shifts always win. This is the roster-
     // change path: after four new hours, older hours cannot dominate merely
@@ -265,7 +265,7 @@ export function getSmartShiftLearningProgress(
       if (calendarDaysBetween(dates[index - 1], dates[index]) >= ROUTINE_RESET_GAP_DAYS) eraStart = index;
     }
     const currentEra = dates.slice(eraStart);
-    const lastDate = currentEra.at(-1)!;
+    const lastDate = currentEra[currentEra.length - 1];
     counts[weekday] = calendarDaysBetween(lastDate, asOf) > MAX_ROUTINE_IDLE_DAYS
       ? 0
       : currentEra.length;
