@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type CSSProperties,
   type ReactNode,
 } from "react";
 import { useApp } from "../context/AppContext";
@@ -29,6 +30,7 @@ import {
   CloseIcon,
   EntryIcon,
   TrashIcon,
+  PlusIcon,
 } from "./icons";
 
 const cash = (n: number) =>
@@ -50,36 +52,43 @@ const initials = (name: string) =>
     .join("")
     .toUpperCase();
 
+type JobDialogActions = { closing: boolean; dismiss: (afterClose?: () => void) => void };
+type JobDialogContent = ReactNode | ((actions: JobDialogActions) => ReactNode);
+
 export function JobDialog({
   title,
   description,
   children,
   onClose,
   busy = false,
+  variant = "default",
+  footer,
 }: {
   title: string;
   description?: string;
-  children: ReactNode;
+  children: JobDialogContent;
   onClose: () => void;
   busy?: boolean;
+  variant?: "default" | "switcher";
+  footer?: JobDialogContent;
 }) {
   const id = useId(),
     closeRef = useRef<HTMLButtonElement>(null);
-  const { closing, requestClose } = useDismissTransition(180);
-  const dismiss = () => {
-    if (!busy) requestClose(onClose);
+  const { closing, requestClose } = useDismissTransition(variant === "switcher" ? 220 : 180);
+  const dismiss = (afterClose?: () => void) => {
+    if (!busy) requestClose(() => { onClose(); afterClose?.(); });
   };
   const ref = useFocusTrap<HTMLDivElement>(true, dismiss, closeRef);
   return (
     <Overlay>
       <div
-        className={`job-dialog-backdrop${closing ? " is-closing" : ""}`}
+        className={`job-dialog-backdrop${variant === "switcher" ? " job-switcher-backdrop" : ""}${closing ? " is-closing" : ""}`}
         onMouseDown={(e) => {
           if (e.currentTarget === e.target) dismiss();
         }}
       >
         <section
-          className={`job-dialog${closing ? " is-closing" : ""}`}
+          className={`job-dialog${variant === "switcher" ? " job-switcher-dialog" : ""}${closing ? " is-closing" : ""}`}
           role="dialog"
           aria-modal="true"
           aria-labelledby={id}
@@ -98,13 +107,14 @@ export function JobDialog({
               type="button"
               className="btn btn-icon btn-ghost"
               aria-label={`Close ${title}`}
-              onClick={dismiss}
-              disabled={busy}
+              onClick={() => dismiss()}
+              disabled={busy || closing}
             >
               <CloseIcon size={18} />
             </button>
           </header>
-          <div className="job-dialog-content">{children}</div>
+          <div className="job-dialog-content">{typeof children === "function" ? children({ closing, dismiss }) : children}</div>
+          {footer && <footer className="job-dialog-footer">{typeof footer === "function" ? footer({ closing, dismiss }) : footer}</footer>}
         </section>
       </div>
     </Overlay>
@@ -268,145 +278,91 @@ export function CreateJobDialog({ onClose }: { onClose: () => void }) {
 }
 
 export function JobSwitcher({ onManageJobs }: { onManageJobs: () => void }) {
-  const {
-    jobs = [],
-    selectedJobId,
-    selectedJob,
-    selectJob,
-    allShifts = [],
-  } = useApp();
-  const [open, setOpen] = useState(false),
-    [adding, setAdding] = useState(false);
-  const active = findOpenShift(allShifts),
-    activeJobs = jobs.filter((j) => !j.archived);
+  const { jobs = [], selectedJobId, selectedJob, selectJob, allShifts = [], earningsHidden } = useApp();
+  const [open, setOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [pendingSelection, setPendingSelection] = useState<string | null>(null);
+  const active = findOpenShift(allShifts);
+  const activeJobs = jobs.filter(job => !job.archived);
+  const highlightedId = pendingSelection ?? selectedJobId;
   if (!jobs.length) return null;
+
   return (
     <div className="workspace-strip">
       <button
         type="button"
-        className="workspace-trigger"
-        onClick={() => setOpen(true)}
+        className={`workspace-trigger${open ? " is-open" : ""}`}
+        onClick={() => { setPendingSelection(null); setOpen(true); }}
         aria-haspopup="dialog"
         aria-expanded={open}
       >
         <span className="job-monogram" aria-hidden="true">
-          {selectedJob ? (
-            initials(selectedJob.name)
-          ) : (
-            <BriefcaseIcon size={18} />
-          )}
+          {selectedJob ? initials(selectedJob.name) : <BriefcaseIcon size={18} />}
         </span>
         <span className="workspace-trigger-text">
           <strong>{selectedJob?.name || "All jobs"}</strong>
-          <span>
-            {selectedJob
-              ? [selectedJob.role, `${cash(selectedJob.rate)}/hr default`]
-                  .filter(Boolean)
-                  .join(" · ")
-              : `${jobs.length} jobs · combined overview`}
-          </span>
+          <span>{selectedJob ? <>{selectedJob.role && <>{selectedJob.role} · </>}{earningsHidden ? "Pay hidden" : `${cash(selectedJob.rate)}/hr default`}</> : `${jobs.length} jobs · combined overview`}</span>
         </span>
-        <ChevronDownIcon size={16} />
+        <span className="workspace-trigger-caret" aria-hidden="true"><ChevronDownIcon size={16} /></span>
       </button>
-      {selectedJob?.archived && (
-        <p className="job-notice">
-          Archived job · your history and PDFs are available. Restore it in
-          Settings → Your jobs to make changes.
-        </p>
-      )}
+      {selectedJob?.archived && <p className="job-notice">Archived job · your history and PDFs are available. Restore it in Settings → Your jobs to make changes.</p>}
       {active && active.jobId !== selectedJobId && (
-        <button
-          className="workspace-running"
-          type="button"
-          onClick={() => selectJob(active.jobId || activeJobs[0]?.id || "all")}
-        >
+        <button className="workspace-running" type="button" onClick={() => selectJob(active.jobId || activeJobs[0]?.id || "all")}>
           <span className="job-live-dot" />
-          {active.jobName ||
-            jobs.find((j) => j.id === active.jobId)?.name ||
-            "Another job"}{" "}
-          is on shift <ChevronRightIcon size={14} />
+          {active.jobName || jobs.find(job => job.id === active.jobId)?.name || "Another job"} is on shift <ChevronRightIcon size={14} />
         </button>
       )}
       {open && (
         <JobDialog
+          variant="switcher"
           title="Choose your view"
-          description="Switch jobs without signing out."
+          description="Switch between jobs or see them together."
           onClose={() => setOpen(false)}
+          footer={({ dismiss, closing }) => (
+            <div className="job-switcher-actions">
+              <button type="button" className="btn btn-primary" disabled={closing} aria-label="Add another job" onClick={() => dismiss(() => setAdding(true))}><PlusIcon size={17} />Add job</button>
+              <button type="button" className="btn btn-secondary" disabled={closing} onClick={() => dismiss(onManageJobs)}>Manage jobs</button>
+            </div>
+          )}
         >
-          <div className="job-choice-list">
-            {jobs.length > 1 && (
-              <button
-                type="button"
-                className={`job-choice${
-                  selectedJobId === "all" ? " is-selected" : ""
-                }`}
-                onClick={() => {
-                  selectJob("all");
-                  setOpen(false);
-                }}
-              >
-                <span className="job-monogram">
-                  <BriefcaseIcon size={19} />
-                </span>
-                <span>
-                  <strong>All jobs</strong>
-                  <small>Combined earnings & work history</small>
-                </span>
-                {selectedJobId === "all" && <CheckIcon size={18} />}
-              </button>
-            )}
-            {jobs.map((j) => (
-              <button
-                type="button"
-                key={j.id}
-                className={`job-choice${
-                  selectedJobId === j.id ? " is-selected" : ""
-                }`}
-                onClick={() => {
-                  selectJob(j.id);
-                  setOpen(false);
-                }}
-              >
-                <span className="job-monogram">{initials(j.name)}</span>
-                <span>
-                  <strong>
-                    {j.name}{" "}
-                    {j.archived && (
-                      <span className="job-rate-badge">Archived</span>
-                    )}
-                    {active?.jobId === j.id && (
-                      <span className="job-live-badge">On shift</span>
-                    )}
-                  </strong>
-                  <small>
-                    {j.role ? `${j.role} · ` : ""}
-                    {cash(j.rate)}/hr default
-                  </small>
-                </span>
-                {selectedJobId === j.id && <CheckIcon size={18} />}
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            className="btn btn-secondary job-full"
-            onClick={() => {
-              setOpen(false);
-              setAdding(true);
-            }}
-          >
-            Add another job
-          </button>
-          <button
-            type="button"
-            className="job-text-button job-full"
-            onClick={() => {
-              setOpen(false);
-              onManageJobs();
-            }}
-          >
-            Manage jobs
-          </button>
+          {({ dismiss, closing }) => (
+            <div className="job-switcher-options">
+              {jobs.length > 1 && (
+                <button
+                  type="button"
+                  className={`job-choice job-choice-overview${highlightedId === "all" ? " is-selected" : ""}`}
+                  aria-pressed={highlightedId === "all"}
+                  disabled={closing}
+                  onClick={() => { setPendingSelection("all"); dismiss(() => selectJob("all")); }}
+                >
+                  <span className="job-monogram" aria-hidden="true"><BriefcaseIcon size={20} /></span>
+                  <span><strong>All jobs</strong><small>Combined earnings & work history</small></span>
+                  <span className="job-choice-indicator" aria-hidden="true">{highlightedId === "all" && <CheckIcon size={15} />}</span>
+                </button>
+              )}
+              <div className="job-switcher-label" aria-hidden="true"><span>Your jobs</span><span>{jobs.length}</span></div>
+              <div className="job-choice-list">
+                {jobs.map((job, index) => (
+                  <button
+                    type="button"
+                    key={job.id}
+                    className={`job-choice${highlightedId === job.id ? " is-selected" : ""}`}
+                    style={{ "--job-row-order": Math.min(index, 5) } as CSSProperties}
+                    aria-pressed={highlightedId === job.id}
+                    disabled={closing}
+                    onClick={() => { setPendingSelection(job.id); dismiss(() => selectJob(job.id)); }}
+                  >
+                    <span className="job-monogram" aria-hidden="true">{initials(job.name)}</span>
+                    <span>
+                      <strong>{job.name}{job.archived && <span className="job-rate-badge">Archived</span>}{active?.jobId === job.id && <span className="job-live-badge">On shift</span>}</strong>
+                      <small>{job.role && <>{job.role} · </>}{earningsHidden ? "Pay hidden" : `${cash(job.rate)}/hr default`}</small>
+                    </span>
+                    <span className="job-choice-indicator" aria-hidden="true">{highlightedId === job.id && <CheckIcon size={15} />}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </JobDialog>
       )}
       {adding && <CreateJobDialog onClose={() => setAdding(false)} />}

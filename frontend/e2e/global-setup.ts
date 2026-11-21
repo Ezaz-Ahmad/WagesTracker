@@ -4,6 +4,11 @@ import { fileURLToPath } from "node:url";
 import { readFile } from "node:fs/promises";
 
 const DIST_ROOT = resolve(fileURLToPath(new URL("../dist/", import.meta.url)));
+const deployment = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
+const SECURITY_HEADERS = Object.fromEntries(
+  deployment.headers.find((rule: { source: string }) => rule.source === "/(.*)").headers
+    .map(({ key, value }: { key: string; value: string }) => [key, value]),
+);
 const MIME_TYPES: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
@@ -12,10 +17,12 @@ const MIME_TYPES: Record<string, string> = {
   ".png": "image/png",
   ".svg": "image/svg+xml",
   ".webmanifest": "application/manifest+json; charset=utf-8",
+  ".woff2": "font/woff2",
 };
 
 function send(response: ServerResponse, status: number, body: Buffer, path: string): void {
   response.writeHead(status, {
+    ...SECURITY_HEADERS,
     "Content-Type": MIME_TYPES[extname(path)] || "application/octet-stream",
     "Cache-Control": "no-store",
   });

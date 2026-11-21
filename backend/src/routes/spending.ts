@@ -257,18 +257,26 @@ spendingRouter.delete(
 );
 
 const LOCAL_DATE_TIME_RE = /^(\d{4}-\d{2}-\d{2})T([01]\d|2[0-3]):[0-5]\d$/;
-const expenseWriteSchema = z.object({
-  jobId:z.string().min(1).max(120).nullable().optional().default(null),
+const expenseFields = {
+  jobId:z.string().min(1).max(120).nullable(),
   amountCents: z.number().int().min(1, "Amount must be greater than zero.").max(100_000_000, "Amount is too large."),
   categoryId: z.string().uuid("Choose a valid category."),
   spentAt: z.string().regex(LOCAL_DATE_TIME_RE, "Choose a valid date and time."),
-  merchant: z.string().trim().max(100, "Merchant or title must be 100 characters or fewer.").optional().default(""),
-  note: z.string().trim().max(500, "Note must be 500 characters or fewer.").optional().default(""),
-  paymentMethod: z.enum(["card", "cash", "bank_transfer", "other"]).nullable().optional().default(null),
+  merchant: z.string().trim().max(100, "Merchant or title must be 100 characters or fewer."),
+  note: z.string().trim().max(500, "Note must be 500 characters or fewer."),
+  paymentMethod: z.enum(["card", "cash", "bank_transfer", "other"]).nullable(),
+};
+const expenseWriteSchema = z.object({
+  ...expenseFields,
+  jobId: expenseFields.jobId.optional().default(null),
+  merchant: expenseFields.merchant.optional().default(""),
+  note: expenseFields.note.optional().default(""),
+  paymentMethod: expenseFields.paymentMethod.optional().default(null),
   clientRequestId: z.string().uuid().optional(),
 });
 
-const expensePatchSchema = expenseWriteSchema.omit({ clientRequestId: true }).partial()
+// Keep creation defaults out of PATCH: an omitted field must stay unchanged.
+const expensePatchSchema = z.object(expenseFields).partial()
   .refine((value) => Object.keys(value).length > 0, "At least one change is required");
 
 function validateSpentAt(spentAt: string, timeZone: string): string | null {

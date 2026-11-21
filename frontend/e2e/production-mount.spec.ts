@@ -41,12 +41,6 @@ const WORK_LOCATIONS = [
 
 async function captureRuntimeErrors(page: Page): Promise<string[]> {
   const errors: string[] = [];
-  // The app's optional Google font is intentionally external. Stub only that
-  // stylesheet so an offline/locked-down test runner does not turn a harmless
-  // font fallback into a false JavaScript runtime failure.
-  await page.route("https://fonts.googleapis.com/**", (route) =>
-    route.fulfill({ status: 200, contentType: "text/css", body: "" })
-  );
   page.on("pageerror", (error) => errors.push(error.stack || error.message));
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
@@ -60,6 +54,7 @@ async function mockAuthenticatedApi(page: Page, options: {
   activeShift?: boolean;
   chartData?: boolean;
   multipleJobs?: boolean;
+  extraJobs?: number;
 } = {}) {
   let summaryRequests = 0;
   let categoryRequests = 0;
@@ -68,6 +63,7 @@ async function mockAuthenticatedApi(page: Page, options: {
     {id:"job-one",name:"City Retail",role:"Retail assistant",rate:30,weekStartsOn:"Monday",goalHours:38,goalEarnings:1140,smartRemindersEnabled:false,isPrimary:true,archived:false,createdAt:USER.createdAt},
     {id:"job-two",name:"Harbour Hotel",role:"Guest services",rate:40,weekStartsOn:"Wednesday",goalHours:10,goalEarnings:400,smartRemindersEnabled:false,isPrimary:false,archived:false,createdAt:USER.createdAt},
   ];
+  for (let index = 1; index <= (options.extraJobs ?? 0); index++) workspaceJobs.push({ ...workspaceJobs[0], id: `additional-${index}`, name: `Additional job ${index}`, role: "A longer job role for compact screens", isPrimary: false });
   await page.addInitScript(() => {
     localStorage.setItem("wageTracker.token", "production-smoke-token");
     localStorage.setItem("wageTracker.lastActivity", String(Date.now()));
@@ -209,6 +205,25 @@ async function chartAnimationCount(page: Page, name: string): Promise<number> {
   }, name);
 }
 
+test("production pages load bundled fonts with deployment security headers", async ({ page }) => {
+  const externalFonts: string[] = [];
+  page.on("request", request => {
+    if (/^https:\/\/fonts\.(googleapis|gstatic)\.com\//.test(request.url())) externalFonts.push(request.url());
+  });
+  const response = await page.goto("/");
+  expect(response?.headers()["content-security-policy"]).toContain("frame-ancestors 'none'");
+  expect(response?.headers()["x-frame-options"]).toBe("DENY");
+  expect(response?.headers()["x-content-type-options"]).toBe("nosniff");
+  expect(response?.headers()["referrer-policy"]).toBe("no-referrer");
+  const fontLoaded = await page.evaluate(async () => {
+    const fonts = await document.fonts.load('400 16px "Archivo"', "Wages Tracker");
+    await document.fonts.ready;
+    return fonts.length > 0 && document.fonts.check('400 16px "Archivo"');
+  });
+  expect(fontLoaded).toBe(true);
+  expect(externalFonts).toEqual([]);
+});
+
 test("desktop cold logged-out bundle mounts a visible login screen", async ({ page }) => {
   const errors = await captureRuntimeErrors(page);
 
@@ -218,6 +233,16 @@ test("desktop cold logged-out bundle mounts a visible login screen", async ({ pa
   await expect(page.locator("#root")).not.toBeEmpty();
   await expect(page.locator(".landing-shell")).toBeVisible();
   await expect(page.locator(".welcome-screen")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("a failed startup chunk offers a visible recovery action", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.route("**/assets/AdminApp-*.js", route => route.abort("failed"));
+  await page.goto("/admin");
+  await expect(page.getByRole("heading", { name: "Couldn't open Wages Tracker" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Reload", exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -897,3 +922,48 @@ for(const width of [1280,390,320]) {
     expect(errors).toEqual([]);
   });
 }
+
+for (const { width, scheme, extraJobs } of [{ width: 1280, scheme: "light", extraJobs: 0 }, { width: 390, scheme: "dark", extraJobs: 0 }, { width: 320, scheme: "light", extraJobs: 18 }] as const) {
+  test(`job picker keeps its actions visible and changes views at ${width}px ${scheme}`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: width === 320 ? 568 : 844 });
+    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "no-preference" });
+    const errors = await captureRuntimeErrors(page);
+    await mockAuthenticatedApi(page, { multipleJobs: true, extraJobs });
+    await page.goto("/");
+    await expect(page.locator(".workspace-trigger")).toContainText("City Retail");
+    await page.locator(".workspace-trigger").click();
+    const picker = page.getByRole("dialog", { name: "Choose your view" });
+    await expect(picker.getByRole("button", { name: "Manage jobs" })).toBeVisible();
+    await expect(picker.getByRole("button", { name: "Add another job" })).toBeVisible();
+    await picker.screenshot({ path: testInfo.outputPath(`job-picker-${width}-${scheme}.png`) });
+    if (extraJobs) {
+      await picker.locator(".job-dialog-content").evaluate(element => { element.scrollTop = element.scrollHeight; });
+      await expect(picker.getByRole("button", { name: /Additional job 18/ })).toBeVisible();
+      await expect(picker.getByRole("button", { name: "Manage jobs" })).toBeVisible();
+      const footer = await picker.locator(".job-dialog-footer").boundingBox();
+      expect(footer!.y + footer!.height).toBeLessThanOrEqual(568);
+      await picker.screenshot({ path: testInfo.outputPath("job-picker-scrolled-phone.png") });
+    }
+    expect(await page.locator("body").evaluate(element => element.scrollWidth <= innerWidth)).toBe(true);
+    await picker.getByRole("button", { name: extraJobs ? /Additional job 18/ : /Harbour Hotel/ }).click();
+    await expect(picker).toHaveCount(0);
+    await expect(page.locator(".workspace-trigger")).toContainText(extraJobs ? "Additional job 18" : "Harbour Hotel");
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await expect(page.locator(".workspace-trigger")).toHaveCount(0);
+    expect(errors).toEqual([]);
+  });
+}
+
+test("job picker respects reduced motion in the production bundle", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await mockAuthenticatedApi(page, { multipleJobs: true });
+  await page.goto("/");
+  await page.locator(".workspace-trigger").click();
+  const picker = page.getByRole("dialog", { name: "Choose your view" });
+  expect(await picker.evaluate(element => getComputedStyle(element).animationName)).toBe("none");
+  expect(await picker.locator(".job-choice").first().evaluate(element => getComputedStyle(element).animationName)).toBe("none");
+  await picker.getByRole("button", { name: /All jobs Combined earnings/ }).click();
+  await expect(picker).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Your week, together." })).toBeVisible();
+});

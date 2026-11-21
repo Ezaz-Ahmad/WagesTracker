@@ -61,7 +61,7 @@ export function PrivacyPolicyPage() {
           <div><dt>Render</dt><dd>Runs the online service and may process sign-in details, connection information and operating logs.</dd></div>
           <div><dt>Turso</dt><dd>Stores account, work, personal spending and signed-in device records.</dd></div>
           <div><dt>Resend</dt><dd>Processes your email address and message content when the app sends password-reset instructions or a password-change notice.</dd></div>
-          <div><dt>Google Fonts</dt><dd>May receive normal connection information when the app loads its fonts.</dd></div>
+          <div><dt>Fonts</dt><dd>Current versions include fonts in the app without contacting a font provider. Older versions may load Google Fonts, which receives normal connection information.</dd></div>
         </dl>
         <p>
           The iPhone app checks <strong>Apple's App Store</strong> for publicly available updates. Apple receives

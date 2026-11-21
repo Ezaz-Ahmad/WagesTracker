@@ -42,6 +42,9 @@ export default defineConfig(({ mode }) => {
 
   return {
   plugins: [react()],
+  // Keep emitted syntax compatible with the native app's iOS 15 minimum
+  // instead of inheriting a newer Safari baseline from the build tool.
+  build: { target: ["es2020", "safari15"] },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
     __BUILD_HASH__: JSON.stringify(buildHash),

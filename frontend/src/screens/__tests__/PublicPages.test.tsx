@@ -36,6 +36,8 @@ describe("public App Store pages", () => {
       .toBe("https://github.com/Ezaz-Ahmad/WagesTracker/issues/new");
     expect(screen.getByText(/GitHub issues are public/)).toBeTruthy();
     expect(screen.getByText(/Never include personal information/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Developer website with contact options/ }).getAttribute("href"))
+      .toBe("https://www.ezazahmad.com/");
     expect(screen.getByText(/Forgot password\?/)).toBeTruthy();
     expect(screen.getByRole("link", { name: "Privacy Policy" }).getAttribute("href")).toBe("/privacy");
     expect(await axe(container, { rules: { "color-contrast": { enabled: false } } })).toHaveNoViolations();

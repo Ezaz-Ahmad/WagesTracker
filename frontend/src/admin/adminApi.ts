@@ -2,21 +2,30 @@ import type { Job,PayRate,WorkLocation } from "../lib/types";
 import type { Shift, User, WeekStart } from "../lib/types";
 import { errorHintForStatus, showErrorPopup } from "../lib/errorFeedback";
 import { toUserFacingError } from "../lib/userFacingError";
+import { RequestTimeoutError, withRequestTimeout } from "../lib/networkRequest";
 
 // Deliberately separate from lib/api.ts: a different token, a different storage key, and a
 // different base path (/api/admin), so an admin session and a regular user session on the
 // same browser never collide or share state.
 const API_ORIGIN = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
 const ADMIN_TOKEN_KEY = "wageTracker.adminToken";
+let memoryToken: string | null = null;
+let memoryOnly = false;
 
 export function getAdminToken(): string | null {
-  return localStorage.getItem(ADMIN_TOKEN_KEY);
+  if (memoryOnly) return memoryToken;
+  try { return localStorage.getItem(ADMIN_TOKEN_KEY); }
+  catch { memoryOnly = true; return memoryToken; }
 }
 export function setAdminToken(token: string): void {
-  localStorage.setItem(ADMIN_TOKEN_KEY, token);
+  memoryToken = token;
+  try { localStorage.setItem(ADMIN_TOKEN_KEY, token); memoryOnly = false; }
+  catch { memoryOnly = true; }
 }
 export function clearAdminToken(): void {
-  localStorage.removeItem(ADMIN_TOKEN_KEY);
+  memoryToken = null;
+  try { localStorage.removeItem(ADMIN_TOKEN_KEY); memoryOnly = false; }
+  catch { memoryOnly = true; }
 }
 
 export class AdminApiError extends Error {
@@ -39,6 +48,7 @@ function reportAdminError(error: AdminApiError): AdminApiError {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  try { return await withRequestTimeout(async signal => {
   const token = getAdminToken();
   const headers: Record<string, string> = { "Content-Type": "application/json", "X-Client-Time-Zone":Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC" };
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -47,19 +57,34 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   try {
     res = await fetch(`${API_ORIGIN}/api/admin${path}`, {
       ...options,
+      signal,
       headers: { ...headers, ...(options.headers as Record<string, string> | undefined) },
     });
-  } catch {
+  } catch (error) {
+    if (signal.aborted) throw error;
     throw reportAdminError(new AdminApiError("Couldn't connect to Wages Tracker. Check your internet connection and try again.", 0));
   }
   if (res.status === 204) return undefined as T;
 
-  const body = await res.json().catch(() => ({}));
+  let body: unknown;
+  try {
+    body = await res.json();
+    if (body === null || typeof body !== "object") { if (res.ok) throw new Error("Missing response data"); body = {}; }
+  } catch (error) {
+    if (signal.aborted) throw error;
+    if (res.ok) throw reportAdminError(new AdminApiError("Wages Tracker returned an incomplete response. Refresh and try again.", 502, "INVALID_RESPONSE"));
+    body = {};
+  }
   if (!res.ok) {
     const payload = body as { error?: string; code?: string; field?: string; suggestion?: string };
     throw reportAdminError(new AdminApiError(toUserFacingError(payload.error || `Request failed (${res.status})`, res.status), res.status, payload.code, payload.field, payload.suggestion));
   }
   return body as T;
+  }, { signal: options.signal }); }
+  catch (error) {
+    if (error instanceof RequestTimeoutError) throw reportAdminError(new AdminApiError("We couldn't confirm the result in time. Refresh to check it before trying again.", 0, "REQUEST_TIMEOUT"));
+    throw error;
+  }
 }
 
 export interface AdminUserSummary {
