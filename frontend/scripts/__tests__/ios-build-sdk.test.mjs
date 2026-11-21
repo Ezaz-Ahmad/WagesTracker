@@ -5,8 +5,14 @@ import { verifyBuildSdk, verifySceneLifecycle } from "../lib/ios-build-sdk.mjs";
 test("accepts compiled device and Simulator artifacts built with iOS 27 or newer", () => {
   for (const sdk of ["iphoneos27.2", "iphonesimulator27.2", "iphoneos28.0"]) assert.equal(verifyBuildSdk(sdk), sdk);
 });
-test("accepts the compiled single-scene Capacitor storyboard configuration", () => {
-  assert.equal(verifySceneLifecycle({ UIApplicationSceneManifest: { UIApplicationSupportsMultipleScenes: false, UISceneConfigurations: { UIWindowSceneSessionRoleApplication: [{ UISceneDelegateClassName: "App.SceneDelegate", UISceneStoryboardFile: "Main" }] } } }), true);
+test("accepts the compiled single-scene Capacitor window configuration", () => {
+  assert.equal(verifySceneLifecycle({ UIApplicationSceneManifest: { UIApplicationSupportsMultipleScenes: false, UISceneConfigurations: { UIWindowSceneSessionRoleApplication: [{ UISceneDelegateClassName: "App.SceneDelegate", UISceneConfigurationName: "Main" }] } } }), true);
+});
+test("rejects duplicate storyboard window ownership", () => {
+  const scene = { UISceneDelegateClassName: "App.SceneDelegate", UISceneConfigurationName: "Main" };
+  const info = { UIApplicationSceneManifest: { UIApplicationSupportsMultipleScenes: false, UISceneConfigurations: { UIWindowSceneSessionRoleApplication: [scene] } } };
+  assert.throws(() => verifySceneLifecycle({ ...info, UIMainStoryboardFile: "Main" }), /iOS 27 launch requirement/);
+  assert.throws(() => verifySceneLifecycle({ UIApplicationSceneManifest: { ...info.UIApplicationSceneManifest, UISceneConfigurations: { UIWindowSceneSessionRoleApplication: [{ ...scene, UISceneStoryboardFile: "Main" }] } } }), /iOS 27 launch requirement/);
 });
 test("rejects legacy launch configuration even when a new SDK would compile it", () => {
   for (const info of [{}, { UIApplicationSceneManifest: { UIApplicationSupportsMultipleScenes: true } }, { UIApplicationSceneManifest: { UIApplicationSupportsMultipleScenes: false, UISceneConfigurations: {} } }]) assert.throws(() => verifySceneLifecycle(info), /iOS 27 launch requirement/);

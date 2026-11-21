@@ -12,8 +12,9 @@ export function verifySceneLifecycle(info) {
   const manifest = info?.UIApplicationSceneManifest;
   const scenes = manifest?.UISceneConfigurations?.UIWindowSceneSessionRoleApplication;
   if (manifest?.UIApplicationSupportsMultipleScenes !== false || !Array.isArray(scenes) || scenes.length !== 1 ||
-      scenes[0].UISceneDelegateClassName !== "App.SceneDelegate" || scenes[0].UISceneStoryboardFile !== "Main") {
-    throw new Error("iOS 27 launch requirement: the compiled app must use its single SceneDelegate and Main bridge storyboard");
+      scenes[0].UISceneDelegateClassName !== "App.SceneDelegate" || scenes[0].UISceneConfigurationName !== "Main" ||
+      scenes[0].UISceneStoryboardFile || info.UIMainStoryboardFile) {
+    throw new Error("iOS 27 launch requirement: the compiled app must use its single SceneDelegate with programmatic window ownership");
   }
   return true;
 }

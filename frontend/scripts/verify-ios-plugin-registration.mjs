@@ -7,8 +7,8 @@
 // as its own Cocoapod/SPM package) is only ever registered with the bridge
 // by a custom `CAPBridgeViewController` subclass calling
 // `bridge?.registerPluginInstance(...)` from `capacitorDidLoad()` — and by
-// Main.storyboard's Bridge View Controller actually pointing at that
-// subclass instead of the framework's own `CAPBridgeViewController`.
+// SceneDelegate actually creating that subclass instead of the framework's
+// own `CAPBridgeViewController`.
 //
 // None of that requires compiling Swift, so this runs as plain text/JSON
 // checks against the checked-in project files — on every push, on a Linux
@@ -31,7 +31,8 @@ async function read(relativePath) {
 }
 
 const pbxproj = await read('ios/App/App.xcodeproj/project.pbxproj');
-const storyboard = await read('ios/App/App/Base.lproj/Main.storyboard');
+const sceneSource = await read('ios/App/App/SceneDelegate.swift');
+const appDelegateSource = await read('ios/App/App/AppDelegate.swift');
 
 // The PBXBuildFile entry's own trailing comment reads "X.swift in Sources"
 // (that's just Xcode's comment convention for that section) — matching that
@@ -72,8 +73,11 @@ checkCompiled('BiometricAuthPlugin');
 checkCompiled('ActiveShiftActivityPlugin');
 checkCompiled('SceneDelegate');
 const applicationInfo = await read('ios/App/App/Info.plist');
-if (!applicationInfo.includes('UIApplicationSceneManifest') || !applicationInfo.includes('$(PRODUCT_MODULE_NAME).SceneDelegate') || !/<key>UISceneStoryboardFile<\/key>\s*<string>Main<\/string>/.test(applicationInfo)) {
-  fail('The iOS 27 scene lifecycle must load SceneDelegate and the Main bridge storyboard.');
+if (!applicationInfo.includes('UIApplicationSceneManifest') || !applicationInfo.includes('$(PRODUCT_MODULE_NAME).SceneDelegate') || /UISceneStoryboardFile|UIMainStoryboardFile/.test(applicationInfo)) {
+  fail('The iOS 27 scene lifecycle must use SceneDelegate with one programmatically owned window.');
+}
+if (!appDelegateSource.includes('configuration.delegateClass = SceneDelegate.self') || !sceneSource.includes('UIWindow(windowScene: windowScene)') || !sceneSource.includes('makeKeyAndVisible()') || !sceneSource.includes('session.role == .windowApplication')) {
+  fail('AppDelegate must select SceneDelegate, which must create and present only the application window.');
 }
 
 // 2. A bridge view controller subclass must exist, be compiled into the
@@ -123,28 +127,16 @@ for (const pluginClassName of knownPluginNames) {
   registeringControllerName ??= controllerName;
   if (registeringControllerName !== controllerName) {
     fail(
-      `${pluginClassName} is registered from ${controllerName}.swift but BiometricAuthPlugin is registered from ${registeringControllerName}.swift — Main.storyboard can only point its Bridge View Controller at one class.`,
+      `${pluginClassName} and BiometricAuthPlugin must be registered by the same bridge controller.`,
     );
   }
 }
 
-// 3. The storyboard's Bridge View Controller must actually point at that
-//    class — Capacitor's own default (customClass="CAPBridgeViewController")
-//    never calls capacitorDidLoad() overrides that don't exist on it, so
-//    leaving the storyboard unchanged silently no-ops step 2 entirely.
-const storyboardClassMatch = storyboard.match(/<viewController[^>]*\bcustomClass="([^"]+)"/);
-if (!storyboardClassMatch) {
-  fail('Main.storyboard has no customClass on its Bridge View Controller scene.');
-}
-if (storyboardClassMatch[1] !== registeringControllerName) {
-  fail(
-    `Main.storyboard's Bridge View Controller customClass is "${storyboardClassMatch[1]}", expected "${registeringControllerName}" (the class that registers the app-local plugins) — Capacitor's default CAPBridgeViewController never calls into it.`,
-  );
-}
-if (!/customModule="App"/.test(storyboard)) {
-  fail('Main.storyboard\'s Bridge View Controller customClass is not "App" — a custom class outside the app\'s own module will not resolve.');
+// 3. The actual scene must instantiate the controller that registers plugins.
+if (!new RegExp(`rootViewController\\s*=\\s*${registeringControllerName}\\(\\)`).test(sceneSource)) {
+  fail(`SceneDelegate must instantiate ${registeringControllerName}, which registers the app-local plugins.`);
 }
 
 console.log(
-  `Verified BiometricAuthPlugin.swift and ActiveShiftActivityPlugin.swift compile into the App target and are registered via ${registeringControllerName}.swift, which Main.storyboard's Bridge View Controller is set to use.`,
+  `Verified native plugins compile into the App target and SceneDelegate presents their registering ${registeringControllerName}.`,
 );

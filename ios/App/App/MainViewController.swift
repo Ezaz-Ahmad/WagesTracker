@@ -1,10 +1,9 @@
 import Capacitor
 import UIKit
 
-/// The app's bridge view controller — Main.storyboard's single scene points
-/// its "Bridge View Controller" at this class (customClass = "MainViewController",
-/// customModule = "App") instead of the framework's own `CAPBridgeViewController`
-/// directly, which is what Capacitor's own docs describe as the supported way
+/// The app's bridge view controller — SceneDelegate instantiates this class
+/// instead of the framework's own `CAPBridgeViewController`, which is what
+/// Capacitor's own docs describe as the supported way
 /// to register app-local native code
 /// (https://capacitorjs.com/docs/ios/custom-code,
 /// https://capacitorjs.com/docs/ios/viewcontroller).
@@ -18,7 +17,7 @@ import UIKit
 /// that lives directly in the app target rather than being pulled in as a
 /// Cocoapod/SPM package with its own `Package.swift`/`podspec` manifest.
 ///
-/// If this file, or the storyboard's customClass pointing to it, is ever
+/// If this file, or SceneDelegate's instantiation of this controller, is ever
 /// removed, `BiometricAuthPlugin` still compiles and still passes every
 /// Capacitor-version-alignment check in this repo — but at runtime
 /// `Capacitor.registerPlugin("BiometricAuth")` on the JS side rejects every
