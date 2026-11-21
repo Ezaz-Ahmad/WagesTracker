@@ -4,11 +4,13 @@
 
 **Last reviewed:** 21 November 2026
 
+**1.24.0 delivery status:** Web and API changes are deployed. Signed build **1.24.0 (53)** archived, exported and passed local distribution inspection, but Apple's implicit app lookup failed before upload. After adding an explicit app ID and read-only API preflight, fresh [build 54](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/44908505568) identified the account blocker at **13:28:55 UTC on 21 November 2026**: HTTP `403`, `FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED`. Neither build was uploaded. Temporary signing material was removed. The Account Holder must review and accept the pending agreement at [Apple Developer Account](https://developer.apple.com/account/); Apple documents that [pending agreements suspend API and TestFlight access](https://developer.apple.com/help/account/access/resolving-access-issues/). After acceptance, start a new protected-main dispatch (next build 55), never a rerun of 53/54, then verify processing and internal tester availability before calling it ready.
+
 **Latest verified upload:** **1.23.1 (52)**, accepted by Apple on 11 October 2026 in [run 38121118588](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38121118588), from protected-main commit `d54eb41579a4b76fd56335e43b829444e7a3efa4`. Apple validation succeeded at **07:26:32 UTC** and upload at **07:28:02 UTC**, both without errors. The fresh dispatch used attempt 1; temporary signing material was removed.
 
 **Processing and testers:** App Store Connect confirmed completed processing and the build's assignment to **WagesTracker Internal Testers** before submission. Physical-device behavior remains a separate check.
 
-**App Review:** **1.23.1 (52), Waiting for Review**, submitted **11 October 2026 at 07:37 UTC / 18:37 AEDT**. Submission ID: `e08bed98-479f-4cff-befc-11c5c3af39c6`. Release is automatic after approval, immediately to all users. The public Australian listing was still **1.21.0** when the submission was verified. See the [App Review guide](app-store-review.md).
+**Previous App Review record (11 October 2026):** **1.23.1 (52), Waiting for Review**, submitted **11 October 2026 at 07:37 UTC / 18:37 AEDT**. Submission ID: `e08bed98-479f-4cff-befc-11c5c3af39c6`. Release was configured as automatic after approval, immediately to all users. The public Australian listing was still **1.21.0** when that submission was verified. This historical status has not been rechecked while Apple access is blocked. No public App Store submission was made for 1.24.0. See the [App Review guide](app-store-review.md).
 
 **Previous upload:** 1.23.0 (51), accepted in [run 38116854116](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38116854116) from `98d376a0609a1471035cab88ea73c88542ec3acf`. It contains the previous native framework; build 52 replaces it for this review. The preceding 1.22.0 (50) is recorded in [its release notes](release-notes-1.22.0.md).
 
