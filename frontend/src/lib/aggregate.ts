@@ -348,7 +348,10 @@ function sumFuelCost(expenses: DayExpense[]): number {
 }
 
 function weekExtrasInRange(weekExtras: WeekExtra[], startISO: string, endISO: string): WeekExtra[] {
-  return weekExtras.filter((w) => w.weekStart >= startISO && w.weekStart <= endISO);
+  return weekExtras.filter((w) => {
+    const date=w.effectiveDate??w.weekStart;
+    return date>=startISO&&date<=endISO;
+  });
 }
 
 function sumWeekExtras(weekExtras: WeekExtra[]): number {
