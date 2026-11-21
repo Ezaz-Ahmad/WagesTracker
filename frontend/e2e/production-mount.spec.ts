@@ -63,6 +63,11 @@ async function mockAuthenticatedApi(page: Page, options: {
 } = {}) {
   let summaryRequests = 0;
   let categoryRequests = 0;
+  const deletedJobs = new Set<string>();
+  const workspaceJobs = [
+    {id:"job-one",name:"City Retail",role:"Retail assistant",rate:30,weekStartsOn:"Monday",goalHours:38,goalEarnings:1140,smartRemindersEnabled:false,isPrimary:true,archived:false,createdAt:USER.createdAt},
+    {id:"job-two",name:"Harbour Hotel",role:"Guest services",rate:40,weekStartsOn:"Wednesday",goalHours:10,goalEarnings:400,smartRemindersEnabled:false,isPrimary:false,archived:false,createdAt:USER.createdAt},
+  ];
   await page.addInitScript(() => {
     localStorage.setItem("wageTracker.token", "production-smoke-token");
     localStorage.setItem("wageTracker.lastActivity", String(Date.now()));
@@ -73,12 +78,20 @@ async function mockAuthenticatedApi(page: Page, options: {
     let body: unknown;
 
     if (pathname === "/api/me") body = { user: options.multipleJobs?{...USER,workspacesEnabled:true}:USER };
-    else if(pathname === "/api/jobs")body={jobs:[
-      {id:"job-one",name:"City Retail",role:"Retail assistant",rate:30,weekStartsOn:"Monday",goalHours:38,goalEarnings:1140,smartRemindersEnabled:false,isPrimary:true,archived:false,createdAt:USER.createdAt},
-      {id:"job-two",name:"Harbour Hotel",role:"Guest services",rate:40,weekStartsOn:"Wednesday",goalHours:10,goalEarnings:400,smartRemindersEnabled:false,isPrimary:false,archived:false,createdAt:USER.createdAt},
-    ],rates:[{id:"rate-one",jobId:"job-one",locationId:null,rate:30,effectiveFrom:"0001-01-01",createdAt:USER.createdAt},{id:"rate-two",jobId:"job-two",locationId:null,rate:40,effectiveFrom:"0001-01-01",createdAt:USER.createdAt}]};
+    else if(pathname === "/api/jobs")body={jobs:workspaceJobs.filter(job=>!deletedJobs.has(job.id)).map((job,index)=>({...job,isPrimary:index===0})),rates:workspaceJobs.filter(job=>!deletedJobs.has(job.id)).map(job=>({id:`rate-${job.id}`,jobId:job.id,locationId:null,rate:job.rate,effectiveFrom:"0001-01-01",createdAt:USER.createdAt}))};
+    else if (/^\/api\/jobs\/[^/]+\/deletion-impact$/.test(pathname)) {
+      const job=workspaceJobs.find(job=>job.id===pathname.split("/")[3])!;
+      body={jobId:job.id,name:job.name,lastJob:deletedJobs.size===1,hasRunningShift:false,counts:{shifts:1,locations:1,payRates:1,fuelAllowances:0,weeklyExtras:0,linkedExpenses:0}};
+    }
+    else if (/^\/api\/jobs\/[^/]+$/.test(pathname) && route.request().method()==="DELETE") {
+      const job=workspaceJobs.find(job=>job.id===pathname.split("/")[3])!;
+      if (route.request().postDataJSON().confirmationName!==job.name) { await route.fulfill({status:409,json:{error:"Job name does not match"}});return; }
+      deletedJobs.add(job.id);
+      body={deletedJobId:job.id,nextJobId:workspaceJobs.find(job=>!deletedJobs.has(job.id))?.id??null,user:{...USER,workspacesEnabled:true}};
+    }
     else if (pathname === "/api/me/sessions") body = { sessions: [] };
-    else if (pathname === "/api/work-locations") body = { locations: options.multipleJobs?WORK_LOCATIONS.map((l,i)=>({...l,jobId:i?"job-two":"job-one"})):WORK_LOCATIONS };
+    else if (pathname === "/api/work-locations") body = { locations: options.multipleJobs?WORK_LOCATIONS.map((l,i)=>({...l,jobId:i?"job-two":"job-one"})).filter(location=>!deletedJobs.has(location.jobId)):WORK_LOCATIONS };
+    else if (pathname === "/api/work-locations/suggestions") body = { suggestions: {} };
     else if (pathname === "/api/shifts") {
       const now = new Date();
       const startedAt = new Date(now.getTime() - 75 * 60 * 1000);
@@ -107,7 +120,7 @@ async function mockAuthenticatedApi(page: Page, options: {
         : [];
       body = {
         shifts: [
-          ...completedShifts,
+          ...completedShifts.filter(shift=>!("jobId" in shift) || !deletedJobs.has(String(shift.jobId))),
           ...(options.activeShift
             ? [{ id: "active-shift", date, location: "Newcastle City", signIn, signOut: null }]
             : []),
@@ -816,8 +829,71 @@ for (const width of [1280, 390, 320]) {
     await page.getByRole("button", { name: /Your jobs/ }).click();
     await page.locator(".job-settings-open").first().click();
     await expect(page.getByRole("button", { name: "Update rate", exact: true })).toBeVisible();
+    await expect(page.locator(".workspace-trigger")).toHaveCount(0);
+    await page.getByRole("button", { name: "Home", exact: true }).click();
     await expect(page.locator(".workspace-trigger")).toContainText("City Retail");
     expect(shiftReads).toBe(initialReads);
+    expect(errors).toEqual([]);
+  });
+}
+
+test("mobile deletion reviews impact, clears selected jobs and reaches a durable empty state", async ({page}, testInfo) => {
+  await page.setViewportSize({width:390,height:844});
+  const errors=await captureRuntimeErrors(page); await mockAuthenticatedApi(page,{multipleJobs:true});
+  await page.goto("/");
+  await page.getByRole("navigation",{name:"Main"}).getByRole("button",{name:"Settings",exact:true}).click();
+  await expect(page.locator(".workspace-trigger")).toHaveCount(0);
+  await page.getByRole("button",{name:/Your jobs/}).click();
+  for(const name of ["City Retail","Harbour Hotel"]){
+    await page.getByRole("button",{name:`Delete ${name}`,exact:true}).click();
+    const dialog=page.getByRole("dialog",{name:"Delete this job?"});
+    await expect(dialog.getByText("Linked spending",{exact:true})).toBeVisible();
+    await expect(dialog.getByRole("button",{name:"Delete job & data"})).toBeDisabled();
+    if(name==="City Retail"){
+      await dialog.screenshot({path:testInfo.outputPath("delete-job-phone.png")});
+      await dialog.getByRole("button",{name:"Keep job"}).click();
+      await expect(page.getByRole("button",{name:`Delete ${name}`,exact:true})).toBeVisible();
+      await page.getByRole("button",{name:`Delete ${name}`,exact:true}).click();
+    } else await expect(dialog.getByText(/This is your last job/)).toBeVisible();
+    await dialog.getByRole("textbox").fill(name);
+    await dialog.getByRole("button",{name:"Delete job & data"}).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole("button",{name:`Delete ${name}`,exact:true})).toHaveCount(0);
+  }
+  await page.getByRole("navigation",{name:"Main"}).getByRole("button",{name:"Home",exact:true}).click();
+  await expect(page.getByRole("heading",{name:"Your next job starts here."})).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading",{name:"Your next job starts here."})).toBeVisible();
+  await page.getByRole("button",{name:"Add a job",exact:true}).click();
+  await expect(page.getByRole("dialog",{name:"Add a job"})).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+for(const width of [1280,390,320]) {
+  test(`privacy and support keep the app return visible and preserve Settings at ${width}px`,async({page},testInfo)=>{
+    await page.setViewportSize({width,height:844});
+    const errors=await captureRuntimeErrors(page); await mockAuthenticatedApi(page,{multipleJobs:true});
+    await page.goto("/");
+    const nav=page.getByRole("navigation",{name:"Main"});
+    await nav.getByRole("button",{name:"Settings",exact:true}).click();
+    await page.getByRole("button",{name:/About Privacy Policy/}).click();
+    for(const [route,label,title] of [["privacy","Privacy Policy","Privacy Policy"],["support","Support","Wages Tracker Support"]]) {
+      await page.getByRole("navigation",{name:"Privacy and support"}).getByRole("link",{name:new RegExp(`^${label}`)}).click();
+      await expect(page.getByRole("heading",{name:title,exact:true})).toBeVisible();
+      await page.locator(".public-page-shell").evaluate(async element => { await Promise.all(element.getAnimations().map(animation => animation.finished)); });
+      await page.screenshot({path:testInfo.outputPath(`${route}-${width}.png`),fullPage:true});
+      if(route==="support") {await page.getByText("How do I delete a job?",{exact:true}).click(); await expect(page.locator(".support-faq[open]")).toContainText("permanently deletes");}
+      await page.evaluate(()=>window.scrollTo(0,document.body.scrollHeight));
+      const back=page.getByRole("button",{name:"Return to Wages Tracker",exact:true});
+      await expect(back).toBeVisible();
+      const box=await back.boundingBox(); expect(box!.y).toBeGreaterThanOrEqual(0); expect(box!.y+box!.height).toBeLessThan(200);
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+      await back.click();
+      await expect(page.getByRole("navigation",{name:"Privacy and support"})).toBeVisible();
+      await expect(page.locator(".workspace-trigger")).toHaveCount(0);
+    }
+    await nav.getByRole("button",{name:"Entry",exact:true}).click();
+    await expect(page.locator(".workspace-trigger")).toBeVisible();
     expect(errors).toEqual([]);
   });
 }

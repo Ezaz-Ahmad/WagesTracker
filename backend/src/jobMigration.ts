@@ -8,6 +8,8 @@ export async function ensureUserJob(
   database: Executor,
   userId: string
 ): Promise<void> {
+  const initialized = await database.execute({ sql: "SELECT jobs_initialized FROM users WHERE id=?", args: [userId] });
+  if (initialized.rows[0]?.jobs_initialized) return;
   await database.execute({
     sql: `INSERT OR IGNORE INTO jobs
       (id,user_id,name,role,week_starts_on,goal_hours,goal_earnings,smart_reminders_enabled,is_primary,created_at,updated_at)
@@ -42,6 +44,7 @@ export async function ensureUserJob(
       WHERE user_id=? AND applied_rate_cents IS NULL`,
     args: [userId],
   });
+  await database.execute({ sql: "UPDATE users SET jobs_initialized=1 WHERE id=?", args: [userId] });
 }
 
 export async function migrateJobs(db: Client): Promise<void> {
@@ -78,6 +81,10 @@ export async function migrateJobs(db: Client): Promise<void> {
       await db.execute(`ALTER TABLE shifts ADD COLUMN ${name} ${type}`);
   }
   const userColumns = await db.execute("PRAGMA table_info(users)");
+  if (!userColumns.rows.some((r) => r.name === "jobs_initialized")) {
+    await db.execute("ALTER TABLE users ADD COLUMN jobs_initialized INTEGER NOT NULL DEFAULT 0");
+    await db.execute("UPDATE users SET jobs_initialized=1 WHERE EXISTS(SELECT 1 FROM jobs WHERE jobs.user_id=users.id)");
+  }
   if (!userColumns.rows.some((r) => r.name === "combined_goal_earnings"))
     await db.execute(
       "ALTER TABLE users ADD COLUMN combined_goal_earnings REAL NOT NULL DEFAULT 0"

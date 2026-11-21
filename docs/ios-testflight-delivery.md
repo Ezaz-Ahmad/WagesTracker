@@ -1,14 +1,16 @@
 # Signed TestFlight delivery
 
-**Current source marketing version:** `1.24.0`
+**Current source marketing version:** `1.25.0`
 
-**Last reviewed:** 21 November 2026
+**Last reviewed:** 22 November 2026
+
+**SDK requirement:** Apple's ITMS-90725 email for build 55 identified the iOS 26.5 SDK. All native workflows now use the `xcode-27` runner with `DEVELOPER_DIR=/Applications/Xcode_27.2.app/Contents/Developer`, verify the selected stable toolchain and iOS SDK before building, and inspect `DTSDKName` in the compiled app and extension. Artifacts built with an iOS SDK below 27 are rejected before upload. This addresses [Apple's April 2027 SDK requirement](https://developer.apple.com/news/?id=k1mtkt1k); the project retains its existing iOS deployment target. Build/upload receipts for this release are recorded in the release pull request and workflow runs.
 
 **1.24.0 delivery status:** Web and API changes are deployed. Apple access was restored after the Account Holder accepted the pending agreement. Fresh build 55 passed the exact app-identity preflight, signed archive, export and distribution checks, Apple validation and upload. The owner confirmed **1.24.0 (55) is available in TestFlight on the iPhone**. Physical-device feature testing remains to be completed.
 
-**Latest verified upload:** **1.24.0 (55)**, accepted by Apple on 21 November 2026 in [run 44909308794](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/44909308794), from protected-main commit `b792474a9f04bb6914f154df2e1beeca12470e7a`. The Apple validation step completed at **13:42:57 UTC**, and the upload step at **13:44:05 UTC**, both successfully. The fresh dispatch used attempt 1.
+**Verified upload for 1.24.0:** **1.24.0 (55)**, accepted by Apple on 21 November 2026 in [run 44909308794](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/44909308794), from protected-main commit `b792474a9f04bb6914f154df2e1beeca12470e7a`. The Apple validation step completed at **13:42:57 UTC**, and the upload step at **13:44:05 UTC**, both successfully. The fresh dispatch used attempt 1.
 
-**Processing and testers:** The owner confirmed build 55 is available in TestFlight. The delivery run's final automated group check returned HTTP 403 `FORBIDDEN_ERROR` after processing; the validation/upload steps succeeded, and cleanup completed. The verifier now recognizes groups with automatic access to all builds without attempting to modify their explicit build relationships. A separate read-only availability check can inspect the existing upload without signing or uploading again.
+**Processing and testers:** The owner confirmed build 55 is available in TestFlight. The signed delivery's final check initially returned HTTP 403 after upload; read-only [recovery run 44911204916](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/44911204916) then confirmed processing `VALID`, state `IN_BETA_TESTING` and availability to **WagesTracker Internal Testers**. Both runs cleaned temporary credentials. The verifier now recognizes groups with automatic access to all builds without attempting to modify their explicit build relationships. A separate read-only availability check can inspect the existing upload without signing or uploading again.
 
 **Agreement recovery:** Builds 53 and 54 were not uploaded. Build 53 failed Apple's implicit app lookup (error 19); [build 54](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/44908505568) identified the actual account blocker through the API: HTTP `403`, `FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED`. Both removed temporary signing material. The Account Holder accepted the pending agreement before build 55 was dispatched. If this recurs, review the pending agreement at [Apple Developer Account](https://developer.apple.com/account/); Apple documents that [pending agreements suspend API and TestFlight access](https://developer.apple.com/help/account/access/resolving-access-issues/). After acceptance, use a fresh dispatch, never rerun an older signed delivery.
 
@@ -37,7 +39,7 @@ Create these non-secret environment variables:
 | Variable | Value |
 | --- | --- |
 | `IOS_BUNDLE_ID` | `com.ezazahmad.wagestracker` |
-| `IOS_APP_VERSION` | `1.24.0` (required for this release; update the protected environment before dispatch) |
+| `IOS_APP_VERSION` | `1.25.0` (required for this release; update the protected environment before dispatch) |
 | `APPLE_TEAM_ID` | The 10-character Team ID shown in Apple Developer membership details and the App Store profile |
 | `IOS_PROVISIONING_PROFILE_NAME` | The exact `Name` inside the uploaded profile. Prefer a release-independent name such as `WagesTracker App Store Distribution` when next regenerating it |
 | `IOS_EXTENSION_PROVISIONING_PROFILE_NAME` | The exact `Name` inside the App Store profile for `com.ezazahmad.wagestracker.ShiftActivityExtension` |
@@ -81,7 +83,7 @@ Do not trigger the signed workflow from this feature branch. Pull-request valida
 
 ## Build numbers
 
-`CFBundleShortVersionString` is `1.24.0` for this release. `frontend/package.json` is the source of truth; the lockfile, Xcode project and GitHub `IOS_APP_VERSION` variable must match, and the validation script/workflow fail if they do not. Each new workflow dispatch derives `CFBundleVersion` directly from `github.run_number`, which increases across new runs without committing build-number churn to the Xcode project. The workflow accepts only `github.run_attempt == 1`; GitHub reruns keep the original run number and could therefore break reliable ordering after a newer dispatch. If a run fails, fix the cause and start a new **Run workflow** dispatch instead of using **Re-run jobs**.
+`CFBundleShortVersionString` is `1.25.0` for this release. `frontend/package.json` is the source of truth; the lockfile, Xcode project and GitHub `IOS_APP_VERSION` variable must match, and the validation script/workflow fail if they do not. Each new workflow dispatch derives `CFBundleVersion` directly from `github.run_number`, which increases across new runs without committing build-number churn to the Xcode project. The workflow accepts only `github.run_attempt == 1`; GitHub reruns keep the original run number and could therefore break reliable ordering after a newer dispatch. If a run fails, fix the cause and start a new **Run workflow** dispatch instead of using **Re-run jobs**.
 
 ## Signing, validation and cleanup
 

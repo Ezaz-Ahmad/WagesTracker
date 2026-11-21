@@ -32,7 +32,7 @@ const SETTINGS_CATEGORIES: readonly SettingsCategory[] = [
  * showing.
  */
 export function SettingsScreen({ initialCategory = null }: { initialCategory?: string | null }) {
-  const { user,selectedJobId } = useApp();
+  const { user,selectedJobId,selectedJob } = useApp();
   const [activeCategory, setActiveCategory] = useState<string | null>(initialCategory);
   const effectiveCategory = activeCategory ?? SETTINGS_CATEGORIES[0].id;
 
@@ -51,7 +51,7 @@ export function SettingsScreen({ initialCategory = null }: { initialCategory?: s
       </div>
       <div className="settings-panel" hidden={effectiveCategory !== "jobs"}><JobsSettings onOpenWorkPay={()=>setActiveCategory("workpay")}/></div>
       <div className="settings-panel" hidden={effectiveCategory !== "workpay"}>
-        <WorkPaySettings key={selectedJobId}/>
+        {user.workspacesEnabled && !selectedJob ? <section className="card"><h3>Choose a job to manage its pay</h3><p className="field-hint">Your jobs keeps each employer's locations and hourly rates together.</p><button className="btn btn-secondary" onClick={() => setActiveCategory("jobs")}>Go to Your jobs</button></section> : <WorkPaySettings key={selectedJobId}/>}
       </div>
       <div className="settings-panel" hidden={effectiveCategory !== "goals"}>
         {selectedJobId==="all"?<WorkspaceGoalsSettings/>:<GoalSettings key={selectedJobId}/>}

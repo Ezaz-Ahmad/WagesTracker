@@ -1,7 +1,13 @@
 import { PublicPageShell } from "../components/PublicPageShell";
 import { InternalAppLink } from "../components/AppLink";
 
-const LAST_UPDATED = "11 October 2026";
+const LAST_UPDATED = "22 November 2026";
+const SECTIONS = [
+  { id: "operator", label: "Who we are" }, { id: "information", label: "Information we collect" },
+  { id: "use", label: "How we use it" }, { id: "providers", label: "Service providers" },
+  { id: "retention", label: "Retention & deletion" }, { id: "choices", label: "Your choices" },
+  { id: "children", label: "Children" }, { id: "changes", label: "Policy updates" },
+];
 
 export function PrivacyPolicyPage() {
   return (
@@ -9,10 +15,12 @@ export function PrivacyPolicyPage() {
       eyebrow="Privacy"
       title="Privacy Policy"
       summary="Wages Tracker collects only the information needed to run your private account and keep it secure."
+      sections={SECTIONS}
     >
       <p className="public-page-updated">Last updated: {LAST_UPDATED}</p>
 
-      <section>
+      <div className="privacy-at-a-glance"><strong>Privacy at a glance</strong><p>Your records stay in your account. We do not sell your personal information or use it for targeted advertising. You control your jobs, spending and account.</p></div>
+      <section id="operator">
         <h2>Who operates Wages Tracker</h2>
         <p>
           Wages Tracker is developed and operated by Ezaz Ahmad in New South Wales, Australia. This policy applies to
@@ -20,13 +28,13 @@ export function PrivacyPolicyPage() {
         </p>
       </section>
 
-      <section>
+      <section id="information">
         <h2>Information we collect</h2>
         <p>We collect information you provide or generate while using the service:</p>
         <ul>
           <li><strong>Account information:</strong> your name, email address, and password stored in a protected one-way form.</li>
-          <li><strong>Work profile:</strong> home and work addresses, workplace names, pay rate, week-start preference, and weekly goals.</li>
-          <li><strong>Work records:</strong> shift dates and times, work locations, expenses, additional earnings, and the data used to create reports.</li>
+          <li><strong>Work profile:</strong> home and work addresses, job or employer names, roles, locations, default and location hourly rates, dated pay changes, week-start preferences, and weekly goals.</li>
+          <li><strong>Work records:</strong> shift dates and times, recorded hourly rates, work locations, fuel allowances, expenses, additional earnings, and the data used to create reports.</li>
           <li><strong>Optional personal spending records:</strong> expense amounts, categories, dates and times, merchant or short-title information, notes, and payment-method labels that you choose to enter.</li>
           <li><strong>Signed-in device information:</strong> device or browser type, internet address, sign-in and last-used times, and whether access has ended.</li>
           <li><strong>Connection and error information:</strong> the page or action requested, timing, internet address, browser details, and security or error logs.</li>
@@ -34,7 +42,7 @@ export function PrivacyPolicyPage() {
         <p>Wages Tracker does not request access to your contacts, photos, precise device location, microphone, or your device's advertising ID.</p>
       </section>
 
-      <section>
+      <section id="use">
         <h2>How we use information</h2>
         <ul>
           <li>Provide shift, wage, personal spending, goal, history, comparison, report, and optional smart-reminder features.</li>
@@ -46,16 +54,15 @@ export function PrivacyPolicyPage() {
         <p>We do not sell personal information or use it for targeted advertising by other companies.</p>
       </section>
 
-      <section>
+      <section id="providers">
         <h2>Companies that help run Wages Tracker</h2>
-        <p>
-          <strong>Vercel</strong> displays the website and may process normal connection details such as your internet
-          address, browser, requested page, and timing. <strong>Render</strong> runs Wages Tracker's online service and
-          may process sign-in details, connection information, and operating logs. <strong>Turso</strong> stores account,
-          work, personal spending, and signed-in device records. <strong>Resend</strong> processes your email address and
-          message content when Wages Tracker sends password-reset instructions or a password-change notice.
-          <strong>Google Fonts</strong> may receive normal connection information when the app loads its fonts.
-        </p>
+        <dl className="privacy-providers">
+          <div><dt>Vercel</dt><dd>Displays the website and may process normal connection details such as your internet address, browser, requested page and timing.</dd></div>
+          <div><dt>Render</dt><dd>Runs the online service and may process sign-in details, connection information and operating logs.</dd></div>
+          <div><dt>Turso</dt><dd>Stores account, work, personal spending and signed-in device records.</dd></div>
+          <div><dt>Resend</dt><dd>Processes your email address and message content when the app sends password-reset instructions or a password-change notice.</dd></div>
+          <div><dt>Google Fonts</dt><dd>May receive normal connection information when the app loads its fonts.</dd></div>
+        </dl>
         <p>
           The iPhone app checks <strong>Apple's App Store</strong> for publicly available updates. Apple receives
           normal connection information for this request; we do not send your account, shifts, or spending records.
@@ -74,8 +81,14 @@ export function PrivacyPolicyPage() {
         </p>
       </section>
 
-      <section>
+      <section id="retention">
         <h2>How long we keep information</h2>
+        <p>
+          You can delete a job from <strong>Settings → Your jobs → Delete job</strong>. This permanently removes its
+          shifts, work locations, pay history, fuel allowances, weekly extras and personal spending linked to that job.
+          It also removes the job from earnings totals and future reports. Your account, other jobs and spending
+          without that job tag remain available. PDFs you previously exported remain on your device.
+        </p>
         <p>
           Shift records, work expenses, other earnings, and information used for reports are kept for up to five years.
           Older records are then removed automatically. Optional personal spending records and custom spending categories remain
@@ -89,7 +102,7 @@ export function PrivacyPolicyPage() {
         </p>
       </section>
 
-      <section>
+      <section id="choices">
         <h2>Your choices and rights</h2>
         <p>
           You can review and update profile and work information in Settings, log out signed-in devices, change your
@@ -99,17 +112,17 @@ export function PrivacyPolicyPage() {
         <p>
           Smart Shift Reminders are optional and off by default. When enabled, the app looks for a clear weekday
           routine in your completed shifts and schedules reminders for upcoming shifts. Corrected or unusual shifts
-          are left out, and you can turn reminders off at any time in Profile &amp; preferences.
+          are left out. Choose the job in Your jobs, then turn its reminders off in Profile &amp; preferences at any time.
         </p>
         <p>To make a privacy request, use the contact options on the <InternalAppLink href="/support">Support page</InternalAppLink>.</p>
       </section>
 
-      <section>
+      <section id="children">
         <h2>Children</h2>
         <p>Wages Tracker is not directed to children under 13, and we do not knowingly collect their personal information.</p>
       </section>
 
-      <section>
+      <section id="changes">
         <h2>Changes to this policy</h2>
         <p>
           We may update this policy as Wages Tracker or its legal obligations change. The latest version will remain

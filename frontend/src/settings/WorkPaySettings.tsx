@@ -27,7 +27,7 @@ function fuelAllowanceError(enabled: boolean, raw: string): string | null {
 
 export function WorkPaySettings() {
   const {
-    user,selectedJob,jobs=[],
+    user,selectedJob,
     workLocations,
     workLocationsLoading,
     createWorkLocation,
@@ -44,7 +44,7 @@ export function WorkPaySettings() {
   const archivedLocations = useMemo(() => (workLocations ?? []).filter((location) => location.archived), [workLocations]);
 
   if (!user) return null;
-  if(user.workspacesEnabled&&jobs.length&&!selectedJob)return <p className="job-notice">Choose an individual job above to manage its pay and work locations.</p>;
+  if(user.workspacesEnabled&&!selectedJob)return <p className="job-notice">Choose a job in Settings → Your jobs to manage its pay and work locations.</p>;
 
   const fuelError = draft ? fuelAllowanceError(draft.fuelEnabled, draft.fuelAllowanceRaw) : null;
   const locationValid = !!draft?.name.trim() && !fuelError;

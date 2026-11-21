@@ -176,7 +176,7 @@ function AuthedAppShell() {
             <span className="app-nav-logout-label">Log out</span>
           </button>
         </header>
-        <JobSwitcher onManageJobs={()=>{setSettingsInitialCategory("jobs");setScreen("settings");}}/>
+        {screen !== "settings" && <JobSwitcher onManageJobs={()=>{setSettingsInitialCategory("jobs");setScreen("settings");}}/>}
 
         {/* The device-limit notice. The backend has sent this on the login
             response ever since per-installation sessions landed, but the

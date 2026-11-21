@@ -1,7 +1,7 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "1.24.0",
+  "version": "1.25.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,7 +17,8 @@
     "ios:assets": "node scripts/render-brand-sources.mjs && capacitor-assets generate --ios --assetPath assets --iosProject ../ios/App && node scripts/write-brand-appearances.mjs",
     "ios:assets:verify": "node scripts/verify-ios-assets.mjs",
     "ios:testflight:verify": "node scripts/verify-testflight-config.mjs",
-    "ios:distribution:test": "node --test scripts/__tests__/inspect-ios-distribution.test.mjs scripts/__tests__/confirm-testflight-build.test.mjs",
+    "ios:distribution:test": "node --test scripts/__tests__/inspect-ios-distribution.test.mjs scripts/__tests__/confirm-testflight-build.test.mjs scripts/__tests__/ios-build-sdk.test.mjs",
+    "ios:toolchain:verify": "node scripts/verify-ios-toolchain.mjs",
     "ios:aasa:test": "node --test scripts/__tests__/apple-app-site-association.test.mjs",
     "ios:resolve:native": "xcodebuild -project ../ios/App/App.xcodeproj -scheme App -resolvePackageDependencies",
     "ios:build:simulator": "xcodebuild -project ../ios/App/App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator -destination \"generic/platform=iOS Simulator\" -derivedDataPath ../ios/DerivedData CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= build"

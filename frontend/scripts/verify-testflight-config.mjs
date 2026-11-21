@@ -42,6 +42,11 @@ requireMatch(workflow, /github\.event_name == 'workflow_dispatch'.*github\.ref =
 requireMatch(workflow, /permissions:\s*\n\s+contents: read\s*$/mu, "workflow permissions must be read-only");
 requireAbsent(workflow, /^\s+\S+: write\s*$/mu, "workflow must not request write permissions");
 requireMatch(workflow, /environment:\s*\n\s+name: testflight/mu, "job must use the testflight environment");
+for (const nativeWorkflow of [workflow, await source(".github/workflows/ios-simulator.yml"), await source(".github/workflows/codeql.yml")]) {
+  requireMatch(nativeWorkflow, /runs-on: xcode-27/u, "native builds must use the Xcode 27 runner");
+  requireMatch(nativeWorkflow, /DEVELOPER_DIR: \/Applications\/Xcode_27\.2\.app\/Contents\/Developer/u, "native builds must select stable Xcode 27.2 explicitly");
+  requireMatch(nativeWorkflow, /npm run ios:toolchain:verify -w frontend/u, "native builds must check the actual iOS SDK before building");
+}
 requireMatch(workflow, /concurrency:\s*\n\s+group: testflight-production\s*\n\s+cancel-in-progress: false/mu, "production delivery must be serialized without cancellation");
 requireAbsent(workflow, /actions\/upload-artifact/iu, "signed IPA files must never be uploaded as GitHub artifacts");
 requireAbsent(workflow, /\bset\s+-x\b|\bprintenv\b|\benv\s*\|/u, "workflow must not enable shell tracing or dump its environment");

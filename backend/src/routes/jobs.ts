@@ -15,6 +15,8 @@ import {
 } from "../jobs.js";
 import { WEEK_DAYS, startOfWeekISO } from "../weekBoundary.js";
 import { isValidDate } from "../security/shiftRules.js";
+import { deleteJobRecords, jobDeletionImpact, JobDeletionError, syncPrimaryJobPreferences } from "../jobDeletion.js";
+import { toPublicUser, type UserRow } from "../types.js";
 
 export const jobsRouter = Router();
 jobsRouter.use(requireAuth);
@@ -69,10 +71,12 @@ jobsRouter.post(
     const p = parsed.data,
       id = randomUUID(),
       now = new Date().toISOString();
-    await db.batch(
+    const tx = await db.transaction("write");
+    try {
+    await tx.batch(
       [
         {
-          sql: `INSERT INTO jobs(id,user_id,name,role,week_starts_on,goal_hours,goal_earnings,smart_reminders_enabled,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)`,
+          sql: `INSERT INTO jobs(id,user_id,name,role,week_starts_on,goal_hours,goal_earnings,smart_reminders_enabled,created_at,updated_at,is_primary) VALUES(?,?,?,?,?,?,?,?,?,?,CASE WHEN EXISTS(SELECT 1 FROM jobs WHERE user_id=? AND is_primary=1) THEN 0 ELSE 1 END)`,
           args: [
             id,
             req.userId!,
@@ -84,15 +88,19 @@ jobsRouter.post(
             p.smartRemindersEnabled ? 1 : 0,
             now,
             now,
+            req.userId!,
           ],
         },
         {
           sql: `INSERT INTO pay_rates(id,user_id,job_id,location_id,effective_from,rate_cents,created_at) VALUES(?,?,?,NULL,'0001-01-01',?,?)`,
           args: [randomUUID(), req.userId!, id, Math.round(p.rate * 100), now],
         },
-      ],
-      "write"
+      ]
     );
+    const primary = await tx.execute({ sql: "SELECT is_primary FROM jobs WHERE id=?", args: [id] });
+    if (primary.rows[0]?.is_primary) await syncPrimaryJobPreferences(tx, req.userId!, requestDate(req));
+    await tx.commit();
+    } catch (error) { await tx.rollback(); throw error; } finally { tx.close(); }
     const row = (
       await db.execute({
         sql: "SELECT * FROM jobs WHERE id=? AND user_id=?",
@@ -102,6 +110,19 @@ jobsRouter.post(
     res.status(201).json({ job: await publicJob(row, requestDate(req)) });
   })
 );
+jobsRouter.get("/:id/deletion-impact", asyncHandler<AuthedRequest>(async (req, res) => {
+  try { res.json(await jobDeletionImpact(db, req.userId!, req.params.id)); }
+  catch (error) { if (error instanceof JobDeletionError) { res.status(error.status).json({ error: error.message }); return; } throw error; }
+}));
+jobsRouter.delete("/:id", asyncHandler<AuthedRequest>(async (req, res) => {
+  const parsed = z.object({ confirmationName: z.string().trim().min(1).max(120) }).safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Enter the job name to confirm permanent deletion." }); return; }
+  try {
+    const deleted = await deleteJobRecords(db, req.userId!, req.params.id, parsed.data.confirmationName, requestDate(req));
+    const account = await db.execute({ sql: "SELECT * FROM users WHERE id=?", args: [req.userId!] });
+    res.json({ ...deleted, user: toPublicUser(account.rows[0] as unknown as UserRow) });
+  } catch (error) { if (error instanceof JobDeletionError) { res.status(error.status).json({ error: error.message }); return; } throw error; }
+}));
 jobsRouter.patch(
   "/:id",
   asyncHandler<AuthedRequest>(async (req, res) => {
