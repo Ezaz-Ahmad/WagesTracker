@@ -18,7 +18,7 @@ export const END_SHIFT_CONFIRMATION = "Are you sure you want to end your shift n
  */
 export function useTodayShift() {
   const confirm = useConfirm();
-  const { today, shifts, workLocations, createShift, clockOutShift } = useApp();
+  const { today, shifts, allShifts, selectJob, workLocations, createShift, clockOutShift, selectedJob } = useApp();
   const endInFlightRef = useRef(false);
   const todayISO = isoDate(today);
   const last = findOpenShift(shifts);
@@ -33,7 +33,9 @@ export function useTodayShift() {
     // is still possible despite this; the backend is the real guard for
     // that (see routes/shifts.ts) and surfaces a clear "already open"
     // error instead of silently allowing a second one.
-    if (active) return;
+    if (active||selectedJob?.archived) return;
+    const other=findOpenShift(allShifts??shifts);
+    if(other){if(other.jobId)selectJob(other.jobId);return;}
     const signIn = nowHHMMSS();
     const activeLocations = (workLocations ?? []).filter((location) => !location.archived);
     const workLocationId = selectedWorkLocationId || (activeLocations.length === 1 ? activeLocations[0].id : null);

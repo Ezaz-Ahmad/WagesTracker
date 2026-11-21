@@ -191,6 +191,7 @@ public class ActiveShiftActivityPlugin: CAPPlugin, CAPBridgedPlugin {
         ]
         if let shiftId = action.shiftId { data["shiftId"] = shiftId }
         if let weekdayName = action.weekdayName { data["weekdayName"] = weekdayName }
+        if let jobId = action.jobId { data["jobId"] = jobId }
         if let usualTimeLabel = action.usualTimeLabel { data["usualTimeLabel"] = usualTimeLabel }
         return data
     }

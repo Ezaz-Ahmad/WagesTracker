@@ -17,11 +17,13 @@ export function ShiftButton({
   onStart,
   onEnd,
   busy,
+  disabled = false,
 }: {
   active: boolean;
   onStart: () => void;
   onEnd: () => void;
   busy: boolean;
+  disabled?: boolean;
 }) {
   // Flashes a checkmark over the button right after a sign-in/out actually
   // goes through — i.e. `active` really flipped once the server confirmed
@@ -42,7 +44,7 @@ export function ShiftButton({
     <button
       type="button"
       className={`btn cta-circle${active ? " is-active" : ""}${justConfirmed ? " is-confirmed" : ""}`}
-      disabled={busy}
+      disabled={busy||disabled}
       aria-busy={busy || undefined}
       aria-label={busy ? (active ? "Signing out…" : "Signing in…") : undefined}
       onClick={active ? onEnd : onStart}

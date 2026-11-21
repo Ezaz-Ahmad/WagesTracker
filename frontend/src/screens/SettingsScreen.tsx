@@ -1,3 +1,5 @@
+import { WorkspaceGoalsSettings } from "../settings/WorkspaceGoalsSettings";
+import { JobsSettings } from "../components/JobWorkspace";
 import { useState } from "react";
 import { useApp } from "../context/AppContext";
 import { SettingsLayout } from "../settings/SettingsLayout";
@@ -12,6 +14,7 @@ import { BriefcaseIcon, DatabaseIcon, InfoIcon, LockIcon, TargetIcon, UserIcon }
 
 const SETTINGS_CATEGORIES: readonly SettingsCategory[] = [
   { id: "profile", label: "Profile & preferences", hint: "Profile, appearance, smart reminders", icon: UserIcon },
+  { id: "jobs", label: "Your jobs", hint: "Employers, locations, pay and goals", icon: BriefcaseIcon },
   { id: "workpay", label: "Work & pay", hint: "Location, address, hourly rate", icon: BriefcaseIcon },
   { id: "goals", label: "Weekly goals", hint: "Hours and earnings targets", icon: TargetIcon },
   { id: "security", label: "Security", hint: "Email, password and signed-in devices", icon: LockIcon },
@@ -29,7 +32,7 @@ const SETTINGS_CATEGORIES: readonly SettingsCategory[] = [
  * showing.
  */
 export function SettingsScreen({ initialCategory = null }: { initialCategory?: string | null }) {
-  const { user } = useApp();
+  const { user,selectedJobId } = useApp();
   const [activeCategory, setActiveCategory] = useState<string | null>(initialCategory);
   const effectiveCategory = activeCategory ?? SETTINGS_CATEGORIES[0].id;
 
@@ -44,13 +47,14 @@ export function SettingsScreen({ initialCategory = null }: { initialCategory?: s
       onBack={() => setActiveCategory(null)}
     >
       <div className="settings-panel" hidden={effectiveCategory !== "profile"}>
-        <ProfileSettings />
+        <ProfileSettings key={selectedJobId}/>
       </div>
+      <div className="settings-panel" hidden={effectiveCategory !== "jobs"}><JobsSettings onOpenWorkPay={()=>setActiveCategory("workpay")}/></div>
       <div className="settings-panel" hidden={effectiveCategory !== "workpay"}>
-        <WorkPaySettings />
+        <WorkPaySettings key={selectedJobId}/>
       </div>
       <div className="settings-panel" hidden={effectiveCategory !== "goals"}>
-        <GoalSettings />
+        {selectedJobId==="all"?<WorkspaceGoalsSettings/>:<GoalSettings key={selectedJobId}/>}
       </div>
       <div className="settings-panel" hidden={effectiveCategory !== "security"}>
         <SecuritySettings />

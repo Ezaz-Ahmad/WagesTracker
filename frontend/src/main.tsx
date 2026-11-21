@@ -23,6 +23,7 @@ import "./styles/spending.css";
 import "./styles/customization.css";
 import "./styles/home-insights.css";
 import "./styles/app-update.css";
+import "./styles/jobs.css";
 import { ErrorPopup } from "./components/ErrorPopup";
 
 // Last-resort net for a stray rejected promise nothing else catches (every

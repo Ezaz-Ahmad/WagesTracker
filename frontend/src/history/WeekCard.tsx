@@ -9,6 +9,7 @@ import { StableLabel } from "../components/StableLabel";
 import { StatusBanner } from "../components/StatusBanner";
 import { ChevronDownIcon, DownloadIcon } from "../components/icons";
 import type { DayEditorTarget } from "./DayEditorSheet";
+import { PdfExportDialog } from "../components/PdfExportDialog";
 
 interface WeekCardProps {
   week: WeekSummary;
@@ -31,8 +32,10 @@ interface WeekCardProps {
  * error on one would appear on all of them.
  */
 export function WeekCard({ week, metGoal, onEditDay }: WeekCardProps) {
-  const { user, shifts, dayExpenses, today } = useApp();
+  const { user, shifts, dayExpenses, today, selectedJobId, selectedJob } = useApp();
+  const readOnly=selectedJobId==="all"||!!selectedJob?.archived;
   const [expanded, setExpanded] = useState(false);
+  const [exportOpen,setExportOpen]=useState(false);
   const { download, downloading, justDownloaded, error, clearError } = usePdfDownload();
 
   if (!user) return null;
@@ -43,6 +46,7 @@ export function WeekCard({ week, metGoal, onEditDay }: WeekCardProps) {
   const days = buildWeekDaysComputed(weekDays, shiftsByDate, today, CURRENCY, user.rate, groupExpensesByDate(dayExpenses));
 
   function handleDownload() {
+    if(selectedJobId==="all"){setExportOpen(true);return;}
     // The shared pipeline refetches this exact week's shifts, fuel, and
     // extras before generation, so stale screen state cannot enter the PDF.
     void download({ user: user!, today, currency: CURRENCY, weekAnchor: weekStart });
@@ -52,6 +56,7 @@ export function WeekCard({ week, metGoal, onEditDay }: WeekCardProps) {
 
   return (
     <li className="card elev-sm history-week">
+      {exportOpen&&<PdfExportDialog weekAnchor={weekStart} onClose={()=>setExportOpen(false)}/>}
       <div className="history-week-head">
         <div className="history-week-heading">
           {/* h2, not h3: the screen's only h1 is "History", so a week is the
@@ -111,6 +116,7 @@ export function WeekCard({ week, metGoal, onEditDay }: WeekCardProps) {
       )}
 
       <div id={panelId} hidden={!expanded} className="history-week-days">
+        {readOnly&&<p className="job-notice">{selectedJobId==="all"?"Choose a job above to correct its shifts or fuel allowance.":"Restore this job in Settings → Your jobs to edit its records."}</p>}
         {days.every((d) => d.hours === 0 && d.fuelCost === 0) ? (
           <p className="section-hint history-week-empty">
             Nothing was logged this week. You can still add hours to any day below.
@@ -142,7 +148,7 @@ export function WeekCard({ week, metGoal, onEditDay }: WeekCardProps) {
                     </span>
                   )}
                 </div>
-                <button
+                {!readOnly&&<button
                   type="button"
                   className="btn btn-ghost history-day-edit"
                   onClick={() => onEditDay({ dateISO: day.dateISO })}
@@ -153,7 +159,7 @@ export function WeekCard({ week, metGoal, onEditDay }: WeekCardProps) {
                   aria-label={`${hasEntry ? "Edit" : "Add"} hours for ${day.dayAbbr} ${day.dateLabel}`}
                 >
                   {hasEntry || day.fuelCost > 0 ? "Edit day" : "Add details"}
-                </button>
+                </button>}
               </li>
             );
           })}

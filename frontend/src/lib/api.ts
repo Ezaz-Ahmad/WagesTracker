@@ -1,3 +1,4 @@
+import type { Job, PayRate } from "./types";
 import { getDeviceInstallationId } from "./deviceInstallation";
 import type {
   DayExpense,
@@ -30,6 +31,10 @@ const API_ORIGIN = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
 export function getApiOrigin(): string {
   return API_ORIGIN;
 }
+
+let workJobScope: string | null = null;
+export function setJobScope(jobId:string|null):void { workJobScope=jobId; }
+export function getJobScope():string|null {return workJobScope;}
 
 const CLIENT_TIME_ZONE_HEADER = "X-Client-Time-Zone";
 const TIME_ZONE_FALLBACK_MESSAGE = "We couldn't determine your device time zone. Refresh the app and try again.";
@@ -157,7 +162,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   try {
     res = await fetch(`${API_ORIGIN}/api${path}`, {
       ...options,
-      headers: { ...headers, ...(options.headers as Record<string, string> | undefined) },
+      headers: {
+        ...(workJobScope ? {"X-Work-Job":workJobScope} : {}),
+        ...(/^\/(?:jobs|work-locations)(?:\/|\?|$)/.test(path)?{[CLIENT_TIME_ZONE_HEADER]:Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC"}:{}), ...headers, ...(options.headers as Record<string, string> | undefined) },
     });
   } catch {
     throw reportApiError(new ApiError("Couldn't connect to Wages Tracker. Check your internet connection and try again.", 0));
@@ -170,7 +177,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const message = errorBody.code === "INVALID_CLIENT_TIME_ZONE"
       ? TIME_ZONE_FALLBACK_MESSAGE
       : toUserFacingError(errorBody.error || `Request failed (${res.status})`, res.status);
-    throw reportApiError(new ApiError(message, res.status, errorBody.code, errorBody.field, errorBody.suggestion));
+    const error=new ApiError(message, res.status, errorBody.code, errorBody.field, errorBody.suggestion);
+    if(errorBody.code==="RATE_CHANGE_CONFIRMATION_REQUIRED")throw error;
+    throw reportApiError(error);
   }
   return body as T;
 }
@@ -288,6 +297,7 @@ export async function fetchMeWithToken(token: string): Promise<{ user: User }> {
 }
 
 export interface MePatch {
+  combinedGoalEarnings?:number;
   name?: string;
   address?: string;
   workLocationName?: string;
@@ -459,11 +469,13 @@ export function logout(): Promise<void> {
   return request("/auth/logout", { method: "POST" });
 }
 
-export function listShifts(from: string, to: string): Promise<{ shifts: Shift[] }> {
-  return request(`/shifts?from=${from}&to=${to}`);
+export function listShifts(from: string, to: string, jobId?:string): Promise<{ shifts: Shift[] }> {
+  return request(`/shifts?from=${from}&to=${to}`, jobId ? {headers:{"X-Work-Job":jobId}} : {});
 }
 
 export interface ShiftInput {
+  confirmRateChange?:boolean;
+  rateOverride?:number;
   date: string;
   location?: string;
   workLocationId?: string | null;
@@ -495,8 +507,8 @@ export function createShift(input: ShiftInput): Promise<CreateShiftResponse> {
   return request("/shifts", { method: "POST", headers: shiftWriteHeaders(), body: JSON.stringify(input) });
 }
 
-export function patchShift(id: string, patch: Partial<ShiftInput>): Promise<{ shift: Shift }> {
-  return request(`/shifts/${id}`, { method: "PATCH", headers: shiftWriteHeaders(), body: JSON.stringify(patch) });
+export function patchShift(id: string, patch: Partial<ShiftInput>, jobId?:string): Promise<{ shift: Shift }> {
+  return request(`/shifts/${id}`, { method: "PATCH", headers: {...shiftWriteHeaders(),...(jobId?{"X-Work-Job":jobId}:{})}, body: JSON.stringify(patch) });
 }
 
 export function issueShiftClockOutToken(id: string): Promise<{ clockOutToken: string }> {
@@ -517,12 +529,12 @@ export function deleteShift(id: string): Promise<void> {
   return request(`/shifts/${id}`, { method: "DELETE" });
 }
 
-export function listDayExpenses(from: string, to: string): Promise<{ expenses: DayExpense[] }> {
-  return request(`/day-expenses?from=${from}&to=${to}`);
+export function listDayExpenses(from: string, to: string, jobId?:string): Promise<{ expenses: DayExpense[] }> {
+  return request(`/day-expenses?from=${from}&to=${to}`, jobId ? {headers:{"X-Work-Job":jobId}} : {});
 }
 
-export function listWorkLocations(includeArchived = false): Promise<{ locations: WorkLocation[] }> {
-  return request(`/work-locations${includeArchived ? "?includeArchived=true" : ""}`);
+export function listWorkLocations(includeArchived = false, jobId?:string): Promise<{ locations: WorkLocation[] }> {
+  return request(`/work-locations${includeArchived ? "?includeArchived=true" : ""}`,jobId ? {headers:{"X-Work-Job":jobId}} : {});
 }
 
 export function getWorkLocationSuggestions(weekStart: string): Promise<{ suggestions: Record<string, string[]> }> {
@@ -563,8 +575,8 @@ export function setDayExpense(
   });
 }
 
-export function listWeekExtras(from: string, to: string): Promise<{ extras: WeekExtra[] }> {
-  return request(`/week-extras?from=${from}&to=${to}`);
+export function listWeekExtras(from: string, to: string, jobId?:string): Promise<{ extras: WeekExtra[] }> {
+  return request(`/week-extras?from=${from}&to=${to}`, jobId ? {headers:{"X-Work-Job":jobId}} : {});
 }
 
 /** Upserts (or clears, with `amount: null`) the single "other earnings" entry
@@ -605,6 +617,7 @@ export function archiveSpendingCategory(id: string): Promise<void> {
 }
 
 export interface PersonalExpenseInput {
+  jobId?:string|null;
   amountCents: number;
   categoryId: string;
   spentAt: string;
@@ -615,6 +628,7 @@ export interface PersonalExpenseInput {
 }
 
 export function listPersonalExpenses(params: {
+  linkedJobId?:string;
   from?: string;
   to?: string;
   categoryId?: string;
@@ -653,6 +667,13 @@ export function deletePersonalExpense(id: string): Promise<void> {
   return request(`/spending/expenses/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
-export function getSpendingSummary(from: string, to: string): Promise<SpendingSummary> {
-  return request(`/spending/summary?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+export function getSpendingSummary(from: string, to: string,linkedJobId?:string): Promise<SpendingSummary> {
+  return request(`/spending/summary?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${linkedJobId?`&linkedJobId=${encodeURIComponent(linkedJobId)}`:""}`);
 }
+
+export interface JobInput {name:string;role?:string;rate:number;weekStartsOn?:WeekStart;goalHours?:number;goalEarnings?:number;smartRemindersEnabled?:boolean;}
+export function listJobs():Promise<{jobs:Job[];rates:PayRate[]}>{return request("/jobs");}
+export function createJob(input:JobInput):Promise<{job:Job}>{return request("/jobs",{method:"POST",body:JSON.stringify(input)});}
+export function patchJob(id:string,patch:Partial<Omit<JobInput,"rate">>&{archived?:boolean}):Promise<{job:Job}>{return request(`/jobs/${encodeURIComponent(id)}`,{method:"PATCH",body:JSON.stringify(patch)});}
+export interface PayRateInput {locationId:string|null;rate:number|null;effectiveFrom:string;replaceExisting?:boolean;}
+export function addPayRate(jobId:string,input:PayRateInput):Promise<{rate:PayRate;job:Job}>{return request(`/jobs/${encodeURIComponent(jobId)}/rates`,{method:"POST",body:JSON.stringify(input)});}

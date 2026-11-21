@@ -22,18 +22,19 @@ export function dollarsToCents(value: number): number {
 export async function recalculateDayFuelAllowance(
   database: DatabaseExecutor,
   userId: string,
-  date: string
+  date: string,
+  jobId: string = `job_${userId}`
 ): Promise<void> {
   const automaticResult = await database.execute({
     sql: `SELECT work_location_id, MAX(fuel_allowance_snapshot_cents) AS allowance_cents
           FROM shifts
-          WHERE user_id = ? AND date = ?
+          WHERE user_id = ? AND date = ? AND COALESCE(job_id,'job_' || user_id) = ?
             AND sign_in IS NOT NULL
             AND work_location_id IS NOT NULL
             AND fuel_allowance_snapshot_cents IS NOT NULL
             AND fuel_allowance_snapshot_cents > 0
           GROUP BY work_location_id`,
-    args: [userId, date],
+    args: [userId, date, jobId],
   });
   const automaticCents = automaticResult.rows.reduce(
     (total, row) => total + Number(row.allowance_cents || 0),
@@ -41,8 +42,8 @@ export async function recalculateDayFuelAllowance(
   );
 
   const existingResult = await database.execute({
-    sql: "SELECT id, manual_override_cents FROM day_expenses WHERE user_id = ? AND date = ?",
-    args: [userId, date],
+    sql: "SELECT id, manual_override_cents FROM day_expenses WHERE user_id = ? AND date = ? AND COALESCE(job_id,'job_' || user_id) = ?",
+    args: [userId, date, jobId],
   });
   const existing = existingResult.rows[0] as unknown as
     | { id: string; manual_override_cents: number | null }
@@ -61,15 +62,16 @@ export async function recalculateDayFuelAllowance(
   const effectiveCents = manualCents ?? automaticCents;
   await database.execute({
     sql: `INSERT INTO day_expenses
-          (id, user_id, date, fuel_cost, automatic_fuel_cents, manual_override_cents, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(user_id, date) DO UPDATE SET
+          (id, user_id, job_id, date, fuel_cost, automatic_fuel_cents, manual_override_cents, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(user_id, job_id, date) DO UPDATE SET
             fuel_cost = excluded.fuel_cost,
             automatic_fuel_cents = excluded.automatic_fuel_cents,
             updated_at = excluded.updated_at`,
     args: [
       existing?.id ?? randomUUID(),
       userId,
+      jobId,
       date,
       effectiveCents / 100,
       automaticCents,

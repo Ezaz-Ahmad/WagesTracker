@@ -36,11 +36,11 @@ function emptyWeek(weekStart: string): AdminWeekEarnings {
   };
 }
 
-function finishWeek(week: AdminWeekEarnings, rate: number): void {
+function finishWeek(week: AdminWeekEarnings, _rate: number): void {
   for (const day of week.days) {
     day.hours = hours(day.hours);
     day.fuel = money(day.fuel);
-    day.total = money(day.hours * rate + day.fuel);
+    day.total = money(day.wages + day.fuel);
     day.wages = money(day.total - day.fuel);
   }
   week.hours = hours(week.hours);
@@ -49,7 +49,7 @@ function finishWeek(week: AdminWeekEarnings, rate: number): void {
   // Exactly the canonical earningsForRange formula. Derive displayed wages
   // from that rounded total so the monetary breakdown always adds up, even
   // at a floating-point half-cent boundary. Daily values round separately.
-  week.total = money(week.hours * rate + week.fuel + week.extras);
+  week.total = money(week.wages + week.fuel + week.extras);
   week.wages = money(week.total - week.fuel - week.extras);
 }
 
@@ -63,7 +63,8 @@ export async function adminEarningsForUsers(
   database: Client,
   users: readonly EarningsUser[],
   anchor: string,
-  onlyUserId?: string
+  onlyUserId?: string,
+  options: {jobId?:string;groupByJob?:boolean} = {}
 ): Promise<Map<string, AdminEarningsPair>> {
   const pairs = new Map<string, AdminEarningsPair>();
   const days = new Map<string, Map<string, { day: AdminEarningsDay; week: AdminWeekEarnings }>>();
@@ -81,25 +82,28 @@ export async function adminEarningsForUsers(
 
   const from = [...pairs.values()].map((pair) => pair.previousWeek.weekStart).sort()[0];
   const to = [...pairs.values()].map((pair) => pair.week.weekEnd).sort().at(-1)!;
-  const userFilter = onlyUserId ? " AND user_id = ?" : "";
+  const userFilter = (onlyUserId ? " AND user_id = ?" : "")+(options.jobId?" AND COALESCE(job_id,'job_' || user_id) = ?":"");
   const args = onlyUserId ? [from, to, onlyUserId] : [from, to];
+  if(options.jobId)args.push(options.jobId);
+  const key=(row:Record<string,unknown>)=>String(options.groupByJob?row.job_id:row.user_id);
+  const fallbackRates=new Map(users.map(u=>[u.id,u.rate]));
   const [shiftResult, fuelResult, extrasResult] = await Promise.all([
     database.execute({
-      sql: `SELECT user_id, date, sign_in, sign_out FROM shifts WHERE date >= ? AND date <= ?${userFilter}`,
+      sql: `SELECT user_id, COALESCE(job_id,'job_' || user_id) AS job_id, date, sign_in, sign_out, applied_rate_cents FROM shifts WHERE date >= ? AND date <= ?${userFilter}`,
       args,
     }),
     database.execute({
-      sql: `SELECT user_id, date, fuel_cost FROM day_expenses WHERE date >= ? AND date <= ?${userFilter}`,
+      sql: `SELECT user_id, COALESCE(job_id,'job_' || user_id) AS job_id, date, fuel_cost FROM day_expenses WHERE date >= ? AND date <= ?${userFilter}`,
       args,
     }),
     database.execute({
-      sql: `SELECT user_id, week_start, amount FROM week_extras WHERE week_start >= ? AND week_start <= ?${userFilter}`,
+      sql: `SELECT user_id, COALESCE(job_id,'job_' || user_id) AS job_id, effective_date AS week_start, amount FROM week_extras WHERE effective_date >= ? AND effective_date <= ?${userFilter}`,
       args,
     }),
   ]);
 
   for (const row of shiftResult.rows) {
-    const target = days.get(String(row.user_id))?.get(String(row.date));
+    const target = days.get(key(row))?.get(String(row.date));
     if (!target) continue;
     const signIn = row.sign_in == null ? null : String(row.sign_in);
     const signOut = row.sign_out == null ? null : String(row.sign_out);
@@ -107,6 +111,9 @@ export async function adminEarningsForUsers(
     target.week.shiftCount++;
     if (signIn && signOut) {
       const shiftHours = completedShiftHours(signIn, signOut);
+      const rate=Number(row.applied_rate_cents ?? Number(fallbackRates.get(key(row)) ?? 0)*100);
+      const wages=Math.round(shiftHours*rate)/100;
+      target.day.wages+=wages;target.week.wages+=wages;
       target.day.hours += shiftHours;
       target.week.hours += shiftHours;
       target.week.completedShiftCount++;
@@ -116,14 +123,14 @@ export async function adminEarningsForUsers(
     }
   }
   for (const row of fuelResult.rows) {
-    const target = days.get(String(row.user_id))?.get(String(row.date));
+    const target = days.get(key(row))?.get(String(row.date));
     if (!target) continue;
     const fuel = Number(row.fuel_cost ?? 0);
     target.day.fuel += fuel;
     target.week.fuel += fuel;
   }
   for (const row of extrasResult.rows) {
-    const target = days.get(String(row.user_id))?.get(String(row.week_start));
+    const target = days.get(key(row))?.get(String(row.week_start));
     if (target) target.week.extras += Number(row.amount ?? 0);
   }
   for (const user of users) {
@@ -139,17 +146,19 @@ export async function adminAvailableWeeks(
   database: Client,
   user: EarningsUser,
   anchor: string,
-  today = new Date().toISOString().slice(0, 10)
+  today = new Date().toISOString().slice(0, 10),
+  jobId?:string
 ): Promise<string[]> {
+  const filter=jobId?" AND COALESCE(job_id,'job_' || user_id)=?":"";
   const result = await database.execute({
     sql: `SELECT DISTINCT date(record_date, '-' ||
             ((CAST(strftime('%w', record_date) AS INTEGER) - ? + 7) % 7) || ' days') AS week_start
           FROM (
-            SELECT date AS record_date FROM shifts WHERE user_id = ?
-            UNION SELECT date FROM day_expenses WHERE user_id = ?
-            UNION SELECT week_start FROM week_extras WHERE user_id = ?
+            SELECT date AS record_date FROM shifts WHERE user_id = ?${filter}
+            UNION SELECT date FROM day_expenses WHERE user_id = ?${filter}
+            UNION SELECT effective_date FROM week_extras WHERE user_id = ?${filter}
           )`,
-    args: [weekDayIndex(user.week_starts_on), user.id, user.id, user.id],
+    args: jobId?[weekDayIndex(user.week_starts_on),user.id,jobId,user.id,jobId,user.id,jobId]:[weekDayIndex(user.week_starts_on), user.id, user.id, user.id],
   });
   const weeks = new Set([
     startOfWeekISO(today, user.week_starts_on),

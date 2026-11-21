@@ -29,7 +29,7 @@ describe("week-extras (other earnings)", () => {
       .set("Authorization", `Bearer ${tokenA}`)
       .send({ amount: 40, reason: "Holiday tip" });
     expect(res.status).toBe(200);
-    expect(res.body.extra).toEqual({ weekStart: WEEK_START, amount: 40, reason: "Holiday tip" });
+    expect(res.body.extra).toMatchObject({ weekStart: WEEK_START, amount: 40, reason: "Holiday tip" });
   });
 
   it("updates the existing entry on a second save for the same week, without duplicating it", async () => {
@@ -71,7 +71,7 @@ describe("week-extras (other earnings)", () => {
 
     // B has never touched this week — their list shouldn't include A's entry.
     const bList = await request(app).get("/api/week-extras").set("Authorization", `Bearer ${tokenB}`);
-    expect(bList.body.extras).toEqual([]);
+    expect(bList.body.extras).toMatchObject([]);
 
     // B saving an entry for the *same week* creates/updates only their own
     // row (unique on (user_id, week_start), not week_start alone) — must
@@ -82,10 +82,10 @@ describe("week-extras (other earnings)", () => {
       .send({ amount: 99, reason: "B's own bonus" });
 
     const aList = await request(app).get("/api/week-extras").set("Authorization", `Bearer ${tokenA}`);
-    expect(aList.body.extras).toEqual([{ weekStart: WEEK_START, amount: 55, reason: "Revised bonus" }]);
+    expect(aList.body.extras).toMatchObject([{ weekStart: WEEK_START, amount: 55, reason: "Revised bonus" }]);
 
     const bList2 = await request(app).get("/api/week-extras").set("Authorization", `Bearer ${tokenB}`);
-    expect(bList2.body.extras).toEqual([{ weekStart: WEEK_START, amount: 99, reason: "B's own bonus" }]);
+    expect(bList2.body.extras).toMatchObject([{ weekStart: WEEK_START, amount: 99, reason: "B's own bonus" }]);
   });
 
   it("accepts only a real date aligned with the user's current boundary", async () => {

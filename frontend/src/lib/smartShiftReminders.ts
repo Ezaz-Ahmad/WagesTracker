@@ -35,6 +35,7 @@ export interface SmartShiftPattern {
 export type SmartReminderKind = "signIn" | "signOut";
 
 export interface SmartReminderScheduleItem {
+  jobId?:string;
   id: string;
   kind: SmartReminderKind;
   fireAtEpochMs: number;

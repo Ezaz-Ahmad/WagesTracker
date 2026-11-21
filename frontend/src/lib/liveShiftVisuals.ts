@@ -22,8 +22,9 @@ export function withLiveDay(
     return {
       ...day,
       hours,
+      wages:(day.wages??day.hours*rate)+liveHours*rate,
       hoursLabel: `${fmt2(hours)}h`,
-      moneyLabel: `${currency}${fmt2(hours * rate + day.fuelCost)}`,
+      moneyLabel: `${currency}${fmt2((day.wages??day.hours*rate) + liveHours*rate + day.fuelCost)}`,
     };
   });
 }

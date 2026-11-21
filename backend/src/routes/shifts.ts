@@ -1,4 +1,5 @@
-import type { InValue } from "@libsql/client";
+import { jobScope, resolvePay } from "../jobs.js";
+import type { InValue, Transaction } from "@libsql/client";
 import { Router, type Request, type Response } from "express";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -62,7 +63,8 @@ function requestLocalDate(req: Request): string | null {
 async function neighbouringShifts(
   userId: string,
   date: string,
-  excludeId?: string
+  excludeId?: string,
+  database: Pick<Transaction,"execute"> = db
 ): Promise<{ id: string; date: string; signIn: string | null; signOut: string | null }[]> {
   const day = Date.parse(`${date}T00:00:00Z`);
   const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);
@@ -72,7 +74,7 @@ async function neighbouringShifts(
   const args = excludeId
     ? [userId, iso(day - 86_400_000), iso(day + 86_400_000), excludeId]
     : [userId, iso(day - 86_400_000), iso(day + 86_400_000)];
-  const result = await db.execute({ sql, args });
+  const result = await database.execute({ sql, args });
   return (result.rows as unknown as ShiftRow[]).map((r) => ({
     id: r.id,
     date: r.date,
@@ -106,18 +108,19 @@ async function hasOpenShift(userId: string, excludeId?: string): Promise<boolean
 // check produces in the non-race case, rather than a generic 500.
 function isUniqueConstraintError(e: unknown): boolean {
   const message = e instanceof Error ? e.message : String(e);
-  return /unique constraint|sqlite_constraint|constraint failed/i.test(message);
+  return /unique constraint failed:\s*shifts\.user_id|idx_shifts_one_open/i.test(message);
 }
 
 async function findActiveWorkLocation(
   userId: string,
   workLocationId: string | null | undefined,
-  legacyName?: string
+  legacyName?: string,
+  jobId?: string
 ): Promise<WorkLocationRow | null> {
   if (workLocationId) {
     const result = await db.execute({
-      sql: "SELECT * FROM work_locations WHERE id = ? AND user_id = ? AND archived_at IS NULL",
-      args: [workLocationId, userId],
+      sql: "SELECT * FROM work_locations WHERE id = ? AND user_id = ? AND job_id = ? AND archived_at IS NULL",
+      args: [workLocationId, userId, jobId || `job_${userId}`],
     });
     return (result.rows[0] as unknown as WorkLocationRow | undefined) ?? null;
   }
@@ -125,7 +128,7 @@ async function findActiveWorkLocation(
   if (!normalized) return null;
   const result = await db.execute({
     sql: "SELECT * FROM work_locations WHERE user_id = ? AND normalized_name = ? AND archived_at IS NULL",
-    args: [userId, normalized],
+    args: [userId, `${jobId || `job_${userId}`}:${normalized}`],
   });
   return (result.rows[0] as unknown as WorkLocationRow | undefined) ?? null;
 }
@@ -193,7 +196,7 @@ async function clockOutForUser(
     });
     const alreadyEnded = Number(update.rowsAffected) === 0;
     if (!alreadyEnded) {
-      await recalculateDayFuelAllowance(transaction, userId, existing.date);
+      await recalculateDayFuelAllowance(transaction, userId, existing.date, existing.job_id || `job_${userId}`);
     }
     const finalResult = await transaction.execute({
       sql: "SELECT * FROM shifts WHERE id = ? AND user_id = ?",
@@ -271,7 +274,7 @@ shiftsRouter.post(
   })
 );
 
-shiftsRouter.use(requireAuth);
+shiftsRouter.use(requireAuth, jobScope);
 
 shiftsRouter.get(
   "/",
@@ -281,7 +284,8 @@ shiftsRouter.get(
     const to = typeof req.query.to === "string" && DATE_RE.test(req.query.to) ? req.query.to : null;
 
     let query = "SELECT * FROM shifts WHERE user_id = ?";
-    const params: unknown[] = [req.userId!];
+    if(req.jobId) query += " AND COALESCE(job_id,'job_' || user_id) = ?";
+    const params: unknown[] = req.jobId ? [req.userId!,req.jobId] : [req.userId!];
     if (from) {
       query += " AND date >= ?";
       params.push(from);
@@ -360,7 +364,7 @@ shiftsRouter.post(
     }
     const { date, location, workLocationId, signIn, signOut, allowFutureDate } = parsed.data;
 
-    const selectedLocation = await findActiveWorkLocation(req.userId!, workLocationId, location);
+    const selectedLocation = await findActiveWorkLocation(req.userId!, workLocationId, location, req.jobId!);
     if (workLocationId && !selectedLocation) {
       res.status(400).json({ error: "Choose an available work location" });
       return;
@@ -396,15 +400,20 @@ shiftsRouter.post(
     const now = new Date().toISOString();
     const transaction = await db.transaction("write");
     try {
+      const jobState=await transaction.execute({sql:"SELECT archived_at FROM jobs WHERE id=? AND user_id=?",args:[req.jobId!,req.userId!]});
+      if(!jobState.rows.length||jobState.rows[0].archived_at){await transaction.rollback();res.status(409).json({error:"This job is archived. Restore it before adding shifts."});return;}
+      if(findOverlap({date,signIn,signOut},await neighbouringShifts(req.userId!,date,undefined,transaction))){await transaction.rollback();res.status(409).json({error:OVERLAP_MESSAGE});return;}
+      const pay = await resolvePay(transaction, req.userId!, req.jobId!, selectedLocationId, date);
       await transaction.execute({
         sql: `INSERT INTO shifts
-              (id, user_id, date, location, work_location_id, location_snapshot,
+              (id, user_id, job_id, applied_rate_cents, rate_source, job_name_snapshot, date, location, work_location_id, location_snapshot,
                fuel_allowance_snapshot_cents, sign_in, sign_out, created_at, updated_at)
-              VALUES (@id, @userId, @date, @location, @workLocationId, @locationSnapshot,
+              VALUES (@id, @userId, @jobId, @appliedRateCents, @rateSource, @jobName, @date, @location, @workLocationId, @locationSnapshot,
                       @allowanceSnapshotCents, @signIn, @signOut, @now, @now)`,
         args: {
           id,
           userId: req.userId!,
+          jobId:req.jobId!, appliedRateCents:pay.cents, rateSource:pay.source, jobName:req.job!.name,
           date,
           location: locationSnapshot,
           workLocationId: selectedLocationId,
@@ -415,7 +424,7 @@ shiftsRouter.post(
           now,
         },
       });
-      await recalculateDayFuelAllowance(transaction, req.userId!, date);
+      await recalculateDayFuelAllowance(transaction, req.userId!, date, req.jobId!);
       await transaction.commit();
     } catch (e) {
       await transaction.rollback();
@@ -444,6 +453,8 @@ const patchSchema = z.object({
   workLocationId: z.string().uuid("Invalid work location").nullable().optional(),
   signIn: z.string().regex(TIME_RE).nullable().optional(),
   signOut: z.string().regex(TIME_RE).nullable().optional(),
+  confirmRateChange: z.boolean().optional().default(false),
+  rateOverride: z.number().positive().max(1000).refine(n=>Math.abs(n*100-Math.round(n*100))<1e-7).optional(),
   allowFutureDate: z.boolean().optional().default(false),
 });
 
@@ -461,8 +472,8 @@ shiftsRouter.patch(
       return;
     }
     const existingResult = await db.execute({
-      sql: "SELECT * FROM shifts WHERE id = ? AND user_id = ?",
-      args: [req.params.id, req.userId!],
+      sql: "SELECT * FROM shifts WHERE id = ? AND user_id = ? AND COALESCE(job_id,'job_' || user_id) = ?",
+      args: [req.params.id, req.userId!, req.jobId!],
     });
     const existing = existingResult.rows[0] as unknown as ShiftRow | undefined;
     if (!existing) {
@@ -470,9 +481,9 @@ shiftsRouter.patch(
       return;
     }
 
-    const { allowFutureDate, ...updates } = parsed.data;
+    const { allowFutureDate, confirmRateChange, rateOverride, ...updates } = parsed.data;
     const keys = Object.keys(updates) as (keyof typeof updates)[];
-    if (keys.length === 0) {
+    if (keys.length === 0 && rateOverride === undefined) {
       res.status(400).json({ error: "No fields to update" });
       return;
     }
@@ -540,7 +551,8 @@ shiftsRouter.patch(
       selectedLocation = await findActiveWorkLocation(
         req.userId!,
         updates.workLocationId,
-        updates.location
+        updates.location,
+        req.jobId!
       );
       if (updates.workLocationId && !selectedLocation) {
         res.status(400).json({ error: "Choose an available work location" });
@@ -576,14 +588,24 @@ shiftsRouter.patch(
       params.allowanceSnapshotCents = selectedLocation?.fuel_allowance_cents ?? null;
     }
 
+    if(locationChanged || rateOverride !== undefined){
+      const pay=rateOverride!==undefined?{cents:Math.round(rateOverride*100),source:"manual"}:await resolvePay(db,req.userId!,req.jobId!,selectedLocation?.id ?? null,existing.date);
+      if(existing.applied_rate_cents!=null && pay.cents!==existing.applied_rate_cents && !confirmRateChange){res.status(409).json({error:"Changing this shift updates its recorded hourly rate. Review and confirm the new rate.",code:"RATE_CHANGE_CONFIRMATION_REQUIRED",previousRate:existing.applied_rate_cents/100,proposedRate:pay.cents/100});return;}
+      setClauses.push("applied_rate_cents=@appliedRate","rate_source=@rateSource");params.appliedRate=pay.cents;params.rateSource=pay.source;
+    }
     const transaction = await db.transaction("write");
     try {
+      const jobState=await transaction.execute({sql:"SELECT archived_at FROM jobs WHERE id=? AND user_id=?",args:[req.jobId!,req.userId!]});
+      if(!jobState.rows.length||jobState.rows[0].archived_at){await transaction.rollback();res.status(409).json({error:"Restore this job before editing its shifts."});return;}
+      const current=await transaction.execute({sql:"SELECT updated_at FROM shifts WHERE id=? AND user_id=?",args:[existing.id,req.userId!]});
+      if(current.rows[0]?.updated_at!==existing.updated_at){await transaction.rollback();res.status(409).json({error:"This shift changed on another device. Refresh it before saving again."});return;}
+      if(timesChanged&&findOverlap({date:existing.date,signIn:mergedSignIn,signOut:mergedSignOut},await neighbouringShifts(req.userId!,existing.date,existing.id,transaction))){await transaction.rollback();res.status(409).json({error:OVERLAP_MESSAGE});return;}
       await transaction.execute({
         sql: `UPDATE shifts SET ${setClauses.join(", ")}, updated_at = @updatedAt
               WHERE id = @id AND user_id = @userId`,
         args: params,
       });
-      await recalculateDayFuelAllowance(transaction, req.userId!, existing.date);
+      await recalculateDayFuelAllowance(transaction, req.userId!, existing.date, req.jobId!);
       await transaction.commit();
     } catch (e) {
       await transaction.rollback();
@@ -596,8 +618,8 @@ shiftsRouter.patch(
       transaction.close();
     }
     const result = await db.execute({
-      sql: "SELECT * FROM shifts WHERE id = ? AND user_id = ?",
-      args: [req.params.id, req.userId!],
+      sql: "SELECT * FROM shifts WHERE id = ? AND user_id = ? AND COALESCE(job_id,'job_' || user_id) = ?",
+      args: [req.params.id, req.userId!, req.jobId!],
     });
     const row = result.rows[0] as unknown as ShiftRow;
     res.json({ shift: toPublicShift(row) });
@@ -608,8 +630,8 @@ shiftsRouter.delete(
   "/:id",
   asyncHandler<AuthedRequest>(async (req, res) => {
     const existing = await db.execute({
-      sql: "SELECT date FROM shifts WHERE id = ? AND user_id = ?",
-      args: [req.params.id, req.userId!],
+      sql: "SELECT date FROM shifts WHERE id = ? AND user_id = ? AND COALESCE(job_id,'job_' || user_id) = ?",
+      args: [req.params.id, req.userId!, req.jobId!],
     });
     if (existing.rows.length === 0) {
       res.status(404).json({ error: "Shift not found" });
@@ -619,10 +641,10 @@ shiftsRouter.delete(
     const transaction = await db.transaction("write");
     try {
       await transaction.execute({
-        sql: "DELETE FROM shifts WHERE id = ? AND user_id = ?",
-        args: [req.params.id, req.userId!],
+        sql: "DELETE FROM shifts WHERE id = ? AND user_id = ? AND COALESCE(job_id,'job_' || user_id) = ?",
+        args: [req.params.id, req.userId!, req.jobId!],
       });
-      await recalculateDayFuelAllowance(transaction, req.userId!, date);
+      await recalculateDayFuelAllowance(transaction, req.userId!, date, req.jobId!);
       await transaction.commit();
     } catch (error) {
       await transaction.rollback();

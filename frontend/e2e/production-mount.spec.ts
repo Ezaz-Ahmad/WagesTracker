@@ -59,6 +59,7 @@ async function mockAuthenticatedApi(page: Page, options: {
   spendingTotalCents?: number;
   activeShift?: boolean;
   chartData?: boolean;
+  multipleJobs?: boolean;
 } = {}) {
   let summaryRequests = 0;
   let categoryRequests = 0;
@@ -71,9 +72,13 @@ async function mockAuthenticatedApi(page: Page, options: {
     const pathname = new URL(route.request().url()).pathname;
     let body: unknown;
 
-    if (pathname === "/api/me") body = { user: USER };
+    if (pathname === "/api/me") body = { user: options.multipleJobs?{...USER,workspacesEnabled:true}:USER };
+    else if(pathname === "/api/jobs")body={jobs:[
+      {id:"job-one",name:"City Retail",role:"Retail assistant",rate:30,weekStartsOn:"Monday",goalHours:38,goalEarnings:1140,smartRemindersEnabled:false,isPrimary:true,archived:false,createdAt:USER.createdAt},
+      {id:"job-two",name:"Harbour Hotel",role:"Guest services",rate:40,weekStartsOn:"Wednesday",goalHours:10,goalEarnings:400,smartRemindersEnabled:false,isPrimary:false,archived:false,createdAt:USER.createdAt},
+    ],rates:[{id:"rate-one",jobId:"job-one",locationId:null,rate:30,effectiveFrom:"0001-01-01",createdAt:USER.createdAt},{id:"rate-two",jobId:"job-two",locationId:null,rate:40,effectiveFrom:"0001-01-01",createdAt:USER.createdAt}]};
     else if (pathname === "/api/me/sessions") body = { sessions: [] };
-    else if (pathname === "/api/work-locations") body = { locations: WORK_LOCATIONS };
+    else if (pathname === "/api/work-locations") body = { locations: options.multipleJobs?WORK_LOCATIONS.map((l,i)=>({...l,jobId:i?"job-two":"job-one"})):WORK_LOCATIONS };
     else if (pathname === "/api/shifts") {
       const now = new Date();
       const startedAt = new Date(now.getTime() - 75 * 60 * 1000);
@@ -84,7 +89,10 @@ async function mockAuthenticatedApi(page: Page, options: {
       const signIn = [startedAt.getHours(), startedAt.getMinutes(), startedAt.getSeconds()]
         .map((part) => String(part).padStart(2, "0"))
         .join(":");
-      const completedShifts = options.chartData
+      const completedShifts = options.multipleJobs ? [
+        {id:"mixed-rate-shift",jobId:"job-one",jobName:"City Retail",date,workLocationId:WORK_LOCATIONS[0].id,location:"Newcastle City",signIn:"09:00",signOut:"17:00",appliedRate:34},
+        {id:"second-job-shift",jobId:"job-two",jobName:"Harbour Hotel",date,workLocationId:WORK_LOCATIONS[1].id,location:"Gosford",signIn:"18:00",signOut:"20:00",appliedRate:40},
+      ] : options.chartData
         ? [2, 8, 15, 22, 29, 36].map((daysAgo, index) => {
           const shiftDate = new Date(now);
           shiftDate.setDate(now.getDate() - daysAgo);
@@ -774,3 +782,42 @@ test("hiding Spending confirms its impact, preserves wages, and survives reload 
   expect(dataWrites).toEqual([]);
   expect(errors).toEqual([]);
 });
+
+for (const width of [1280, 390, 320]) {
+  test(`multiple jobs preserve recorded pay and keep settings usable at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    const errors = await captureRuntimeErrors(page);
+    await mockAuthenticatedApi(page, { multipleJobs: true });
+    let shiftReads = 0;
+    page.on("request", request => { if (new URL(request.url()).pathname === "/api/shifts") shiftReads++; });
+    await page.goto("/");
+    await expect(page.locator(".workspace-trigger")).toContainText("City Retail");
+    await expect(page.locator(".week-amount").first()).toContainText("272.00");
+    const initialReads = shiftReads;
+    await page.locator(".workspace-trigger").click();
+    await page.getByRole("button", { name: /All jobs Combined earnings/ }).click();
+    await expect(page.getByRole("heading", { name: "Your week, together." })).toBeVisible();
+    await expect(page.locator(".job-overview-amount")).toContainText("352.00");
+    await expect(page.locator(".job-overview-row")).toHaveCount(2);
+    expect(shiftReads).toBe(initialReads);
+    const workspace = await page.locator(".workspace-strip").boundingBox();
+    expect(workspace!.y).toBeLessThan(200);
+    if (width >= 1080) expect(workspace!.x).toBeLessThan(400);
+    expect(await page.locator("body").evaluate(el => el.scrollWidth <= innerWidth)).toBe(true);
+    expect(await page.locator(".job-overview-row").first().evaluate(el => getComputedStyle(el).flexDirection)).toBe("row");
+    await page.getByRole("button", { name: "Report", exact: true }).click();
+    await page.getByRole("button", { name: "Download PDF", exact: true }).click();
+    const exporter = page.getByRole("dialog", { name: "Export wage report" });
+    await expect(exporter).toBeVisible();
+    await exporter.getByRole("radio", { name: /Harbour Hotel/ }).check();
+    await expect(exporter).toContainText("Includes only Harbour Hotel");
+    await exporter.getByRole("button", { name: "Close Export wage report" }).click();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.getByRole("button", { name: /Your jobs/ }).click();
+    await page.locator(".job-settings-open").first().click();
+    await expect(page.getByRole("button", { name: "Update rate", exact: true })).toBeVisible();
+    await expect(page.locator(".workspace-trigger")).toContainText("City Retail");
+    expect(shiftReads).toBe(initialReads);
+    expect(errors).toEqual([]);
+  });
+}

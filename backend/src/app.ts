@@ -13,6 +13,7 @@ import { shiftsRouter } from "./routes/shifts.js";
 import { spendingRouter } from "./routes/spending.js";
 import { weekExtrasRouter } from "./routes/weekExtras.js";
 import { workLocationsRouter } from "./routes/workLocations.js";
+import { jobsRouter } from "./routes/jobs.js";
 
 /**
  * Builds the Express app — every middleware, route, and error handler —
@@ -66,7 +67,7 @@ export function createApp(): express.Express {
       // returns in a response header (see routes/me.ts) — browsers hide all
       // non-simple response headers from cross-origin fetch() by default.
       exposedHeaders: ["X-New-Token"],
-      allowedHeaders: ["Authorization", "Content-Type", "X-Client-Time-Zone"],
+      allowedHeaders: ["Authorization", "Content-Type", "X-Client-Time-Zone", "X-Work-Job"],
     })
   );
   app.use(express.json({ limit: "100kb" }));
@@ -119,6 +120,7 @@ export function createApp(): express.Express {
   app.use("/api/shifts", shiftsRouter);
   app.use("/api/day-expenses", dayExpensesRouter);
   app.use("/api/week-extras", weekExtrasRouter);
+  app.use("/api/jobs", jobsRouter);
   app.use("/api/spending", spendingRouter);
   app.use("/api/admin", adminRouter);
 

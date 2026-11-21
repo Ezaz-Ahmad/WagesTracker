@@ -17,7 +17,7 @@ export interface DayEditorTarget {
 interface DayEditorSheetProps {
   target: DayEditorTarget;
   onClose: () => void;
-  onSave: (shiftId: string | null, values: { signIn: string; signOut: string; location: string; workLocationId: string | null; locationChanged: boolean; fuelCost: number | null; shiftChanged: boolean; fuelChanged: boolean; allowFutureDate: boolean }) => Promise<void>;
+  onSave: (shiftId: string | null, values: { signIn: string; signOut: string; location: string; workLocationId: string | null; locationChanged: boolean; fuelCost: number | null; shiftChanged: boolean; fuelChanged: boolean; allowFutureDate: boolean;rateOverride?:number }) => Promise<void>;
   onDelete: (shiftId: string) => Promise<void>;
 }
 
@@ -54,7 +54,7 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
   // time. With a snapshot, `original` below would still hold the pre-save
   // values after a successful save, so `dirty` would never clear and the
   // form would claim unsaved changes for edits that had already landed.
-  const { today, shifts, dayExpenses, workLocations } = useApp();
+  const { today, shifts, dayExpenses, workLocations,user } = useApp();
   const activeLocations = (workLocations ?? []).filter((item) => !item.archived);
   const dayShifts = useMemo(
     () => shifts.filter((s) => s.date === target.dateISO),
@@ -64,6 +64,7 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
   const [selectedId, setSelectedId] = useState<Selection>(dayShifts[0]?.id ?? null);
   const selected = dayShifts.find((s) => s.id === selectedId) ?? null;
 
+  const [rateRaw,setRateRaw]=useState(String(selected?.appliedRate??user?.rate??0));
   const [signIn, setSignIn] = useState(selected?.signIn ?? "");
   const [signOut, setSignOut] = useState(selected?.signOut ?? "");
   // Legacy shifts created before relational locations existed keep their
@@ -96,6 +97,7 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
     if (loadedIdRef.current === selectedId) return;
     const wasBlank = loadedIdRef.current === null;
     loadedIdRef.current = selectedId;
+    setRateRaw(String(selected?.appliedRate??user?.rate??0));
     setSignIn(selected?.signIn ?? "");
     setSignOut(selected?.signOut ?? "");
     setWorkLocationId(selected?.workLocationId ?? selected?.location ?? (activeLocations.length === 1 ? activeLocations[0].id : ""));
@@ -121,7 +123,9 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
     [selected, workLocations]
   );
   const timeFieldsDirty = signIn !== original.signIn || signOut !== original.signOut;
-  const shiftDirty = signIn !== original.signIn || signOut !== original.signOut || workLocationId !== original.workLocationId;
+  const rateDirty=selected?.appliedRate!=null&&Number(rateRaw)!==selected.appliedRate;
+  const rateValid=!rateDirty||(Number(rateRaw)>0&&Number(rateRaw)<=1000&&Math.abs(Number(rateRaw)*100-Math.round(Number(rateRaw)*100))<1e-7);
+  const shiftDirty = signIn !== original.signIn || signOut !== original.signOut || workLocationId !== original.workLocationId || rateDirty;
   const parsedFuelCost = fuelCost.trim() === "" ? null : Number(fuelCost);
   const fuelValid = parsedFuelCost === null || (
     Number.isFinite(parsedFuelCost)
@@ -141,7 +145,7 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
   // deliberately a confirmable warning, not a permanently disabled form.
   const validation = describeShiftTimes(target.dateISO, signIn || null, signOut || null, true, today);
   const selectedActiveLocation = activeLocations.find((item) => item.id === workLocationId);
-  const canSave = dirty && !saving && fuelValid && (
+  const canSave = dirty && !saving && fuelValid && rateValid && (
     !shiftDirty
     || (!!signIn && !!signOut && validation === null && (!!selected || !!selectedActiveLocation))
   );
@@ -201,6 +205,7 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
         shiftChanged: shiftDirty,
         fuelChanged: fuelDirty,
         allowFutureDate,
+        ...(rateDirty?{rateOverride:Number(rateRaw)}:{}),
       });
       setSaved(true);
       // Deliberately does NOT close or clear the fields. The values stay on
@@ -343,6 +348,7 @@ export function DayEditorSheet({ target, onClose, onSave, onDelete }: DayEditorS
               </select>
             </div>
 
+            {selected?.appliedRate!=null&&<div className="field field-spaced"><label htmlFor="day-editor-applied-rate">Recorded hourly rate (AUD)</label><input id="day-editor-applied-rate" className="input" type="number" min="0.01" max="1000" step="0.01" inputMode="decimal" value={rateRaw} onChange={e=>{setRateRaw(e.target.value);setSaved(false);}} disabled={busy} aria-invalid={!rateValid||undefined}/><span className="field-hint">A rate correction affects this shift only. You will review and confirm the change before it is saved.</span>{rateDirty&&rateValid&&<p className="job-pay-preview">{fmt2(previewHours)}h × ${Number(rateRaw).toFixed(2)}/hr = ${(Math.round(previewHours*Number(rateRaw)*100)/100).toFixed(2)} wages</p>}</div>}
             <div className="field day-editor-fuel-field">
               <label htmlFor="day-editor-fuel">Fuel allowance for this day</label>
               <div className="day-editor-money-input">

@@ -1,3 +1,4 @@
+import { jobScope } from "../jobs.js";
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -14,7 +15,7 @@ import {
 } from "../security/shiftRules.js";
 
 export const dayExpensesRouter = Router();
-dayExpensesRouter.use(requireAuth);
+dayExpensesRouter.use(requireAuth, jobScope);
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const FUTURE_FUEL_DATE_MESSAGE = "You can't record fuel for a future date without confirming it.";
@@ -38,7 +39,8 @@ dayExpensesRouter.get(
     const to = typeof req.query.to === "string" && DATE_RE.test(req.query.to) ? req.query.to : null;
 
     let query = "SELECT * FROM day_expenses WHERE user_id = ?";
-    const params: unknown[] = [req.userId!];
+    if(req.jobId) query += " AND COALESCE(job_id,'job_' || user_id) = ?";
+    const params: unknown[] = req.jobId ? [req.userId!,req.jobId] : [req.userId!];
     if (from) {
       query += " AND date >= ?";
       params.push(from);
@@ -98,25 +100,25 @@ dayExpensesRouter.put(
 
     const transaction = await db.transaction("write");
     try {
-      await recalculateDayFuelAllowance(transaction, req.userId!, date);
+      await recalculateDayFuelAllowance(transaction, req.userId!, date, req.jobId!);
       const existing = await transaction.execute({
-        sql: "SELECT automatic_fuel_cents FROM day_expenses WHERE user_id = ? AND date = ?",
-        args: [req.userId!, date],
+        sql: "SELECT automatic_fuel_cents FROM day_expenses WHERE user_id = ? AND date = ? AND COALESCE(job_id,'job_' || user_id) = ?",
+        args: [req.userId!, date, req.jobId!],
       });
       const automaticCents = Number(existing.rows[0]?.automatic_fuel_cents || 0);
 
       if (manualOverrideCents == null && automaticCents === 0) {
         await transaction.execute({
-          sql: "DELETE FROM day_expenses WHERE user_id = ? AND date = ?",
-          args: [req.userId!, date],
+          sql: "DELETE FROM day_expenses WHERE user_id = ? AND date = ? AND COALESCE(job_id,'job_' || user_id) = ?",
+          args: [req.userId!, date, req.jobId!],
         });
       } else {
         const effectiveCents = manualOverrideCents ?? automaticCents;
         await transaction.execute({
           sql: `INSERT INTO day_expenses
-                (id, user_id, date, fuel_cost, automatic_fuel_cents, manual_override_cents, created_at, updated_at)
-                VALUES (@id, @userId, @date, @fuelCost, @automaticCents, @manualOverrideCents, @now, @now)
-                ON CONFLICT(user_id, date) DO UPDATE SET
+                (id, user_id, job_id, date, fuel_cost, automatic_fuel_cents, manual_override_cents, created_at, updated_at)
+                VALUES (@id, @userId, @jobId, @date, @fuelCost, @automaticCents, @manualOverrideCents, @now, @now)
+                ON CONFLICT(user_id, job_id, date) DO UPDATE SET
                   fuel_cost = @fuelCost,
                   automatic_fuel_cents = @automaticCents,
                   manual_override_cents = @manualOverrideCents,
@@ -124,6 +126,7 @@ dayExpensesRouter.put(
           args: {
             id: randomUUID(),
             userId: req.userId!,
+            jobId: req.jobId!,
             date,
             fuelCost: effectiveCents / 100,
             automaticCents,
@@ -141,8 +144,8 @@ dayExpensesRouter.put(
     }
 
     const result = await db.execute({
-      sql: "SELECT * FROM day_expenses WHERE user_id = ? AND date = ?",
-      args: [req.userId!, date],
+      sql: "SELECT * FROM day_expenses WHERE user_id = ? AND date = ? AND COALESCE(job_id,'job_' || user_id) = ?",
+      args: [req.userId!, date, req.jobId!],
     });
     const row = result.rows[0] as unknown as DayExpenseRow | undefined;
     res.json({ expense: row ? toPublicDayExpense(row) : null });

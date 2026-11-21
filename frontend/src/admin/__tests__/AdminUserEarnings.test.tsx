@@ -50,7 +50,7 @@ describe("AdminUserEarnings", () => {
     expect(screen.getByRole("button", { name: /\$240\.00 total, \$228\.00 wages, \$12\.00 fuel, 8 hours/i })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /\$265\.00 total/i })).toBeNull();
     expect(screen.getByText(/Weekly extras are added separately to the total/)).toBeTruthy();
-    expect(screen.getByText(/current rate of \$28\.50\/hr/).textContent).toContain("Historical amounts use the current rate.");
+    expect(screen.getByText(/recorded hourly rates/).textContent).toContain("Historical pay is preserved.");
     expect(screen.getByText(/This week is still in progress; the comparison uses the full previous week/)).toBeTruthy();
   });
 

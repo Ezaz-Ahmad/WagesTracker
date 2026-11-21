@@ -10,6 +10,8 @@ const SHIFT_CLOCK_OUT_AUDIENCE = "wagestracker-shift-clock-out";
 const SHIFT_CLOCK_OUT_TOKEN_TTL = "7d";
 
 export interface AuthedRequest extends Request {
+  jobId?: string | null;
+  job?: import("./jobs.js").JobRow;
   userId?: string;
   /** The database session (`user_sessions.id`) this request's JWT was
    * validated against — set by requireAuth, never taken from anything the

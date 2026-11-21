@@ -54,6 +54,10 @@ describe("legacy work-location migration", () => {
         VALUES ('shift-main', 'legacy-user', '2026-08-10', 'MAIN OFFICE', '09:00', '10:00', '2026-08-10T00:00:00.000Z', '2026-08-10T00:00:00.000Z');
       INSERT INTO shifts (id, user_id, date, location, sign_in, sign_out, created_at, updated_at)
         VALUES ('shift-legacy', 'legacy-user', '2026-08-11', 'Legacy   Site', '09:00', '10:00', '2026-08-11T00:00:00.000Z', '2026-08-11T00:00:00.000Z');
+      INSERT INTO day_expenses(id,user_id,date,fuel_cost,created_at,updated_at)
+        VALUES('legacy-fuel','legacy-user','2026-08-10',12.5,'2026-08-10','2026-08-10');
+      CREATE TABLE week_extras(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),week_start TEXT NOT NULL,amount REAL NOT NULL,reason TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,UNIQUE(user_id,week_start));
+      INSERT INTO week_extras VALUES('legacy-extra','legacy-user','2026-08-10',25,'Existing bonus','2026-08-10','2026-08-10');
     `);
     legacy.close();
     process.env.DB_PATH = dbPath;
@@ -76,11 +80,11 @@ describe("legacy work-location migration", () => {
     });
     expect(locations.rows).toHaveLength(3);
     expect(locations.rows).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: "Main Office", normalized_name: "main office", archived_at: null }),
-      expect.objectContaining({ name: "Configured Site", normalized_name: "configured site", archived_at: null }),
-      expect.objectContaining({ name: "Legacy Site", normalized_name: "legacy site" }),
+      expect.objectContaining({ name: "Main Office", normalized_name: "job_legacy-user:main office", archived_at: null }),
+      expect.objectContaining({ name: "Configured Site", normalized_name: "job_legacy-user:configured site", archived_at: null }),
+      expect.objectContaining({ name: "Legacy Site", normalized_name: "job_legacy-user:legacy site" }),
     ]));
-    const legacyOnly = locations.rows.find((row) => row.normalized_name === "legacy site");
+    const legacyOnly = locations.rows.find((row) => row.normalized_name === "job_legacy-user:legacy site");
     expect(legacyOnly?.archived_at).toEqual(expect.any(String));
 
     const shifts = await db.execute({
@@ -92,6 +96,12 @@ describe("legacy work-location migration", () => {
       expect.objectContaining({ id: "shift-legacy", location: "Legacy   Site", location_snapshot: "Legacy   Site" }),
     ]));
     expect(shifts.rows.every((row) => typeof row.work_location_id === "string")).toBe(true);
+    const {migrateJobs}=await import("../src/jobMigration.js");
+    await migrateJobs(db);await migrateJobs(db);
+    const jobs=await db.execute("SELECT id,name FROM jobs");expect(jobs.rows).toHaveLength(1);expect(jobs.rows[0].id).toBe("job_legacy-user");
+    const saved=await db.execute("SELECT job_id,applied_rate_cents FROM shifts");expect(saved.rows.every(r=>r.job_id==="job_legacy-user"&&r.applied_rate_cents===1850)).toBe(true);
+    expect((await db.execute("SELECT job_id,fuel_cost FROM day_expenses")).rows).toEqual([{job_id:"job_legacy-user",fuel_cost:12.5}]);
+    expect((await db.execute("SELECT job_id,amount,reason,effective_date FROM week_extras")).rows).toEqual([{job_id:"job_legacy-user",amount:25,reason:"Existing bonus",effective_date:"2026-08-16"}]);
     db.close();
   });
 });

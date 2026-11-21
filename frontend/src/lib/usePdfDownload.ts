@@ -1,3 +1,4 @@
+import { alignExtrasToWeek } from "./pay";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { generateReportPdf } from "../pdf/generateReportPdf";
 import * as api from "./api";
@@ -11,6 +12,8 @@ export interface PdfDownloadRequest {
   currency: string;
   /** Any date inside the requested week. Omit for the current week. */
   weekAnchor?: Date;
+  /** Explicit export scope avoids changing the user's current workspace. */
+  jobScope?: string;
 }
 
 // A real PDF (a handful of shifts, no page breaks) can generate in well
@@ -43,7 +46,7 @@ export function usePdfDownload() {
 
   useEffect(() => () => clearTimeout(confirmTimer.current), []);
 
-  const download = useCallback(async ({ user, today, currency, weekAnchor }: PdfDownloadRequest) => {
+  const download = useCallback(async ({ user, today, currency, weekAnchor, jobScope }: PdfDownloadRequest) => {
     // The disabled button is the visible guard, but state updates do not
     // happen synchronously. This ref also prevents two rapid calls in the
     // same render frame from starting duplicate fetches/downloads.
@@ -54,17 +57,19 @@ export function usePdfDownload() {
     clearTimeout(confirmTimer.current);
     setDownloading(true);
     const startedAt = Date.now();
+    const scope=jobScope??api.getJobScope()??undefined;
     try {
       const anchor = weekAnchor ?? today;
       const weekDays = buildWeekDays(anchor, user.weekStartsOn);
       const from = isoDate(weekDays[0]);
       const to = isoDate(weekDays[6]);
       const [{ shifts }, { expenses }, { extras }] = await Promise.all([
-        api.listShifts(from, to),
-        api.listDayExpenses(from, to),
-        api.listWeekExtras(from, to),
+        scope?api.listShifts(from,to,scope):api.listShifts(from,to),
+        scope?api.listDayExpenses(from,to,scope):api.listDayExpenses(from,to),
+        scope?api.listWeekExtras(from,to,scope):api.listWeekExtras(from,to),
       ]);
-      const data = buildWeekReportData(user, shifts, today, currency, expenses, extras, { weekAnchor: anchor });
+      const reportUser=scope==="all"?{...user,workLocationName:"All jobs · personal summary",multipleLocations:true}:user;
+      const data = buildWeekReportData(reportUser, shifts, today, currency, expenses, scope==="all"?alignExtrasToWeek(extras,"Monday"):extras, { weekAnchor: anchor });
       await generateReportPdf(data);
       const elapsed = Date.now() - startedAt;
       if (elapsed < MIN_VISIBLE_MS) {

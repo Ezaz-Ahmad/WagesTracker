@@ -1,3 +1,4 @@
+import type { Job,PayRate,WorkLocation } from "../lib/types";
 import type { Shift, User, WeekStart } from "../lib/types";
 import { errorHintForStatus, showErrorPopup } from "../lib/errorFeedback";
 import { toUserFacingError } from "../lib/userFacingError";
@@ -62,6 +63,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export interface AdminUserSummary {
+  jobCount?:number;activeJobCount?:number;
   id: string;
   name: string;
   email: string;
@@ -104,6 +106,7 @@ export interface AdminWeekEarnings {
 }
 
 export interface AdminUserEarnings {
+  jobs?: (Job & {earnings?:AdminWeekEarnings})[];weekStartsOn?:WeekStart;
   week: AdminWeekEarnings;
   previousWeek: AdminWeekEarnings;
   availableWeeks: string[];
@@ -117,12 +120,12 @@ export function fetchAllUsers(date?: string): Promise<{ users: AdminUserSummary[
   return request(`/users${date ? `?date=${encodeURIComponent(date)}` : ""}`);
 }
 
-export function fetchUserDetail(id: string): Promise<{ user: User; shifts: Shift[] }> {
+export function fetchUserDetail(id: string): Promise<{ user: User; shifts: Shift[];jobs?:Job[];locations?:WorkLocation[];rates?:PayRate[] }> {
   return request(`/users/${id}`);
 }
 
-export function fetchUserEarnings(id: string, date: string): Promise<AdminUserEarnings> {
-  return request(`/users/${encodeURIComponent(id)}/earnings?date=${encodeURIComponent(date)}`);
+export function fetchUserEarnings(id: string, date: string,jobId?:string): Promise<AdminUserEarnings> {
+  return request(`/users/${encodeURIComponent(id)}/earnings?date=${encodeURIComponent(date)}${jobId&&jobId!=="all"?`&jobId=${encodeURIComponent(jobId)}`:""}`);
 }
 
 export function deleteUser(id: string): Promise<void> {

@@ -1,7 +1,10 @@
+import { alignExtrasToWeek } from "../lib/pay";
+import { useConfirm } from "../components/ConfirmProvider";
+import type { Job,PayRate } from "../lib/types";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
-import { addDays, isoDate, startOfWeek } from "../lib/date";
+import { addDays, isoDate } from "../lib/date";
 import { findOpenShift } from "../lib/aggregate";
 import { activeShiftStartedAt } from "../lib/useLiveElapsedHours";
 import { settleViewportBeforeAuth } from "../lib/viewportHeight";
@@ -127,6 +130,12 @@ function describeBiometricFailure(reason: BiometricFailureReason): string {
 type Status = "loading" | "loggedOut" | "loggedIn";
 
 interface AppContextValue {
+  jobs:Job[];payRates:PayRate[];selectedJobId:string;selectedJob:Job|null;selectJob:(id:string)=>void;
+  allShifts:Shift[];allDayExpenses:DayExpense[];allWeekExtras:WeekExtra[];
+  createJob:(input:api.JobInput)=>Promise<Job>;
+  updateJob:(id:string,patch:Partial<Omit<api.JobInput,"rate">>&{archived?:boolean})=>Promise<void>;
+  addPayRate:(jobId:string,input:api.PayRateInput)=>Promise<void>;
+
   status: Status;
   user: User | null;
   authError: string | null;
@@ -261,8 +270,19 @@ const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const { preference: themePreference } = useTheme();
+  const confirm=useConfirm();
   const [status, setStatus] = useState<Status>("loading");
   const [user, setUser] = useState<User | null>(null);
+  const [jobs,setJobs]=useState<Job[]>([]);
+  const [payRates,setPayRates]=useState<PayRate[]>([]);
+  const [selectedJobId,setSelectedJobId]=useState("all");
+  const selectedJobRef=useRef("all");
+  const loadedJobAccountRef=useRef<string|null>(null);
+  const reloadSequenceRef=useRef(0);
+  const selectJob=useCallback((id:string)=>{
+    selectedJobRef.current=id;api.setJobScope(user?.workspacesEnabled?id:null);setSelectedJobId(id);
+    try{if(user)localStorage.setItem(`wagesTracker.job.v1:${user.id}`,id);}catch{/* Device preferences are optional. */}
+  },[user?.id,user?.workspacesEnabled]);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
   // Held in provider state rather than in the screen that shows it, for two
@@ -309,8 +329,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // avoids replacing an 8:20 notification at the exact minute it should fire.
   const smartReminderDayKey = isoDate(today);
   const smartReminderPatterns = useMemo(
-    () => analyseSmartShiftPatterns(shifts, new Date(`${smartReminderDayKey}T12:00:00`)),
-    [shifts, smartReminderDayKey]
+    () => analyseSmartShiftPatterns(shifts.filter(s=>selectedJobId==="all"||!s.jobId||s.jobId===selectedJobId), new Date(`${smartReminderDayKey}T12:00:00`)),
+    [shifts, smartReminderDayKey,selectedJobId]
   );
 
   useEffect(() => {
@@ -652,22 +672,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [clearTokenSafely, attemptBiometricAuthentication]);
 
   const reloadShifts = useCallback(async (u: User, anchor: Date) => {
+    const sequence=++reloadSequenceRef.current;
     setShiftsLoading(true);
     try {
       const cutoff = new Date(anchor.getFullYear() - RETENTION_YEARS, anchor.getMonth(), anchor.getDate());
-      const weekEnd = addDays(startOfWeek(anchor, u.weekStartsOn), 6);
+      const weekEnd = addDays(anchor, 7);
       setWorkLocationsLoading(true);
-      const [{ shifts }, { expenses }, { extras }, { locations }] = await Promise.all([
-        api.listShifts(isoDate(cutoff), isoDate(weekEnd)),
-        api.listDayExpenses(isoDate(cutoff), isoDate(weekEnd)),
-        api.listWeekExtras(isoDate(cutoff), isoDate(weekEnd)),
+      const [{ shifts }, { expenses }, { extras }, { locations }, jobData] = await Promise.all([
+        u.workspacesEnabled?api.listShifts(isoDate(cutoff),isoDate(weekEnd),"all"):api.listShifts(isoDate(cutoff),isoDate(weekEnd)),
+        u.workspacesEnabled?api.listDayExpenses(isoDate(cutoff),isoDate(weekEnd),"all"):api.listDayExpenses(isoDate(cutoff),isoDate(weekEnd)),
+        u.workspacesEnabled?api.listWeekExtras(isoDate(cutoff),isoDate(weekEnd),"all"):api.listWeekExtras(isoDate(cutoff),isoDate(weekEnd)),
         // Kept non-fatal during rolling deployments: a freshly deployed
         // frontend may briefly reach an older backend instance that does
         // not have the new route yet. Core shift data must still load, and
         // the next automatic refresh will populate locations once the
         // backend rollout finishes.
-        api.listWorkLocations(true).catch(() => ({ locations: [] })),
+        (u.workspacesEnabled?api.listWorkLocations(true,"all"):api.listWorkLocations(true)).catch(() => ({ locations: [] })),
+        u.workspacesEnabled ? api.listJobs() : Promise.resolve({jobs:[{id:`job_${u.id}`,name:u.workLocationName||"My job",role:"",rate:u.rate,weekStartsOn:u.weekStartsOn,goalHours:u.goalHours,goalEarnings:u.goalEarnings,smartRemindersEnabled:!!u.smartRemindersEnabled,isPrimary:true,archived:false,createdAt:u.createdAt}],rates:[] as PayRate[]}),
       ]);
+      if(sequence!==reloadSequenceRef.current)return;
+      const activeJobs=jobData.jobs.filter(j=>!j.archived);
+      let selection=selectedJobRef.current;
+      if(loadedJobAccountRef.current!==u.id){
+        try{selection=localStorage.getItem(`wagesTracker.job.v1:${u.id}`)||findOpenShift(shifts)?.jobId||activeJobs[0]?.id||"all";}catch{selection=activeJobs[0]?.id||"all";}
+        loadedJobAccountRef.current=u.id;
+      }
+      if(selection!=="all"&&!jobData.jobs.some(j=>j.id===selection))selection=activeJobs[0]?.id||"all";
+      if(selection==="all"&&jobData.jobs.length===1)selection=jobData.jobs[0].id;
+      selectedJobRef.current=selection;api.setJobScope(u.workspacesEnabled?selection:null);setSelectedJobId(selection);
+      setJobs(jobData.jobs);setPayRates(jobData.rates);
       setShifts(shifts);
       setDayExpenses(expenses);
       setWeekExtras(extras);
@@ -681,7 +714,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (status === "loggedIn" && user) {
-      void reloadShifts(user, today);
+      void reloadShifts(user, today).catch(error=>setActionError(error instanceof Error?error.message:"Couldn’t load your jobs. Pull to refresh and try again."));
     }
     // Re-fetch when the week-start setting changes the window we need, or the day rolls over.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -791,6 +824,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       void serverLogout;
     }
     api.clearLastActivity();
+    loadedJobAccountRef.current=null;reloadSequenceRef.current++;api.setJobScope(null);setJobs([]);setPayRates([]);
     setUser(null);
     setShifts([]);
     setDayExpenses([]);
@@ -933,7 +967,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           apiBaseUrl: api.getApiOrigin(),
           clockOutToken,
           startedAtEpochMs: activeShiftStartedAt(activeShiftSignIn).getTime(),
-          location: activeShift.location || "Work shift",
+          location: [activeShift.jobName,activeShift.location].filter(Boolean).join(" · ") || "Work shift",
           appearance: themePreference,
         });
         shiftClockOutTokensRef.current.delete(activeShift.id);
@@ -969,7 +1003,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (status !== "loggedIn" || !user || !shiftsLoaded) return;
     let cancelled = false;
 
-    if (!user.smartRemindersEnabled) {
+    const enabledJobs=jobs.filter(j=>!j.archived&&j.smartRemindersEnabled);
+    if (!enabledJobs.length && !(jobs.length===0&&user.smartRemindersEnabled)) {
       setSmartReminderScheduledCount(0);
       void cancelSmartShiftReminderNotifications();
       return;
@@ -977,20 +1012,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const firstName = user.name.trim().split(/\s+/)[0] || "there";
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-    const reminders = buildSmartReminderSchedule({
-      accountId: user.id,
-      firstName,
-      shifts,
-      patterns: smartReminderPatterns,
-      now: new Date(),
-    });
+    const now=new Date();
+    const globalOpen=findOpenShift(shifts);
+    const reminders=jobs.length ? enabledJobs.flatMap(j=>{
+      const jobShifts=shifts.filter(s=>s.jobId===j.id);
+      return buildSmartReminderSchedule({accountId:user.id,firstName,shifts:jobShifts,patterns:analyseSmartShiftPatterns(jobShifts,now),now})
+        .filter(r=>!globalOpen||r.kind==="signOut")
+        .map(r=>({...r,id:`${j.id}:${r.id}`,jobId:j.id,title:`${j.name} · ${r.title}`}));
+    }).sort((a,b)=>a.fireAtEpochMs-b.fireAtEpochMs).slice(0,8) : buildSmartReminderSchedule({accountId:user.id,firstName,shifts,patterns:smartReminderPatterns,now});
     void syncSmartShiftReminderNotifications({ accountId: user.id, timeZone, reminders }).then((result) => {
       if (cancelled) return;
       setSmartReminderAuthorization(result.authorization);
       setSmartReminderScheduledCount(result.scheduledCount);
     });
     return () => { cancelled = true; };
-  }, [status, user, shiftsLoaded, shifts, smartReminderPatterns, smartReminderDayKey]);
+  }, [status, user, shiftsLoaded, shifts, smartReminderPatterns, smartReminderDayKey,jobs]);
 
   const retryConnectivity = useCallback(async () => {
     try {
@@ -1114,15 +1150,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // rethrown even then so a caller mid-`await` never mistakes it for success.
   const updateSettings = useCallback(
     async (patch: api.MePatch): Promise<void> => {
+      const supportsJobs=!!user?.workspacesEnabled;
       try {
-        const { user, extras } = await api.patchMe(patch);
+        const jobKeys=["weekStartsOn","goalHours","goalEarnings","smartRemindersEnabled"] as const;
+        const current=jobs.find(j=>j.id===selectedJobRef.current);
+        const jobPatch:Partial<Omit<api.JobInput,"rate">>={};
+        const accountPatch={...patch};
+        if(!current&&supportsJobs){for(const key of jobKeys)delete accountPatch[key];if(patch.rate!==undefined)delete accountPatch.rate;}
+        if(current&&supportsJobs){for(const key of jobKeys){if(patch[key]!==undefined){Object.assign(jobPatch,{[key]:patch[key]});delete accountPatch[key];}}
+          if(Object.keys(jobPatch).length)await api.patchJob(current.id,jobPatch);
+          if(patch.rate!==undefined){await api.addPayRate(current.id,{locationId:null,rate:patch.rate,effectiveFrom:isoDate(today)});delete accountPatch.rate;}
+        }
+        const { user, extras } = Object.keys(accountPatch).length ? await api.patchMe(accountPatch) : {user: (await api.fetchMe()).user,extras:undefined};
         // A boundary change transactionally re-keys weekly extras on the
         // backend. Apply that returned snapshot in the same render as the
         // new profile so no screen briefly combines the new cycle with stale
         // old week-start keys while the background reload follows.
-        if (extras) setWeekExtras(extras);
+        if (extras) setWeekExtras(cur=>[...cur.filter(e=>e.jobId!==`job_${user.id}`),...extras]);
         setUser(user);
         invalidateSpendingSummaries(user.id);
+        await reloadShifts(user,today);
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) {
           await logout();
@@ -1131,7 +1178,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         throw e;
       }
     },
-    [logout]
+    [logout,jobs,today,reloadShifts,user?.workspacesEnabled]
   );
 
   const setSmartRemindersEnabled = useCallback(async (enabled: boolean): Promise<void> => {
@@ -1241,7 +1288,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const refreshFuelDate = useCallback(async (date: string): Promise<void> => {
-    const { expenses } = await api.listDayExpenses(date, date);
+    const { expenses } = await (api.getJobScope()?api.listDayExpenses(date,date,"all"):api.listDayExpenses(date,date));
     setDayExpenses((current) => [
       ...current.filter((expense) => expense.date !== date),
       ...expenses,
@@ -1293,16 +1340,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [rethrowingAction, refreshFuelDate]
   );
 
+  const patchShiftWithReview=useCallback(async(id:string,patch:Partial<api.ShiftInput>)=>{
+    const existing=shifts.find(s=>s.id===id);
+    try{return await api.patchShift(id,patch,existing?.jobId);}catch(error){
+      if(error instanceof ApiError&&error.code==="RATE_CHANGE_CONFIRMATION_REQUIRED"){
+        if(await confirm(error.message+" Apply the new rate to this shift?"))return api.patchShift(id,{...patch,confirmRateChange:true},existing?.jobId);
+        if(existing)return {shift:existing};
+      }throw error;
+    }
+  },[shifts,confirm]);
   const updateShiftOrThrow = useCallback(
     (id: string, patch: Partial<api.ShiftInput>) =>
       rethrowingAction(async () => {
-        const { shift } = await api.patchShift(id, patch);
+        const { shift } = await patchShiftWithReview(id, patch);
         setShifts((prev) => prev.map((s) => (s.id === id ? shift : s)));
         await refreshFuelDate(shift.date).catch(() => {});
         invalidateSpendingSummaries();
         return shift;
       }),
-    [rethrowingAction, refreshFuelDate]
+    [rethrowingAction, refreshFuelDate,patchShiftWithReview]
   );
 
   const removeShiftOrThrow = useCallback(
@@ -1337,7 +1393,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateShift = useCallback(
     async (id: string, patch: Partial<api.ShiftInput>) => {
       try {
-        const { shift } = await api.patchShift(id, patch);
+        const { shift } = await patchShiftWithReview(id, patch);
         setShifts((prev) => prev.map((s) => (s.id === id ? shift : s)));
         await refreshFuelDate(shift.date).catch(() => {});
         invalidateSpendingSummaries();
@@ -1347,7 +1403,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return undefined;
       }
     },
-    [handleActionError, refreshFuelDate]
+    [handleActionError, refreshFuelDate,patchShiftWithReview]
   );
 
   const clockOutShift = useCallback(
@@ -1386,22 +1442,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // this screen. Rolls back to the previous value if the request fails.
   const setFuelCostOrThrow = useCallback(
     async (date: string, fuelCost: number | null, allowFutureDate = false) => {
+      const jobId=api.getJobScope()||undefined;
       const prev = dayExpenses;
       setDayExpenses((cur) => {
-        const rest = cur.filter((e) => e.date !== date);
-        return fuelCost && fuelCost > 0 ? [...rest, { date, fuelCost }] : rest;
+        const rest = cur.filter((e) => e.date !== date || e.jobId!==jobId);
+        return fuelCost && fuelCost > 0 ? [...rest, { date, fuelCost,jobId }] : rest;
       });
       try {
         const { expense } = allowFutureDate
           ? await api.setDayExpense(date, fuelCost, true)
           : await api.setDayExpense(date, fuelCost);
         setDayExpenses((cur) => [
-          ...cur.filter((item) => item.date !== date),
+          ...cur.filter((item) => item.date !== date || item.jobId!==jobId),
           ...(expense ? [expense] : []),
         ]);
         invalidateSpendingSummaries();
       } catch (e) {
-        setDayExpenses(prev);
+        setDayExpenses(cur=>[...cur.filter(e=>e.date!==date||e.jobId!==jobId),...prev.filter(e=>e.date===date&&e.jobId===jobId)]);
         throw e;
       }
     },
@@ -1425,17 +1482,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // just going through the generic action-error banner.
   const setWeekExtra = useCallback(
     async (weekStart: string, amount: number | null, reason: string): Promise<boolean> => {
+      const jobId=api.getJobScope()||undefined;
       const prev = weekExtras;
       setWeekExtras((cur) => {
-        const rest = cur.filter((w) => w.weekStart !== weekStart);
-        return amount && amount > 0 ? [...rest, { weekStart, amount, reason }] : rest;
+        const rest = cur.filter((w) => w.weekStart !== weekStart || w.jobId!==jobId);
+        return amount && amount > 0 ? [...rest, { weekStart, amount, reason,jobId }] : rest;
       });
       try {
-        await api.setWeekExtra(weekStart, { amount, reason });
+        const {extra}=await api.setWeekExtra(weekStart, { amount, reason });
+        setWeekExtras(cur=>[...cur.filter(w=>w.weekStart!==weekStart||w.jobId!==jobId),...(extra?[extra]:[])]);
         invalidateSpendingSummaries();
         return true;
       } catch (e) {
-        setWeekExtras(prev);
+        setWeekExtras(cur=>[...cur.filter(w=>w.weekStart!==weekStart||w.jobId!==jobId),...prev.filter(w=>w.weekStart===weekStart&&w.jobId===jobId)]);
         if (e instanceof ApiError && e.status === 400) {
           setActionError(e.message);
         } else {
@@ -1600,10 +1659,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // needing an explicit "is this legacy data" branch.
   const isBiometricEnabledForCurrentUser = biometricStatus.enabled && !!user && biometricStatus.accountId === user.id;
 
+  const selectedJob=jobs.find(j=>j.id===selectedJobId)??null;
+  const visibleShifts=useMemo(()=>selectedJobId==="all"?shifts:shifts.filter(s=>!s.jobId||s.jobId===selectedJobId),[shifts,selectedJobId]);
+  const visibleExpenses=useMemo(()=>selectedJobId==="all"?dayExpenses:dayExpenses.filter(e=>!e.jobId||e.jobId===selectedJobId),[dayExpenses,selectedJobId]);
+  const visibleExtras=useMemo(()=>selectedJobId==="all"?alignExtrasToWeek(weekExtras,"Monday"):weekExtras.filter(e=>!e.jobId||e.jobId===selectedJobId),[weekExtras,selectedJobId]);
+  const visibleLocations=useMemo(()=>selectedJobId==="all"?workLocations:workLocations.filter(l=>!l.jobId||l.jobId===selectedJobId),[workLocations,selectedJobId]);
+  const workspaceUser=user ? selectedJob ? {...user,rate:selectedJob.rate,weekStartsOn:selectedJob.weekStartsOn,goalHours:selectedJob.goalHours,goalEarnings:selectedJob.goalEarnings,smartRemindersEnabled:selectedJob.smartRemindersEnabled,workLocationName:selectedJob.name,multipleLocations:visibleLocations.length>1} : {...user,weekStartsOn:"Monday" as const,goalHours:jobs.filter(j=>!j.archived).reduce((n,j)=>n+j.goalHours,0),goalEarnings:user.combinedGoalEarnings||jobs.filter(j=>!j.archived).reduce((n,j)=>n+j.goalEarnings,0)} : null;
+  const createJob=useCallback(async(input:api.JobInput)=>{const {job}=await api.createJob(input);if(user)await reloadShifts(user,today);selectJob(job.id);return job;},[user,today,reloadShifts,selectJob]);
+  const updateJob=useCallback(async(id:string,patch:Partial<Omit<api.JobInput,"rate">>&{archived?:boolean})=>{await api.patchJob(id,patch);if(user)await reloadShifts(user,today);},[user,today,reloadShifts]);
+  const addPayRate=useCallback(async(jobId:string,input:api.PayRateInput)=>{await api.addPayRate(jobId,input);if(user)await reloadShifts(user,today);},[user,today,reloadShifts]);
   const value = useMemo<AppContextValue>(
     () => ({
       status,
-      user,
+      user:workspaceUser,
+      jobs,payRates,selectedJobId,selectedJob,selectJob,allShifts:shifts,allDayExpenses:dayExpenses,allWeekExtras:weekExtras,createJob,updateJob,addPayRate,
       authError,
       authBusy,
       actionError,
@@ -1646,7 +1715,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       revokeSession,
       revokeOtherSessions,
       today,
-      shifts,
+      shifts:visibleShifts,
       shiftsLoading,
       shiftsLoaded,
       createShift,
@@ -1656,15 +1725,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       createShiftOrThrow,
       updateShiftOrThrow,
       removeShiftOrThrow,
-      workLocations,
+      workLocations:visibleLocations,
       workLocationsLoading,
       createWorkLocation,
       updateWorkLocation,
       archiveWorkLocation,
-      dayExpenses,
+      dayExpenses:visibleExpenses,
       setFuelCost,
       setFuelCostOrThrow,
-      weekExtras,
+      weekExtras:visibleExtras,
       setWeekExtra,
       refresh,
       earningsHidden,
@@ -1672,6 +1741,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       hideEarningsNow,
     }),
     [
+      workspaceUser,jobs,payRates,selectedJobId,selectedJob,selectJob,visibleShifts,visibleExpenses,visibleExtras,visibleLocations,createJob,updateJob,addPayRate,
       status,
       user,
       authError,

@@ -140,7 +140,9 @@ function periodLabel(period: Period, from: string, to: string): string {
 }
 
 export function SpendingScreen() {
-  const { today, user, shifts = [] } = useApp();
+  const { today, user, allShifts, shifts:workspaceShifts = [], jobs=[] } = useApp();
+  const shifts=allShifts??workspaceShifts;
+  const [linkedJobId,setLinkedJobId]=useState("");
   const last = findOpenShift(shifts);
   const active = !!last;
   const cacheScope = user?.id ?? "logged-out";
@@ -188,7 +190,7 @@ export function SpendingScreen() {
     loading: summaryLoading,
     error: summaryError,
     refresh: refreshSummary,
-  } = useSpendingSummary(cacheScope, range.from, range.to, !!user && rangeValid);
+  } = useSpendingSummary(cacheScope, range.from, range.to, !!user && rangeValid,linkedJobId||undefined);
   const {
     data: cachedCategories,
     loading: categoriesLoading,
@@ -208,6 +210,7 @@ export function SpendingScreen() {
         from: range.from,
         to: range.to,
         categoryId: appliedCategoryFilter || undefined,
+        linkedJobId:linkedJobId||undefined,
         search: appliedSearch || undefined,
         page: requestedPage,
         pageSize: 20,
@@ -225,7 +228,7 @@ export function SpendingScreen() {
     } finally {
       if (requestId === historyRequestRef.current) setHistoryLoading(false);
     }
-  }, [range.from, range.to, rangeValid, appliedCategoryFilter, appliedSearch]);
+  }, [range.from, range.to, rangeValid, appliedCategoryFilter, appliedSearch,linkedJobId]);
 
   useEffect(() => {
     if (view === "history") void loadHistory(1);
@@ -292,6 +295,7 @@ export function SpendingScreen() {
       </div>
 
       <p className="spending-view-context">{VIEW_COPY[view]}</p>
+      {view!=="categories"&&jobs.length>0&&<div className="spending-job-filter"><label htmlFor="spending-linked-job">Personal spending · one account ledger</label><select className="input" id="spending-linked-job" value={linkedJobId} onChange={e=>setLinkedJobId(e.target.value)}><option value="">Everything · all jobs</option>{jobs.map(j=><option value={j.id} key={j.id}>Linked to {j.name}{j.archived?" (archived)":""}</option>)}</select><small>{linkedJobId?"Linked purchases compared with recorded earnings from all jobs.":"Optional job tags help you filter. Each purchase is counted once."}</small></div>}
 
       {view !== "categories" && (
         <PeriodControls
@@ -778,6 +782,8 @@ function ExpenseDialog({ categories, expense, onClose, onSaved }: {
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const {jobs=[]}=useApp();
+  const [jobId,setJobId]=useState(expense?.jobId||"");
   const activeCategories = categories.filter((category) => !category.archived || category.id === expense?.categoryId);
   const [amount, setAmount] = useState(expense ? (expense.amountCents / 100).toFixed(2) : "");
   const [categoryId, setCategoryId] = useState(expense?.categoryId ?? activeCategories[0]?.id ?? "");
@@ -819,7 +825,7 @@ function ExpenseDialog({ categories, expense, onClose, onSaved }: {
     setBusy(true);
     setError(null);
     try {
-      const input = { amountCents, categoryId, spentAt, merchant, note, paymentMethod: paymentMethod || null };
+      const input = { amountCents, categoryId, spentAt, merchant, note, paymentMethod: paymentMethod || null,jobId:jobId||null };
       if (expense) await api.patchPersonalExpense(expense.id, input);
       else await api.createPersonalExpense({ ...input, clientRequestId: requestId });
       await onSaved();
@@ -839,6 +845,7 @@ function ExpenseDialog({ categories, expense, onClose, onSaved }: {
             <div className="spending-dialog-body">
               {error && <StatusBanner tone="danger">{error}</StatusBanner>}
               <div className="field spending-amount-field"><label htmlFor="expense-amount">Amount</label><span>{CURRENCY}</span><input ref={amountRef} id="expense-amount" className="input" inputMode="decimal" autoComplete="off" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" aria-describedby="expense-amount-hint" data-error-field="expenseAmount" required /><small id="expense-amount-hint">Enter the exact personal expense amount.</small></div>
+              {jobs.length>0&&<div className="field"><label htmlFor="expense-linked-job">Link to a job <span className="field-optional">Optional</span></label><select id="expense-linked-job" className="input" value={jobId} onChange={e=>setJobId(e.target.value)}><option value="">Personal · no job</option>{jobs.filter(j=>!j.archived||j.id===jobId).map(j=><option key={j.id} value={j.id}>{j.name}{j.archived?" (archived)":""}</option>)}</select><span className="field-hint">A tag for your records. Personal spending stays outside employer wage PDFs.</span></div>}
               <fieldset className="fieldset-plain spending-category-picker"><legend>Category</legend><div>{activeCategories.map((category) => <label className={categoryId === category.id ? "is-selected" : ""} key={category.id} style={{ ["--category-colour" as string]: spendingDisplayColour(category.colour) }}><input type="radio" name="expense-category" value={category.id} checked={categoryId === category.id} onChange={() => setCategoryId(category.id)} /><CategoryGlyph icon={category.icon} size={18} /><span>{category.name}</span>{category.archived && <small>Hidden</small>}</label>)}</div></fieldset>
               <div className="spending-form-grid">
                 <div className="field"><label htmlFor="expense-date">Date and time</label><input id="expense-date" className="input" type="datetime-local" value={spentAt} max={localDateTimeValue()} onChange={(e) => setSpentAt(e.target.value)} required /></div>
