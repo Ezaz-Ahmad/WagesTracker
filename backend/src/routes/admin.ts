@@ -1,4 +1,4 @@
-import { userJobs,publicJob,publicRate,type RateRow } from "../jobs.js";
+import { userJobs,publicJob,publicRate,requestDate,type RateRow } from "../jobs.js";
 import { toPublicWorkLocation,type WorkLocationRow } from "../types.js";
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
@@ -61,14 +61,14 @@ adminRouter.get(
       res.status(400).json({ error: adminDateError });
       return;
     }
-    const result = await db.execute(
+    const result = await db.execute({sql:
       `SELECT u.*, COUNT(s.id) AS shift_count, (SELECT COUNT(*) FROM jobs j WHERE j.user_id=u.id) AS job_count, (SELECT COUNT(*) FROM jobs j WHERE j.user_id=u.id AND j.archived_at IS NULL) AS active_job_count,
          (SELECT week_starts_on FROM jobs j WHERE j.user_id=u.id AND j.is_primary=1) AS primary_week_starts_on,
-         (SELECT rate_cents/100.0 FROM pay_rates p JOIN jobs j ON j.id=p.job_id WHERE j.user_id=u.id AND j.is_primary=1 AND p.location_id IS NULL AND p.effective_from<=date('now') ORDER BY p.effective_from DESC LIMIT 1) AS current_default_rate
+         (SELECT rate_cents/100.0 FROM pay_rates p JOIN jobs j ON j.id=p.job_id WHERE j.user_id=u.id AND j.is_primary=1 AND p.location_id IS NULL AND p.effective_from<=? ORDER BY p.effective_from DESC LIMIT 1) AS current_default_rate
        FROM users u
        LEFT JOIN shifts s ON s.user_id = u.id
        GROUP BY u.id
-       ORDER BY u.created_at DESC`
+       ORDER BY u.created_at DESC`,args:[requestDate(req)]}
     );
     const rows = result.rows.map(raw=>({...raw,
       week_starts_on:Number(raw.job_count)>1?"Monday":raw.primary_week_starts_on??raw.week_starts_on,
@@ -106,7 +106,7 @@ adminRouter.get(
       adminAvailableWeeks(db, scopedUser, anchor,undefined,jobId),
       adminEarningsForUsers(db,jobs.map(j=>({id:j.id,rate:user.rate,week_starts_on:scopedUser.week_starts_on})),anchor,user.id,{groupByJob:true}),
     ]);
-    res.json({ ...earnings.get(user.id)!, availableWeeks,weekStartsOn:scopedUser.week_starts_on,jobs:await Promise.all(jobs.map(async j=>({...await publicJob(j,new Date().toISOString().slice(0,10)),earnings:byJob.get(j.id)?.week}))) });
+    res.json({ ...earnings.get(user.id)!, availableWeeks,weekStartsOn:scopedUser.week_starts_on,jobs:await Promise.all(jobs.map(async j=>({...await publicJob(j,requestDate(req)),earnings:byJob.get(j.id)?.week}))) });
   })
 );
 
@@ -126,7 +126,7 @@ adminRouter.get(
     const shiftRows = shiftsResult.rows as unknown as ShiftRow[];
     const jobs=await userJobs(userRow.id);
     const [locations,rates]=await Promise.all([db.execute({sql:"SELECT * FROM work_locations WHERE user_id=? ORDER BY name",args:[userRow.id]}),db.execute({sql:"SELECT * FROM pay_rates WHERE user_id=? ORDER BY effective_from DESC",args:[userRow.id]})]);
-    res.json({ user: toPublicUser(userRow), shifts: shiftRows.map(toPublicShift),jobs:await Promise.all(jobs.map(j=>publicJob(j,new Date().toISOString().slice(0,10)))),locations:(locations.rows as unknown as WorkLocationRow[]).map(toPublicWorkLocation),rates:(rates.rows as unknown as RateRow[]).map(publicRate) });
+    res.json({ user: toPublicUser(userRow), shifts: shiftRows.map(toPublicShift),jobs:await Promise.all(jobs.map(j=>publicJob(j,requestDate(req)))),locations:(locations.rows as unknown as WorkLocationRow[]).map(toPublicWorkLocation),rates:(rates.rows as unknown as RateRow[]).map(publicRate) });
   })
 );
 

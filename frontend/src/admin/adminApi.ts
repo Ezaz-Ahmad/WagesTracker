@@ -40,7 +40,7 @@ function reportAdminError(error: AdminApiError): AdminApiError {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getAdminToken();
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const headers: Record<string, string> = { "Content-Type": "application/json", "X-Client-Time-Zone":Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC" };
   if (token) headers.Authorization = `Bearer ${token}`;
 
   let res: Response;
