@@ -122,6 +122,15 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+      - name: Upload native app launch checks
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ios-app-launch-checks
+          path: test-results/ios-app-launch
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Upload unsigned Simulator app
         if: success()
         uses: actions/upload-artifact@v6

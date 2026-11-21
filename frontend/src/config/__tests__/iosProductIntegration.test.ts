@@ -15,6 +15,18 @@ function pngDimensions(path: URL): [number, number] {
 }
 
 describe("iOS product integration configuration", () => {
+  it("connects a single scene to the bridge and preserves cold and warm link delivery", () => {
+    const info = readFileSync(new URL("../../../../ios/App/App/Info.plist", import.meta.url), "utf8");
+    const scene = readFileSync(new URL("../../../../ios/App/App/SceneDelegate.swift", import.meta.url), "utf8");
+    expect(info).toContain("UIApplicationSceneManifest");
+    expect(info).toMatch(/UIApplicationSupportsMultipleScenes<\/key>\s*<false\/>/);
+    expect(info).toContain("$(PRODUCT_MODULE_NAME).SceneDelegate");
+    expect(info).toMatch(/UISceneStoryboardFile<\/key>\s*<string>Main<\/string>/);
+    expect(scene).toContain("connectionOptions.urlContexts");
+    expect(scene).toContain("connectionOptions.userActivities");
+    expect(scene).toContain("openURLContexts");
+    expect(scene).toContain("ApplicationDelegateProxy.shared.application");
+  });
   it("declares the Filesystem timestamp reason and includes the app manifest in target resources", () => {
     const privacy = readFileSync(privacyPath, "utf8");
     const project = readFileSync(projectPath, "utf8");

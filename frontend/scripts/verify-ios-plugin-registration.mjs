@@ -70,6 +70,11 @@ function checkCompiled(pluginClassName) {
 
 checkCompiled('BiometricAuthPlugin');
 checkCompiled('ActiveShiftActivityPlugin');
+checkCompiled('SceneDelegate');
+const applicationInfo = await read('ios/App/App/Info.plist');
+if (!applicationInfo.includes('UIApplicationSceneManifest') || !applicationInfo.includes('$(PRODUCT_MODULE_NAME).SceneDelegate') || !/<key>UISceneStoryboardFile<\/key>\s*<string>Main<\/string>/.test(applicationInfo)) {
+  fail('The iOS 27 scene lifecycle must load SceneDelegate and the Main bridge storyboard.');
+}
 
 // 2. A bridge view controller subclass must exist, be compiled into the
 //    target the same way, and actually call registerPluginInstance with
