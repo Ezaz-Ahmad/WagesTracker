@@ -34,7 +34,7 @@ export function appleClient({ keyId, issuerId, privateKey, fetchImpl = fetch }) 
       // Report Apple's bounded error codes only; response details may contain
       // account data and must never enter Actions logs.
       const codes = (failure.errors ?? []).map(error => error.code).filter(code => typeof code === "string" && /^[A-Z0-9_.]{1,100}$/.test(code)).slice(0, 3);
-      throw Object.assign(new Error(`App Store Connect request failed (${response.status})${codes.length ? `: ${codes.join(", ")}` : ""}. Credentials were not logged.`), { status: response.status });
+      throw Object.assign(new Error(`App Store Connect ${method} ${url.pathname} failed (${response.status})${codes.length ? `: ${codes.join(", ")}` : ""}. Credentials were not logged.`), { status: response.status });
     }
     return response.status === 204 ? {} : response.json();
   };
@@ -51,7 +51,7 @@ export async function verifyAppleApplication(request) {
 /** Operates on one exact build and the pre-existing internal group only.
  * Does not create groups/testers, change notification preferences, submit
  * beta review, select an App Store version or release an app publicly. */
-export async function confirmTestFlight({ request, version, buildNumber, now = Date.now, sleep = ms => new Promise(done => setTimeout(done, ms)), timeoutMs = 20 * 60_000, log = console.log }) {
+export async function confirmTestFlight({ request, version, buildNumber, assignBuild = true, now = Date.now, sleep = ms => new Promise(done => setTimeout(done, ms)), timeoutMs = 20 * 60_000, log = console.log }) {
   if (!/^\d+\.\d+\.\d+$/.test(version) || !/^[1-9]\d*$/.test(String(buildNumber))) throw new Error("Invalid release version or build number");
   const appId = await verifyAppleApplication(request);
   const deadline = now() + timeoutMs;
@@ -69,18 +69,26 @@ export async function confirmTestFlight({ request, version, buildNumber, now = D
         if (!release || release.attributes.version !== version || release.attributes.platform !== "IOS") throw new Error("Apple build version/platform does not match this release; refusing to distribute");
         if (["FAILED", "INVALID"].includes(state) || build.attributes.expired) throw new Error(`Apple rejected or expired the uploaded build (${state})`);
         if (state === "VALID") {
+          log(`Apple processed ${version} (${buildNumber}); checking the existing internal group.`);
           const groups = await request(`/v1/apps/${encodeURIComponent(appId)}/betaGroups?limit=200`);
           const target = (groups.data ?? []).filter(group => group.attributes.name === INTERNAL_GROUP && group.attributes.isInternalGroup === true);
           if (target.length !== 1) throw new Error("The existing WagesTracker internal tester group was not found unambiguously");
-          const membership = await request(`/v1/builds/${encodeURIComponent(build.id)}/betaGroups?limit=200`);
-          if (!(membership.data ?? []).some(group => group.id === target[0].id)) {
-            await request(`/v1/betaGroups/${encodeURIComponent(target[0].id)}/relationships/builds`, "POST", { data: [{ type: "builds", id: build.id }] });
-            log(`Assigned ${version} (${buildNumber}) to the existing internal tester group.`);
+          // Automatic groups already grant access to every processed build.
+          // Do not try to modify their explicit build relationships.
+          let groupAccess = target[0].attributes.hasAccessToAllBuilds === true;
+          if (!groupAccess) {
+            const membership = await request(`/v1/builds/${encodeURIComponent(build.id)}/betaGroups?limit=200`);
+            if (!(membership.data ?? []).some(group => group.id === target[0].id)) {
+              if (!assignBuild) throw new Error("Build is not assigned to the existing internal group; read-only confirmation will not change it");
+              await request(`/v1/betaGroups/${encodeURIComponent(target[0].id)}/relationships/builds`, "POST", { data: [{ type: "builds", id: build.id }] });
+              log(`Assigned ${version} (${buildNumber}) to the existing internal tester group.`);
+            }
+            const confirmed = await request(`/v1/builds/${encodeURIComponent(build.id)}/betaGroups?limit=200`);
+            groupAccess = (confirmed.data ?? []).some(group => group.id === target[0].id);
           }
-          const confirmed = await request(`/v1/builds/${encodeURIComponent(build.id)}/betaGroups?limit=200`);
           const detail = await request(`/v1/builds/${encodeURIComponent(build.id)}/buildBetaDetail`);
           state = detail.data?.attributes.internalBuildState ?? "WAITING_FOR_INTERNAL_TESTING";
-          if ((confirmed.data ?? []).some(group => group.id === target[0].id) && ["IN_BETA_TESTING", "READY_FOR_BETA_TESTING"].includes(state)) {
+          if (groupAccess && ["IN_BETA_TESTING", "READY_FOR_BETA_TESTING"].includes(state)) {
             log(`TestFlight ready: ${version} (${buildNumber}); processing VALID; internal state ${state}; group ${INTERNAL_GROUP}.`);
             return { version, buildNumber: String(buildNumber), buildId: build.id, appId, group: INTERNAL_GROUP, internalState: state };
           }
@@ -100,7 +108,7 @@ export async function confirmTestFlight({ request, version, buildNumber, now = D
 async function main() {
   const env = process.env;
   const mode = process.argv[2];
-  if (mode && mode !== "--preflight") throw new Error("Unknown TestFlight command");
+  if (mode && !["--preflight", "--check-only"].includes(mode)) throw new Error("Unknown TestFlight command");
   if (env.GITHUB_ACTIONS !== "true" || env.GITHUB_REF !== "refs/heads/main" || env.GITHUB_RUN_ATTEMPT !== "1" || env.IOS_BUNDLE_ID !== BUNDLE_ID) throw new Error("TestFlight confirmation is restricted to a fresh protected-main delivery");
   if (!/^[A-Z0-9]{10}$/.test(env.ASC_KEY_ID ?? "") || !/^[0-9a-f-]{36}$/i.test(env.ASC_ISSUER_ID ?? "")) throw new Error("App Store Connect credentials are not configured");
   const privateKey = await readFile(join(homedir(), ".appstoreconnect", "private_keys", `AuthKey_${env.ASC_KEY_ID}.p8`), "utf8");
@@ -112,7 +120,7 @@ async function main() {
     console.log(`Verified existing Apple application ${appId} (${BUNDLE_ID}) before signing. Validation and upload will use this explicit app ID.`);
     return;
   }
-  await confirmTestFlight({ request, version: env.IOS_APP_VERSION, buildNumber: env.IOS_BUILD_NUMBER });
+  await confirmTestFlight({ request, version: env.IOS_APP_VERSION, buildNumber: env.IOS_BUILD_NUMBER, assignBuild: mode !== "--check-only" });
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().catch(error => { console.error(error.message); process.exitCode = 1; });

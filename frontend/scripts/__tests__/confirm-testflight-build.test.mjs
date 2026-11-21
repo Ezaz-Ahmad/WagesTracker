@@ -5,7 +5,7 @@ import { appleClient, APPLE_APP_ID, confirmTestFlight, INTERNAL_GROUP, signedTok
 
 const app = { id: APPLE_APP_ID, attributes: { bundleId: "com.ezazahmad.wagestracker" } };
 
-function fixture({ version = "1.24.0", platform = "IOS", internal = true, assigned = false, processing = "VALID", internalState = "IN_BETA_TESTING" } = {}) {
+function fixture({ version = "1.24.0", platform = "IOS", internal = true, automatic = false, assigned = false, processing = "VALID", internalState = "IN_BETA_TESTING" } = {}) {
   const writes = [];
   const request = async (path, method = "GET", body) => {
     if (method === "POST") { writes.push({ path, body }); assigned = true; return {}; }
@@ -15,7 +15,7 @@ function fixture({ version = "1.24.0", platform = "IOS", internal = true, assign
       data: [{ id: "build", attributes: { version: "53", processingState: processing }, relationships: { preReleaseVersion: { data: { id: "release" } } } }],
       included: [{ id: "release", type: "preReleaseVersions", attributes: { version, platform } }],
     };
-    if (url.pathname === `/v1/apps/${APPLE_APP_ID}/betaGroups`) return { data: [{ id: "internal-group", attributes: { name: INTERNAL_GROUP, isInternalGroup: internal } }] };
+    if (url.pathname === `/v1/apps/${APPLE_APP_ID}/betaGroups`) return { data: [{ id: "internal-group", attributes: { name: INTERNAL_GROUP, isInternalGroup: internal, hasAccessToAllBuilds: automatic } }] };
     if (url.pathname === "/v1/builds/build/betaGroups") return { data: assigned ? [{ id: "internal-group" }] : [] };
     if (url.pathname === "/v1/builds/build/buildBetaDetail") return { data: { attributes: { internalBuildState: internalState } } };
     throw new Error(`Unexpected request: ${path}`);
@@ -52,6 +52,20 @@ test("assigns only the exact processed build to the existing internal group and 
 test("does not write when the build is already assigned", async () => {
   const source = fixture({ assigned: true });
   await run(source);
+  assert.deepEqual(source.writes, []);
+});
+test("checks automatic internal distribution without modifying build relationships", async () => {
+  const source = fixture({ automatic: true });
+  const result = await run({ assignBuild: false, request: async (...args) => {
+    if (args[1] || args[0].includes("/builds/build/betaGroups")) throw new Error("Automatic groups must not be modified or require explicit membership");
+    return source.request(...args);
+  } });
+  assert.equal(result.internalState, "IN_BETA_TESTING");
+  assert.deepEqual(source.writes, []);
+});
+test("read-only recovery refuses to assign an unassigned manual group", async () => {
+  const source = fixture();
+  await assert.rejects(run({ ...source, assignBuild: false }), /read-only confirmation/);
   assert.deepEqual(source.writes, []);
 });
 test("refuses a mismatched marketing version or non-iOS build before any write", async () => {
@@ -104,6 +118,7 @@ test("reports Apple's agreement error code without response details or credentia
   await assert.rejects(request("/v1/apps"), error => {
     assert.equal(error.status, 403);
     assert.match(error.message, /REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED/);
+    assert.match(error.message, /GET \/v1\/apps failed \(403\)/);
     assert.doesNotMatch(error.message, /private account|private-issuer|TESTKEY/);
     return true;
   });

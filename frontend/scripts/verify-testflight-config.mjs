@@ -27,6 +27,14 @@ const [workflow, infoPlist, project, frontendPackage, lockfile, nativeConfig, ca
   source("frontend/capacitor.config.ts"),
   source("ios/App/App/AppDelegate.swift"),
 ]);
+const availabilityWorkflow = await source(".github/workflows/ios-testflight-check.yml");
+requireMatch(availabilityWorkflow, /^on:\s*\n\s+workflow_dispatch:/mu, "availability check must be manually dispatched");
+requireMatch(availabilityWorkflow, /github\.event_name == 'workflow_dispatch'.*github\.ref == 'refs\/heads\/main'.*github\.event\.repository\.fork == false/su, "availability check must use non-fork protected main");
+requireMatch(availabilityWorkflow, /environment:\s*\n\s+name: testflight/mu, "availability check must use the protected environment");
+requireMatch(availabilityWorkflow, /group: testflight-production\s*\n\s+cancel-in-progress: false/mu, "availability checks must serialize with signed delivery");
+requireMatch(availabilityWorkflow, /node frontend\/scripts\/confirm-testflight-build\.mjs --check-only/u, "recovery must be read-only and never reupload a build");
+requireMatch(availabilityWorkflow, /if: always\(\)/u, "availability check must always clean its API credential");
+requireAbsent(availabilityWorkflow, /altool|xcodebuild|IOS_DISTRIBUTION|IOS_APP_STORE_PROFILE|actions\/upload-artifact|\bset\s+-x\b|\bprintenv\b|^\s+\S+: write\s*$/mu, "availability check cannot sign, upload, dump secrets or request write permissions");
 
 requireMatch(workflow, /^on:\s*\n\s+workflow_dispatch:\s*\{?\}?\s*$/mu, "workflow must expose only workflow_dispatch");
 requireAbsent(workflow, /^\s+(?:push|pull_request|schedule):/mu, "signed delivery must not run for pushes, PRs or schedules");
