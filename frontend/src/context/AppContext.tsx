@@ -1129,6 +1129,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // unhandled promise rejection.
   const handleActionError = useCallback(
     async (e: unknown, fallback: string) => {
+      if(e instanceof ApiError&&e.code==="RATE_CHANGE_CANCELLED")return;
       if (e instanceof ApiError && e.status === 401) {
         await logout();
         setAuthError("Your sign-in expired. Please log in again.");
@@ -1345,7 +1346,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try{return await api.patchShift(id,patch,existing?.jobId);}catch(error){
       if(error instanceof ApiError&&error.code==="RATE_CHANGE_CONFIRMATION_REQUIRED"){
         if(await confirm(error.message+" Apply the new rate to this shift?"))return api.patchShift(id,{...patch,confirmRateChange:true},existing?.jobId);
-        if(existing)return {shift:existing};
+        throw new ApiError("Rate change cancelled. Your shift has not been changed; you can keep editing.",409,"RATE_CHANGE_CANCELLED");
       }throw error;
     }
   },[shifts,confirm]);

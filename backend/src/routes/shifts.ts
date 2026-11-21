@@ -590,7 +590,7 @@ shiftsRouter.patch(
 
     if(locationChanged || rateOverride !== undefined){
       const pay=rateOverride!==undefined?{cents:Math.round(rateOverride*100),source:"manual"}:await resolvePay(db,req.userId!,req.jobId!,selectedLocation?.id ?? null,existing.date);
-      if(existing.applied_rate_cents!=null && pay.cents!==existing.applied_rate_cents && !confirmRateChange){res.status(409).json({error:"Changing this shift updates its recorded hourly rate. Review and confirm the new rate.",code:"RATE_CHANGE_CONFIRMATION_REQUIRED",previousRate:existing.applied_rate_cents/100,proposedRate:pay.cents/100});return;}
+      if(existing.applied_rate_cents!=null && pay.cents!==existing.applied_rate_cents && !confirmRateChange){res.status(409).json({error:`This shift's recorded rate would change from $${(existing.applied_rate_cents/100).toFixed(2)}/hr to $${(pay.cents/100).toFixed(2)}/hr. Review and confirm before saving.`,code:"RATE_CHANGE_CONFIRMATION_REQUIRED",previousRate:existing.applied_rate_cents/100,proposedRate:pay.cents/100});return;}
       setClauses.push("applied_rate_cents=@appliedRate","rate_source=@rateSource");params.appliedRate=pay.cents;params.rateSource=pay.source;
     }
     const transaction = await db.transaction("write");
