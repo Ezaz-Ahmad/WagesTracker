@@ -1,5 +1,7 @@
 # Wages Tracker name and iOS update prompts
 
+**Last reviewed:** 22 November 2026 · application source 1.27.0
+
 The user-facing product name is **Wages Tracker**. The iPhone home-screen name
 (`CFBundleDisplayName`), Capacitor name, PWA title, UI, reports and email copy
 use this spelling. The existing bundle ID, App Store ID, URL scheme, storage
@@ -37,16 +39,17 @@ All checks are optional: an unavailable App Store cannot block app use.
 
 ## First rollout and App Store metadata
 
-Version **1.21.0**, currently public, has no native App Store update checker.
-It cannot acquire this popup through a backend change or a TestFlight upload.
-Those users need Apple's automatic updates or a manual first update to a
-release containing this feature. Later public releases can then trigger the
-popup without any hardcoded latest-version change.
+Apple's [Australian listing](https://apps.apple.com/au/app/wages-tracker/id6801702467),
+checked on 22 November 2026, shows **Wages Tracker 1.23.1**, published
+11 October 2026. It includes the native update checker. Older **1.21.0**
+installations need Apple's automatic updates or a manual first update;
+a backend deployment or TestFlight upload cannot add this feature to them.
+Later public releases trigger the popup without a hardcoded latest version.
 
 The **Wages Tracker** listing name was saved for the existing English
 (Australia) localization and included in the **1.23.1 (52)** submission on
-11 October 2026. App Review showed **Waiting for Review**; the public listing
-retains its previous name until the update is released. Future name changes
+11 October 2026. App Review showed **Waiting for Review** at submission;
+the name is now reflected in the public listing. Future name changes
 must be saved under **App Information → Localizable Information → Name** for
 each supported localization and included with the next review submission.
 The binary display name alone does not rename the listing. Keep the existing
@@ -54,6 +57,8 @@ App Store and bundle identities. See the [App Review guide](app-store-review.md)
 
 TestFlight uploads do not trigger App Store prompts. Apple must approve and
 publish a numerically newer version, and its public catalog must reflect it.
+Current **1.27.0 (58)** is an internal TestFlight build, so public 1.23.1
+does not show a prompt for that beta.
 The App Store controls whether its listing shows **Update**, **Open**, or a
 cloud download button. The app opens the listing and does not install itself.
 

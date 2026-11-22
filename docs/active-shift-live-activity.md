@@ -2,7 +2,7 @@
 
 **Implemented platform:** iOS native application
 
-**Last reviewed:** 11 October 2026
+**Last reviewed:** 22 November 2026, for 1.27.0
 
 When the user enables **Settings → Profile & preferences → Active shift
 notification**, Wages Tracker uses a real ActivityKit Live Activity for an open
@@ -15,7 +15,7 @@ suspended, the screen is locked, or the user is in another app.
 
 ## Lock Screen and Dynamic Island design
 
-The Lock Screen panel groups the shift status and location with a clear
+The Lock Screen panel groups the job, shift status and location with a clear
 **End Shift** action, a large elapsed timer, and the start time/date. The date
 helps distinguish overnight shifts. The expanded Dynamic Island uses the same
 hourly chart and actions; compact presentations retain the elapsed timer.
@@ -150,7 +150,8 @@ the PWA is closed and neither provides a production clock-out action.
 
 The required native milestone is:
 
-1. Add and commit the Capacitor 8.4.3 Android platform from the existing shared
+1. Add and commit the Android platform at the same Capacitor version as the
+   shared runtime (currently **8.6.2**), using the existing shared
    frontend contract.
 2. Add a Kotlin `ActiveShiftActivity` Capacitor plugin backed by a
    `START_STICKY` foreground service and one low-importance notification

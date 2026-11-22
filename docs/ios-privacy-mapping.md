@@ -2,7 +2,9 @@
 
 This document is the review record for `ios/App/App/PrivacyInfo.xcprivacy` and the App Store Connect privacy questionnaire. It must be re-audited whenever a native plugin, SDK, backend data field, analytics tool or advertising feature is added.
 
-**Last reviewed:** 11 October 2026, for the 1.23.1 application source and App Review submission. Tab visibility extends existing device-local layout preferences; the security patch updates existing dependencies without adding a permission, analytics event, or backend data field. App Store Connect's six linked App Functionality data types were checked and retained for this submission.
+**Source documentation reviewed:** 22 November 2026, for 1.27.0. The committed manifest retains six linked App Functionality data types, with no tracking. Multi-job work adds employer profiles, location pay schedules and recorded rate snapshots to account/work data. Job deletion can remove explicitly tagged spending. Conflict warnings disclose only the signed-in user's necessary schedule fields; scoped Lock Screen credentials cannot read other jobs.
+
+**App Store Connect questionnaire:** last checked for the 1.23.1 submission on 11 October 2026. The current 1.27.0 TestFlight delivery does not update that questionnaire. Reconcile it with the current source and public policy before a future public submission.
 
 ## Data collection
 
@@ -13,11 +15,13 @@ All declared data is linked to the signed-in Wages Tracker account, used only fo
 | Name | Account name | Account display and named PDF reports; API/Render and Turso |
 | Email address | Sign-in email | Authentication and account support; API/Render and Turso |
 | Physical address | Home and work addresses | Shared commute/work profile features; API/Render and Turso |
-| Other financial information | Pay rate, goals, shifts, work expenses, other earnings, and optional personal spending amounts/categories/dates/merchant titles/notes/payment-method labels | Wage calculations, personal spending history and comparisons, and reports; API/Render and Turso |
+| Other financial information | Job/location pay schedules, recorded shift rates, goals, shifts, work expenses, other earnings, and optional personal spending amounts/categories/dates/merchant titles/notes/payment-method labels and job tags | Wage calculations, personal spending history and comparisons, and reports; API/Render and Turso |
 | User ID | Internal account and session identifiers | Authentication, isolation and session security; API/Render and Turso |
 | Device ID | Random installation identifier | Session rotation and device management; API/Render and Turso |
 
 Vercel serves the web build and processes ordinary request metadata. Render hosts the API and processes request/authentication metadata and operational logs. Turso stores the account, work, optional personal-spending and session records listed above. Weekly wage PDF bytes are created on-device and are not uploaded as files; personal spending is not added to those wage PDFs. On iOS, the user explicitly chooses destinations through Apple’s standard share sheet.
+
+Work records are isolated by account and job. Permanent job deletion removes that job's related work and explicitly tagged personal spending after an impact review; other jobs and unlinked spending remain. Account deletion removes all dependent records. Existing exported PDFs remain wherever the user saved or shared them. The public health endpoint exposes only a validated public source revision, without account data or credentials.
 
 ## Personal Spending Tracker review note (20 August 2026)
 

@@ -1,12 +1,12 @@
 # Smart Shift Reminders
 
-**Status:** source-complete; native device regression required before release
+**Status:** included in 1.27.0 (58) TestFlight; physical-device regression remains part of release acceptance
 
-**Last reviewed:** 6 September 2026
+**Last reviewed:** 22 November 2026
 
 ## Product contract
 
-Smart Shift Reminders are off by default under **Settings → Profile & preferences**. Enabling them on iOS requests ordinary alert/sound permission. A denied or unavailable permission never changes a shift and schedules nothing.
+Smart Shift Reminders are off by default for each job under **Settings → Profile & preferences**. Choose the employer through **Your jobs** first; the All jobs view asks for one job before editing reminders. Each job learns from its own completed history. Enabling reminders on iOS requests ordinary alert/sound permission. A denied or unavailable permission never changes a shift and schedules nothing.
 
 The feature may notify only when all reliability gates pass:
 
@@ -27,7 +27,7 @@ The Settings card distinguishes three states: a new account is **Learning quietl
 
 ## Scheduling and timezone behaviour
 
-The React client uses the device's current IANA timezone and schedules only the next occurrence of each learned weekday. Notifications are one-shot `UNTimeIntervalNotificationTrigger` requests, never repeating weekday rules. Every app start, resume, connectivity refresh and shift mutation rebuilds the schedule from current server data. Starting a shift removes that day's sign-in reminder while preserving the following learned occurrence; completing the fourth qualifying shift can therefore show **Ready** immediately and schedule the next week without requiring another launch.
+The React client uses the device's current IANA timezone and schedules only the next occurrence of each learned weekday for enabled jobs. Notifications are one-shot `UNTimeIntervalNotificationTrigger` requests, never repeating weekday rules, and carry the matching job ID. Every app start, resume, connectivity refresh and shift mutation rebuilds the schedule from current server data. Starting a shift removes that day's sign-in reminder while preserving the following learned occurrence; completing the fourth qualifying shift can therefore show **Ready** immediately and schedule the next week without requiring another launch.
 
 Both reminder types use a 20-minute grace period. If the app discovers a missed start or an open shift within four hours of its expected time, the alert is scheduled one minute later. After four hours the state is considered ambiguous and no stale alert is created for that day.
 
@@ -37,7 +37,7 @@ The short horizon is deliberate. iOS can still deliver the requests while the We
 
 Missed sign-in alerts expose **Sign In**, **Remind Me Later**, and **Dismiss**. Missed sign-out alerts expose **Sign Out**, **Remind Me Later**, and **Dismiss**.
 
-- **Sign In/Sign Out:** requires device authentication, foregrounds Wages Tracker, and stores only a small pending action intent. It never calls the API. The app then rechecks current shift state and requires a second explicit confirmation. Sign In also requires an active work location.
+- **Sign In/Sign Out:** requires device authentication, foregrounds Wages Tracker, and stores only a small pending intent identifying the job. It never calls the API. The app selects that workspace, rechecks current shift state and requires a second explicit confirmation. Sign In also requires an active work location, and is suppressed while any job has a running shift.
 - **Remind Me Later:** schedules one new notification after 15 minutes because the user explicitly requested it.
 - **Dismiss:** performs no follow-up action.
 
@@ -55,5 +55,6 @@ Automated coverage exercises minimum-history, historical/manual entries, weekday
 6. Tap **Remind Me Later** on another alert and verify one follow-up appears about 15 minutes later.
 7. Deny notification permission and verify shift entry remains fully usable with no alert scheduled.
 8. Change device timezone, foreground the app, and verify newly scheduled requests use the new local wall-clock time.
+9. Enable two jobs with different routines. Confirm each reminder identifies its employer, opens the correct workspace and does not start a second shift while another job is running.
 
 Windows CI can validate TypeScript, API, bridge registration and source invariants, but Apple framework compilation and delivery require the repository's macOS/iOS build path.
