@@ -10,4 +10,6 @@ The popup uses a short transform/opacity entrance and exit, a scrollable content
 
 Conflict details contain only the caller's schedules and necessary display fields. Restricted Lock Screen action credentials receive an instruction to review the app without disclosure of other jobs or schedules. Malformed error metadata falls back to an ordinary readable error.
 
+The health check retains its existing JSON response and includes a validated public source-revision header when Render supplies it. This supports exact production rollout verification without relying on a stale deployment callback or exposing credentials.
+
 Validation covers API ownership, overnight and adjacent shifts, multiple conflicts, edit rollback, active jobs and scoped credentials; popup accessibility, focus, motion and replacement timing; real API journeys in Chromium and iPhone WebKit across phone, compact phone and desktop sizes; the full backend/frontend suites, dependency audit, native launch/resume and security analysis. Delivery receipts are recorded in the release pull request.
