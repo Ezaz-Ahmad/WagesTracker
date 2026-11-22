@@ -1,6 +1,8 @@
 # Admin panel: weekly earnings
 
-The admin dashboard now shows what each user earned in the running week and earlier weeks, alongside daily earnings charts. Open `/admin` with the existing admin login.
+**Applies to:** 1.27.0 · **Last reviewed:** 22 November 2026
+
+The admin dashboard shows what each user earned in the selected week and earlier weeks, with combined or per-job breakdowns and daily charts. Open `/admin` with the separate admin password; a regular user session cannot access these routes.
 
 ## What changed
 
@@ -9,35 +11,30 @@ The admin dashboard now shows what each user earned in the running week and earl
 - Admins can search accounts, sort by earnings/name/shift count, refresh, and browse weeks using arrows or a date picker.
 - Opening a user starts in the earnings explorer: select a recorded week or use the arrows to visit any earlier week, including weeks with no records.
 - The user view includes wages, fuel, weekly extras, previous-week comparison, earnings-goal progress and unfinished-shift counts.
+- Job counts distinguish total and active jobs. The earnings explorer can select **All jobs** or one owned job, and account details show locations, pay schedules and each shift's recorded hourly rate and wages. Financial changes remain in the user's reviewed pay flow.
 - Daily charts compare the selected week with the previous week. Hover, tap or use arrow keys to inspect a day; an expandable table provides exact figures.
 - Account details, login-email editing, shift history and confirmed deletion remain available. Account tools are in the **Account & shifts** view.
 - Responsive mobile cards, theme-aware styling, animated chart bars, entry transitions, loading placeholders and reduced-motion support improve the panel across screen sizes.
-- Request sequencing prevents stale user/week responses from replacing the current view. Errors provide retry controls.
+- Request sequencing prevents stale user/week responses from replacing the current view. Shared warnings distinguish authentication, connection and service failures and give an appropriate next step. Login remains usable in memory if browser storage is blocked.
 
 ## Calculation rules
 
-The dashboard uses the same persisted earnings rules as existing reports: completed shift hours multiplied by the user's **current hourly rate**, plus daily fuel and weekly extras. Historical pay rates are not stored, so older weeks also use the current rate. Unfinished shifts contribute no wages.
+The dashboard uses the same persisted earnings rules as user reports and PDFs: elapsed seconds multiplied by each shift's **recorded rate in cents**, divided by 3,600 and rounded once per shift, then summed with daily fuel and weekly extras. Later pay changes do not rewrite historical wages. Unfinished shifts contribute no wages. The multi-job migration pins older shifts to the account rate known at migration; earlier rates cannot be reconstructed from the previous data model.
 
-Each account's configured first day of the week is respected, including all seven weekday choices. The admin device supplies the calendar date for week selection. The overview may combine different date ranges when users choose different first days; each entry displays its exact range.
+Single-job accounts and explicitly selected jobs use their configured first day of the week, including all seven choices. Multi-job accounts use Monday–Sunday for combined totals, so every job contributes over the same date range. The admin device supplies the calendar date for week selection, and each entry displays its exact interval. The overview can therefore contain account entries with different week boundaries.
 
-An overnight shift belongs to its recorded starting date. Daily bars include wages and fuel; weekly extras are shown separately because they have no daily allocation. Weekly totals are calculated before cent rounding, so the sum of rounded daily labels can differ by a cent. The running-week comparison uses the full previous week, and the panel states that the current week is still in progress.
+An overnight shift belongs to its recorded starting date. Daily bars include wages and fuel; weekly extras are shown separately and selected by their stored effective date. The monetary breakdown reconciles wages, fuel and extras to the displayed total. The running-week comparison uses the full previous week, and the panel states that the current week is still in progress.
 
 ## API and rollout
 
-- `GET /api/admin/users?date=YYYY-MM-DD` adds `earnings` and `previousEarnings` to each existing public user summary.
-- `GET /api/admin/users/:id/earnings?date=YYYY-MM-DD` returns the selected week, previous week and recorded week choices.
+- `GET /api/admin/users?date=YYYY-MM-DD` returns `earnings`, `previousEarnings`, `jobCount` and `activeJobCount` with each public user summary.
+- `GET /api/admin/users/:id/earnings?date=YYYY-MM-DD&jobId=all` returns the selected week, previous week, recorded week choices and job breakdowns. Replace `all` with an owned job ID for that employer's week; an unrelated job is rejected.
 - Both endpoints require an admin token and validate real calendar dates. User-detail earnings queries are scoped to that account; password hashes and other credentials are excluded.
 - Directory earnings use three bounded data reads in addition to the existing user/count query, rather than a query for every user. History discovery returns week keys rather than full shift records.
-- No database migration, package dependency, environment variable or admin-login change is required. Deploy the backend before or alongside the frontend so the earnings endpoint is available.
+- Multi-job schema/data migration is part of the current backend initialization. It preserves existing work and records applied rates; see the [workspace migration rules](multi-job-workspaces.md#migration-and-compatibility). Deploy backend and frontend changes together. The separate `ADMIN_PASSWORD` login configuration is unchanged.
 
 ## Verification
 
-Automated coverage checks admin authorization, account isolation, seven week-start settings, overnight and unfinished shifts, rounding, fuel/extras, historical and empty weeks, invalid input, chart interaction, accessibility and request failure handling. Production browser coverage exercises desktop and narrow mobile layouts, week navigation and existing account tools.
+Automated coverage checks admin authorization, account/job isolation, seven week-start settings, mixed recorded rates, overnight and unfinished shifts, rounding, fuel/extras, historical and empty weeks, invalid input, chart accessibility and request recovery. Production browser journeys exercise desktop and narrow mobile layouts, job/week navigation and existing account tools.
 
-Local validation completed on 24 October 2026:
-
-- Backend: 313 tests passed.
-- Frontend: 877 tests passed, plus 3 Apple link-configuration tests.
-- Production browser smoke suite: 19 tests passed, including 4 new admin scenarios at 1440px, 390px and 320px widths.
-- Backend/frontend typechecks and production builds passed.
-- Visual review checked light and dark appearances, mobile padding/email wrapping, and chart reveal after scrolling into view.
+The [1.27.0 CI receipt](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/44975024697) verifies **355 backend tests**, **925 frontend tests**, **3 Universal Link tests** and **41 browser scenarios**, with type checks and production builds. These are full-suite totals, not admin-only counts. See [current release evidence](release-notes-1.27.0.md#verification-and-delivery).

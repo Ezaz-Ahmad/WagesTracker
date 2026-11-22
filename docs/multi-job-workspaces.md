@@ -1,6 +1,8 @@
 # Jobs, location pay and reporting
 
-Each account owns one or more jobs. A job owns its locations, hourly pay schedule, weekly goals, work-week boundary, shifts, daily fuel allowances and weekly extras. Personal spending remains one account ledger with an optional job tag.
+**Applies to:** 1.27.0 · **Last reviewed:** 22 November 2026
+
+Each account can own multiple jobs or have none after deleting its last job. A job owns its locations, hourly pay schedule, weekly goals, work-week boundary, shifts, daily fuel allowances and weekly extras. Personal spending remains one account ledger with an optional job tag.
 
 ## User experience
 
@@ -14,6 +16,7 @@ Each account owns one or more jobs. A job owns its locations, hourly pay schedul
 - Combined report exports offer a personal summary or one employer's work week. Employer exports include only that job's shifts, fuel and extras. Filenames include the report scope.
 - Spending tags filter the personal ledger; the earnings comparison remains account-wide and is labelled accordingly.
 - Admin shows job counts, job/location/pay history, recorded rates on shifts and combined or per-job weekly earnings. Financial settings remain in the user's reviewed pay flow.
+- Cross-job overlap warnings compare **Your change** with **Already saved**, including job/location names, full dates, AM/PM times and an explicit next-day end date for overnight work. Multiple conflicts appear chronologically. Running-shift warnings identify the active job and start time. The failed edit keeps its input for correction, without repeating the warning behind the popup.
 
 ## Pay rules
 
@@ -41,4 +44,4 @@ Automated coverage includes legacy migration preservation/retries, ownership, pe
 
 The development review uses an isolated local database. The worked example is 25 hours at recorded rates of $30, $34 and $32: $792 wages + $40 fuel + $25 bonus = $857. Two additional jobs produce a combined $1,182. Exported PDFs are rendered and visually checked.
 
-Before release, complete the unsigned iOS Simulator workflow and signed TestFlight delivery, then check on a physical iPhone: keyboard/safe areas, job switching, per-location entry, pay review, PDF sharing, reminders, Live Activity and overnight clock-out. Desktop browser emulation does not replace this device check.
+The [1.27.0 release evidence](release-notes-1.27.0.md#verification-and-delivery) records successful unsigned Simulator QA, security checks and signed **1.27.0 (58)** delivery, confirmed available to internal TestFlight testers. Physical-device checks still cover keyboard/safe areas, job switching, per-location entry, pay review, PDF sharing, reminders, Live Activity and overnight conflict/clock-out behavior. Desktop browser emulation does not replace these checks.

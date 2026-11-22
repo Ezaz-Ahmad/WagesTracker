@@ -1,40 +1,42 @@
 # Wages Tracker
 
-Track work shifts, hourly earnings, fuel allowances, personal spending, and weekly goals. Wages Tracker shares one React/TypeScript application between the responsive web app, installable PWA, and native iPhone app, with an Express API and a Turso database.
+Track shifts and earnings across multiple jobs, with different hourly rates for each work location, fuel allowances, personal spending, and weekly goals. Wages Tracker shares one React/TypeScript application between the responsive web app, installable PWA, and native iPhone app, with an Express API and a Turso database.
 
-[Open the web app](https://wages-tracker-frontend.vercel.app) · [iPhone App Store](https://apps.apple.com/au/app/wagestracker/id6801702467) · [Privacy Policy](https://wages-tracker-frontend.vercel.app/privacy) · [Support](https://wages-tracker-frontend.vercel.app/support) · [GitHub releases](https://github.com/Ezaz-Ahmad/WagesTracker/releases)
+[Open the web app](https://wages-tracker-frontend.vercel.app) · [iPhone App Store](https://apps.apple.com/au/app/wages-tracker/id6801702467) · [Privacy Policy](https://wages-tracker-frontend.vercel.app/privacy) · [Support](https://wages-tracker-frontend.vercel.app/support) · [GitHub releases](https://github.com/Ezaz-Ahmad/WagesTracker/releases)
 
 ## Current delivery status
 
-Last verified **11 October 2026**. A GitHub source release, a TestFlight upload, and a public App Store release are separate delivery milestones.
+Last verified **22 November 2026**. A GitHub source release, a TestFlight upload, and a public App Store release are separate delivery milestones.
 
 | Channel | Verified status |
 | --- | --- |
-| Source | **1.23.1**; dependency fixes merged in [PR #78](https://github.com/Ezaz-Ahmad/WagesTracker/pull/78), workflow hardening in [PR #79](https://github.com/Ezaz-Ahmad/WagesTracker/pull/79) |
-| Deployed web | **1.23.1**; Vercel production deployment succeeded from the uploaded application source |
-| iOS beta | **1.23.1 (52)**; Apple accepted and processed the upload, assigned to **WagesTracker Internal Testers** |
-| App Review | **1.23.1 (52), Waiting for Review**; submitted 11 October 2026 at **07:37 UTC / 18:37 AEDT**, with automatic release after approval |
-| Public iPhone app | Apple's [Australian listing](https://apps.apple.com/au/app/wagestracker/id6801702467) still shows **1.21.0**, published 25 September 2026, under the previous listing name **WagesTracker** |
-| API and database | Render deployed the patched backend; production `/api/health` returned `{ "ok": true }` |
+| Source | **1.27.0**; clearer shift conflicts and shared error dialogs in [PR #96](https://github.com/Ezaz-Ahmad/WagesTracker/pull/96) |
+| Deployed web | **1.27.0**; production assets verified against application source `d5cdd4a` |
+| iOS beta | **1.27.0 (58)**; Apple processing **VALID**, **IN_BETA_TESTING**, available to **WagesTracker Internal Testers** |
+| App Review | No public App Store submission was made for **1.27.0** |
+| Public iPhone app | Apple's [Australian listing](https://apps.apple.com/au/app/wages-tracker/id6801702467) shows **Wages Tracker 1.23.1**, published 11 October 2026; the newer features are in the web app and TestFlight |
+| API and database | Production `/api/health` returned `{ "ok": true }` and `X-App-Revision: d5cdd4a859ea5aa5ef1414de1a6edba7c1a77a10` |
 | Universal Links | Production association file contains the literal Apple Team ID and app identifier; signed app entitlement inspection passed |
 | Android | Planned; no Android application project or Google Play release is committed |
 
-The submitted beta was built from [`d54eb41579a4b76fd56335e43b829444e7a3efa4`](https://github.com/Ezaz-Ahmad/WagesTracker/commit/d54eb41579a4b76fd56335e43b829444e7a3efa4) in [signed delivery run 38121118588](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38121118588), fresh dispatch 52, attempt 1. Apple validation succeeded at **07:26:32 UTC**, upload at **07:28:02 UTC**, and temporary signing material was removed. App Store Connect confirmed processing, tester assignment and the selected build before accepting the review submission. Workflow-only and documentation commits afterward do not change that binary.
+Build **58** was signed from [`d5cdd4a859ea5aa5ef1414de1a6edba7c1a77a10`](https://github.com/Ezaz-Ahmad/WagesTracker/commit/d5cdd4a859ea5aa5ef1414de1a6edba7c1a77a10) in [delivery run 44976336305](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/44976336305). Both app and widget use **iOS SDK 27.2**, built with stable **Xcode 27.2**, resolving the obsolete-SDK warning reported for build 55. Apple validation, upload and internal availability checks passed; temporary signing material was removed. Subsequent documentation commits do not change the installed binary.
 
-App Review submission **`e08bed98-479f-4cff-befc-11c5c3af39c6`** includes the name **Wages Tracker**, the refreshed icon, clean description and release notes, the existing screenshot assets and privacy declarations, and the preserved review sign-in/contact fields. Apple approval and public availability are separate from the confirmed submission. Physical-device behavior is not independently established by CI.
-
-See [1.23.1 release notes](docs/release-notes-1.23.1.md), the [App Review guide](docs/app-store-review.md), [1.23.0 release notes](docs/release-notes-1.23.0.md) for tab visibility, and [1.22.0 release notes](docs/release-notes-1.22.0.md) for the preceding delivery.
+See the [1.27.0 release notes](docs/release-notes-1.27.0.md), [change history](CHANGELOG.md), [TestFlight delivery guide](docs/ios-testflight-delivery.md), and [App Review guide](docs/app-store-review.md). Physical-device behavior is checked separately from CI.
 
 ## Features
 
 ### Shifts, wages, and work locations
 
-- Start and end shifts with a live elapsed timer, or enter and correct saved times. Hours and wages derive from those times and the configured hourly rate.
+- Create a second, third or further job, each with its own locations, pay schedule, shifts, fuel, extras, goals, work week and reminder preference. Switch jobs from any main tab except Settings, or choose **All jobs** for a combined view.
+- Manage jobs in **Settings → Your jobs**. Permanent deletion previews the affected data and earnings, requires the exact job name, and is blocked while that job has a running shift. Other jobs and unlinked spending remain.
+- Set the selected job's default hourly pay in **Settings → Work & pay**, or set location-specific rates and effective dates. Locations can inherit the job default again. Saved and running shifts retain their recorded rates; historical corrections require confirmation.
+- Start and end shifts with a live elapsed timer, or enter and correct saved times. Completed wages use each shift's recorded rate and elapsed seconds, rounded once per shift to cents.
+- Prevent overlapping shifts across jobs and allow only one running shift per account. Conflict popups compare the attempted and saved jobs, locations, dates and times, including explicit overnight end dates; rejected edits preserve saved records and unsaved corrections.
 - Maintain named work locations with addresses and fuel allowances. Saved shifts retain historical location names and allowance snapshots.
 - Apply automatic fuel allowance once per branch and worked date, with explicit manual overrides and a restore-to-automatic action.
 - Suggest work locations from the previous week's matching weekday and shift order. Suggestions do not create shifts or copy hours.
 - Choose any weekday as the weekly boundary and track weekly hours and earnings goals. Changing the boundary preserves dated records and the effective date of weekly extras.
-- Review and edit past weeks, compare periods, and export wage PDFs from freshly fetched authenticated records.
+- Review and edit past weeks, compare periods, and export wage PDFs from freshly fetched authenticated records. Reports show each shift's rate and wages, with separate fuel and extras; export one employer or a personal combined summary.
 
 Shift and expense writes use the device's validated IANA timezone. Calendar dates stay as local dates, avoiding unintended movement to another day through UTC conversion. Server validation enforces ownership, overlaps, duration, and future-date rules.
 
@@ -44,7 +46,7 @@ Shift and expense writes use the device's validated IANA timezone. Calendar date
 - Use seeded categories or create, edit, archive, and restore custom categories.
 - Explore day, week, month, or custom periods with category totals, daily trends, recorded earnings comparisons, and previous-period changes.
 - Search and filter expense history, edit or delete transactions, and retry uncertain submissions without creating duplicates.
-- Keep personal expenses separate from work/fuel costs. Personal spending is not included in employer-facing wage PDFs.
+- Keep one personal ledger with optional job tags, separate from work/fuel costs. Personal spending is excluded from employer-facing wage PDFs and the **All jobs** Home overview. Deleting a job also deletes spending explicitly tagged to it, as shown in its confirmation.
 
 ### Appearance and Settings
 
@@ -54,6 +56,8 @@ Shift and expense writes use the device's validated IANA timezone. Calendar date
 - Hidden tabs are removed from mobile, desktop, and swipe navigation. Hiding Spending also removes its Home snapshot; restoring it respects the previous widget preference. Preferences are saved per account on the device. See [tab visibility](docs/tab-visibility.md).
 - A responsive Settings hub: Profile & preferences, Work & pay, Weekly goals, Security, Data & account, and About.
 - About contains clean Privacy Policy and Support rows. The Settings overview contains the developer credit, GitHub/portfolio links, build identity, and a copyright year that updates at runtime.
+- Privacy and Support have readable sections and a persistent **Return to Wages Tracker** control. Support points to the contact section at the bottom of [ezazahmad.com](https://www.ezazahmad.com/).
+- Job and location pickers, confirmations and warnings use restrained motion with reduced-motion support. Shared error dialogs name the issue and next step, avoid duplicate banners, and preserve focus through nested forms.
 - Keyboard navigation, focus-managed dialogs, text/table chart alternatives, reduced motion, and mobile touch targets.
 - A backend wake-up screen driven by actual health responses, elapsed time, and retry state.
 
@@ -61,8 +65,8 @@ Shift and expense writes use the device's validated IANA timezone. Calendar date
 
 - Optional Face ID/Touch ID login and device-only Keychain storage.
 - PDF delivery through Apple's share sheet using temporary app-cache files.
-- Optional active-shift Live Activities on supported iOS versions, with elapsed time and a scoped clock-out action. Interactive actions require iOS 17 or later; iOS 16.1–16.x opens the app to clock out.
-- Optional Smart Shift Reminders that learn reliable weekday routines from completed history, including historical and corrected shifts. Four consistent occurrences establish a routine; roster changes, gaps, split shifts, and outliers are handled conservatively.
+- Optional active-shift Live Activities identify the running job and location, with elapsed time and a scoped clock-out action. Interactive actions require iOS 17 or later; iOS 16.1–16.x opens the app to clock out.
+- Optional Smart Shift Reminders learn each job's reliable weekday routines from completed history, including historical and corrected shifts. Four consistent occurrences establish a routine; roster changes, gaps, split shifts, and outliers are handled conservatively.
 - Reminder actions open the app and require confirmation before changing a shift. Notification permission denial does not prevent normal shift entry.
 
 ActivityKit has system lifetime limits and restart boundaries. See [Live Activity behavior](docs/active-shift-live-activity.md) and [Smart Shift Reminders](docs/smart-shift-reminders.md).
@@ -77,7 +81,7 @@ Native iOS compares the actual installed marketing version with Apple's public c
 - Updating to the current public version stops that release's reminders. Future releases use the same lookup automatically.
 - Equal versions, newer TestFlight versions, and offline lookup failures remain silent.
 
-Existing public 1.21.0 installations need one ordinary App Store update to acquire this checker. TestFlight uploads do not trigger public-release prompts. The visible product name is now **Wages Tracker**; the name is included in the submitted 1.23.1 App Review version and will appear publicly with its release. Details: [App Store updates](docs/app-store-updates.md).
+The checker and **Wages Tracker** listing name are included in public **1.23.1**. Older installations need an ordinary App Store update to acquire the checker. TestFlight uploads do not trigger public-release prompts. Details: [App Store updates](docs/app-store-updates.md).
 
 ## Architecture
 
@@ -102,7 +106,7 @@ The API revalidates client input, derives record ownership from authentication, 
 | Frontend | React 18, TypeScript, Vite 8, plain CSS, jsPDF |
 | Backend | Node.js 22, Express 4, TypeScript, zod, JWTs, Argon2id |
 | Data | `@libsql/client`; local SQLite in development, Turso in production |
-| iOS | Capacitor 8.4.3, Swift Package Manager, native Swift bridges, ActivityKit/WidgetKit |
+| iOS | Capacitor 8.6.2, Swift Package Manager, UIKit scene lifecycle, native Swift bridges, ActivityKit/WidgetKit; Xcode/SDK 27.2 for distribution |
 | Verification | Vitest, Supertest, Testing Library, axe, Playwright, CodeQL, macOS/Xcode checks |
 
 Capacitor Core/iOS/Android are intentionally aligned by root npm overrides. Runtime upgrades require a coordinated dependency change and lifecycle/device regression.
@@ -256,22 +260,22 @@ The admin panel is a separate browser application at **`/admin`**, available at 
 
 ### Account management
 
-- **Weekly overview:** see combined earnings and completed hours, browse earlier weeks, and compare each user's selected and previous week. Date ranges respect each user's chosen week start day.
+- **Weekly overview:** see combined earnings and completed hours, browse earlier weeks, and compare each user's selected and previous week. Single-job accounts follow their work week; multi-job accounts use a shared Monday–Sunday interval.
 - **User directory:** search by name or email, sort by earnings/name/shift count, and see daily earnings charts alongside account details. Desktop tables become cards on smaller screens.
-- **Earnings explorer:** open a user to browse historical weeks, inspect interactive daily charts, compare wages/fuel/extras, and check weekly goal progress. Charts support touch, keyboard navigation and reduced motion. Historical earnings use the user's current hourly rate; unfinished shifts add no wages. See the [admin improvement notes](docs/admin-weekly-earnings.md) for calculation and rollout details.
-- **View account:** select **Account & shifts** for work settings, weekly goals, total shift count, join date, and shift history, including dates, locations, and sign-in/sign-out times.
+- **Earnings explorer:** open a user to browse historical weeks, choose all jobs or one job, inspect interactive daily charts, compare wages/fuel/extras, and check weekly goal progress. Completed wages use recorded shift rates; unfinished shifts add no wages. Charts support touch, keyboard navigation and reduced motion. See the [admin guide](docs/admin-weekly-earnings.md).
+- **View account:** select **Account & shifts** for job counts, job/location/pay history, weekly goals, join date, and shift history with recorded rates and wages. Pay changes stay in the user's reviewed settings flow.
 - **Edit login email:** validate and normalize the address, suggest corrections for likely domain typos, and reject addresses already used by another account. The password, signed-in sessions, settings, and shift records are retained. An admin-applied address is marked verified, pending verification links are invalidated, and security notifications are attempted to both the old and new addresses.
 - **Delete account:** the UI requires typing the user's email in a confirmation dialog. Deletion permanently removes the profile, settings, sessions, password-reset/email-verification records, shifts, work expenses/extras/locations, personal expenses, and spending categories.
 
 ### Authentication and data access
 
-`POST /api/admin/login` is limited to **10 attempts per IP per 15 minutes**. A successful login issues a JWT with `role: "admin"` and a **12-hour expiry**. The frontend stores it under its own `wageTracker.adminToken` key, separate from regular-user authentication; expired or rejected credentials require signing in again.
+`POST /api/admin/login` is limited to **10 attempts per IP per 15 minutes**. A successful login issues a JWT with `role: "admin"` and a **12-hour expiry**. The frontend stores it under its own `wageTracker.adminToken` key, separate from regular-user authentication, and falls back to memory if browser storage is blocked. Expired or rejected credentials require signing in again.
 
 User listing/detail, email editing, and deletion under `/api/admin` require the server's separate `requireAdmin` middleware. A valid ordinary-user JWT receives `403` on those routes. Admin responses use explicit public-data mappings, so password hashes and session bearer credentials are not exposed. The panel's unlisted URL does not replace these authorization checks. See [admin routes](backend/src/routes/admin.ts), [admin authentication](backend/src/auth.ts), and [the admin UI](frontend/src/admin/AdminDashboard.tsx).
 
 ## Data and privacy
 
-The API uses parameterized queries and account-scoped access. Work records, work expenses, and weekly extras older than five years are pruned. Personal expenses remain until individually deleted or the account is deleted. Account deletion removes dependent account records, sessions, reset/verification records, shifts, expenses, and categories.
+The API uses parameterized queries and account/job-scoped access. Work records, work expenses, and weekly extras older than five years are pruned. Personal expenses remain until individually deleted, their explicitly tagged job is deleted, or the account is deleted. Account deletion removes dependent account records, jobs, pay history, sessions, reset/verification records, shifts, expenses, and categories.
 
 Wage reports are generated on the device from refreshed work records. PDF files are not stored by the backend and do not contain personal spending. Native sharing uses temporary cache files and the system share sheet.
 
@@ -281,23 +285,24 @@ The public [Privacy Policy](https://wages-tracker-frontend.vercel.app/privacy) a
 
 ## Testing and CI
 
-Verified for the 1.23.1 security patch in [PR #78 CI](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38119707304), [native Simulator CI](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38119707310), and the fresh signed delivery:
+Verified for **1.27.0** on **22 November 2026** in [clean CI](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/44975024697), [native Simulator QA](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/44975024753), and [signed delivery](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/44976336305):
 
 | Check | Result |
 | --- | --- |
-| Backend Vitest | **294 tests** across 31 files |
-| Frontend Vitest | **861 tests** across 109 files |
+| Backend Vitest | **355 tests** across 39 files |
+| Frontend Vitest | **925 tracked tests** across 119 files |
 | Universal Link generator | **3 tests** |
-| Total in `npm test` | **1,158 tests** |
-| Distribution-entitlement regression suite | **8 tests** |
-| Production-browser smoke suite | **15 scenarios**, verified by frontend PR CI |
+| Total in `npm test` | **1,283 tests**, including the Universal Link tests |
+| Distribution, SDK and TestFlight regression suite | **26 tests** |
+| Production-browser smoke suite | **41 scenarios**, including Chromium and iPhone WebKit |
 | Native Live Activity previews | **40 layouts**, verified by macOS Simulator CI |
-| Type checks, builds, asset/config inspection, signing, and Apple validation/upload | Passed in [signed delivery run 38121118588](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38121118588) |
-| CodeQL | JavaScript/TypeScript, Actions and Swift all passed in [run 38119707344](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38119707344) |
+| Native launch/resume | Rendered cold launch and resume without a process restart; app/widget SDK **27.2** |
+| Type checks, builds, asset/config inspection, signing, and Apple validation/upload | Passed in [signed delivery run 44976336305](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/44976336305) |
+| CodeQL | JavaScript/TypeScript, Actions and Swift all passed in [run 44975024732](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/44975024732) |
 
 Test counts are a dated snapshot; current CI output is authoritative. Backend tests use isolated temporary SQLite databases. Component tests cover actual screens, focus, dialogs, accessibility, authentication, native adapters, reminders, and update prompts. Browser tests exercise the built production bundle.
 
-The new browser scenario verifies confirmation/cancellation, persistence, restoration, unchanged displayed wages, and zero account-data writes when hiding a tab. Responsive browser previews also passed for compact/tall phones, landscape, tablet, desktop, and light/dark appearance.
+Browser coverage includes cross-job and overnight conflicts against an isolated API, retained drafts and unchanged rejected records, nested-dialog focus, job switching, mixed-rate PDFs, admin recovery, and tab visibility. UI fixtures share one temporary SQLite server and run sequentially; dedicated backend tests cover concurrent-write conflicts.
 
 [CI](.github/workflows/ci.yml) runs backend/frontend jobs on pushes and PRs to `main`. [CodeQL](.github/workflows/codeql.yml) analyzes JavaScript/TypeScript, Actions, and Swift. [Simulator CI](.github/workflows/ios-simulator.yml) builds and inspects an unsigned app, renders native layouts, and retains diagnostic artifacts.
 
@@ -305,7 +310,7 @@ Physical iPhone testing is still required for Face ID/Touch ID, Universal Links 
 
 ### Dependency maintenance
 
-The 11 October 2026 baseline had **35 open Dependabot alerts**: 8 critical, 11 high, 11 medium, and 5 low. The 1.23.1 patch updates the affected runtime and development dependencies, including Capacitor 8.4.3 in npm and Swift, Express 4.22.3 with qs 6.16.0, proxy-addr 2.0.8, DOMPurify 3.4.16, Sharp 0.35.5, and Vitest 4.1.11. A clean install of the updated lockfile reports **zero vulnerabilities with `npm audit`**. After merge, GitHub reported **zero open Dependabot alerts and zero open CodeQL alerts** on 11 October 2026. PR #79 fixed three existing workflow permission warnings by using read-only repository permissions for CI and no repository permissions for the public keep-warm request. See [patch details](docs/release-notes-1.23.1.md), [dependency alerts](https://github.com/Ezaz-Ahmad/WagesTracker/security/dependabot), and [open dependency PRs](https://github.com/Ezaz-Ahmad/WagesTracker/pulls?q=is%3Apr+is%3Aopen+author%3Aapp%2Fdependabot).
+The **1.27.0** release checks report **zero known dependency vulnerabilities**. Security updates in 1.26.0 covered request parsing, validation, sanitization and build tooling; Capacitor is aligned on **8.6.2** in npm and Swift. CI and signed delivery audit dependencies before distribution. The API rate-limits before parsing and returns safe errors for invalid or unnecessarily compressed bodies. Conflict details are restricted to the caller; scoped Lock Screen actions cannot read other schedules. See [1.26.0 security notes](docs/release-notes-1.26.0.md), [dependency alerts](https://github.com/Ezaz-Ahmad/WagesTracker/security/dependabot), and [open dependency PRs](https://github.com/Ezaz-Ahmad/WagesTracker/pulls?q=is%3Apr+is%3Aopen+author%3Aapp%2Fdependabot).
 
 The native Capacitor advisory requires rebuilding and redistributing the iPhone app; a web deployment alone does not patch an installed binary. The alignment gate checks the Swift manifest, resolved upstream tag commit, shared JavaScript/iOS versions, and transitive Android runtime. The GitHub queue can update after the fix reaches main, and newly published advisories remain possible; the live queue is authoritative.
 
@@ -320,18 +325,18 @@ The public marketing version uses **`MAJOR.MINOR.PATCH`**, with the increment ch
 | Breaking change or fundamental redesign | Increase major; reset minor and patch | `1.23.0` → `2.0.0` |
 | New functionality compatible with existing use | Increase minor; reset patch | `1.22.0` → `1.23.0` |
 | Compatible bug fix, UI polish, or security fix | Increase patch | `1.23.0` → `1.23.1` |
-| Documentation-only maintenance | Keep the current marketing version | `1.23.1` remains `1.23.1` |
+| Documentation-only maintenance | Keep the current marketing version | `1.27.0` remains `1.27.0` |
 
-Every release containing application code, UI, feature, or behavior changes receives a new marketing version. Several commits can belong to one release, so **the marketing version is deliberately updated by hand, not automatically incremented on each commit**. The current **1.23.1** is a patch release because it fixes dependency security advisories without changing the approved UI or wage calculations. Version 1.23.0 added optional tab visibility with impact confirmations and recovery. The preceding 1.22.0 added App Store update prompts and the visible name change to Wages Tracker.
+Every release containing application code, UI, feature, or behavior changes receives a new marketing version. Several commits can belong to one release, so **the marketing version is deliberately updated by hand, not automatically incremented on each commit**. Current version **1.27.0** adds structured conflict feedback and shared error presentation. Versions 1.24.0–1.26.0 introduced multi-job pay/reporting, permanent job deletion, the iOS SDK migration, and reliability/security improvements. Documentation maintenance preserves 1.27.0 and build 58.
 
 ### What updates automatically
 
 | Identifier | Source and update trigger | Where it appears |
 | --- | --- | --- |
-| Marketing version, e.g. `1.23.1` | Chosen for the release in `frontend/package.json` | Settings, PDF footer, and native app version |
+| Marketing version, e.g. `1.27.0` | Chosen for the release in `frontend/package.json` | Settings, PDF footer, and native app version |
 | Short commit hash | `git rev-parse --short HEAD`, captured on each frontend build | Settings and PDF footer, identifying the built source |
 | Commit date | `git log -1 --format=%cI`, captured on each frontend build | Settings, alongside the version and hash |
-| TestFlight build number, e.g. `52` | `github.run_number` from each **fresh** signed workflow dispatch | Apple/TestFlight build identity, e.g. `1.23.1 (52)` |
+| TestFlight build number, e.g. `58` | `github.run_number` from each **fresh** signed workflow dispatch | Apple/TestFlight build identity, e.g. `1.27.0 (58)` |
 
 [Vite's build configuration](frontend/vite.config.ts) injects `__APP_VERSION__`, `__BUILD_HASH__`, and `__BUILD_DATE__`; [appVersion.ts](frontend/src/lib/appVersion.ts) formats them. Settings shows `v<version> (<hash>) · <commit date>`, while the PDF footer uses `v<version> (<hash>)` beside the report's own generation date.
 
@@ -351,15 +356,15 @@ TestFlight build numbers are separate from semantic versions, so multiple test b
 
 [`verify-testflight-config.mjs`](frontend/scripts/verify-testflight-config.mjs) derives the expected version from package metadata and checks the lockfile, Xcode release invariants, and signed-workflow configuration. The signed workflow also compares the actual environment's `IOS_APP_VERSION` with the package version and stops if they differ; a GitHub variable cannot be validated from local files alone.
 
-A GitHub release tag should identify the exact application source it describes. `v1.23.1` identifies `d54eb41`, the source used for the submitted 1.23.1 (52). `v1.23.0` identifies `98d376a`, the source used for 1.23.0 (51); `v1.22.0` retains the preceding 1.22.0 (50) source. Subsequent workflow-only or documentation commits do not change those uploaded binaries.
+A GitHub release tag identifies the exact application source it describes. `v1.27.0` identifies `d5cdd4a`, the source signed as **1.27.0 (58)**. Earlier tags retain their original sources. Subsequent workflow-only or documentation commits do not change those uploaded binaries.
 
-Work enters through `codex/*` branches and pull requests against protected `main`. Required CI checks must pass before merge. GitHub automatically deletes merged PR head branches; active dependency PR branches remain until reviewed and resolved.
+Work enters through descriptive `feature/*`, `fix/*` or `docs/*` branches and pull requests against protected `main`. Required CI checks must pass before merge. GitHub automatically deletes merged PR head branches; active dependency PR branches remain until reviewed and resolved.
 
 ### TestFlight delivery
 
 [The signed workflow](.github/workflows/ios-testflight.yml) is manual-only, restricted to protected `main`, and uses the protected `testflight` environment. It verifies metadata, tests, builds, assets, native integration, signing profiles, exported entitlements, and Apple's package validation before upload. Signing credentials and the IPA are removed from the ephemeral runner afterward.
 
-The workflow does not assign testers, submit App Review, select a public App Store build, or release the app publicly. Use the [delivery guide](docs/ios-testflight-delivery.md) for environment setup, a fresh dispatch, processing/tester checks, device regression, and recovery.
+After upload, the workflow waits for processing and verifies availability to the existing **WagesTracker Internal Testers** group. It assigns the build to that group if needed and respects automatic-access groups. It does not create testers, submit App Review, select a public App Store build, or release the app publicly. If only the final check fails after upload, use the separate read-only availability workflow for that build. See the [delivery guide](docs/ios-testflight-delivery.md).
 
 ## Deploying
 
@@ -380,15 +385,17 @@ Alternative Railway/Netlify configuration files are reference options, not the c
 | Guide | Scope |
 | --- | --- |
 | [Architecture](docs/architecture.md) | System, data, security boundaries and delivery diagrams |
-| [1.23.1 release notes](docs/release-notes-1.23.1.md) | Security fixes, verified tests, build 52 and App Review receipt |
+| [1.27.0 release notes](docs/release-notes-1.27.0.md) | Conflict feedback, shared dialogs, verified tests and build 58 |
+| [Change history](CHANGELOG.md) | Current release and changes since the previous GitHub release |
+| [Jobs, location pay and reporting](docs/multi-job-workspaces.md) | Job settings/deletion, effective pay, snapshots and PDF scope |
+| [Admin earnings](docs/admin-weekly-earnings.md) | Job filters, recorded rates and reconciled weekly totals |
 | [App Review submission](docs/app-store-review.md) | Metadata, build selection, final submission and future updates |
-| [1.22.0 release notes](docs/release-notes-1.22.0.md) | Changes, source commit and verified upload |
 | [TestFlight delivery](docs/ios-testflight-delivery.md) | Signing setup, processing, device checks and recovery |
 | [App Store updates](docs/app-store-updates.md) | Installed/latest comparison, 48-hour snooze and rollout |
 | [Live Activities](docs/active-shift-live-activity.md) | Native surfaces, scoped clock-out and platform limits |
 | [Smart Shift Reminders](docs/smart-shift-reminders.md) | Learning, roster adaptation and safe actions |
 | [iOS privacy mapping](docs/ios-privacy-mapping.md) | Data collection, native API usage and review checklist |
 
-Version **1.23.1 (52)** is waiting for Apple App Review and will release automatically after approval. TestFlight remains available for physical-device checks; respond to any reviewer request in App Store Connect. Android delivery remains future work.
+Install **1.27.0 (58)** through TestFlight for physical-device checks of job switching, mixed pay, overnight conflict guidance, sharing, reminders and Live Activities. A public App Store update is a separate release action. Android delivery remains future work.
 
 Built by [Ezaz Ahmad](https://www.ezazahmad.com/).

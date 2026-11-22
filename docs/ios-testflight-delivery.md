@@ -4,6 +4,14 @@
 
 **Last reviewed:** 22 November 2026
 
+## Current verified delivery
+
+**1.27.0 (58)** is available to **WagesTracker Internal Testers**. The [signed delivery](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/44976336305) used protected-main source `d5cdd4a859ea5aa5ef1414de1a6edba7c1a77a10`; Apple validation and upload passed, processing is `VALID`, and the internal state is `IN_BETA_TESTING`. The exported app and widget both verify `iphoneos27.2`, and temporary signing material was removed. See [PR #96](https://github.com/Ezaz-Ahmad/WagesTracker/pull/96) and [release evidence](release-notes-1.27.0.md#verification-and-delivery).
+
+Production web and API rollout was verified against that application source. Documentation maintenance retains the marketing version and existing TestFlight binary. No public App Store submission was made for 1.27.0. Apple's [Australian listing](https://apps.apple.com/au/app/wages-tracker/id6801702467), checked on 22 November 2026, shows **Wages Tracker 1.23.1**, published 11 October 2026.
+
+## Runtime and toolchain checks
+
 **Backend rollout verification:** `GET /api/health` retains `{ "ok": true }` and, on Render, returns `X-App-Revision` from the validated public `RENDER_GIT_COMMIT`. Check this header against the merged release revision before marking new API behavior delivered; the provider's GitHub deployment status can remain pending after rollout. The response is not cached. See [Render's environment-variable reference](https://render.com/docs/environment-variables#render_git_commit).
 
 **SDK requirement:** Apple's ITMS-90725 email for build 55 identified the iOS 26.5 SDK. Simulator and signed delivery use the `xcode-27` runner with `DEVELOPER_DIR=/Applications/Xcode_27.2.app/Contents/Developer`, verify the selected stable toolchain and iOS SDK before building, and inspect `DTSDKName` in the compiled app and extension with `inspect-ios-build-sdk.mjs`. Artifacts built with an iOS SDK below 27 are rejected before upload. This addresses [Apple's April 2027 SDK requirement](https://developer.apple.com/news/?id=k1mtkt1k); the project retains its existing iOS deployment target. Build/upload receipts for this release are recorded in the release pull request and workflow runs.
@@ -14,7 +22,9 @@
 
 Simulator QA renders 40 widget layouts, launches the real app on a standard iPhone, rejects nearly empty app screenshots and checks resume without a process restart. It captures a harmless custom-URL request separately; Apple's Open confirmation requires user interaction, so that capture does not assert callback delivery past the prompt. Screenshots, launch output and a visual-readiness receipt are uploaded for review. The compiled app/widget SDKs and single-scene configuration are validated before signed upload.
 
-**1.24.0 delivery status:** Web and API changes are deployed. Apple access was restored after the Account Holder accepted the pending agreement. Fresh build 55 passed the exact app-identity preflight, signed archive, export and distribution checks, Apple validation and upload. The owner confirmed **1.24.0 (55) is available in TestFlight on the iPhone**. Physical-device feature testing remains to be completed.
+## Earlier delivery records
+
+**1.24.0:** Apple access was restored after the Account Holder accepted the pending agreement. Build 55 passed the exact app-identity preflight, signed archive, export and distribution checks, Apple validation and upload. The owner confirmed it was available in TestFlight on the iPhone. Later builds 56, 57 and 58 replace it for current testing; version-specific changes are in the [change history](../CHANGELOG.md).
 
 **Verified upload for 1.24.0:** **1.24.0 (55)**, accepted by Apple on 21 November 2026 in [run 44909308794](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/44909308794), from protected-main commit `b792474a9f04bb6914f154df2e1beeca12470e7a`. The Apple validation step completed at **13:42:57 UTC**, and the upload step at **13:44:05 UTC**, both successfully. The fresh dispatch used attempt 1.
 
@@ -24,11 +34,13 @@ Simulator QA renders 40 widget layouts, launches the real app on a standard iPho
 
 **Previous verified upload:** **1.23.1 (52)**, accepted by Apple on 11 October 2026 in [run 38121118588](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38121118588), from protected-main commit `d54eb41579a4b76fd56335e43b829444e7a3efa4`. Apple validation succeeded at **07:26:32 UTC** and upload at **07:28:02 UTC**, both without errors. Processing and assignment to **WagesTracker Internal Testers** were confirmed at that time.
 
-**Previous App Review record (11 October 2026):** **1.23.1 (52), Waiting for Review**, submitted **11 October 2026 at 07:37 UTC / 18:37 AEDT**. Submission ID: `e08bed98-479f-4cff-befc-11c5c3af39c6`. Release was configured as automatic after approval, immediately to all users. The public Australian listing was still **1.21.0** when that submission was verified. This historical status has not been rechecked while Apple access is blocked. No public App Store submission was made for 1.24.0. See the [App Review guide](app-store-review.md).
+**Previous App Review record:** **1.23.1 (52)** was submitted **11 October 2026 at 07:37 UTC / 18:37 AEDT** and showed **Waiting for Review** at that time. Submission ID: `e08bed98-479f-4cff-befc-11c5c3af39c6`. Automatic release after approval was selected. The public catalog now confirms **1.23.1**, published that day, under **Wages Tracker**; the earlier waiting status is historical. See the [App Review guide](app-store-review.md).
 
 **Earlier upload:** 1.23.0 (51), accepted in [run 38116854116](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/38116854116) from `98d376a0609a1471035cab88ea73c88542ec3acf`. It contains the previous native framework; build 52 replaced it for the October review. The preceding 1.22.0 (50) is recorded in [its release notes](release-notes-1.22.0.md).
 
-Wages Tracker's signed iOS delivery is intentionally separate from pull-request, push, Simulator and CodeQL workflows. `.github/workflows/ios-testflight.yml` can be started only with `workflow_dispatch`; its delivery job additionally refuses every ref except protected `main`, rejects fork context, uses the protected `testflight` environment and serializes uploads through one non-cancelling concurrency group.
+## Delivery contract
+
+Wages Tracker's signed iOS delivery is separate from pull-request, push, Simulator and CodeQL workflows. `.github/workflows/ios-testflight.yml` can be started only with `workflow_dispatch`; its delivery job additionally refuses every ref except protected `main`, rejects fork context, uses the protected `testflight` environment and serializes uploads through one non-cancelling concurrency group.
 
 The workflow uploads a build to TestFlight, waits for Apple processing and verifies availability for the existing **WagesTracker Internal Testers** group. For manual groups it adds this exact build if needed; automatic groups already grant access to all builds and are not modified. It does not create testers/groups, change notification preferences, submit App Review, select an App Store version or release publicly. See Apple's [build-to-group API](https://developer.apple.com/documentation/appstoreconnectapi/post-v1-betagroups-_id_-relationships-builds) and [automatic internal distribution guidance](https://developer.apple.com/help/app-store-connect/test-a-beta-version/add-internal-testers/).
 
@@ -47,7 +59,7 @@ Create these non-secret environment variables:
 | Variable | Value |
 | --- | --- |
 | `IOS_BUNDLE_ID` | `com.ezazahmad.wagestracker` |
-| `IOS_APP_VERSION` | `1.25.0` (required for this release; update the protected environment before dispatch) |
+| `IOS_APP_VERSION` | `1.27.0` (must match `frontend/package.json` before dispatch) |
 | `APPLE_TEAM_ID` | The 10-character Team ID shown in Apple Developer membership details and the App Store profile |
 | `IOS_PROVISIONING_PROFILE_NAME` | The exact `Name` inside the uploaded profile. Prefer a release-independent name such as `WagesTracker App Store Distribution` when next regenerating it |
 | `IOS_EXTENSION_PROVISIONING_PROFILE_NAME` | The exact `Name` inside the App Store profile for `com.ezazahmad.wagestracker.ShiftActivityExtension` |
@@ -91,7 +103,7 @@ Do not trigger the signed workflow from this feature branch. Pull-request valida
 
 ## Build numbers
 
-`CFBundleShortVersionString` is `1.25.0` for this release. `frontend/package.json` is the source of truth; the lockfile, Xcode project and GitHub `IOS_APP_VERSION` variable must match, and the validation script/workflow fail if they do not. Each new workflow dispatch derives `CFBundleVersion` directly from `github.run_number`, which increases across new runs without committing build-number churn to the Xcode project. The workflow accepts only `github.run_attempt == 1`; GitHub reruns keep the original run number and could therefore break reliable ordering after a newer dispatch. If a run fails, fix the cause and start a new **Run workflow** dispatch instead of using **Re-run jobs**.
+`CFBundleShortVersionString` is `1.27.0` for this release. `frontend/package.json` is the source of truth; the lockfile, Xcode project and GitHub `IOS_APP_VERSION` variable must match, and the validation script/workflow fail if they do not. Each fresh signed dispatch derives `CFBundleVersion` from `github.run_number`; build **58** is the current accepted delivery. The workflow accepts only `github.run_attempt == 1`. For a pre-upload failure, fix the cause and start a fresh dispatch instead of **Re-run jobs**. For a post-upload availability failure, use the read-only check against the existing build number. Documentation edits do not require another signed dispatch.
 
 ## Signing, validation and cleanup
 
@@ -121,6 +133,9 @@ An `always()` cleanup step deletes the temporary keychain, `.p12`, API key, deco
 - Signup, normal login, logout, authenticated password change, session list/revoke, account deletion confirmation and biometric enable/cancel/success/soft-lock/retry.
 - With a real registered mailbox: request reset, receive email, open it as a Universal Link, set a policy-valid new password, reject token reuse, reject old password, prove previous sessions are revoked, sign in with the new password, and re-enable/verify biometric login.
 - Home, Entry, Spending (all tabs and dialogs), Report PDF share sheet, History edits/PDF, Settings and public pages with realistic long and large values.
+- Switch jobs on the main tabs, use Your jobs in Settings, compare All jobs totals, and check different effective rates at two locations. Confirm employer PDFs include only the selected job and every recorded rate.
+- Reject a cross-job overlap and an overnight overlap: compare both jobs/dates/times, scroll details on a compact iPhone, close the warning and correct the retained input. Confirm a required-field warning stays above its editor and reduced-motion settings are respected.
+- Cancel and confirm permanent job deletion after reviewing its exact impact; check other jobs and unlinked spending remain, tagged spending is removed, and deleting the final job opens a fresh add-job state. Use disposable test data.
 - App layout → Tab bar: cancel and confirm hiding each optional tab, restore it, reorder visible tabs, and reload the app. Verify Settings remains accessible with every optional tab hidden. Confirm hiding Spending hides its Home snapshot, wage totals remain unchanged, and the last-clock-control warning explains recovery without ending an active shift.
 - Start a shift and verify the Live Activity in light/dark mode, Lock Screen, notification area and Dynamic Island where supported; confirm elapsed time remains accurate in the background and after removing the app from recent apps.
 - Clock out from the Live Activity after native confirmation; verify repeat taps are idempotent, offline clock-out retains its first finish time and retries, failures preserve the active shift, completion shows the final duration, and dashboard/fuel/wage totals refresh.
