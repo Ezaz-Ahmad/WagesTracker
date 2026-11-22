@@ -297,10 +297,11 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
     }));
   }
 
-  function clearTimeDraft(day: DayComputed, row: Row, index: number) {
+  function clearTimeDraft(day: DayComputed, row: Row, index: number, committed: TimeDraft | undefined) {
     const key = locationDraftKey(day.dateISO, row, index);
     setTimeDrafts((current) => {
-      if (!current[key]) return current;
+      // A slow save must not discard a later edit to the other time field.
+      if (!current[key] || current[key] !== committed) return current;
       const next = { ...current };
       delete next[key];
       return next;
@@ -317,11 +318,11 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
     const mergedSignIn = field === "signIn" ? normalized : (draft?.signIn ?? row.signIn);
     const mergedSignOut = field === "signOut" ? normalized : (draft?.signOut ?? row.signOut);
     if (!(await confirmFutureDate(day))) {
-      clearTimeDraft(day, row, rowIndex);
+      clearTimeDraft(day, row, rowIndex, draft);
       return false;
     }
     if (isUnusuallyLongShift(mergedSignIn, mergedSignOut) && !(await confirm(LONG_SHIFT_WARNING))) {
-      clearTimeDraft(day, row, rowIndex);
+      clearTimeDraft(day, row, rowIndex, draft);
       return false;
     }
     const allowFutureDate = isFutureDate(day.dateISO, today);
@@ -333,7 +334,7 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
         return true;
       }
       const updated = await updateShift(row.id, { [field]: normalized, ...(allowFutureDate ? { allowFutureDate: true } : {}) });
-      if (updated) clearTimeDraft(day, row, rowIndex);
+      if (updated) clearTimeDraft(day, row, rowIndex, draft);
       return !!updated;
     }
     if (!row.workLocationId) {
@@ -361,7 +362,7 @@ export function EntryScreen({ onManageLocations = () => {} }: { onManageLocation
     });
     if (created) {
       clearPending(day.dateISO, row.tempId);
-      clearTimeDraft(day, row, rowIndex);
+      clearTimeDraft(day, row, rowIndex, draft);
     }
     return !!created;
   }

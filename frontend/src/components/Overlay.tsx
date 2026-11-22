@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 /** The app's real scrolling element. `.app-main` is the only scroll pane in
@@ -7,6 +7,21 @@ import { createPortal } from "react-dom";
  * admin tree, scrolls the document. */
 function scrollContainer(): HTMLElement {
   return (document.querySelector(".app-main") as HTMLElement | null) ?? document.body;
+}
+
+const scrollLocks = new Map<HTMLElement, { count: number; previous: string }>();
+function lockScroll(element: HTMLElement): void {
+  const lock = scrollLocks.get(element);
+  if (lock) { lock.count++; return; }
+  scrollLocks.set(element, { count: 1, previous: element.style.overflow });
+  element.style.overflow = "hidden";
+}
+function unlockScroll(element: HTMLElement): void {
+  const lock = scrollLocks.get(element);
+  if (!lock) return;
+  if (--lock.count > 0) return;
+  element.style.overflow = lock.previous;
+  scrollLocks.delete(element);
 }
 
 /**
@@ -41,23 +56,13 @@ function scrollContainer(): HTMLElement {
  * has its own lock in place) can't clear a lock it didn't set.
  */
 export function Overlay({ children }: { children: ReactNode }) {
-  const lockedRef = useRef<{ el: HTMLElement; previous: string } | null>(null);
-
   useEffect(() => {
     const el = scrollContainer();
-    const previousBody = document.body.style.overflow;
-    const previous = el.style.overflow;
-    lockedRef.current = { el, previous };
-
-    el.style.overflow = "hidden";
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      const locked = lockedRef.current;
-      if (locked) locked.el.style.overflow = locked.previous;
-      document.body.style.overflow = previousBody;
-      lockedRef.current = null;
-    };
+    const elements = el === document.body ? [el] : [el, document.body];
+    elements.forEach(lockScroll);
+    // Reference counts also handle a parent editor unmounting before its
+    // error popup, for example when a session expires while saving.
+    return () => elements.forEach(unlockScroll);
   }, []);
 
   return createPortal(children, document.body);

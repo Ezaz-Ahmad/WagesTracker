@@ -362,31 +362,52 @@ figcaption {
 .banner-dismiss:focus-visible { outline: 2px solid currentColor; outline-offset: -6px; }
 .field-hint-danger { color: var(--color-danger-700); }
 
-.app-error-backdrop { z-index: 1000; }
-.app-error-dialog {
-  width: min(430px, calc(100% - 24px));
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: var(--space-3);
-  max-height: min(88vh, calc(var(--app-viewport-height, 100dvh) - 24px));
-  overflow-y: auto;
+.dialog-backdrop.app-error-backdrop { z-index: 1400; padding: 16px; background: rgb(14 16 20 / .44); }
+.dialog.app-error-dialog {
+  width: min(460px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 22px;
+  border-radius: 24px;
+  max-height: min(88vh, calc(var(--app-viewport-height, 100dvh) - 40px));
+  overflow: hidden;
+  box-shadow: 0 24px 80px rgb(0 0 0 / .22), var(--shadow-lg);
 }
-.app-error-dialog .dialog-actions { grid-column: 1 / -1; }
+.app-error-header { display: flex; align-items: center; gap: 12px; flex: none; margin-bottom: 13px; }
+.app-error-dialog .dialog-title { margin: 0; font-size: 21px; line-height: 1.25; letter-spacing: -.5px; overflow-wrap: anywhere; }
+.app-error-content { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 1px 2px; }
 .app-error-mark {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: var(--color-danger-100);
-  color: var(--color-danger-700);
-  font-weight: 900;
-  font-size: 18px;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 13px;
+  background: var(--color-warning-100);
+  color: var(--color-warning-700);
 }
-.app-error-dialog .dialog-body { margin: 4px 0 0; }
+.app-error-info .app-error-mark { background: var(--color-neutral-100); color: var(--color-neutral-700); }
+.app-error-danger .app-error-mark { background: var(--color-danger-100); color: var(--color-danger-700); }
+.app-error-dialog .dialog-body { margin: 0; font-size: 13px; line-height: 1.6; opacity: 1; color: var(--color-neutral-700); overflow-wrap: anywhere; }
 .app-error-hint, .app-error-suggestion { margin: var(--space-2) 0 0; font-size: 13px; line-height: 1.5; }
 .app-error-hint { color: color-mix(in srgb, var(--color-text) 72%, transparent); }
 .app-error-suggestion { color: var(--color-accent-700); overflow-wrap: anywhere; }
+.app-error-dialog .app-error-actions { flex: none; display: block; margin-top: 18px; padding-top: 15px; border-top: 1px solid var(--color-divider); }
+.app-error-actions .btn { width: 100%; min-height: 46px; justify-content: center; border-radius: 13px; }
+.app-error-actions .btn:disabled { opacity: 1; }
+.error-shift-comparison { display: grid; gap: 9px; margin: 16px 0; }
+.error-shift-card { min-width: 0; padding: 13px 14px; border-radius: 15px; border: 1px solid var(--color-divider); background: color-mix(in srgb, var(--color-text) 3%, var(--color-surface-raised)); }
+.error-shift-card.is-saved { border-color: color-mix(in srgb, var(--color-warning-700) 22%, var(--color-divider)); }
+.error-shift-label { margin: 0 0 6px; font-size: 10px; line-height: 1.4; letter-spacing: .8px; text-transform: uppercase; font-weight: 700; color: var(--color-neutral-700); }
+.error-shift-job { display: block; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.error-shift-location { margin: 1px 0 0; font-size: 12px; line-height: 1.5; color: var(--color-neutral-700); overflow-wrap: anywhere; }
+.error-shift-date { margin: 9px 0 3px; font-size: 12px; color: var(--color-neutral-700); }
+.error-shift-times { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin: 0; font-size: 16px; line-height: 1.5; font-weight: 700; font-variant-numeric: tabular-nums; }
+.error-shift-times > span { white-space: nowrap; }
+.error-shift-times > span:nth-child(2) { font-weight: 400; color: var(--color-neutral-600); }
+.error-shift-overnight { margin: 3px 0 0; font-size: 12px; line-height: 1.5; color: var(--color-accent-text); }
+@media (max-width: 360px) { .dialog.app-error-dialog { padding: 18px; border-radius: 22px; } .app-error-dialog .dialog-title { font-size: 19px; } .error-shift-times { font-size: 14px; } }
 .field-error-pulse { animation: field-error-pulse 800ms var(--ease-out); }
 .email-suggestion {
   display: flex;

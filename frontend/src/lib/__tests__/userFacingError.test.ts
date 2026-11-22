@@ -11,4 +11,9 @@ describe("toUserFacingError", () => {
   it("keeps helpful validation messages", () => {
     expect(toUserFacingError("Amount must be greater than zero.", 400)).toBe("Amount must be greater than zero.");
   });
+  it("replaces transport details and tolerates malformed error values", () => {
+    expect(toUserFacingError("Send an uncompressed JSON request.", 415)).not.toMatch(/JSON|uncompressed/);
+    expect(toUserFacingError("signOut must be HH:MM", 400)).toBe("Choose a valid sign-out time.");
+    expect(toUserFacingError({ internal: true }, 503)).toBe("Something went wrong. Please try again.");
+  });
 });

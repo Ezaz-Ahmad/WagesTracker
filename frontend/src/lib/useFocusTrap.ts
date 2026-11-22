@@ -3,6 +3,8 @@ import { useEffect, useRef, type RefObject } from "react";
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+const activeTraps: symbol[] = [];
+
 /**
  * Traps Tab/Shift+Tab focus cycling inside a dialog/modal container while
  * `active` is true, moves focus into it the moment it activates, and
@@ -25,6 +27,7 @@ export function useFocusTrap<T extends HTMLElement>(
   initialFocusRef?: RefObject<HTMLElement | null>
 ) {
   const containerRef = useRef<T | null>(null);
+  const token = useRef(Symbol("focus-trap"));
   const previouslyFocused = useRef<HTMLElement | null>(null);
   const onEscapeRef = useRef(onEscape);
   const initialFocusRefRef = useRef(initialFocusRef);
@@ -37,6 +40,8 @@ export function useFocusTrap<T extends HTMLElement>(
   useEffect(() => {
     if (!active) return;
     const container = containerRef.current;
+    const trap = token.current;
+    activeTraps.push(trap);
     previouslyFocused.current = document.activeElement as HTMLElement | null;
 
     function focusables(): HTMLElement[] {
@@ -51,6 +56,9 @@ export function useFocusTrap<T extends HTMLElement>(
     toFocus?.focus();
 
     function onKeyDown(e: KeyboardEvent) {
+      // An error can appear above an editor/confirmation. Only the top
+      // dialog owns Escape and Tab; closing the editor would discard input.
+      if (activeTraps[activeTraps.length - 1] !== trap) return;
       if (e.key === "Escape") {
         onEscapeRef.current?.();
         return;
@@ -75,11 +83,14 @@ export function useFocusTrap<T extends HTMLElement>(
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
+      const wasTop = activeTraps[activeTraps.length - 1] === trap;
+      const index = activeTraps.indexOf(trap);
+      if (index !== -1) activeTraps.splice(index, 1);
       // Restore focus to whatever had it before this dialog opened — guarded
       // against that element having been removed from the document in the
       // meantime (e.g. account deletion signing the user out).
       const prev = previouslyFocused.current;
-      if (prev && document.contains(prev)) prev.focus();
+      if (wasTop && prev && document.contains(prev)) prev.focus();
     };
   }, [active]);
 

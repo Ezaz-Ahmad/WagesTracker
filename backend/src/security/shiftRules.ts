@@ -168,13 +168,12 @@ export function findOverlap(
   candidate: ShiftTimesInput,
   others: readonly { id: string; date: string; signIn: string | null; signOut: string | null }[]
 ): { id: string } | null {
-  if (!candidate.signIn || !candidate.signOut) return null;
-  const a = shiftInterval(candidate.date, candidate.signIn, candidate.signOut);
+  const first = findOverlaps(candidate, others)[0];
+  return first ? { id: first.id } : null;
+}
 
-  for (const other of others) {
-    if (!other.signIn || !other.signOut) continue;
-    const b = shiftInterval(other.date, other.signIn, other.signOut);
-    if (intervalsOverlap(a, b)) return { id: other.id };
-  }
-  return null;
+export function findOverlaps<T extends ShiftTimesInput>(candidate: ShiftTimesInput, others: readonly T[]): T[] {
+  if (!candidate.signIn || !candidate.signOut) return [];
+  const interval = shiftInterval(candidate.date, candidate.signIn, candidate.signOut);
+  return others.filter(other => other.signIn && other.signOut && intervalsOverlap(interval, shiftInterval(other.date, other.signIn, other.signOut)));
 }

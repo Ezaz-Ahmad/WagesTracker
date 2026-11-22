@@ -222,7 +222,7 @@ test.describe("production admin earnings dashboard", () => {
     state.failAccounts = true;
     await page.goto("/admin");
     await expect(page.getByRole("button", { name: "Retry accounts" })).toBeVisible();
-    await page.getByRole("alertdialog").getByRole("button", { name: "Review and fix" }).click();
+    await page.getByRole("alertdialog", { name: "Service temporarily unavailable" }).getByRole("button", { name: "Got it" }).click();
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
     state.failAccounts = false;
     await page.getByRole("button", { name: "Retry accounts" }).click();
@@ -232,7 +232,7 @@ test.describe("production admin earnings dashboard", () => {
     await page.getByRole("button", { name: "View Long Test User" }).click();
     const dialog = page.getByRole("dialog", { name: USER.name });
     await expect(dialog.getByRole("button", { name: "Retry earnings" })).toBeVisible();
-    await page.getByRole("alertdialog").getByRole("button", { name: "Review and fix" }).click();
+    await page.getByRole("alertdialog", { name: "Service temporarily unavailable" }).getByRole("button", { name: "Got it" }).click();
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
     state.failEarnings = false;
     await dialog.getByRole("button", { name: "Retry earnings" }).click();
