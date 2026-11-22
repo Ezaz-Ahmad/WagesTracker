@@ -2,7 +2,7 @@ import type { Client, Transaction } from "@libsql/client";
 import type { JobRow } from "./jobs.js";
 
 export class JobDeletionError extends Error {
-  constructor(public status: number, message: string) { super(message); }
+  constructor(public status: number, message: string, public code?: string) { super(message); }
 }
 
 /** Explicitly mirror the current primary job for older installed clients. */
@@ -30,13 +30,14 @@ export async function jobDeletionImpact(db: Client, userId: string, jobId: strin
       (SELECT COUNT(*) FROM week_extras WHERE user_id=j.user_id AND job_id=j.id) AS weeklyExtras,
       (SELECT COUNT(*) FROM personal_expenses WHERE user_id=j.user_id AND job_id=j.id) AS linkedExpenses,
       EXISTS(SELECT 1 FROM shifts WHERE user_id=j.user_id AND job_id=j.id AND sign_in IS NOT NULL AND sign_out IS NULL) AS running,
-      (SELECT COUNT(*) FROM jobs WHERE user_id=j.user_id)=1 AS lastJob
+      (SELECT COUNT(*) FROM jobs WHERE user_id=j.user_id)=1 AS lastJob,
+      j.archived_at IS NULL AND NOT EXISTS(SELECT 1 FROM jobs other WHERE other.user_id=j.user_id AND other.id!=j.id AND other.archived_at IS NULL) AS lastActiveJob
       FROM jobs j WHERE j.id=? AND j.user_id=?`,
     args: [jobId, userId],
   });
   const row = result.rows[0];
   if (!row) throw new JobDeletionError(404, "Job not found");
-  return { jobId: String(row.id), name: String(row.name), hasRunningShift: !!row.running, lastJob: !!row.lastJob,
+  return { jobId: String(row.id), name: String(row.name), hasRunningShift: !!row.running, lastJob: !!row.lastJob, lastActiveJob: !!row.lastActiveJob,
     counts: Object.fromEntries(["shifts", "locations", "payRates", "fuelAllowances", "weeklyExtras", "linkedExpenses"].map(key => [key, Number(row[key])])) };
 }
 
@@ -49,6 +50,12 @@ export async function deleteJobRecords(db: Client, userId: string, jobId: string
     const job = result.rows[0] as unknown as JobRow | undefined;
     if (!job) throw new JobDeletionError(404, "Job not found");
     if (confirmationName.trim() !== job.name) throw new JobDeletionError(409, "The job name does not match. Review the job and try again.");
+    // Serialize this check with the cascade: concurrent requests may delete
+    // different jobs, but one usable job must survive for the account.
+    const alternatives = await tx.execute({ sql: "SELECT id,archived_at FROM jobs WHERE user_id=? AND id!=?", args: [userId, jobId] });
+    if (!alternatives.rows.length || (!job.archived_at && !alternatives.rows.some(row => row.archived_at == null))) {
+      throw new JobDeletionError(409, `Add another job before deleting ${job.name}. You need at least one active job to keep tracking shifts and pay. Nothing has been deleted.`, "LAST_JOB_REQUIRED");
+    }
     const open = await tx.execute({ sql: "SELECT id FROM shifts WHERE user_id=? AND job_id=? AND sign_in IS NOT NULL AND sign_out IS NULL LIMIT 1", args: [userId, jobId] });
     if (open.rows.length) throw new JobDeletionError(409, "End the running shift before deleting this job.");
     for (const table of ["personal_expenses", "shifts", "day_expenses", "week_extras", "pay_rates", "work_locations"]) {

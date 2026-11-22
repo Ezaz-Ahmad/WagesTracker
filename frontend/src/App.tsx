@@ -1,4 +1,4 @@
-import { AllJobsOverview, ChooseJobForEntry, JobSwitcher } from "./components/JobWorkspace";
+import { AllJobsOverview, ChooseJobForEntry, JobSwitcher, JobWorkspaceNotices } from "./components/JobWorkspace";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { AppProvider, useApp } from "./context/AppContext";
 import { BottomNav, tabsInOrder } from "./components/BottomNav";
@@ -51,6 +51,7 @@ function AuthedAppShell() {
   const {
     selectedJobId,
     selectedJob,
+    jobs = [],
     today,
     user,
     actionError,
@@ -152,8 +153,11 @@ function AuthedAppShell() {
               Wages Tracker
             </span>
             <span className="app-nav-greeting">Welcome back{user ? `, ${user.name.split(" ")[0]}` : ""}</span>
-            <span className="app-nav-date">{todayLabel}</span>
+            <span className="app-nav-context"><span className="app-nav-date">{todayLabel}</span>
+              {screen !== "settings" && jobs.length > 0 && <><span className="app-nav-context-dot" aria-hidden="true">·</span><span className="app-nav-current-job" title={selectedJob?.name || "All jobs"}>{selectedJob?.name || "All jobs"}</span></>}
+            </span>
           </div>
+          <div className="app-nav-actions">
           <button
             type="button"
             className={`app-nav-eye-btn${earningsHidden ? "" : " is-visible"}`}
@@ -164,6 +168,7 @@ function AuthedAppShell() {
           >
             {earningsHidden ? <EyeIcon size={16} /> : <EyeOffIcon size={16} />}
           </button>
+          {screen !== "settings" && <JobSwitcher onManageJobs={()=>{setSettingsInitialCategory("jobs");setScreen("settings");}}/>}
           <button
             type="button"
             className="app-nav-logout"
@@ -175,8 +180,9 @@ function AuthedAppShell() {
             <LogoutIcon size={16} />
             <span className="app-nav-logout-label">Log out</span>
           </button>
+          </div>
         </header>
-        {screen !== "settings" && <JobSwitcher onManageJobs={()=>{setSettingsInitialCategory("jobs");setScreen("settings");}}/>}
+        {screen !== "settings" && <JobWorkspaceNotices/>}
 
         {/* The device-limit notice. The backend has sent this on the login
             response ever since per-installation sessions landed, but the

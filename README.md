@@ -4,7 +4,11 @@ Track shifts and earnings across multiple jobs, with different hourly rates for 
 
 [Open the web app](https://wages-tracker-frontend.vercel.app) · [iPhone App Store](https://apps.apple.com/au/app/wages-tracker/id6801702467) · [Privacy Policy](https://wages-tracker-frontend.vercel.app/privacy) · [Support](https://wages-tracker-frontend.vercel.app/support) · [GitHub releases](https://github.com/Ezaz-Ahmad/WagesTracker/releases)
 
-## Current delivery status
+## Release status
+
+Current application source: **1.28.0**, with the compact header job picker and last-job protection. See [1.28.0 notes](docs/release-notes-1.28.0.md) and the [1.28.0 release receipt](https://github.com/Ezaz-Ahmad/WagesTracker/releases/tag/v1.28.0) for delivery details.
+
+### Previous verified delivery snapshot
 
 Last verified **22 November 2026**. A GitHub source release, a TestFlight upload, and a public App Store release are separate delivery milestones.
 
@@ -27,8 +31,8 @@ See the [1.27.0 release notes](docs/release-notes-1.27.0.md), [change history](C
 
 ### Shifts, wages, and work locations
 
-- Create a second, third or further job, each with its own locations, pay schedule, shifts, fuel, extras, goals, work week and reminder preference. Switch jobs from any main tab except Settings, or choose **All jobs** for a combined view.
-- Manage jobs in **Settings → Your jobs**. Permanent deletion previews the affected data and earnings, requires the exact job name, and is blocked while that job has a running shift. Other jobs and unlinked spending remain.
+- Create a second, third or further job, each with its own locations, pay schedule, shifts, fuel, extras, goals, work week and reminder preference. Use the briefcase beside the eye button on any main tab except Settings to switch jobs, or choose **All jobs** for a combined view. The current job remains visible beside the date.
+- Manage jobs in **Settings → Your jobs**. Permanent deletion previews the affected data and earnings, requires the exact job name, and is blocked while that job has a running shift or is the last usable job. Add another active job first; the warning opens the add-job form without removing records. Other jobs and unlinked spending remain.
 - Set the selected job's default hourly pay in **Settings → Work & pay**, or set location-specific rates and effective dates. Locations can inherit the job default again. Saved and running shifts retain their recorded rates; historical corrections require confirmation.
 - Start and end shifts with a live elapsed timer, or enter and correct saved times. Completed wages use each shift's recorded rate and elapsed seconds, rounded once per shift to cents.
 - Prevent overlapping shifts across jobs and allow only one running shift per account. Conflict popups compare the attempted and saved jobs, locations, dates and times, including explicit overnight end dates; rejected edits preserve saved records and unsaved corrections.
@@ -327,7 +331,7 @@ The public marketing version uses **`MAJOR.MINOR.PATCH`**, with the increment ch
 | Compatible bug fix, UI polish, or security fix | Increase patch | `1.23.0` → `1.23.1` |
 | Documentation-only maintenance | Keep the current marketing version | `1.27.0` remains `1.27.0` |
 
-Every release containing application code, UI, feature, or behavior changes receives a new marketing version. Several commits can belong to one release, so **the marketing version is deliberately updated by hand, not automatically incremented on each commit**. Current version **1.27.0** adds structured conflict feedback and shared error presentation. Versions 1.24.0–1.26.0 introduced multi-job pay/reporting, permanent job deletion, the iOS SDK migration, and reliability/security improvements. Documentation maintenance preserves 1.27.0 and build 58.
+Every release containing application code, UI, feature, or behavior changes receives a new marketing version. Several commits can belong to one release, so **the marketing version is deliberately updated by hand, not automatically incremented on each commit**. Version **1.27.0** added structured conflict feedback and shared error presentation. Versions 1.24.0–1.26.0 introduced multi-job pay/reporting, permanent job deletion, the iOS SDK migration, and reliability/security improvements. Version 1.28.0 adds the header picker and last-job guard; it requires a fresh TestFlight build.
 
 ### What updates automatically
 
@@ -385,6 +389,7 @@ Alternative Railway/Netlify configuration files are reference options, not the c
 | Guide | Scope |
 | --- | --- |
 | [Architecture](docs/architecture.md) | System, data, security boundaries and delivery diagrams |
+| [1.28.0 release notes](docs/release-notes-1.28.0.md) | Header job picker, protected last job and release verification |
 | [1.27.0 release notes](docs/release-notes-1.27.0.md) | Conflict feedback, shared dialogs, verified tests and build 58 |
 | [Change history](CHANGELOG.md) | Current release and changes since the previous GitHub release |
 | [Jobs, location pay and reporting](docs/multi-job-workspaces.md) | Job settings/deletion, effective pay, snapshots and PDF scope |

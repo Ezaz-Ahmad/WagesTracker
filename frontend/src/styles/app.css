@@ -171,7 +171,28 @@ html[data-theme="dark"] .app-logo .app-logo-dark { display: block; }
 @keyframes pull-refresh-spin {
   to { transform: rotate(360deg); }
 }
-.app-nav { flex: none; padding-top: max(var(--space-3), env(safe-area-inset-top)); }
+.app-nav { flex: none; padding-top: max(var(--space-3), env(safe-area-inset-top)); gap: 10px; }
+.app-nav-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.app-nav-context { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.app-nav-context-dot { color: var(--color-neutral-600); }
+.app-nav-current-job { font-size: 12px; font-weight: 600; color: var(--color-accent-text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-nav-context .app-nav-date { flex: none; font-size: 11px; }
+@media (max-width: 719px) {
+  .app-nav { padding-inline: 14px; }
+  .app-nav .nav-brand { font-size: 19px; gap: 7px; letter-spacing: -.6px; white-space: nowrap; }
+  .app-nav-actions { gap: 7px; }
+  .app-nav .app-nav-logout { padding: 0; width: 36px; height: 40px; justify-content: center; border-radius: 50%; position: relative; }
+  .app-nav .app-nav-logout::after { content: ""; position: absolute; inset: -2px -4px; }
+  .app-nav-logout-label { display: none; }
+  .app-nav-current-job { max-width: 114px; font-size: 11px; }
+}
+@media (max-width: 360px) {
+  .app-nav { padding-inline: 10px; gap: 4px; }
+  .app-nav .nav-brand { font-size: 16px; gap: 5px; }
+  .app-nav .nav-brand svg { width: 18px; height: 18px; }
+  .app-nav-actions { gap: 7px; }
+  .app-nav-current-job { max-width: 78px; }
+}
 /* Groups brand/greeting + date into one left-aligned block so the log out
    button can own the far right — the date used to live there, but that's
    prime, easy-to-reach real estate that a once-a-session action (logging

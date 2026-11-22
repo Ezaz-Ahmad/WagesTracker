@@ -1,6 +1,15 @@
 # Change history
 
-The current application version is **1.27.0**, available on the web and as **1.27.0 (58)** to internal TestFlight testers. Apple's public App Store version is **1.23.1** as checked on 22 November 2026. Source releases, TestFlight delivery and public App Store publication are separate milestones.
+The current application source is **1.28.0**. Source releases, TestFlight delivery and public App Store publication are separate milestones; the [1.28.0 release receipt](https://github.com/Ezaz-Ahmad/WagesTracker/releases/tag/v1.28.0) records the verified build and source.
+
+## 1.28.0 — 23 November 2026
+
+- Move job selection to a compact header briefcase beside earnings privacy; keep the selected employer visible by the date and keep Settings free of the picker.
+- Anchor the animated floating picker to the header, constrain it to the available viewport and retain scrolling, fixed actions, focus restoration and reduced-motion behavior.
+- Block deletion of the last job and the only active job. Explain the reason and open Add another job after the warning closes; preserve all records.
+- Recheck the rule inside the deletion transaction to protect old clients, stale reviews and competing deletions. Preserve recovery for accounts already empty from an earlier version.
+
+See [release notes](docs/release-notes-1.28.0.md) for verification and delivery scope.
 
 ## 1.27.0 — 22 November 2026
 

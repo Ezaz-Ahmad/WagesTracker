@@ -1,15 +1,15 @@
 # Jobs, location pay and reporting
 
-**Applies to:** 1.27.0 · **Last reviewed:** 22 November 2026
+**Applies to:** 1.28.0 · **Last reviewed:** 23 November 2026
 
-Each account can own multiple jobs or have none after deleting its last job. A job owns its locations, hourly pay schedule, weekly goals, work-week boundary, shifts, daily fuel allowances and weekly extras. Personal spending remains one account ledger with an optional job tag.
+Accounts keep at least one active job. Accounts already empty from an earlier version can still add a replacement. A job owns its locations, hourly pay schedule, weekly goals, work-week boundary, shifts, daily fuel allowances and weekly extras. Personal spending remains one account ledger with an optional job tag.
 
 ## User experience
 
-- The workspace picker sits below the app header on web and iOS. It switches cached job data immediately and remembers the selection per account on the device.
+- A compact briefcase button beside earnings privacy opens the workspace picker from the header on web and iOS. The selected job stays visible beside the date; the floating panel follows the header and available viewport, with a scrollable list and fixed actions. It switches cached job data immediately and remembers the selection per account on the device.
 - All jobs uses the same Monday–Sunday date range for every job. Its total includes archived jobs' records in that period; goals follow active jobs unless an overall target is saved.
 - Settings → Your jobs creates, renames and permanently deletes jobs. The review lists affected shifts, locations, pay records, fuel allowances, extras and linked spending, explains the effect on totals and future PDFs, and requires the exact job name. A running shift blocks deletion. Existing archived jobs can still be restored or deleted; new archive actions are no longer offered.
-- Job deletion removes its records in one database transaction, including personal spending tagged to the job. Other jobs, account information and unlinked spending remain. Exported PDFs remain on the user's device. Deleting the last job opens an add-job empty state; a persistent initialization marker prevents migration or refresh from recreating deleted data. Deleting the primary job promotes another job and updates compatibility preferences atomically.
+- Job deletion removes its records in one database transaction, including personal spending tagged to the job. Other jobs, account information and unlinked spending remain. Exported PDFs remain on the user's device. Deleting the last job, or the only active job when alternatives are archived, is blocked before records are removed. The warning offers Add another job and Keep job; its Add action closes smoothly before opening the form. A transactional API recheck protects stale clients and concurrent deletions. A persistent initialization marker still protects accounts left empty by earlier versions from migration recreating data. Deleting the primary job promotes another job and updates compatibility preferences atomically.
 - The job picker remains on work tabs and is hidden in Settings. Choose the job through Your jobs before editing its pay. The All jobs Home overview contains work earnings and goals without a personal-spending shortcut.
 - Settings → Work & pay edits the selected job's default pay and each location's override, including effective dates and a return to the default. A same-date replacement requires review. Saved and running shifts retain their recorded pay.
 - Tap a saved shift's hourly rate in Entry to correct current-week pay, or use History for earlier weeks. Both require a before/after confirmation; cancelling preserves the draft. Combined and archived history is read-only.
