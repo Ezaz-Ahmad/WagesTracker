@@ -6,6 +6,7 @@ import { z } from "zod";
 import { asyncHandler } from "../asyncHandler.js";
 import { db, pruneExpiredShifts } from "../db.js";
 import { recalculateDayFuelAllowance } from "../fuelAllowances.js";
+import { shiftConflictResponse, type ConflictShift } from "../security/shiftConflict.js";
 import {
   requireAuth,
   signShiftClockOutToken,
@@ -20,7 +21,7 @@ import {
   TIME_ZONE_REQUIRED_MESSAGE,
   ZERO_LENGTH_MESSAGE as SHARED_ZERO_LENGTH_MESSAGE,
   durationSeconds,
-  findOverlap,
+  findOverlaps,
   isSupportedIanaTimeZone,
   localDateForTimeZone,
   validateShiftTimes,
@@ -65,22 +66,38 @@ async function neighbouringShifts(
   date: string,
   excludeId?: string,
   database: Pick<Transaction,"execute"> = db
-): Promise<{ id: string; date: string; signIn: string | null; signOut: string | null }[]> {
+): Promise<(ConflictShift & { id: string })[]> {
   const day = Date.parse(`${date}T00:00:00Z`);
   const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);
-  const sql = excludeId
-    ? "SELECT id, date, sign_in, sign_out FROM shifts WHERE user_id = ? AND date BETWEEN ? AND ? AND id != ?"
-    : "SELECT id, date, sign_in, sign_out FROM shifts WHERE user_id = ? AND date BETWEEN ? AND ?";
+  const sql = `${conflictShiftSelect} WHERE s.user_id = ? AND s.date BETWEEN ? AND ?${excludeId ? " AND s.id != ?" : ""} ORDER BY s.date, s.sign_in, s.id`;
   const args = excludeId
     ? [userId, iso(day - 86_400_000), iso(day + 86_400_000), excludeId]
     : [userId, iso(day - 86_400_000), iso(day + 86_400_000)];
   const result = await database.execute({ sql, args });
-  return (result.rows as unknown as ShiftRow[]).map((r) => ({
-    id: r.id,
-    date: r.date,
-    signIn: r.sign_in,
-    signOut: r.sign_out,
-  }));
+  return result.rows.map(conflictShiftFromRow);
+}
+
+const conflictShiftSelect = `SELECT s.id, s.date, s.sign_in, s.sign_out,
+  COALESCE(NULLIF(j.name, ''), NULLIF(s.job_name_snapshot, ''), 'Your job') AS job_name,
+  COALESCE(NULLIF(s.location_snapshot, ''), s.location, '') AS location_name
+  FROM shifts s LEFT JOIN jobs j ON j.id = COALESCE(s.job_id, 'job_' || s.user_id) AND j.user_id = s.user_id`;
+
+function conflictShiftFromRow(row: Record<string, unknown>): ConflictShift & { id: string } {
+  return { id: String(row.id), date: String(row.date), jobName: String(row.job_name), location: String(row.location_name), signIn: row.sign_in == null ? null : String(row.sign_in), signOut: row.sign_out == null ? null : String(row.sign_out) };
+}
+
+function attemptedShift(req: AuthedRequest, times: { date: string; signIn: string | null; signOut: string | null }, location: string): ConflictShift {
+  return { ...times, jobName: req.job?.name || "Your job", location };
+}
+
+async function overlapConflict(userId: string, attempted: ConflictShift, excludeId?: string, database: Pick<Transaction, "execute"> = db) {
+  const conflicts = findOverlaps(attempted, await neighbouringShifts(userId, attempted.date, excludeId, database));
+  return conflicts.length ? shiftConflictResponse("overlap", attempted, conflicts) : null;
+}
+
+async function runningConflict(userId: string, attempted: ConflictShift, excludeId?: string) {
+  const result = await db.execute({ sql: `${conflictShiftSelect} WHERE s.user_id = ? AND s.sign_in IS NOT NULL AND s.sign_out IS NULL${excludeId ? " AND s.id != ?" : ""} ORDER BY s.date, s.sign_in, s.id LIMIT 1`, args: excludeId ? [userId, excludeId] : [userId] });
+  return result.rows.length ? shiftConflictResponse("running", attempted, result.rows.map(conflictShiftFromRow)) : null;
 }
 
 // A shift is "open" — signed in, not yet signed out — for exactly as long
@@ -91,18 +108,9 @@ async function neighbouringShifts(
 // well-defined shift to actually act on.
 const OPEN_SHIFT_CONFLICT_MESSAGE = "You already have an open shift. Sign out of it before starting another.";
 
-async function hasOpenShift(userId: string, excludeId?: string): Promise<boolean> {
-  const sql = excludeId
-    ? "SELECT 1 FROM shifts WHERE user_id = ? AND sign_in IS NOT NULL AND sign_out IS NULL AND id != ? LIMIT 1"
-    : "SELECT 1 FROM shifts WHERE user_id = ? AND sign_in IS NOT NULL AND sign_out IS NULL LIMIT 1";
-  const args = excludeId ? [userId, excludeId] : [userId];
-  const result = await db.execute({ sql, args });
-  return result.rows.length > 0;
-}
-
 // The partial unique index in db.ts (idx_shifts_one_open_per_user) is what
 // actually stops a race between two near-simultaneous requests — the
-// hasOpenShift() check above this can't, since both could read "no open
+// runningConflict() check above this can't, since both could read "no open
 // shift" before either has committed. This is what turns that index's raw
 // constraint-violation error into the same clean 409 response the upfront
 // check produces in the non-race case, rather than a generic 500.
@@ -156,10 +164,12 @@ async function clockOutForUser(
   localToday: string
 ): Promise<ClockOutResult | null> {
   const existingResult = await db.execute({
-    sql: "SELECT * FROM shifts WHERE id = ? AND user_id = ?",
+    sql: `SELECT s.*, j.name AS current_job_name FROM shifts s
+          LEFT JOIN jobs j ON j.id = COALESCE(s.job_id, 'job_' || s.user_id) AND j.user_id = s.user_id
+          WHERE s.id = ? AND s.user_id = ?`,
     args: [shiftId, userId],
   });
-  const existing = existingResult.rows[0] as unknown as ShiftRow | undefined;
+  const existing = existingResult.rows[0] as unknown as (ShiftRow & { current_job_name?: string | null }) | undefined;
   if (!existing) return null;
 
   if (existing.sign_out) {
@@ -178,13 +188,10 @@ async function clockOutForUser(
     localToday
   );
   if (problem) throw Object.assign(new Error(problem), { statusCode: 400 });
-  if (
-    findOverlap(
-      { date: existing.date, signIn: existing.sign_in, signOut },
-      await neighbouringShifts(userId, existing.date, existing.id)
-    )
-  ) {
-    throw Object.assign(new Error(OVERLAP_MESSAGE), { statusCode: 409 });
+  const attempted: ConflictShift = { jobName: existing.current_job_name || existing.job_name_snapshot || "Your job", location: existing.location_snapshot || existing.location, date: existing.date, signIn: existing.sign_in, signOut };
+  const conflict = await overlapConflict(userId, attempted, existing.id);
+  if (conflict) {
+    throw Object.assign(new Error(conflict.error), { statusCode: 409, conflictResponse: conflict });
   }
 
   const transaction = await db.transaction("write");
@@ -224,7 +231,8 @@ async function clockOutForUser(
 async function handleClockOut(
   req: Request,
   res: Response,
-  userId: string
+  userId: string,
+  includeConflictDetails = false
 ): Promise<void> {
   const localToday = requestLocalDate(req);
   if (!localToday) {
@@ -250,6 +258,13 @@ async function handleClockOut(
   } catch (error) {
     const statusCode = (error as { statusCode?: unknown })?.statusCode;
     if (statusCode === 400 || statusCode === 409) {
+      const conflict = (error as { conflictResponse?: ReturnType<typeof shiftConflictResponse> }).conflictResponse;
+      if (conflict) {
+        // A Lock Screen credential can end one shift; it must not disclose
+        // the owner's other jobs or their schedules.
+        res.status(statusCode).json(includeConflictDetails ? conflict : { error: `${OVERLAP_MESSAGE} Open Wages Tracker to review the job and times.`, code: "SHIFT_OVERLAP" });
+        return;
+      }
       res.status(statusCode).json({ error: error instanceof Error ? error.message : "Could not end shift" });
       return;
     }
@@ -324,7 +339,7 @@ shiftsRouter.post(
 shiftsRouter.post(
   "/:id/clock-out",
   asyncHandler<AuthedRequest>(async (req, res) => {
-    await handleClockOut(req, res, req.userId!);
+    await handleClockOut(req, res, req.userId!, true);
   })
 );
 
@@ -384,15 +399,18 @@ shiftsRouter.post(
     // Only a shift that would itself be "open" needs this check — a
     // complete shift (both times set, or neither) can never conflict with
     // an already-open one.
-    if (signIn && !signOut && (await hasOpenShift(req.userId!))) {
-      res.status(409).json({ error: OPEN_SHIFT_CONFLICT_MESSAGE });
+    const attempted = attemptedShift(req, { date, signIn, signOut }, locationSnapshot);
+    const running = signIn && !signOut ? await runningConflict(req.userId!, attempted) : null;
+    if (running) {
+      res.status(409).json(running);
       return;
     }
 
     // 409 rather than 400: the shift itself is well-formed, it conflicts
     // with existing state — the same distinction the open-shift rule draws.
-    if (findOverlap({ date, signIn, signOut }, await neighbouringShifts(req.userId!, date))) {
-      res.status(409).json({ error: OVERLAP_MESSAGE });
+    const conflict = await overlapConflict(req.userId!, attempted);
+    if (conflict) {
+      res.status(409).json(conflict);
       return;
     }
 
@@ -402,7 +420,8 @@ shiftsRouter.post(
     try {
       const jobState=await transaction.execute({sql:"SELECT archived_at FROM jobs WHERE id=? AND user_id=?",args:[req.jobId!,req.userId!]});
       if(!jobState.rows.length||jobState.rows[0].archived_at){await transaction.rollback();res.status(409).json({error:"This job is archived. Restore it before adding shifts."});return;}
-      if(findOverlap({date,signIn,signOut},await neighbouringShifts(req.userId!,date,undefined,transaction))){await transaction.rollback();res.status(409).json({error:OVERLAP_MESSAGE});return;}
+      const transactionConflict = await overlapConflict(req.userId!, attempted, undefined, transaction);
+      if (transactionConflict) { await transaction.rollback(); res.status(409).json(transactionConflict); return; }
       const pay = await resolvePay(transaction, req.userId!, req.jobId!, selectedLocationId, date);
       await transaction.execute({
         sql: `INSERT INTO shifts
@@ -429,7 +448,7 @@ shiftsRouter.post(
     } catch (e) {
       await transaction.rollback();
       if (isUniqueConstraintError(e)) {
-        res.status(409).json({ error: OPEN_SHIFT_CONFLICT_MESSAGE });
+        res.status(409).json(await runningConflict(req.userId!, attempted) ?? { error: OPEN_SHIFT_CONFLICT_MESSAGE, code: "OPEN_SHIFT_EXISTS" });
         return;
       }
       throw e;
@@ -523,25 +542,22 @@ shiftsRouter.patch(
       }
     }
 
-    // Same one-open-shift-per-user rule as creation (see hasOpenShift above)
+    // Same one-open-shift-per-user rule as creation (see runningConflict above)
     // — this mostly guards against re-opening a previously-completed shift
     // (clearing signOut) while a different shift is already open. The
     // ordinary sign-out PATCH (setting signOut on the one open shift) never
     // trips this: it makes mergedSignOut non-null, so the shift being
     // patched is no longer "open" after the update.
-    if (mergedSignIn && !mergedSignOut && (await hasOpenShift(req.userId!, existing.id))) {
-      res.status(409).json({ error: OPEN_SHIFT_CONFLICT_MESSAGE });
+    const attempted = attemptedShift(req, { date: existing.date, signIn: mergedSignIn, signOut: mergedSignOut }, "location" in updates ? updates.location || "" : "workLocationId" in updates ? "" : existing.location_snapshot || existing.location);
+    const running = mergedSignIn && !mergedSignOut ? await runningConflict(req.userId!, attempted, existing.id) : null;
+    if (running) {
+      res.status(409).json(running);
       return;
     }
 
-    if (
-      timesChanged &&
-      findOverlap(
-        { date: existing.date, signIn: mergedSignIn, signOut: mergedSignOut },
-        await neighbouringShifts(req.userId!, existing.date, existing.id)
-      )
-    ) {
-      res.status(409).json({ error: OVERLAP_MESSAGE });
+    const conflict = timesChanged ? await overlapConflict(req.userId!, attempted, existing.id) : null;
+    if (conflict) {
+      res.status(409).json(conflict);
       return;
     }
 
@@ -599,7 +615,8 @@ shiftsRouter.patch(
       if(!jobState.rows.length||jobState.rows[0].archived_at){await transaction.rollback();res.status(409).json({error:"Restore this job before editing its shifts."});return;}
       const current=await transaction.execute({sql:"SELECT updated_at FROM shifts WHERE id=? AND user_id=?",args:[existing.id,req.userId!]});
       if(current.rows[0]?.updated_at!==existing.updated_at){await transaction.rollback();res.status(409).json({error:"This shift changed on another device. Refresh it before saving again."});return;}
-      if(timesChanged&&findOverlap({date:existing.date,signIn:mergedSignIn,signOut:mergedSignOut},await neighbouringShifts(req.userId!,existing.date,existing.id,transaction))){await transaction.rollback();res.status(409).json({error:OVERLAP_MESSAGE});return;}
+      const transactionConflict = timesChanged ? await overlapConflict(req.userId!, attempted, existing.id, transaction) : null;
+      if (transactionConflict) { await transaction.rollback(); res.status(409).json(transactionConflict); return; }
       await transaction.execute({
         sql: `UPDATE shifts SET ${setClauses.join(", ")}, updated_at = @updatedAt
               WHERE id = @id AND user_id = @userId`,
@@ -610,7 +627,7 @@ shiftsRouter.patch(
     } catch (e) {
       await transaction.rollback();
       if (isUniqueConstraintError(e)) {
-        res.status(409).json({ error: OPEN_SHIFT_CONFLICT_MESSAGE });
+        res.status(409).json(await runningConflict(req.userId!, attempted, existing.id) ?? { error: OPEN_SHIFT_CONFLICT_MESSAGE, code: "OPEN_SHIFT_EXISTS" });
         return;
       }
       throw e;

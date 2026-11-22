@@ -94,7 +94,13 @@ export function createApp(): express.Express {
   // up). Doesn't require the /api prefix, unlike the actual routes below.
   app.get("/", (_req, res) => res.json({ status: "API is healthy and awake" }));
 
-  app.get("/api/health", (_req, res) => res.json({ ok: true }));
+  app.get("/api/health", (_req, res) => {
+    // Render supplies the public source revision. This verifies a rollout
+    // even when the provider's GitHub deployment callback remains pending.
+    const revision = process.env.RENDER_GIT_COMMIT;
+    if (revision && /^[a-f0-9]{40}$/i.test(revision)) res.set("X-App-Revision", revision.toLowerCase());
+    res.set("Cache-Control", "no-store").json({ ok: true });
+  });
   // authLimiter is scoped to only signup/login — not the whole /api/auth
   // router — so it never catches POST /api/auth/logout. Logout is already
   // gated by requireAuth (needs a currently-valid JWT) and the general /api

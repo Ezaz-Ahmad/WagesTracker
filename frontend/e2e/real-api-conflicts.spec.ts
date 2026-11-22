@@ -1,0 +1,71 @@
+import { expect, test } from "@playwright/test";
+import { randomUUID } from "node:crypto";
+
+test.use({ timezoneId: "UTC" });
+for (const viewport of [{ width: 390, height: 844, dark: true }, { width: 320, height: 568, dark: false }, { width: 1100, height: 800, dark: false }]) {
+  test(`overlap guidance preserves drafts and explains overnight shifts at ${viewport.width}px`, async ({ page, request }, testInfo) => {
+    const origin = "http://127.0.0.1:4317";
+    const date = new Date().toISOString().slice(0, 10);
+    const tomorrow = new Date(Date.parse(`${date}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+    const dateLabel = (value: string) => new Intl.DateTimeFormat("en-AU", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${value}T12:00:00Z`));
+    const signup = await request.post(`${origin}/api/auth/signup`, { data: { name: "Schedule Review", email: `conflict-${randomUUID()}@example.com`, password: "Schedule-review-secure-2026!", rate: 30, workLocationName: "City Retail" } });
+    expect(signup.status()).toBe(201);
+    const { token } = await signup.json();
+    const headers = { Authorization: `Bearer ${token}`, "X-Client-Time-Zone": "UTC" };
+    const jobs = await request.get(`${origin}/api/jobs`, { headers });
+    const primary = (await jobs.json()).jobs[0].id;
+    const added = await request.post(`${origin}/api/jobs`, { headers, data: { name: "Test job", role: "Customer reception", rate: 25 } });
+    expect(added.status()).toBe(201);
+    const second = (await added.json()).job.id;
+    const saved = await request.post(`${origin}/api/shifts`, { headers: { ...headers, "X-Work-Job": primary }, data: { date, location: "City store", signIn: "09:00", signOut: "17:00" } });
+    expect(saved.status()).toBe(201);
+    const editable = await request.post(`${origin}/api/shifts`, { headers: { ...headers, "X-Work-Job": second }, data: { date, location: "Reception", signIn: "17:00", signOut: "19:00" } });
+    expect(editable.status()).toBe(201);
+    const shiftId = (await editable.json()).shift.id;
+
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.emulateMedia({ colorScheme: viewport.dark ? "dark" : "light" });
+    await page.clock.setFixedTime(new Date(`${date}T12:20:00Z`));
+    const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+    await page.route("**/api/**", async route => {
+      const url = new URL(route.request().url());
+      await route.fulfill({ response: await route.fetch({ url: `${origin}${url.pathname}${url.search}` }) });
+    });
+    await page.addInitScript(value => { localStorage.setItem("wageTracker.token", value); localStorage.setItem("wageTracker.lastActivity", String(Date.now())); }, token);
+    await page.goto("/");
+    await page.locator(".workspace-trigger").click();
+    await page.getByRole("button", { name: /Test job Customer reception/ }).click();
+    await page.getByRole("navigation", { name: "Main", exact: true }).getByRole("button", { name: "Entry", exact: true }).click();
+    const panel = page.locator(`#day-panel-${date}`);
+    const signIn = panel.getByLabel("Sign-in time", { exact: true });
+    const signOut = panel.getByLabel("Sign-out time", { exact: true });
+    if (!await signIn.isVisible()) await page.locator(`[aria-controls="day-panel-${date}"]`).click();
+    const updated = page.waitForResponse(response => response.url().endsWith(`/api/shifts/${shiftId}`) && response.request().method() === "PATCH" && response.status() === 200);
+    await signOut.fill("00:20"); await signOut.blur(); await updated;
+    const rejected = page.waitForResponse(response => response.url().endsWith(`/api/shifts/${shiftId}`) && response.status() === 409);
+    await signIn.fill("12:20"); await signIn.blur(); await rejected;
+    const dialog = page.getByRole("alertdialog", { name: "These shifts overlap" });
+    await expect(dialog).toBeVisible();
+    const attempted = dialog.getByRole("region", { name: "Your change", exact: true });
+    const conflict = dialog.getByRole("region", { name: "Already saved", exact: true });
+    await expect(attempted).toContainText("Test job");
+    await expect(attempted).toContainText("12:20 pm"); await expect(attempted).toContainText("12:20 am");
+    await expect(attempted).toContainText(`Ends ${dateLabel(tomorrow)}`);
+    await expect(conflict).toContainText("City Retail"); await expect(conflict).toContainText(dateLabel(date));
+    await expect(conflict).toContainText("9:00 am"); await expect(conflict).toContainText("5:00 pm");
+    await expect(page.getByRole("button", { name: "Dismiss this error", exact: true })).toHaveCount(0);
+    const button = dialog.getByRole("button", { name: "Review times", exact: true });
+    await expect(button).toBeInViewport();
+    const box = await dialog.boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0); expect(box!.y).toBeGreaterThanOrEqual(0);
+    expect(box!.width).toBeLessThanOrEqual(viewport.width); expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
+    await dialog.evaluate(async element => { await Promise.all(element.getAnimations({ subtree: true }).map(animation => animation.finished)); });
+    await expect(dialog).toHaveCSS("opacity", "1");
+    await page.screenshot({ path: testInfo.outputPath(`overlap-${viewport.width}.png`) });
+    await button.click(); await expect(dialog).toHaveCount(0);
+    await expect(signIn).toHaveValue("12:20"); await expect(signOut).toHaveValue("00:20");
+    const persisted = await request.get(`${origin}/api/shifts?from=${date}&to=${date}`, { headers: { ...headers, "X-Work-Job": second } });
+    expect((await persisted.json()).shifts[0]).toMatchObject({ signIn: "17:00", signOut: "00:20" });
+    expect(errors).toEqual([]);
+  });
+}

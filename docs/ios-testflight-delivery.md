@@ -1,8 +1,10 @@
 # Signed TestFlight delivery
 
-**Current source marketing version:** `1.26.0`
+**Current source marketing version:** `1.27.0`
 
 **Last reviewed:** 22 November 2026
+
+**Backend rollout verification:** `GET /api/health` retains `{ "ok": true }` and, on Render, returns `X-App-Revision` from the validated public `RENDER_GIT_COMMIT`. Check this header against the merged release revision before marking new API behavior delivered; the provider's GitHub deployment status can remain pending after rollout. The response is not cached. See [Render's environment-variable reference](https://render.com/docs/environment-variables#render_git_commit).
 
 **SDK requirement:** Apple's ITMS-90725 email for build 55 identified the iOS 26.5 SDK. Simulator and signed delivery use the `xcode-27` runner with `DEVELOPER_DIR=/Applications/Xcode_27.2.app/Contents/Developer`, verify the selected stable toolchain and iOS SDK before building, and inspect `DTSDKName` in the compiled app and extension with `inspect-ios-build-sdk.mjs`. Artifacts built with an iOS SDK below 27 are rejected before upload. This addresses [Apple's April 2027 SDK requirement](https://developer.apple.com/news/?id=k1mtkt1k); the project retains its existing iOS deployment target. Build/upload receipts for this release are recorded in the release pull request and workflow runs.
 

@@ -20,7 +20,7 @@
 // locates the specific day that actually has the real shift by its date
 // label, rather than assuming the first "has-content" card is the
 // meaningful one.
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { useApp } from "../../context/AppContext";
@@ -130,6 +130,23 @@ function getShiftDayCard(): HTMLElement {
 }
 
 describe("Entry screen — day accordion structure and keyboard behavior", () => {
+  it("keeps a newer time edit when an earlier save finishes", async () => {
+    let complete!: (shift: Shift) => void;
+    updateShift.mockImplementationOnce(() => new Promise<Shift>(resolve => { complete = resolve; }));
+    render(<EntryScreen />);
+    const card = getShiftDayCard();
+    fireEvent.click(card.querySelector(".day-row-toggle") as HTMLButtonElement);
+    const signIn = within(card).getByLabelText("Sign-in time") as HTMLInputElement;
+    const signOut = within(card).getByLabelText("Sign-out time") as HTMLInputElement;
+    fireEvent.change(signOut, { target: { value: "16:30" } }); fireEvent.blur(signOut);
+    await waitFor(() => expect(updateShift).toHaveBeenCalledWith("shift-1", { signOut: "16:30" }));
+    fireEvent.change(signIn, { target: { value: "08:00" } });
+    await act(async () => { complete({ ...testShift, signOut: "16:30" }); });
+    expect(signIn.value).toBe("08:00");
+    fireEvent.blur(signIn);
+    await waitFor(() => expect(updateShift).toHaveBeenLastCalledWith("shift-1", { signIn: "08:00" }));
+  });
+
   it("keeps a time-wheel draft local until the picker is committed", async () => {
     const user = userEvent.setup();
     render(<ConfirmProvider><EntryScreen /></ConfirmProvider>);

@@ -1,6 +1,7 @@
 import type { Job,PayRate,WorkLocation } from "../lib/types";
 import type { Shift, User, WeekStart } from "../lib/types";
-import { errorHintForStatus, showErrorPopup } from "../lib/errorFeedback";
+import { showErrorPopup } from "../lib/errorFeedback";
+import { feedbackForApiError } from "../lib/apiErrorFeedback";
 import { toUserFacingError } from "../lib/userFacingError";
 import { RequestTimeoutError, withRequestTimeout } from "../lib/networkRequest";
 
@@ -36,14 +37,14 @@ export class AdminApiError extends Error {
   constructor(message: string, status: number, code?: string, field?: string, suggestion?: string) {
     super(message);
     this.status = status;
-    this.code = code;
-    this.field = field;
-    this.suggestion = suggestion;
+    this.code = typeof code === "string" ? code : undefined;
+    this.field = typeof field === "string" ? field : undefined;
+    this.suggestion = typeof suggestion === "string" ? suggestion : undefined;
   }
 }
 
 function reportAdminError(error: AdminApiError): AdminApiError {
-  showErrorPopup({ message: error.message, hint: errorHintForStatus(error.status), field: error.field, suggestion: error.suggestion });
+  showErrorPopup(feedbackForApiError(error));
   return error;
 }
 

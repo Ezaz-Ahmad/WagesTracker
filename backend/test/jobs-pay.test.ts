@@ -472,6 +472,7 @@ describe("jobs and recorded location pay", () => {
       )
     );
     expect(results.map((r) => r.status).sort()).toEqual([201, 409]);
+    expect(results.find(result => result.status === 409)?.body).toMatchObject({ code: "SHIFT_OVERLAP", conflict: { kind: "overlap", totalConflicts: 1 } });
   });
   it("keeps job preferences when account details or the combined goal are updated", async () => {
     const preferences = {

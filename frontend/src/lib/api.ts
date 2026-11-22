@@ -20,7 +20,9 @@ import {
   removeStoredToken,
   storeToken,
 } from "../platform/tokenStorage";
-import { errorHintForStatus, showErrorPopup } from "./errorFeedback";
+import { showErrorPopup } from "./errorFeedback";
+import { feedbackForApiError } from "./apiErrorFeedback";
+import { parseShiftConflict, type ShiftConflict } from "./shiftConflict";
 import { toUserFacingError } from "./userFacingError";
 import { RequestTimeoutError, withRequestTimeout } from "./networkRequest";
 
@@ -135,22 +137,21 @@ export class ApiError extends Error {
   code?: string;
   field?: string;
   suggestion?: string;
-  constructor(message: string, status: number, code?: string, field?: string, suggestion?: string) {
+  conflict?: ShiftConflict;
+  feedbackShown = false;
+  constructor(message: string, status: number, code?: string, field?: string, suggestion?: string, conflict?: unknown) {
     super(message);
     this.status = status;
-    this.code = code;
-    this.field = field;
-    this.suggestion = suggestion;
+    this.code = typeof code === "string" ? code : undefined;
+    this.field = typeof field === "string" ? field : undefined;
+    this.suggestion = typeof suggestion === "string" ? suggestion : undefined;
+    this.conflict = parseShiftConflict(conflict);
   }
 }
 
 function reportApiError(error: ApiError): ApiError {
-  showErrorPopup({
-    message: error.message,
-    hint: errorHintForStatus(error.status),
-    field: error.field,
-    suggestion: error.suggestion,
-  });
+  error.feedbackShown = true;
+  showErrorPopup(feedbackForApiError(error));
   return error;
 }
 
@@ -203,11 +204,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   const body = await readResponseJson(res, signal);
   if (!res.ok) {
-    const errorBody = body as { error?: string; code?: string; field?: string; suggestion?: string };
+    const errorBody = body as { error?: string; code?: string; field?: string; suggestion?: string; conflict?: unknown };
     const message = errorBody.code === "INVALID_CLIENT_TIME_ZONE"
       ? TIME_ZONE_FALLBACK_MESSAGE
       : toUserFacingError(errorBody.error || `Request failed (${res.status})`, res.status);
-    const error=new ApiError(message, res.status, errorBody.code, errorBody.field, errorBody.suggestion);
+    const error=new ApiError(message, res.status, errorBody.code, errorBody.field, errorBody.suggestion, errorBody.conflict);
     if(errorBody.code==="RATE_CHANGE_CONFIRMATION_REQUIRED")throw error;
     throw reportApiError(error);
   }

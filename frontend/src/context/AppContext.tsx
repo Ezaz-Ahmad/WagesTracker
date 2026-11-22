@@ -715,7 +715,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (status === "loggedIn" && user) {
-      void reloadShifts(user, today).catch(error=>setActionError(error instanceof Error?error.message:"Couldn’t load your jobs. Pull to refresh and try again."));
+      void reloadShifts(user, today).catch(error=>{ if (!(error instanceof ApiError && error.feedbackShown)) setActionError(error instanceof Error?error.message:"Couldn’t load your jobs. Pull to refresh and try again."); });
     }
     // Re-fetch when the week-start setting changes the window we need, or the day rolls over.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1138,6 +1138,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setAuthError("Your sign-in expired. Please log in again.");
         return;
       }
+      if (e instanceof ApiError && e.feedbackShown) { setActionError(null); return; }
       setActionError(e instanceof Error ? e.message : fallback);
     },
     [logout]
@@ -1500,7 +1501,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch (e) {
         setWeekExtras(cur=>[...cur.filter(w=>w.weekStart!==weekStart||w.jobId!==jobId),...prev.filter(w=>w.weekStart===weekStart&&w.jobId===jobId)]);
         if (e instanceof ApiError && e.status === 400) {
-          setActionError(e.message);
+          setActionError(e.feedbackShown ? null : e.message);
         } else {
           await handleActionError(e, "Couldn't save other earnings");
         }

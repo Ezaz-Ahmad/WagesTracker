@@ -11,6 +11,9 @@ export default defineConfig({
     timeout: 30_000,
   },
   fullyParallel: false,
+  // UI journeys share one temporary embedded SQLite API. Keep their
+  // fixtures sequential; intentional write races have dedicated API tests.
+  workers: 1,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? "github" : "list",
@@ -26,7 +29,7 @@ export default defineConfig({
     },
     {
       name: "webkit-iphone",
-      testMatch: "**/real-api-journey.spec.ts",
+      testMatch: "**/real-api-*.spec.ts",
       use: { ...devices["iPhone 13"], browserName: "webkit" },
     },
   ],

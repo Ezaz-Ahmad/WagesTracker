@@ -967,3 +967,28 @@ test("job picker respects reduced motion in the production bundle", async ({ pag
   await expect(picker).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Your week, together." })).toBeVisible();
 });
+
+test("field warnings stay above the job editor and preserve its input on Escape", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await mockAuthenticatedApi(page, { multipleJobs: true });
+  await page.goto("/");
+  await page.locator(".workspace-trigger").click();
+  await page.getByRole("button", { name: "Add another job", exact: true }).click();
+  const editor = page.getByRole("dialog", { name: "Add another job", exact: true });
+  await editor.getByLabel(/Role/).fill("Keep my reception role");
+  await editor.getByRole("button", { name: "Create job", exact: true }).click();
+  const warning = page.getByRole("alertdialog");
+  await expect(warning).toContainText("Job or employer name is required.");
+  const action = warning.getByRole("button", { name: "Review field", exact: true });
+  await expect(action).toBeInViewport();
+  expect(await action.evaluate(element => {
+    const box = element.getBoundingClientRect();
+    return element.closest(".app-error-dialog")!.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+  })).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(warning).toHaveCount(0);
+  await expect(editor).toBeVisible();
+  await expect(editor.getByLabel(/Role/)).toHaveValue("Keep my reception role");
+  await expect(editor.getByLabel("Job or employer name", { exact: true })).toBeFocused();
+});
