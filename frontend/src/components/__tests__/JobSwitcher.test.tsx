@@ -27,7 +27,8 @@ function open(onManageJobs = vi.fn()) {
 describe("job picker interaction", () => {
   it("finishes its exit before changing jobs, ignores repeated selection and restores focus", () => {
     vi.useFakeTimers(); const trigger = open();
-    expect(trigger.textContent).toContain("$30.00/hr default");
+    expect(trigger.getAttribute("aria-label")).toBe("Switch job. Current: City Retail");
+    expect(trigger.textContent).not.toContain("$30.00");
     const choice = screen.getByRole("button", { name: /Harbour Hotel/ });
     fireEvent.click(choice); fireEvent.click(choice);
     expect(choice.getAttribute("aria-pressed")).toBe("true");
@@ -52,7 +53,7 @@ describe("job picker interaction", () => {
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
     act(() => { vi.runAllTimers(); });
     expect(screen.getByRole("dialog", { name: "Add another job" })).toBeTruthy();
-    expect(screen.queryByRole("dialog", { name: "Choose your view" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Switch job" })).toBeNull();
   });
   it("switches immediately when reduced motion is enabled", () => {
     vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true }))); open();
@@ -62,7 +63,7 @@ describe("job picker interaction", () => {
   });
   it("keeps job rates private and exposes accessible dialog controls", async () => {
     useAppMock.mockReturnValue({ ...state(), earningsHidden: true }); open();
-    expect(screen.getAllByText(/Pay hidden/)).toHaveLength(3);
+    expect(screen.getAllByText(/Pay hidden/)).toHaveLength(2);
     expect(document.body.textContent).not.toMatch(/\$(30|40)\.00/);
     expect(await axe(document.body, { rules: { "color-contrast": { enabled: false } } })).toHaveNoViolations();
   });

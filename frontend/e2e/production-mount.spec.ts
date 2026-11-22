@@ -55,6 +55,7 @@ async function mockAuthenticatedApi(page: Page, options: {
   chartData?: boolean;
   multipleJobs?: boolean;
   extraJobs?: number;
+  anchorDate?: string;
 } = {}) {
   let summaryRequests = 0;
   let categoryRequests = 0;
@@ -89,7 +90,7 @@ async function mockAuthenticatedApi(page: Page, options: {
     else if (pathname === "/api/work-locations") body = { locations: options.multipleJobs?WORK_LOCATIONS.map((l,i)=>({...l,jobId:i?"job-two":"job-one"})).filter(location=>!deletedJobs.has(location.jobId)):WORK_LOCATIONS };
     else if (pathname === "/api/work-locations/suggestions") body = { suggestions: {} };
     else if (pathname === "/api/shifts") {
-      const now = new Date();
+      const now = options.anchorDate ? new Date(options.anchorDate) : new Date();
       const startedAt = new Date(now.getTime() - 75 * 60 * 1000);
       const dateString = (value: Date) => [value.getFullYear(), value.getMonth() + 1, value.getDate()]
         .map((part, index) => String(part).padStart(index === 0 ? 4 : 2, "0"))
@@ -771,8 +772,12 @@ test("mobile Home opens polished detail sheets for days and summary cards", asyn
 
 test("hiding Spending confirms its impact, preserves wages, and survives reload and restore", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  // Keep the comparison's work week stable on Monday/Tuesday too; the
+  // chart fixture's most recent completed shift is two days earlier.
+  const anchorDate = "2026-11-22T12:00:00.000Z";
+  await page.clock.setFixedTime(new Date(anchorDate));
   const errors = await captureRuntimeErrors(page);
-  await mockAuthenticatedApi(page, { chartData: true });
+  await mockAuthenticatedApi(page, { chartData: true, anchorDate });
   const dataWrites: string[] = [];
   page.on("request", (request) => {
     if (/\/api\//.test(request.url()) && ["POST", "PUT", "PATCH", "DELETE"].includes(request.method())) dataWrites.push(request.url());
@@ -838,9 +843,9 @@ for (const width of [1280, 390, 320]) {
     await expect(page.locator(".job-overview-amount")).toContainText("352.00");
     await expect(page.locator(".job-overview-row")).toHaveCount(2);
     expect(shiftReads).toBe(initialReads);
-    const workspace = await page.locator(".workspace-strip").boundingBox();
+    const workspace = await page.locator(".workspace-trigger").boundingBox();
     expect(workspace!.y).toBeLessThan(200);
-    if (width >= 1080) expect(workspace!.x).toBeLessThan(400);
+    expect(workspace!.x + workspace!.width).toBeLessThanOrEqual(width);
     expect(await page.locator("body").evaluate(el => el.scrollWidth <= innerWidth)).toBe(true);
     expect(await page.locator(".job-overview-row").first().evaluate(el => getComputedStyle(el).flexDirection)).toBe("row");
     await page.getByRole("button", { name: "Report", exact: true }).click();
@@ -862,35 +867,38 @@ for (const width of [1280, 390, 320]) {
   });
 }
 
-test("mobile deletion reviews impact, clears selected jobs and reaches a durable empty state", async ({page}, testInfo) => {
+test("mobile deletion reviews impact and protects the last job with an add-job handoff", async ({page}, testInfo) => {
   await page.setViewportSize({width:390,height:844});
   const errors=await captureRuntimeErrors(page); await mockAuthenticatedApi(page,{multipleJobs:true});
   await page.goto("/");
   await page.getByRole("navigation",{name:"Main"}).getByRole("button",{name:"Settings",exact:true}).click();
   await expect(page.locator(".workspace-trigger")).toHaveCount(0);
   await page.getByRole("button",{name:/Your jobs/}).click();
-  for(const name of ["City Retail","Harbour Hotel"]){
-    await page.getByRole("button",{name:`Delete ${name}`,exact:true}).click();
-    const dialog=page.getByRole("dialog",{name:"Delete this job?"});
-    await expect(dialog.getByText("Linked spending",{exact:true})).toBeVisible();
-    await expect(dialog.getByRole("button",{name:"Delete job & data"})).toBeDisabled();
-    if(name==="City Retail"){
-      await dialog.screenshot({path:testInfo.outputPath("delete-job-phone.png")});
-      await dialog.getByRole("button",{name:"Keep job"}).click();
-      await expect(page.getByRole("button",{name:`Delete ${name}`,exact:true})).toBeVisible();
-      await page.getByRole("button",{name:`Delete ${name}`,exact:true}).click();
-    } else await expect(dialog.getByText(/This is your last job/)).toBeVisible();
-    await dialog.getByRole("textbox").fill(name);
-    await dialog.getByRole("button",{name:"Delete job & data"}).click();
-    await expect(dialog).toBeHidden();
-    await expect(page.getByRole("button",{name:`Delete ${name}`,exact:true})).toHaveCount(0);
-  }
-  await page.getByRole("navigation",{name:"Main"}).getByRole("button",{name:"Home",exact:true}).click();
-  await expect(page.getByRole("heading",{name:"Your next job starts here."})).toBeVisible();
+  await page.getByRole("button",{name:"Delete City Retail",exact:true}).click();
+  const dialog=page.getByRole("dialog",{name:"Delete this job?"});
+  await expect(dialog.getByText("Linked spending",{exact:true})).toBeVisible();
+  await expect(dialog.getByRole("button",{name:"Delete job & data"})).toBeDisabled();
+  await dialog.screenshot({path:testInfo.outputPath("delete-job-phone.png")});
+  await dialog.getByRole("button",{name:"Keep job"}).click();
+  await page.getByRole("button",{name:"Delete City Retail",exact:true}).click();
+  await dialog.getByRole("textbox").fill("City Retail");
+  await dialog.getByRole("button",{name:"Delete job & data"}).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("button",{name:"Delete City Retail",exact:true})).toHaveCount(0);
+  await page.getByRole("button",{name:"Delete Harbour Hotel",exact:true}).click();
+  const warning=page.getByRole("dialog",{name:"Keep one job to continue"});
+  await expect(warning).toContainText("Nothing has been deleted.");
+  await expect(warning.getByRole("textbox")).toHaveCount(0);
+  await warning.getByRole("button",{name:"Keep Harbour Hotel",exact:true}).click();
+  await expect(page.getByRole("button",{name:"Delete Harbour Hotel",exact:true})).toBeVisible();
   await page.reload();
-  await expect(page.getByRole("heading",{name:"Your next job starts here."})).toBeVisible();
-  await page.getByRole("button",{name:"Add a job",exact:true}).click();
-  await expect(page.getByRole("dialog",{name:"Add a job"})).toBeVisible();
+  await page.getByRole("navigation",{name:"Main"}).getByRole("button",{name:"Settings",exact:true}).click();
+  await page.getByRole("button",{name:/Your jobs/}).click();
+  await page.getByRole("button",{name:"Delete Harbour Hotel",exact:true}).click();
+  await expect(warning).toBeVisible();
+  await warning.screenshot({path:testInfo.outputPath("last-job-warning-phone.png")});
+  await warning.getByRole("button",{name:"Add another job",exact:true}).click();
+  await expect(page.getByRole("dialog",{name:"Add another job",exact:true})).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -932,7 +940,7 @@ for (const { width, scheme, extraJobs } of [{ width: 1280, scheme: "light", extr
     await page.goto("/");
     await expect(page.locator(".workspace-trigger")).toContainText("City Retail");
     await page.locator(".workspace-trigger").click();
-    const picker = page.getByRole("dialog", { name: "Choose your view" });
+    const picker = page.getByRole("dialog", { name: "Switch job" });
     await expect(picker.getByRole("button", { name: "Manage jobs" })).toBeVisible();
     await expect(picker.getByRole("button", { name: "Add another job" })).toBeVisible();
     await picker.screenshot({ path: testInfo.outputPath(`job-picker-${width}-${scheme}.png`) });
@@ -960,7 +968,7 @@ test("job picker respects reduced motion in the production bundle", async ({ pag
   await mockAuthenticatedApi(page, { multipleJobs: true });
   await page.goto("/");
   await page.locator(".workspace-trigger").click();
-  const picker = page.getByRole("dialog", { name: "Choose your view" });
+  const picker = page.getByRole("dialog", { name: "Switch job" });
   expect(await picker.evaluate(element => getComputedStyle(element).animationName)).toBe("none");
   expect(await picker.locator(".job-choice").first().evaluate(element => getComputedStyle(element).animationName)).toBe("none");
   await picker.getByRole("button", { name: /All jobs Combined earnings/ }).click();

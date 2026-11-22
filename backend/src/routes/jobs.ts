@@ -121,7 +121,7 @@ jobsRouter.delete("/:id", asyncHandler<AuthedRequest>(async (req, res) => {
     const deleted = await deleteJobRecords(db, req.userId!, req.params.id, parsed.data.confirmationName, requestDate(req));
     const account = await db.execute({ sql: "SELECT * FROM users WHERE id=?", args: [req.userId!] });
     res.json({ ...deleted, user: toPublicUser(account.rows[0] as unknown as UserRow) });
-  } catch (error) { if (error instanceof JobDeletionError) { res.status(error.status).json({ error: error.message }); return; } throw error; }
+  } catch (error) { if (error instanceof JobDeletionError) { res.status(error.status).json({ error: error.message, code: error.code }); return; } throw error; }
 }));
 jobsRouter.patch(
   "/:id",

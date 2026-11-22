@@ -73,23 +73,25 @@ describe("permanent job deletion", () => {
     expect((await request(app).get("/api/jobs").set(owner.auth)).body.jobs).toHaveLength(1);
   });
 
-  it("allows the last job to be deleted without migration or profile updates recreating it", async () => {
+  it("protects the last job and all its data until another job has been added", async () => {
     const owner = await account(); await seed(owner.userId, owner.job.id);
-    expect((await request(app).delete(`/api/jobs/${owner.job.id}`).set(owner.auth).send({ confirmationName: owner.job.name })).status).toBe(200);
+    const blocked = await request(app).delete(`/api/jobs/${owner.job.id}`).set(owner.auth).send({ confirmationName: owner.job.name });
+    expect(blocked.status).toBe(409); expect(blocked.body.code).toBe("LAST_JOB_REQUIRED");
+    expect(blocked.body.error).toContain(owner.job.name);
+    for (const table of related) expect(await count(table, owner.userId, owner.job.id)).toBeGreaterThan(0);
     const { migrateJobs } = await import("../src/jobMigration.js");
     await migrateJobs(db); await migrateJobs(db);
-    expect((await request(app).get("/api/jobs").set(owner.auth)).body.jobs).toEqual([]);
-    expect((await request(app).get("/api/jobs").set(owner.auth)).body.rates).toEqual([]);
-    expect((await request(app).patch("/api/me").set(owner.auth).send({ rate: 50 })).status).toBe(409);
-    expect((await request(app).patch("/api/me").set(owner.auth).send({ name: "Still my account" })).status).toBe(200);
-    const fresh = await request(app).post("/api/jobs").set(owner.auth).send({ name: "Fresh start", rate: 35 });
-    expect(fresh.status).toBe(201); expect(fresh.body.job).toMatchObject({ isPrimary: true, name: "Fresh start" });
-    expect(fresh.body.job.id).not.toBe(owner.job.id);
+    expect((await request(app).get("/api/jobs").set(owner.auth)).body.jobs[0].id).toBe(owner.job.id);
+    const fresh = await request(app).post("/api/jobs").set(owner.auth).send({ name: "Next job", rate: 35 });
+    expect(fresh.status).toBe(201);
+    expect((await request(app).delete(`/api/jobs/${owner.job.id}`).set(owner.auth).send({ confirmationName: owner.job.name })).status).toBe(200);
     expect((await request(app).get("/api/jobs").set(owner.auth)).body.jobs).toHaveLength(1);
+    expect((await request(app).delete(`/api/jobs/${fresh.body.job.id}`).set(owner.auth).send({ confirmationName: "Next job" })).body.code).toBe("LAST_JOB_REQUIRED");
   });
 
   it("blocks a running shift inside the deletion transaction without removing any records", async () => {
     const owner = await account(); await seed(owner.userId, owner.job.id);
+    await request(app).post("/api/jobs").set(owner.auth).send({name:"Alternative",rate:35});
     await db.execute({ sql: "UPDATE shifts SET sign_out=NULL WHERE user_id=? AND job_id=?", args: [owner.userId, owner.job.id] });
     expect((await request(app).get(`/api/jobs/${owner.job.id}/deletion-impact`).set(owner.auth)).body.hasRunningShift).toBe(true);
     const result = await request(app).delete(`/api/jobs/${owner.job.id}`).set(owner.auth).send({ confirmationName: owner.job.name });
@@ -99,11 +101,12 @@ describe("permanent job deletion", () => {
 
   it("rolls back the entire cascade if a later delete fails", async () => {
     const owner = await account(); await seed(owner.userId, owner.job.id);
+    await request(app).post("/api/jobs").set(owner.auth).send({name:"Alternative",rate:35});
     await db.execute(`CREATE TRIGGER test_job_delete_failure BEFORE DELETE ON work_locations WHEN OLD.user_id='${owner.userId}' BEGIN SELECT RAISE(ABORT,'Injected deletion failure'); END`);
     try {
       expect((await request(app).delete(`/api/jobs/${owner.job.id}`).set(owner.auth).send({ confirmationName: owner.job.name })).status).toBe(500);
       for (const table of related) expect(await count(table, owner.userId, owner.job.id)).toBeGreaterThan(0);
-      expect((await request(app).get("/api/jobs").set(owner.auth)).body.jobs).toHaveLength(1);
+      expect((await request(app).get("/api/jobs").set(owner.auth)).body.jobs).toHaveLength(2);
     } finally { await db.execute("DROP TRIGGER test_job_delete_failure"); }
   });
 
@@ -113,5 +116,20 @@ describe("permanent job deletion", () => {
     await request(app).patch(`/api/jobs/${job.id}`).set(owner.auth).send({ archived: true });
     expect((await request(app).delete(`/api/jobs/${job.id}`).set(owner.auth).send({ confirmationName: job.name })).status).toBe(200);
     expect((await request(app).delete(`/api/jobs/${job.id}`).set(owner.auth).send({ confirmationName: job.name })).status).toBe(404);
+  });
+  it("does not count archived alternatives as a usable replacement", async () => {
+    const owner = await account();
+    const archived = (await request(app).post("/api/jobs").set(owner.auth).send({name:"Old job",rate:25})).body.job;
+    await request(app).patch(`/api/jobs/${archived.id}`).set(owner.auth).send({archived:true});
+    expect((await request(app).get(`/api/jobs/${owner.job.id}/deletion-impact`).set(owner.auth)).body.lastActiveJob).toBe(true);
+    expect((await request(app).delete(`/api/jobs/${owner.job.id}`).set(owner.auth).send({confirmationName:owner.job.name})).body.code).toBe("LAST_JOB_REQUIRED");
+  });
+  it("serializes competing deletions so exactly one usable job survives", async () => {
+    const owner = await account();
+    const second = (await request(app).post("/api/jobs").set(owner.auth).send({name:"Second job",rate:25})).body.job;
+    const results = await Promise.all([owner.job,second].map(job => request(app).delete(`/api/jobs/${job.id}`).set(owner.auth).send({confirmationName:job.name})));
+    expect(results.map(result=>result.status).sort()).toEqual([200,409]);
+    expect(results.find(result=>result.status===409)?.body.code).toBe("LAST_JOB_REQUIRED");
+    expect((await request(app).get("/api/jobs").set(owner.auth)).body.jobs).toHaveLength(1);
   });
 });

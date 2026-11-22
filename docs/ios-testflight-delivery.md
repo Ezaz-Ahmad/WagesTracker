@@ -1,10 +1,14 @@
 # Signed TestFlight delivery
 
-**Current source marketing version:** `1.27.0`
+**Current source marketing version:** `1.28.0`
 
-**Last reviewed:** 22 November 2026
+**Last reviewed:** 23 November 2026
 
-## Current verified delivery
+## Delivery receipts
+
+The [1.28.0 release](https://github.com/Ezaz-Ahmad/WagesTracker/releases/tag/v1.28.0) records its signed source, fresh build number and Apple processing/internal availability after delivery. See [1.28.0 changes](release-notes-1.28.0.md). Public App Store submission remains separate.
+
+### Previous verified delivery: 1.27.0
 
 **1.27.0 (58)** is available to **WagesTracker Internal Testers**. The [signed delivery](https://github.com/Ezaz-Ahmad/WagesTracker/actions/runs/44976336305) used protected-main source `d5cdd4a859ea5aa5ef1414de1a6edba7c1a77a10`; Apple validation and upload passed, processing is `VALID`, and the internal state is `IN_BETA_TESTING`. The exported app and widget both verify `iphoneos27.2`, and temporary signing material was removed. See [PR #96](https://github.com/Ezaz-Ahmad/WagesTracker/pull/96) and [release evidence](release-notes-1.27.0.md#verification-and-delivery).
 
@@ -59,7 +63,7 @@ Create these non-secret environment variables:
 | Variable | Value |
 | --- | --- |
 | `IOS_BUNDLE_ID` | `com.ezazahmad.wagestracker` |
-| `IOS_APP_VERSION` | `1.27.0` (must match `frontend/package.json` before dispatch) |
+| `IOS_APP_VERSION` | `1.28.0` (must match `frontend/package.json` before dispatch) |
 | `APPLE_TEAM_ID` | The 10-character Team ID shown in Apple Developer membership details and the App Store profile |
 | `IOS_PROVISIONING_PROFILE_NAME` | The exact `Name` inside the uploaded profile. Prefer a release-independent name such as `WagesTracker App Store Distribution` when next regenerating it |
 | `IOS_EXTENSION_PROVISIONING_PROFILE_NAME` | The exact `Name` inside the App Store profile for `com.ezazahmad.wagestracker.ShiftActivityExtension` |
@@ -103,7 +107,7 @@ Do not trigger the signed workflow from this feature branch. Pull-request valida
 
 ## Build numbers
 
-`CFBundleShortVersionString` is `1.27.0` for this release. `frontend/package.json` is the source of truth; the lockfile, Xcode project and GitHub `IOS_APP_VERSION` variable must match, and the validation script/workflow fail if they do not. Each fresh signed dispatch derives `CFBundleVersion` from `github.run_number`; build **58** is the current accepted delivery. The workflow accepts only `github.run_attempt == 1`. For a pre-upload failure, fix the cause and start a fresh dispatch instead of **Re-run jobs**. For a post-upload availability failure, use the read-only check against the existing build number. Documentation edits do not require another signed dispatch.
+`CFBundleShortVersionString` is `1.28.0` for this release. `frontend/package.json` is the source of truth; the lockfile, Xcode project and GitHub `IOS_APP_VERSION` variable must match, and the validation script/workflow fail if they do not. Each fresh signed dispatch derives `CFBundleVersion` from `github.run_number`; the previous accepted delivery was **1.27.0 (58)**. The workflow accepts only `github.run_attempt == 1`. For a pre-upload failure, fix the cause and start a fresh dispatch instead of **Re-run jobs**. For a post-upload availability failure, use the read-only check against the existing build number. Application changes require a fresh signed dispatch; documentation-only edits do not.
 
 ## Signing, validation and cleanup
 
@@ -135,7 +139,7 @@ An `always()` cleanup step deletes the temporary keychain, `.p12`, API key, deco
 - Home, Entry, Spending (all tabs and dialogs), Report PDF share sheet, History edits/PDF, Settings and public pages with realistic long and large values.
 - Switch jobs on the main tabs, use Your jobs in Settings, compare All jobs totals, and check different effective rates at two locations. Confirm employer PDFs include only the selected job and every recorded rate.
 - Reject a cross-job overlap and an overnight overlap: compare both jobs/dates/times, scroll details on a compact iPhone, close the warning and correct the retained input. Confirm a required-field warning stays above its editor and reduced-motion settings are respected.
-- Cancel and confirm permanent job deletion after reviewing its exact impact; check other jobs and unlinked spending remain, tagged spending is removed, and deleting the final job opens a fresh add-job state. Use disposable test data.
+- Cancel and confirm permanent job deletion after reviewing its exact impact; check other jobs and unlinked spending remain and tagged spending is removed. Attempt to delete the final job and the only active job: confirm both are blocked, records remain, and Add another job opens the form after the warning closes. Use disposable test data.
 - App layout → Tab bar: cancel and confirm hiding each optional tab, restore it, reorder visible tabs, and reload the app. Verify Settings remains accessible with every optional tab hidden. Confirm hiding Spending hides its Home snapshot, wage totals remain unchanged, and the last-clock-control warning explains recovery without ending an active shift.
 - Start a shift and verify the Live Activity in light/dark mode, Lock Screen, notification area and Dynamic Island where supported; confirm elapsed time remains accurate in the background and after removing the app from recent apps.
 - Clock out from the Live Activity after native confirmation; verify repeat taps are idempotent, offline clock-out retains its first finish time and retries, failures preserve the active shift, completion shows the final duration, and dashboard/fuel/wage totals refresh.

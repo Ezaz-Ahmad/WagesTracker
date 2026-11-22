@@ -3,12 +3,14 @@ import * as api from "../lib/api";
 import {
   useId,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type FormEvent,
   type CSSProperties,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { useApp } from "../context/AppContext";
 import type { Job, PayRate, Screen, WorkLocation } from "../lib/types";
@@ -25,7 +27,6 @@ import { useConfirm } from "./ConfirmProvider";
 import {
   BriefcaseIcon,
   CheckIcon,
-  ChevronDownIcon,
   ChevronRightIcon,
   CloseIcon,
   EntryIcon,
@@ -55,6 +56,21 @@ const initials = (name: string) =>
 type JobDialogActions = { closing: boolean; dismiss: (afterClose?: () => void) => void };
 type JobDialogContent = ReactNode | ((actions: JobDialogActions) => ReactNode);
 
+function pickerPlacement(anchor: HTMLElement | null): CSSProperties {
+  if (typeof window === "undefined") return {};
+  const trigger = anchor?.getBoundingClientRect();
+  const header = anchor?.closest(".app-nav")?.getBoundingClientRect();
+  const viewport = window.visualViewport;
+  const viewportLeft = viewport?.offsetLeft ?? 0, viewportTop = viewport?.offsetTop ?? 0;
+  const viewportWidth = viewport?.width ?? window.innerWidth;
+  const viewportHeight = viewport?.height ?? window.innerHeight;
+  const width = Math.min(384, Math.max(0, (header?.width || viewportWidth) - 24), viewportWidth - 24);
+  const left = Math.max(viewportLeft + 12, Math.min((header?.right || viewportLeft + viewportWidth) - width - 12, viewportLeft + viewportWidth - width - 12));
+  const top = Math.max(viewportTop + 12, Math.min((header?.bottom || trigger?.bottom || 64) + 12, viewportTop + viewportHeight - 160));
+  return { left, top, width, maxHeight: Math.max(100, viewportTop + viewportHeight - top - 16),
+    "--job-anchor-x": `${Math.max(24, Math.min(width - 24, (trigger ? trigger.left + trigger.width / 2 : left + width - 32) - left))}px` } as CSSProperties;
+}
+
 export function JobDialog({
   title,
   description,
@@ -63,14 +79,20 @@ export function JobDialog({
   busy = false,
   variant = "default",
   footer,
+  anchor,
+  dialogId,
+  leadingIcon,
 }: {
   title: string;
   description?: string;
   children: JobDialogContent;
   onClose: () => void;
   busy?: boolean;
-  variant?: "default" | "switcher";
+  variant?: "default" | "switcher" | "notice";
   footer?: JobDialogContent;
+  anchor?: RefObject<HTMLButtonElement | null>;
+  dialogId?: string;
+  leadingIcon?: ReactNode;
 }) {
   const id = useId(),
     closeRef = useRef<HTMLButtonElement>(null);
@@ -79,16 +101,32 @@ export function JobDialog({
     if (!busy) requestClose(() => { onClose(); afterClose?.(); });
   };
   const ref = useFocusTrap<HTMLDivElement>(true, dismiss, closeRef);
+  const [placement, setPlacement] = useState(() => variant === "switcher" ? pickerPlacement(anchor?.current ?? null) : {});
+  useLayoutEffect(() => {
+    if (variant !== "switcher") return;
+    const update = () => setPlacement(pickerPlacement(anchor?.current ?? null));
+    update();
+    window.addEventListener("resize", update);
+    window.visualViewport?.addEventListener("resize", update);
+    window.visualViewport?.addEventListener("scroll", update);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.visualViewport?.removeEventListener("resize", update);
+      window.visualViewport?.removeEventListener("scroll", update);
+    };
+  }, [variant, anchor]);
   return (
     <Overlay>
       <div
-        className={`job-dialog-backdrop${variant === "switcher" ? " job-switcher-backdrop" : ""}${closing ? " is-closing" : ""}`}
+        className={`job-dialog-backdrop${variant === "switcher" ? " job-switcher-backdrop" : variant === "notice" ? " job-notice-backdrop" : ""}${closing ? " is-closing" : ""}`}
         onMouseDown={(e) => {
           if (e.currentTarget === e.target) dismiss();
         }}
       >
         <section
-          className={`job-dialog${variant === "switcher" ? " job-switcher-dialog" : ""}${closing ? " is-closing" : ""}`}
+          id={dialogId}
+          className={`job-dialog${variant === "switcher" ? " job-switcher-dialog" : variant === "notice" ? " job-notice-dialog" : ""}${closing ? " is-closing" : ""}`}
+          style={variant === "switcher" ? placement : undefined}
           role="dialog"
           aria-modal="true"
           aria-labelledby={id}
@@ -99,6 +137,7 @@ export function JobDialog({
           <div className="job-dialog-handle" aria-hidden="true" />
           <header className="job-dialog-header">
             <div>
+              {leadingIcon && <span className="job-notice-icon" aria-hidden="true">{leadingIcon}</span>}
               <h2 id={id}>{title}</h2>
               {description && <p id={`${id}-description`}>{description}</p>}
             </div>
@@ -282,40 +321,35 @@ export function JobSwitcher({ onManageJobs }: { onManageJobs: () => void }) {
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [pendingSelection, setPendingSelection] = useState<string | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dialogId = useId();
   const active = findOpenShift(allShifts);
-  const activeJobs = jobs.filter(job => !job.archived);
   const highlightedId = pendingSelection ?? selectedJobId;
   if (!jobs.length) return null;
 
   return (
-    <div className="workspace-strip">
+    <div className="header-job-switcher">
       <button
         type="button"
-        className={`workspace-trigger${open ? " is-open" : ""}`}
+        className={`workspace-trigger app-nav-job-btn${open ? " is-open" : ""}`}
+        ref={triggerRef}
         onClick={() => { setPendingSelection(null); setOpen(true); }}
         aria-haspopup="dialog"
         aria-expanded={open}
+        aria-controls={open ? dialogId : undefined}
+        aria-label={`Switch job. Current: ${selectedJob?.name || "All jobs"}`}
+        title={`Switch job · ${selectedJob?.name || "All jobs"}`}
       >
-        <span className="job-monogram" aria-hidden="true">
-          {selectedJob ? initials(selectedJob.name) : <BriefcaseIcon size={18} />}
-        </span>
-        <span className="workspace-trigger-text">
-          <strong>{selectedJob?.name || "All jobs"}</strong>
-          <span>{selectedJob ? <>{selectedJob.role && <>{selectedJob.role} · </>}{earningsHidden ? "Pay hidden" : `${cash(selectedJob.rate)}/hr default`}</> : `${jobs.length} jobs · combined overview`}</span>
-        </span>
-        <span className="workspace-trigger-caret" aria-hidden="true"><ChevronDownIcon size={16} /></span>
+        <BriefcaseIcon size={18} />
+        <span className="visually-hidden">Switch job · {selectedJob?.name || "All jobs"}</span>
+        {active && <span className="header-job-live-dot" aria-hidden="true"/>}
       </button>
-      {selectedJob?.archived && <p className="job-notice">Archived job · your history and PDFs are available. Restore it in Settings → Your jobs to make changes.</p>}
-      {active && active.jobId !== selectedJobId && (
-        <button className="workspace-running" type="button" onClick={() => selectJob(active.jobId || activeJobs[0]?.id || "all")}>
-          <span className="job-live-dot" />
-          {active.jobName || jobs.find(job => job.id === active.jobId)?.name || "Another job"} is on shift <ChevronRightIcon size={14} />
-        </button>
-      )}
       {open && (
         <JobDialog
           variant="switcher"
-          title="Choose your view"
+          anchor={triggerRef}
+          dialogId={dialogId}
+          title="Switch job"
           description="Switch between jobs or see them together."
           onClose={() => setOpen(false)}
           footer={({ dismiss, closing }) => (
@@ -368,6 +402,19 @@ export function JobSwitcher({ onManageJobs }: { onManageJobs: () => void }) {
       {adding && <CreateJobDialog onClose={() => setAdding(false)} />}
     </div>
   );
+}
+
+export function JobWorkspaceNotices() {
+  const { jobs = [], selectedJobId, selectedJob, selectJob, allShifts = [] } = useApp();
+  const active = findOpenShift(allShifts);
+  const otherJobRunning = active && active.jobId !== selectedJobId;
+  if (!selectedJob?.archived && !otherJobRunning) return null;
+  return <div className="workspace-strip workspace-notices">
+    {selectedJob?.archived && <p className="job-notice">Archived job · your history and PDFs are available. Restore it in Settings → Your jobs to make changes.</p>}
+    {otherJobRunning && <button className="workspace-running" type="button" onClick={() => selectJob(active.jobId || jobs.find(job => !job.archived)?.id || "all")}>
+      <span className="job-live-dot"/>{active.jobName || jobs.find(job => job.id === active.jobId)?.name || "Another job"} is on shift <ChevronRightIcon size={14}/>
+    </button>}
+  </div>;
 }
 
 export function JobsSettings({ onOpenWorkPay }: { onOpenWorkPay: () => void }) {
@@ -457,33 +504,43 @@ export function JobsSettings({ onOpenWorkPay }: { onOpenWorkPay: () => void }) {
       {editing && (
         <EditJobDialog job={editing} onClose={() => setEditing(null)} />
       )}
-      {deleting && <DeleteJobDialog job={deleting} onClose={() => setDeleting(null)}/>}
+      {deleting && <DeleteJobDialog job={deleting} onClose={() => setDeleting(null)} onAddJob={() => setAdding(true)}/>}
     </div>
   );
 }
 
-export function DeleteJobDialog({ job, onClose }: { job: Job; onClose: () => void }) {
-  const { deleteJob } = useApp();
+export function DeleteJobDialog({ job, onClose, onAddJob }: { job: Job; onClose: () => void; onAddJob?: () => void }) {
+  const { deleteJob, jobs = [] } = useApp();
   const [impact, setImpact] = useState<api.JobDeletionImpact | null>(null);
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [lastJobBlocked, setLastJobBlocked] = useState(false);
+  const lastKnownJob = jobs.length > 0 && (jobs.length === 1 || (!job.archived && !jobs.some(other => other.id !== job.id && !other.archived)));
   const id = useId();
   useEffect(() => {
     let cancelled = false;
+    if (lastKnownJob) { setLoading(false); return; }
     setLoading(true); setError(null); setImpact(null);
     void api.getJobDeletionImpact(job.id).then(result => { if (!cancelled) setImpact(result); })
       .catch(error => { if (!cancelled) setError(error instanceof Error ? error.message : "Couldn't load the deletion details."); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [job.id, attempt]);
+  }, [job.id, attempt, lastKnownJob]);
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!impact || impact.hasRunningShift || confirmation.trim() !== impact.name || busy) return;
+    if (!impact || impact.lastJob || impact.lastActiveJob || lastJobBlocked || lastKnownJob || impact.hasRunningShift || confirmation.trim() !== impact.name || busy) return;
     setBusy(true); setError(null);
     try { await deleteJob(job.id, confirmation.trim()); onClose(); }
-    catch (error) { setError(error instanceof Error ? error.message : "Couldn't delete this job. Try again."); setBusy(false); }
+    catch (error) {
+      if (error instanceof api.ApiError && error.code === "LAST_JOB_REQUIRED") setLastJobBlocked(true);
+      else setError(error instanceof Error ? error.message : "Couldn't delete this job. Try again.");
+      setBusy(false);
+    }
+  }
+  if (lastKnownJob || lastJobBlocked || impact?.lastJob || impact?.lastActiveJob) {
+    return <LastJobWarning job={job} onClose={onClose} onAddJob={onAddJob} onlyActive={jobs.length > 1 || (!!impact?.lastActiveJob && !impact?.lastJob)}/>;
   }
   const labels: [keyof api.JobDeletionImpact["counts"], string][] = [["shifts", "Shifts"], ["locations", "Work locations"], ["payRates", "Pay rate records"], ["fuelAllowances", "Fuel allowances"], ["weeklyExtras", "Weekly extras"], ["linkedExpenses", "Linked spending"]];
   return <JobDialog title="Delete this job?" description={job.name} onClose={onClose} busy={busy}>
@@ -495,10 +552,23 @@ export function DeleteJobDialog({ job, onClose }: { job: Job; onClose: () => voi
       <dl className="job-delete-counts">{labels.map(([key, label]) => <div key={key}><dt>{label}</dt><dd>{impact.counts[key].toLocaleString()}</dd></div>)}</dl>
       <p className="job-delete-detail">Earnings totals and future PDF reports will no longer include this job. PDFs you have already downloaded remain on your device.</p>
       <p className="job-delete-detail">Your account, other jobs and spending without this job tag stay available.</p>
-      {impact.lastJob && <p className="job-notice">This is your last job. You can add a new job afterwards; deleted records will not return.</p>}
       {impact.hasRunningShift ? <p role="alert" className="job-delete-warning">End the running shift before deleting this job.</p> : <label className="field field-spaced" htmlFor={id}><span>Type <strong>{impact.name}</strong> to confirm</span><input id={id} className="input" value={confirmation} onChange={e => setConfirmation(e.target.value)} autoComplete="off" autoCorrect="off" spellCheck={false} maxLength={120} disabled={busy}/></label>}
       <div className="job-delete-footer"><button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>Keep job</button><AsyncButton type="submit" className="btn btn-danger btn-destructive-final" busy={busy} disabled={impact.hasRunningShift || confirmation.trim() !== impact.name} idleLabel="Delete job & data" busyLabel="Deleting job…"/></div>
     </form>}
+  </JobDialog>;
+}
+
+function LastJobWarning({ job, onClose, onAddJob, onlyActive }: { job: Job; onClose: () => void; onAddJob?: () => void; onlyActive: boolean }) {
+  const [adding, setAdding] = useState(false);
+  if (adding) return <CreateJobDialog onClose={onClose}/>;
+  return <JobDialog variant="notice" title="Keep one job to continue" onClose={onClose} leadingIcon={<BriefcaseIcon size={22}/>}
+    footer={({dismiss, closing}) => <div className="job-last-job-actions">
+      <button className="btn btn-primary" disabled={closing} onClick={() => onAddJob ? dismiss(onAddJob) : setAdding(true)}><PlusIcon size={17}/>Add another job</button>
+      <button className="btn btn-ghost" disabled={closing} onClick={() => dismiss()}>Keep {job.name}</button>
+      <span className="job-last-job-safe">Nothing has been deleted.</span>
+    </div>}>
+    <p className="job-last-job-copy"><strong>{job.name}</strong> is your only {onlyActive ? "active " : ""}job. You need at least one job to keep tracking shifts and pay.</p>
+    <p className="job-last-job-copy">Add another job first, then you can delete this one.</p>
   </JobDialog>;
 }
 

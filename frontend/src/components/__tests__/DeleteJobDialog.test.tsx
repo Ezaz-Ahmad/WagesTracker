@@ -1,17 +1,19 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { axe, toHaveNoViolations } from "jest-axe";
 import type { Job } from "../../lib/types";
 import { DeleteJobDialog, AllJobsOverview, JobsSettings } from "../JobWorkspace";
+import { ApiError } from "../../lib/api";
 
 expect.extend(toHaveNoViolations);
 const { getImpact, deleteJob, useAppMock } = vi.hoisted(() => ({ getImpact: vi.fn(), deleteJob: vi.fn(), useAppMock: vi.fn() }));
 vi.mock("../../context/AppContext", () => ({ useApp: useAppMock }));
-vi.mock("../../lib/api", () => ({ getJobDeletionImpact: getImpact }));
+vi.mock("../../lib/api", async importOriginal => ({ ...await importOriginal<typeof import("../../lib/api")>(), getJobDeletionImpact: getImpact }));
 const job: Job = { id: "job-one", name: "Harbour Hotel", role: "Reception", rate: 35, weekStartsOn: "Monday", goalHours: 20, goalEarnings: 700, smartRemindersEnabled: false, isPrimary: true, archived: false, createdAt: "2026-11-01" };
-const impact = { jobId: job.id, name: job.name, hasRunningShift: false, lastJob: true, counts: { shifts: 12, locations: 3, payRates: 4, fuelAllowances: 5, weeklyExtras: 2, linkedExpenses: 6 } };
-beforeEach(() => { vi.clearAllMocks(); getImpact.mockResolvedValue(impact); deleteJob.mockResolvedValue(undefined); useAppMock.mockReturnValue({ deleteJob, jobs: [job], selectJob: vi.fn(), updateJob: vi.fn(), allShifts: [], allDayExpenses: [], allWeekExtras: [], today: new Date("2026-11-21T12:00:00"), user: { goalEarnings: 700 }, shiftsLoaded: true }); });
+const impact = { jobId: job.id, name: job.name, hasRunningShift: false, lastJob: false, counts: { shifts: 12, locations: 3, payRates: 4, fuelAllowances: 5, weeklyExtras: 2, linkedExpenses: 6 } };
+const alternative = { ...job, id: "job-two", name: "City Retail", isPrimary: false };
+beforeEach(() => { vi.clearAllMocks(); getImpact.mockResolvedValue(impact); deleteJob.mockResolvedValue(undefined); useAppMock.mockReturnValue({ deleteJob, jobs: [job, alternative], selectJob: vi.fn(), updateJob: vi.fn(), allShifts: [], allDayExpenses: [], allWeekExtras: [], today: new Date("2026-11-21T12:00:00"), user: { goalEarnings: 700 }, shiftsLoaded: true }); });
 afterEach(cleanup);
 
 describe("job deletion review", () => {
@@ -20,7 +22,6 @@ describe("job deletion review", () => {
     await screen.findByText("Linked spending");
     expect(screen.getByText(/cannot be undone/)).toBeTruthy();
     expect(screen.getByText(/future PDF reports/)).toBeTruthy();
-    expect(screen.getByText(/last job/)).toBeTruthy();
     expect((screen.getByRole("button", { name: "Delete job & data" }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "Other employer" } });
     expect((screen.getByRole("button", { name: "Delete job & data" }) as HTMLButtonElement).disabled).toBe(true);
@@ -62,10 +63,46 @@ describe("job deletion review", () => {
     render(<AllJobsOverview onNavigate={() => {}}/>);
     expect(screen.queryByText("Personal spending")).toBeNull();
   });
-  it("provides an add-job empty state after deleting the last job", () => {
+  it("keeps a recovery state for accounts already empty from an earlier version", () => {
     useAppMock.mockReturnValue({ ...useAppMock(), jobs: [] });
     render(<AllJobsOverview onNavigate={() => {}}/>);
     expect(screen.getByRole("heading", { name: "Your next job starts here." })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Add a job" })).toBeTruthy();
+  });
+  it("blocks the known last job before loading a destructive review and offers a smooth add-job handoff", () => {
+    vi.useFakeTimers();
+    try {
+      useAppMock.mockReturnValue({ ...useAppMock(), jobs: [job] });
+      const close = vi.fn(), add = vi.fn();
+      render(<DeleteJobDialog job={job} onClose={close} onAddJob={add}/>);
+      expect(screen.getByRole("dialog", {name:"Keep one job to continue"})).toBeTruthy();
+      expect(screen.getByText(/Nothing has been deleted/)).toBeTruthy();
+      expect(screen.queryByRole("textbox")).toBeNull();
+      expect(getImpact).not.toHaveBeenCalled(); expect(deleteJob).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", {name:"Add another job"}));
+      expect(add).not.toHaveBeenCalled();
+      act(() => vi.runAllTimers());
+      expect(close).toHaveBeenCalledTimes(1); expect(add).toHaveBeenCalledTimes(1);
+    } finally { vi.useRealTimers(); }
+  });
+  it("uses the server's last-job result when the local list is stale", async () => {
+    getImpact.mockResolvedValue({...impact,lastJob:true});
+    render(<DeleteJobDialog job={job} onClose={vi.fn()}/>);
+    await screen.findByRole("dialog", {name:"Keep one job to continue"});
+    expect(screen.queryByRole("textbox")).toBeNull(); expect(deleteJob).not.toHaveBeenCalled();
+    expect(await axe(document.body, {rules:{"color-contrast":{enabled:false}}})).toHaveNoViolations();
+  });
+  it("replaces a stale destructive review if another device removed the alternative job", async () => {
+    deleteJob.mockRejectedValue(new ApiError("Add another job first.",409,"LAST_JOB_REQUIRED"));
+    const close = vi.fn(); render(<DeleteJobDialog job={job} onClose={close} onAddJob={vi.fn()}/>);
+    fireEvent.change(await screen.findByRole("textbox"), {target:{value:job.name}});
+    fireEvent.click(screen.getByRole("button", {name:"Delete job & data"}));
+    await screen.findByRole("dialog", {name:"Keep one job to continue"});
+    expect(screen.queryByRole("textbox")).toBeNull(); expect(close).not.toHaveBeenCalled();
+  });
+  it("keeps the only active job when the alternative is archived", () => {
+    useAppMock.mockReturnValue({...useAppMock(), jobs:[job,{...alternative,archived:true}]});
+    render(<DeleteJobDialog job={job} onClose={vi.fn()}/>);
+    expect(screen.getByText(/only active/)).toBeTruthy(); expect(deleteJob).not.toHaveBeenCalled();
   });
 });

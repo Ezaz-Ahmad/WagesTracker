@@ -1,8 +1,8 @@
 # Wages Tracker architecture
 
-**Applies to:** 1.27.0 application source
+**Applies to:** 1.28.0 application source
 
-**Last reviewed:** 22 November 2026
+**Last reviewed:** 23 November 2026
 
 This document describes the deployed web/PWA system, the Capacitor iOS application, the security boundaries, and the delivery pipeline. Source code and automated checks remain authoritative if a diagram and implementation ever differ.
 
@@ -141,7 +141,7 @@ Shift times, plain calendar dates and recorded pay snapshots are the source data
 
 New shifts resolve the worked date against the location's latest applicable pay record, inheriting the job default when appropriate, then persist the rate, source and job-name snapshot. Location changes and manual rate corrections require review when the applied rate changes; times-only edits keep it. User views, PDFs and admin use the same per-shift calculation. The legacy migration pins old shifts to the known account rate because earlier pay history was never recorded.
 
-Permanent job deletion requires an impact preview and exact job-name confirmation. A running shift blocks deletion. One transaction removes that job's work records, locations, rates and explicitly tagged personal spending; other jobs and unlinked spending remain. A primary replacement and compatibility preferences update atomically. Deleting the final job keeps a persistent initialization marker and shows an add-job state instead of recreating deleted records. See [jobs, location pay and reporting](multi-job-workspaces.md).
+Permanent job deletion requires an impact preview and exact job-name confirmation. A running shift blocks deletion. One transaction removes that job's work records, locations, rates and explicitly tagged personal spending; other jobs and unlinked spending remain. A primary replacement and compatibility preferences update atomically. Deleting the final job or only active job is refused inside the same write transaction, before any cascade. Competing deletions therefore preserve one usable job. The UI offers an add-job handoff, and stale clients receive `409 LAST_JOB_REQUIRED` with a readable explanation. Existing accounts already empty from an earlier version retain their add-job recovery and initialization marker. See [jobs, location pay and reporting](multi-job-workspaces.md).
 
 ### Conflict and error feedback
 
